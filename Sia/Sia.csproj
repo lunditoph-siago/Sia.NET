@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net7.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PackageId>Sia</PackageId>
+    <PackageDescription>Elegant ECS framework for .NET</PackageDescription>
+    <Author>Phlamcenth Sicusa</Author>
+    <Company>Gilatod.art</Company>
+    <RepositoryUrl>https://github.com/sicusa/Sia.NET</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Toolkit.HighPerformance" Version="7.1.2" />
+  </ItemGroup>
+
+</Project>
