@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build:
+    env:
+      BUILD_CONFIG: 'Release'
+      SOLUTION: 'sia.sln'
+      PACKAGE_OUTPUT_DIRECTORY: ${{github.workspace}}/output
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Setup NuGet
+        uses: NuGet/setup-nuget@v1.0.5
+        with:
+          nuget-version: 6.x
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: 7.x
+
+      - name: Restore dependencies
+        run: nuget restore $SOLUTION
+      
+      - name: Get version from tag
+        run: | 
+          VERSION=${{github.ref_name}}
+          echo "VERSION=${VERSION:1}" >> $GITHUB_ENV
+
+      - name: Build project
+        run: dotnet build $SOLUTION --configuration $BUILD_CONFIG -p:Version=$VERSION --no-restore
+
+      - name: Run tests
+        run: dotnet test /p:Configuration=$BUILD_CONFIG --no-restore --no-build --verbosity normal
+      
+      - name: Pack project
+        run: dotnet pack $SOLUTION --configuration $BUILD_CONFIG -p:PackageVersion=$VERSION --no-restore --no-build --output $PACKAGE_OUTPUT_DIRECTORY
+        
+      - name: Publish packages
+        run: |
+          dotnet nuget push ${PACKAGE_OUTPUT_DIRECTORY}/*.nupkg -k ${{secrets.NUGET_API_KEY}} -s 'https://api.nuget.org/v3/index.json' --skip-duplicate
+          dotnet nuget add source --username sicusa --password ${{ secrets.GITHUB_TOKEN }} --store-password-in-clear-text --name github "https://nuget.pkg.github.com/sicusa/index.json"
+          dotnet nuget push ${PACKAGE_OUTPUT_DIRECTORY}/*.nupkg --source "github"

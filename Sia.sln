@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sia.Examples", "Sia.Examples\Sia.Examples.csproj", "{2441B192-07EC-471F-A664-66A982997ACE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sia", "Sia\Sia.csproj", "{D7B6031E-5CBA-4DB9-BEE8-950049F78A34}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{2441B192-07EC-471F-A664-66A982997ACE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2441B192-07EC-471F-A664-66A982997ACE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2441B192-07EC-471F-A664-66A982997ACE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2441B192-07EC-471F-A664-66A982997ACE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D7B6031E-5CBA-4DB9-BEE8-950049F78A34}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D7B6031E-5CBA-4DB9-BEE8-950049F78A34}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D7B6031E-5CBA-4DB9-BEE8-950049F78A34}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D7B6031E-5CBA-4DB9-BEE8-950049F78A34}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
