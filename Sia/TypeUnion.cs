@@ -3,9 +3,11 @@ namespace Sia;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 
-public class TypeUnionComparer : IEqualityComparer<ITypeUnion>
+public class TypeUnionComparer : EqualityComparer<ITypeUnion>
 {
-    public bool Equals(ITypeUnion? x, ITypeUnion? y)
+    public static TypeUnionComparer Instance { get; } = new();
+
+    public override bool Equals(ITypeUnion? x, ITypeUnion? y)
     {
         if (x == y) { return true; }
         if (x == null || y == null) { return false; }
@@ -25,8 +27,8 @@ public class TypeUnionComparer : IEqualityComparer<ITypeUnion>
         return true;
     }
 
-    public int GetHashCode([DisallowNull] ITypeUnion obj)
-        => obj.ProxyHash;
+    public override int GetHashCode([DisallowNull] ITypeUnion obj)
+        => obj.GetHashCode();
 }
 
 internal static class TypeUnionHelper
@@ -59,7 +61,8 @@ public class TypeUnion<T1> : ITypeUnion
     public static int Hash { get; } = typeof(T1).GetHashCode();
 
     public ImmutableArray<Type> ProxyTypes => Types;
-    public int ProxyHash => Hash;
+
+    public override int GetHashCode() => Hash;
 }
 
 public class TypeUnion<T1, T2> : ITypeUnion
@@ -73,7 +76,8 @@ public class TypeUnion<T1, T2> : ITypeUnion
         TypeUnionHelper.CalculateHash(Types);
 
     public ImmutableArray<Type> ProxyTypes => Types;
-    public int ProxyHash => Hash;
+
+    public override int GetHashCode() => Hash;
 }
 
 public class TypeUnion<T1, T2, T3> : ITypeUnion
@@ -88,7 +92,8 @@ public class TypeUnion<T1, T2, T3> : ITypeUnion
         TypeUnionHelper.CalculateHash(Types);
 
     public ImmutableArray<Type> ProxyTypes => Types;
-    public int ProxyHash => Hash;
+
+    public override int GetHashCode() => Hash;
 }
 
 public class TypeUnion<T1, T2, T3, T4> : ITypeUnion
@@ -104,7 +109,8 @@ public class TypeUnion<T1, T2, T3, T4> : ITypeUnion
         TypeUnionHelper.CalculateHash(Types);
 
     public ImmutableArray<Type> ProxyTypes => Types;
-    public int ProxyHash => Hash;
+
+    public override int GetHashCode() => Hash;
 }
 
 public class TypeUnion<T1, T2, T3, T4, T5> : ITypeUnion
@@ -121,7 +127,8 @@ public class TypeUnion<T1, T2, T3, T4, T5> : ITypeUnion
         TypeUnionHelper.CalculateHash(Types);
 
     public ImmutableArray<Type> ProxyTypes => Types;
-    public int ProxyHash => Hash;
+
+    public override int GetHashCode() => Hash;
 }
 
 public class TypeUnion<T1, T2, T3, T4, T5, T6> : ITypeUnion
@@ -139,7 +146,8 @@ public class TypeUnion<T1, T2, T3, T4, T5, T6> : ITypeUnion
         TypeUnionHelper.CalculateHash(Types);
 
     public ImmutableArray<Type> ProxyTypes => Types;
-    public int ProxyHash => Hash;
+
+    public override int GetHashCode() => Hash;
 }
 
 public class TypeUnion<T1, T2, T3, T4, T5, T6, T7> : ITypeUnion
@@ -158,7 +166,8 @@ public class TypeUnion<T1, T2, T3, T4, T5, T6, T7> : ITypeUnion
         TypeUnionHelper.CalculateHash(Types);
 
     public ImmutableArray<Type> ProxyTypes => Types;
-    public int ProxyHash => Hash;
+
+    public override int GetHashCode() => Hash;
 }
 
 public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8> : ITypeUnion
@@ -178,7 +187,8 @@ public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8> : ITypeUnion
         TypeUnionHelper.CalculateHash(Types);
 
     public ImmutableArray<Type> ProxyTypes => Types;
-    public int ProxyHash => Hash;
+
+    public override int GetHashCode() => Hash;
 }
 
 public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9> : ITypeUnion
@@ -199,7 +209,8 @@ public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9> : ITypeUnion
         TypeUnionHelper.CalculateHash(Types);
 
     public ImmutableArray<Type> ProxyTypes => Types;
-    public int ProxyHash => Hash;
+
+    public override int GetHashCode() => Hash;
 }
 
 public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10> : ITypeUnion
@@ -221,7 +232,8 @@ public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10> : ITypeUnion
         TypeUnionHelper.CalculateHash(Types);
 
     public ImmutableArray<Type> ProxyTypes => Types;
-    public int ProxyHash => Hash;
+
+    public override int GetHashCode() => Hash;
 }
 
 public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11> : ITypeUnion
@@ -244,7 +256,8 @@ public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11> : ITypeUnio
         TypeUnionHelper.CalculateHash(Types);
 
     public ImmutableArray<Type> ProxyTypes => Types;
-    public int ProxyHash => Hash;
+
+    public override int GetHashCode() => Hash;
 }
 
 public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12> : ITypeUnion
@@ -268,7 +281,8 @@ public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12> : ITyp
         TypeUnionHelper.CalculateHash(Types);
 
     public ImmutableArray<Type> ProxyTypes => Types;
-    public int ProxyHash => Hash;
+
+    public override int GetHashCode() => Hash;
 }
 
 public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13> : ITypeUnion
@@ -293,7 +307,8 @@ public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13> :
         TypeUnionHelper.CalculateHash(Types);
 
     public ImmutableArray<Type> ProxyTypes => Types;
-    public int ProxyHash => Hash;
+
+    public override int GetHashCode() => Hash;
 }
 
 public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14> : ITypeUnion
@@ -318,9 +333,9 @@ public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T
     public static int Hash { get; } =
         TypeUnionHelper.CalculateHash(Types);
 
-
     public ImmutableArray<Type> ProxyTypes => Types;
-    public int ProxyHash => Hash;
+
+    public override int GetHashCode() => Hash;
 }
 
 public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15> : ITypeUnion
@@ -346,9 +361,9 @@ public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T
     public static int Hash { get; } =
         TypeUnionHelper.CalculateHash(Types);
 
-
     public ImmutableArray<Type> ProxyTypes => Types;
-    public int ProxyHash => Hash;
+
+    public override int GetHashCode() => Hash;
 }
 
 public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16> : ITypeUnion
@@ -376,5 +391,6 @@ public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T
         TypeUnionHelper.CalculateHash(Types);
 
     public ImmutableArray<Type> ProxyTypes => Types;
-    public int ProxyHash => Hash;
+
+    public override int GetHashCode() => Hash;
 }

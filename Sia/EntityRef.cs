@@ -21,6 +21,12 @@ public record struct EntityRef(
 
 public static class EntityRefExtensions
 {
+    public static bool Contains<TComponent>(this EntityRef entityRef)
+        => entityRef.Descriptor.Contains<TComponent>();
+
+    public static bool Contains(this EntityRef entityRef, Type componentType)
+        => entityRef.Descriptor.Contains(componentType);
+
     public unsafe static ref TComponent Get<TComponent>(this EntityRef entityRef)
         where TComponent : unmanaged
     {
