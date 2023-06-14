@@ -12,7 +12,7 @@ public class Dispatcher<TTarget>
     private Dictionary<TTarget, List<Listener>> _targetListeners = new();
     private bool _sending = false;
 
-    public void Listen<TCommand>(Listener listener)
+    public Listener Listen<TCommand>(Listener listener)
         where TCommand : ICommand
         => RawListen(_commandListeners, typeof(TCommand), listener);
 
@@ -24,10 +24,10 @@ public class Dispatcher<TTarget>
         return wrapperListener;
     }
 
-    public void Listen(TTarget target, Listener listener)
+    public Listener Listen(TTarget target, Listener listener)
         => RawListen(_targetListeners, target, listener);
 
-    private void RawListen<TKey>(Dictionary<TKey, List<Listener>> dict, TKey key, Listener listener)
+    private Listener RawListen<TKey>(Dictionary<TKey, List<Listener>> dict, TKey key, Listener listener)
         where TKey : notnull
     {
         ref var listeners = ref CollectionsMarshal.GetValueRefOrAddDefault(dict, key, out bool exists);
@@ -35,6 +35,7 @@ public class Dispatcher<TTarget>
             listeners = new();
         }
         listeners!.Add(listener);
+        return listener;
     }
 
     public bool Unlisten<TCommand>(Listener listener)

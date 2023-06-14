@@ -8,5 +8,4 @@ public interface ITypeUnion
     static virtual int Hash { get; } = 0;
 
     ImmutableArray<Type> ProxyTypes { get; }
-    int ProxyHash { get; }
 }

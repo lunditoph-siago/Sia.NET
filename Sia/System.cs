@@ -1,12 +1,36 @@
 namespace Sia;
 
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 
 public class SystemGlobalData
 {
+    private class WorldGroupKeyComparer : EqualityComparer<(World, ITypeUnion)>
+    {
+        public override bool Equals((World, ITypeUnion) x, (World, ITypeUnion) y)
+            => x.Item1 == y.Item1 && TypeUnionComparer.Instance.Equals(x.Item2, y.Item2);
+
+        public override int GetHashCode([DisallowNull] (World, ITypeUnion) obj)
+            => obj.GetHashCode();
+    }
+
+    internal class WorldGroupCacheEntry
+    {
+        public Group<EntityRef> Group { get; }
+        public int RefCount { get; set; }
+
+        public WorldGroupCacheEntry(Group<EntityRef> group)
+        {
+            Group = group;
+        }
+    }
+
+    internal static ConcurrentDictionary<(World, ITypeUnion), WorldGroupCacheEntry> WorldGroupCache { get; }
+        = new(new WorldGroupKeyComparer());
+
     public static SystemGlobalData? Get(Type systemType)
         => s_instances.TryGetValue(systemType, out var instance) ? instance : null;
-    
+
     internal static SystemGlobalData Acquire<TSystem>()
         where TSystem : ISystem, new()
     {
@@ -97,6 +121,9 @@ public static class SystemExtensions
             for (int i = 0; i != count; ++i) {
                 var childSysData = SystemGlobalData.Get(types[i]);
                 if (childSysData == null) {
+                    for (int j = 0; j != i; ++j) {
+                        handles[j].Dispose();
+                    }
                     throw new InvalidSystemChildException(
                         $"Failed to register system: invalid child system type '{types[i]}'");
                 }
@@ -115,6 +142,16 @@ public static class SystemExtensions
             }
         }
 
+        void DoUnregisterSystem(SystemGlobalData sysData, Scheduler.TaskGraphNode task)
+        {
+            if (!sysData.RegisterEntries.Remove((world, scheduler), out var removedTask)) {
+                throw new ObjectDisposedException("System has been disposed");
+            }
+            if (removedTask != task) {
+                throw new ObjectDisposedException("Internal error: removed task is not the task to be disposed");
+            }
+        }
+
         var sysData = SystemGlobalData.Acquire<TSystem>();
 
         var dependedTasksResult = new List<Scheduler.TaskGraphNode>();
@@ -128,17 +165,23 @@ public static class SystemExtensions
         }
 
         var components = TSystem.Components;
-        if (components == null || components.ProxyTypes.Length == 0) {
-            var task = scheduler.CreateTask(dependedTasksResult);
-            DoRegisterSystem(sysData, task);
+        var children = TSystem.Children;
 
-            var children = TSystem.Children;
-            var childrenHandles = children != null ? RegisterChildren(children, task) : null;
+        Scheduler.TaskGraphNode? task;
+        SystemHandle[]? childrenHandles;
+
+        if (components == null || components.ProxyTypes.Length == 0) {
+            task = scheduler.CreateTask(dependedTasksResult);
+
+            DoRegisterSystem(sysData, task);
+            childrenHandles = children != null ? RegisterChildren(children, task) : null;
 
             return new SystemHandle(
                 system, task,
                 handle => {
+                    DoUnregisterSystem(sysData, task);
                     scheduler.RemoveTask(handle.TaskGraphNode);
+
                     if (childrenHandles != null) {
                         foreach (var childHandle in childrenHandles) {
                             childHandle.Dispose();
@@ -147,41 +190,135 @@ public static class SystemExtensions
                 });
         }
 
+        var compTypes = components.ProxyTypes;
+
         Func<bool> taskFunc;
+        Action disposeFunc;
 
         var triggers = TSystem.Triggers;
         if (triggers != null) {
+            var dispatcher = world.Dispatcher;
+            var group = new Group<EntityRef>();
+            var entityListeners = new Dictionary<EntityRef, Dispatcher.Listener>();
+
+            var triggerSet = new HashSet<ICommand>(triggers);
+            bool hasAddTrigger = triggerSet.Contains(WorldCommands.Add.Instance);
+            bool hasRemoveTrigger = triggerSet.Contains(WorldCommands.Remove.Instance);
+
+            Dispatcher.Listener entityAddListener = (EntityRef target, ICommand command) => {
+                foreach (var compType in compTypes.AsSpan()) {
+                    if (!target.Contains(compType)) {
+                        return false;
+                    }
+                }
+
+                Dispatcher.Listener commandListener = (EntityRef target, ICommand command) => {
+                    if (triggerSet.Contains(command)) {
+                        group.Add(target);
+                    }
+                    if (command is WorldCommands.Add) {
+                        entityListeners.Remove(target);
+                        if (hasRemoveTrigger) {
+                            group.Add(target);
+                        }
+                        else {
+                            group.Remove(target);
+                        }
+                        return true;
+                    }
+                    return false;
+                };
+
+                dispatcher.Listen(target, commandListener);
+                entityListeners.Add(target, commandListener);
+
+                if (hasAddTrigger) {
+                    group.Add(target);
+                }
+                return false;
+            };
+
+            dispatcher.Listen<WorldCommands.Add>(entityAddListener);
+
             taskFunc = () => {
-                
+                int count = group.Count;
+                if (count == 0) {
+                    return false;
+                }
+                system.BeforeExecute(world, scheduler);
+                for (int i = 0; i < count; ++i) {
+                    system.Execute(world, scheduler, group[i]);
+                    count = group.Count;
+                }
+                group.Clear();
+                return false;
+            };
+
+            disposeFunc = () => {
+                dispatcher.Unlisten<WorldCommands.Add>(entityAddListener);
+                foreach (var (entity, listener) in entityListeners) {
+                    dispatcher.Unlisten(entity, listener);
+                }
+            };
+        }
+        else {
+            var worldGroupCache = SystemGlobalData.WorldGroupCache;
+            var cacheKey = (world, components);
+
+            if (!worldGroupCache.TryGetValue(cacheKey, out var entry)) {
+                entry = worldGroupCache.GetOrAdd(cacheKey, key => new(
+                    world.CreateGroup(entity => {
+                        foreach (var compType in compTypes.AsSpan()) {
+                            if (!entity.Contains(compType)) {
+                                return false;
+                            }
+                        }
+                        return true;
+                    }))
+                );
+                entry.RefCount++;
             }
+
+            var group = entry.Group;
+            taskFunc = () => {
+                var span = group.AsSpan();
+                if (span.Length == 0) {
+                    return false;
+                }
+                system.BeforeExecute(world, scheduler);
+                foreach (var entity in span) {
+                    system.Execute(world, scheduler, entity);
+                }
+                return false;
+            };
+
+            disposeFunc = () => {
+                entry.RefCount--;
+                if (entry.RefCount == 0) {
+                    if(!worldGroupCache.TryRemove(KeyValuePair.Create(cacheKey, entry))) {
+                        throw new ObjectDisposedException("Failed to remove cached system group");
+                    }
+                }
+            };
         }
+
+        task = scheduler.CreateTask(taskFunc, dependedTasksResult);
+
+        DoRegisterSystem(sysData, task);
+        childrenHandles = children != null ? RegisterChildren(children, task) : null;
+
+        return new SystemHandle(
+            system, task,
+            handle => {
+                DoUnregisterSystem(sysData, task);
+                scheduler.RemoveTask(handle.TaskGraphNode);
+                disposeFunc();
+
+                if (childrenHandles != null) {
+                    foreach (var childHandle in childrenHandles) {
+                        childHandle.Dispose();
+                    }
+                }
+            });
     }
-}
-
-public abstract class SystemBase
-{
-    public virtual ITypeUnion? Children { get; }
-    public virtual ITypeUnion? Dependencies { get; }
-
-    public virtual Scheduler.TaskGraphNode Register(
-        World world, Scheduler scheduler, Scheduler.TaskGraphNode? parentTask = null)
-    {
-
-        var dependedTasks = new List<Scheduler.TaskGraphNode>();
-        if (parentTask != null) {
-            dependedTasks.Add(parentTask);
-        }
-    }
-}
-
-public abstract class ExecutableSystemBase : SystemBase
-{
-    public virtual IEnumerable<ICommand>? Triggers { get; }
-
-    public virtual void BeforeExecute(World world, Scheduler scheduler) {}
-    public virtual void Execute(World world, Scheduler scheduler, EntityRef entity) {}
-}
-
-public abstract class System<T1> : SystemBase
-{
 }

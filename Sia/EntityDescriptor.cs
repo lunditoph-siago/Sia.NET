@@ -35,6 +35,12 @@ public record EntityDescriptor
         }
     }
 
+    public bool Contains(Type type)
+        => _compInfos.ContainsKey(type);
+
+    public bool Contains<TComponent>()
+        => _compInfos.ContainsKey(typeof(TComponent));
+
     public bool TryGetOffset<TComponent>(out IntPtr offset)
         => UnsafeTryGetOffset(typeof(TComponent), TypeIndexer<TComponent>.Index, out offset);
 
