@@ -5,7 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Diagnostics.CodeAnalysis;
 
-using Microsoft.Toolkit.HighPerformance.Buffers;
+using CommunityToolkit.HighPerformance.Buffers;
 
 public sealed class SparseSet<T> : IDictionary<int, T>, IReadOnlyDictionary<int, T>
 {
@@ -61,17 +61,32 @@ public sealed class SparseSet<T> : IDictionary<int, T>, IReadOnlyDictionary<int,
     IEnumerator IEnumerable.GetEnumerator()
         => ((IEnumerable<KeyValuePair<int, T>>)this).GetEnumerator();
 
-    public void Add(int index, T value)
+    public bool Add(int index, T value)
     {
         ref var valueRef = ref GetOrAddValueRef(index, out bool exists);
         if (exists) {
-            throw new ArgumentException();
+            return false;
         }
         valueRef = value;
+        return true;
     }
 
-    public void Add(KeyValuePair<int, T> item)
+    public bool Add(KeyValuePair<int, T> item)
         => Add(item.Key, item.Value);
+
+    void IDictionary<int, T>.Add(int key, T value)
+    {
+        if (!Add(key, value)) {
+            throw new ArgumentException();
+        }
+    }
+
+    void ICollection<KeyValuePair<int, T>>.Add(KeyValuePair<int, T> item)
+    {
+        if (!Add(item)) {
+            throw new ArgumentException();
+        }
+    }
 
     public bool ContainsKey(int index)
         => Unsafe.IsNullRef(ref GetValueIndexRef(index));
@@ -167,8 +182,8 @@ public sealed class SparseSet<T> : IDictionary<int, T>, IReadOnlyDictionary<int,
             throw new IndexOutOfRangeException();
         }
 
-        int pageIndex = index / PageCount;
-        int entryIndex = index % PageCount;
+        int pageIndex = index / PageSize;
+        int entryIndex = index - pageIndex * PageSize;
 
         var sparsePage = _sparse[pageIndex];
         if (sparsePage == null) {
@@ -212,8 +227,8 @@ public sealed class SparseSet<T> : IDictionary<int, T>, IReadOnlyDictionary<int,
             int lastIndex = _reverse[lastValueIndex];
             UnsafeGetValueIndexRef(lastIndex) = valueIndexRef;
             _reverse[valueIndexRef] = _reverse[lastValueIndex];
-            valueIndexRef = int.MaxValue;
         }
+        valueIndexRef = int.MaxValue;
         _dense.RemoveAt(lastValueIndex);
         _reverse.RemoveAt(lastValueIndex);
     }
@@ -224,8 +239,8 @@ public sealed class SparseSet<T> : IDictionary<int, T>, IReadOnlyDictionary<int,
             return ref Unsafe.NullRef<int>();
         }
 
-        int pageIndex = index / PageCount;
-        int entryIndex = index % PageCount;
+        int pageIndex = index / PageSize;
+        int entryIndex = index - pageIndex * PageSize;
 
         var sparsePage = _sparse[pageIndex];
         if (sparsePage == null) {
@@ -242,8 +257,8 @@ public sealed class SparseSet<T> : IDictionary<int, T>, IReadOnlyDictionary<int,
 
     private ref int UnsafeGetValueIndexRef(int index)
     {
-        int pageIndex = index / PageCount;
-        int entryIndex = index % PageCount;
+        int pageIndex = index / PageSize;
+        int entryIndex = index - pageIndex * PageSize;
         return ref _sparse[pageIndex].Span[entryIndex];
     }
 

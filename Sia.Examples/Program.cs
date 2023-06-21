@@ -1,182 +1,200 @@
-﻿using System.Runtime.InteropServices;
+namespace Sia.Example;
 
-using Sia;
-
-public record struct Position
-{
-    public float X;
-    public float Y;
-    public float Z;
-}
-
-public record struct Rotation
-{
-    public float Angle;
-}
-
-public record struct Scale
-{
-    public float X;
-    public float Y;
-    public float Z;
-}
-
-public record struct TestEntity
-{
-    public Position Position;
-    public Rotation Rotation;
-    public Scale Scale;
-}
+using System.Numerics;
 
 public static class Program
 {
-    private unsafe static void TestEntityDescriptor()
+    public class GameWorld : World
     {
-        Console.WriteLine("== Test Entity Descriptor ==");
+        public float DeltaTime { get; private set; }
+        public float Time { get; private set; }
 
-        var e = new TestEntity {
-            Position = new() {
-                X = 1,
-                Y = 2,
-                Z = 3
+        public Scheduler Scheduler { get; } = new();
+
+        public void Update(float deltaTime)
+        {
+            DeltaTime = deltaTime;
+            Time += deltaTime;
+            Scheduler.Tick();
+        }
+    }
+
+    public struct Transform
+    {
+        public Vector2 Position;
+        public float Angle;
+
+        public record SetPosition
+            : SingleValuePooledCommand<SetPosition, Vector2>
+            , IExecutable
+        {
+            public void Execute(EntityRef target)
+            {
+                ref var trans = ref target.Get<Transform>();
+                trans.Position = Value;
+            }
+        }
+
+        public record SetAngle
+            : SingleValuePooledCommand<SetAngle, float>
+            , IExecutable
+        {
+            public void Execute(EntityRef target)
+            {
+                ref var trans = ref target.Get<Transform>();
+                trans.Angle = Value;
+            }
+        }
+    }
+
+    public struct Health
+    {
+        public float Value;
+        public float Debuff;
+
+        public Health() {}
+
+        public record Damage
+            : SingleValuePooledCommand<Damage, float>
+            , IExecutable
+        {
+            public void Execute(EntityRef target)
+            {
+                ref var health = ref target.Get<Health>();
+                health.Value -= Value;
+            }
+        }
+
+        public record SetDebuff
+            : SingleValuePooledCommand<SetDebuff, float>
+            , IExecutable
+        {
+            public void Execute(EntityRef target)
+            {
+                ref var health = ref target.Get<Health>();
+                health.Debuff = Value;
+            }
+        }
+    }
+
+    public class HealthUpdateSystem : SystemBase<GameWorld>
+    {
+        public HealthUpdateSystem()
+        {
+            Matcher = new TypeUnion<Health>();
+        }
+
+        public override void Execute(GameWorld world, Scheduler scheduler, EntityRef entity)
+        {
+            ref var health = ref entity.Get<Health>();
+            if (health.Debuff != 0) {
+                world.Modify(entity, Health.Damage.Create(health.Debuff * world.DeltaTime));
+                Console.WriteLine($"Damage: HP {entity.Get<Health>().Value}");
+            }
+        }
+    }
+
+    public class DeathSystem : SystemBase<GameWorld>
+    {
+        public DeathSystem()
+        {
+            Matcher = new TypeUnion<Health>();
+            Dependencies = new SystemUnion<HealthUpdateSystem>();
+        }
+
+        public override void Execute(GameWorld world, Scheduler scheduler, EntityRef entity)
+        {
+            if (entity.Get<Health>().Value <= 0) {
+                world.Remove(entity);
+                Console.WriteLine("Dead!");
+            }
+        }
+    }
+
+    public class HealthSystems : SystemBase<GameWorld>
+    {
+        public HealthSystems()
+        {
+            Children = new SystemUnion<HealthUpdateSystem, DeathSystem>();
+        }
+    }
+
+    public class LocationDamageSystem : SystemBase<GameWorld>
+    {
+        public LocationDamageSystem()
+        {
+            Matcher = new TypeUnion<Transform, Health>();
+            Trigger = new CommandUnion<WorldCommands.Add, Transform.SetPosition>();
+        }
+
+        public override void Execute(GameWorld world, Scheduler scheduler, EntityRef entity)
+        {
+            var pos = entity.Get<Transform>().Position;
+            if (pos.X == 1 && pos.Y == 1) {
+                world.Modify(entity, Health.Damage.Create(10));
+                Console.WriteLine($"Damage: HP {entity.Get<Health>().Value}");
+            }
+            if (pos.X == 1 && pos.Y == 2) {
+                world.Modify(entity, Health.SetDebuff.Create(100));
+                Console.WriteLine("Debuff!");
+            }
+        }
+    }
+
+    public class GameplaySystems : SystemBase<GameWorld>
+    {
+        public GameplaySystems()
+        {
+            Children = new SystemUnion<LocationDamageSystem>();
+            Dependencies = new SystemUnion<HealthSystems>();
+        }
+    }
+
+    public struct Player
+    {
+        public Transform Transform;
+        public Health Health;
+    }
+
+    public static void Main()
+    {
+        var world = new GameWorld();
+
+        var healthSystemsHandle =
+            new HealthSystems().Register(world, world.Scheduler);
+        var gameplaySystemsHandle =
+            new GameplaySystems().Register(world, world.Scheduler);
+
+        var player = new Player() {
+            Transform = new() {
+                Position = new(1, 1)
             },
-            Rotation = new() {
-                Angle = 2
-            },
-            Scale = new() {
-                X = 1,
-                Y = 2,
-                Z = 3
+            Health = new() {
+                Value = 100
             }
         };
-        var ptr = (IntPtr)(&e);
-        Console.WriteLine(e.Scale);
+        var playerRef = EntityRef.Create(ref player);
 
-        var desc = EntityDescriptor.Get<TestEntity>();
-        Console.WriteLine("Size: " + desc.Size);
-        Console.WriteLine("Component offsets:");
+        world.Add(playerRef);
+        world.Update(0.5f);
 
-        desc.TryGetOffset<Position>(out var offset);
-        Console.WriteLine("\tPosition: " + offset + ", Value: " + *((Position*)(ptr + offset)));
+        world.Modify(playerRef, Transform.SetPosition.Create(new(1, 2)));
+        world.Update(0.5f);
 
-        desc.TryGetOffset<Rotation>(out offset);
-        Console.WriteLine("\tRotation: " + offset + ", Value: " + *((Rotation*)(ptr + offset)));
+        world.Scheduler.CreateTask(() => {
+            Console.WriteLine("Callback invoked after health and gameplay systems");
+            return true; // remove task
+        }, new[] {healthSystemsHandle.Task, gameplaySystemsHandle.Task});
+    
+        world.Modify(playerRef, Transform.SetPosition.Create(new(1, 3)));
+        world.Update(0.5f);
+        world.Update(0.5f);
+        world.Update(0.5f);
+        world.Update(0.5f); // player dead
 
-        desc.TryGetOffset<Scale>(out offset);
-        Console.WriteLine("\tScale: " + offset + ", Value: " + *((Scale*)(ptr + offset)));
-    }
+        gameplaySystemsHandle.Dispose();
+        healthSystemsHandle.Dispose();
 
-    private static void TestGroup()
-    {
-        Console.WriteLine("== Test Group ==");
-
-        var g = new Group<int> { 1, 2, 3 };
-        Console.WriteLine(g.Contains(1));
-        Console.WriteLine(g.Contains(2));
-        Console.WriteLine(g.Contains(3));
-
-        Console.WriteLine(g.Remove(1));
-        Console.WriteLine(g.Contains(1));
-
-        foreach (ref int v in g.AsSpan()) {
-            Console.WriteLine(v);
-        }
-    }
-
-    private static void TestScheduler()
-    {
-        Console.WriteLine("== Test Scheduler ==");
-        
-        var sched = new Scheduler();
-
-        var task1 = sched.CreateTask(() => {
-            Console.WriteLine("Infinite 1");
-            return false;
-        });
-
-        Scheduler.TaskGraphNode? task2 = null;
-        task2 = sched.CreateTask(() => {
-            Console.WriteLine("Call once 1");
-            sched.RemoveTask(task2!);
-            return false;
-        });
-
-        var task3 = sched.CreateTask(() => {
-            Console.WriteLine("Call once 2");
-            return true;
-        }, new[] {task1});
-
-        var task4 = sched.CreateTask(() => {
-            Console.WriteLine("Infinite 2");
-            return false;
-        }, new[] {task1});
-
-        sched.Tick();
-        sched.Tick();
-        sched.Tick();
-        sched.Tick();
-        sched.Tick();
-    }
-
-    private record TestCommand : IExecutableCommand<int>
-    {
-        public void Execute(int target)
-        {
-            Console.WriteLine("Command: " + target);
-        }
-
-        public void Dispose()
-        {
-        }
-    }
-
-    private static void TestDispatcher()
-    {
-        Console.WriteLine("== Test Dispatcher ==");
-
-        var disp = new Dispatcher<int>();
-
-        disp.Listen<TestCommand>((target, cmd) => {
-            Console.WriteLine("Command: " + target);
-            return target == 2;
-        });
-
-        disp.Listen(1, (target, cmd) => {
-            Console.WriteLine("Command: " + target);
-            return false;
-        });
-
-        disp.Send(1, new TestCommand { });
-        disp.Send(1, new TestCommand { });
-        disp.Send(2, new TestCommand { });
-        disp.Send(2, new TestCommand { });
-    }
-
-    private static void TestTypeSet()
-    {
-        Console.WriteLine("== Test TypeSet ==");
-
-        var u1 = new TypeSet<int, string, uint>();
-        var u2 = new TypeSet<string, uint, int>();
-
-        Console.WriteLine(u1.ProxyHash == u2.ProxyHash);
-
-        var dict = new Dictionary<ITypeUnion, int>(new TypeSetComparer());
-
-        dict.Add(new TypeSet<int, string>(), 1);
-        Console.WriteLine(dict[new TypeSet<string, int>()]);
-
-        dict.Add(new TypeSet<string, string>(), 2);
-        Console.WriteLine(dict[new TypeSet<string>()]);
-        Console.WriteLine(dict[new TypeSet<string, string, string>()]);
-    }
-
-    public unsafe static void Main()
-    {
-        TestEntityDescriptor();
-        TestGroup();
-        TestScheduler();
-        TestDispatcher();
-        TestTypeSet();
+        Tests.Tests.Run();
     }
 }
