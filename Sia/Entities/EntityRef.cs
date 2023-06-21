@@ -3,20 +3,23 @@ namespace Sia;
 using System.Runtime.CompilerServices;
 
 public record struct EntityRef(
-    IntPtr Pointer, EntityDescriptor Descriptor)
+    IntPtr Pointer, EntityDescriptor Descriptor, IStorage? Storage)
 {
-    public unsafe EntityRef Create<TEntity>(ref TEntity entity)
+    public static unsafe EntityRef Create<TEntity>(ref TEntity entity)
         => new EntityRef {
             Pointer = (IntPtr)Unsafe.AsPointer(ref entity),
             Descriptor = EntityDescriptor.Get<TEntity>()
         };
 
-    public unsafe EntityRef Create<TEntity>(TEntity* entity)
+    public static unsafe EntityRef Create<TEntity>(TEntity* entity)
         where TEntity : unmanaged
         => new EntityRef {
             Pointer = (IntPtr)entity,
             Descriptor = EntityDescriptor.Get<TEntity>()
         };
+    
+    public void Destroy()
+        => Storage?.Release(Pointer);
 }
 
 public static class EntityRefExtensions

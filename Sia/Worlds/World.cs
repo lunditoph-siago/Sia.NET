@@ -2,49 +2,23 @@ namespace Sia;
 
 using System.Runtime.InteropServices;
 
-public static class WorldCommands
+public class World<TTarget> : Group<TTarget>
+    where TTarget : notnull
 {
-    public class Add : ICommand
+    public WorldDispatcher<TTarget> Dispatcher { get; }
+
+    public IReadOnlyList<WorldGroup<TTarget>> Groups => _groups;
+
+    private List<WorldGroup<TTarget>> _groups = new();
+
+    public World()
     {
-        public static Add Instance { get; } = new();
-        private Add() {}
-        public void Dispose() {}
+        Dispatcher = new WorldDispatcher<TTarget>(this);
     }
 
-    public class Remove : ICommand
+    public WorldGroup<TTarget> CreateGroup(Predicate<TTarget>? predicate = null)
     {
-        public static Remove Instance { get; } = new();
-        private Remove() {}
-        public void Dispose() {}
-    }
-}
-
-public class World<T> : Group<T>
-    where T : notnull
-{
-    public class Group : Group<T>
-    {
-        public World<T> World { get; }
-        public Predicate<T>? Predicate { get; }
-
-        internal int Index { get; set; }
-
-        internal Group(World<T> world, Predicate<T>? predicate)
-        {
-            World = world;
-            Predicate = predicate;
-        }
-    }
-
-    public Dispatcher<T> Dispatcher { get; } = new();
-
-    public IReadOnlyList<Group> Groups => _groups;
-
-    private List<Group> _groups = new();
-
-    public Group CreateGroup(Predicate<T>? predicate = null)
-    {
-        var group = new Group(this, predicate);
+        var group = new WorldGroup<TTarget>(this, predicate);
         group.Index = _groups.Count;
         _groups.Add(group);
 
@@ -64,7 +38,7 @@ public class World<T> : Group<T>
         return group;
     }
 
-    public bool RemoveGroup(Group group)
+    public bool RemoveGroup(WorldGroup<TTarget> group)
     {
         if (group.World != this) {
             return false;
@@ -75,15 +49,17 @@ public class World<T> : Group<T>
             return false;
         }
 
-        int lastIndex = group.Count - 1;
+        int lastIndex = _groups.Count - 1;
         if (index != lastIndex) {
-            _groups[index] = _groups[lastIndex];
+            var lastGroup = _groups[lastIndex];
+            _groups[index] = lastGroup;
+            lastGroup.Index = index;
         }
         _groups.RemoveAt(lastIndex);
         return true;
     }
 
-    public override bool Add(in T value)
+    public override bool Add(in TTarget value)
     {
         if (!base.Add(value)) {
             return false;
@@ -97,7 +73,7 @@ public class World<T> : Group<T>
         return true;
     }
 
-    public override bool Remove(in T value)
+    public override bool Remove(in TTarget value)
     {
         if (!base.Remove(value)) {
             return false;
@@ -125,7 +101,7 @@ public class World<T> : Group<T>
         }
     }
 
-    public virtual void Modify(T target, IExecutableCommand<T> command)
+    public virtual void Modify(TTarget target, IExecutable<TTarget> command)
     {
         command.Execute(target);
         Dispatcher.Send(target, command);

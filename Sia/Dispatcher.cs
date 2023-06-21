@@ -58,7 +58,7 @@ public class Dispatcher<TTarget>
         if (index == -1) {
             return false;
         }
-        int lastIndex = listeners.Count();
+        int lastIndex = listeners.Count - 1;
         if (index != lastIndex) {
             listeners[index] = listeners[lastIndex];
         }
@@ -79,18 +79,17 @@ public class Dispatcher<TTarget>
         _targetListeners.Clear();
     }
 
-    private void ExecuteListeners(TTarget target, List<Listener> listeners, ICommand command)
+    private void ExecuteListeners(TTarget target, List<Listener> listeners, ICommand command, int length)
     {
-        var span = CollectionsMarshal.AsSpan(listeners);
-        int lastIndex = span.Length - 1;
+        int initialLength = length;
 
         try {
-            for (int i = 0; i <= lastIndex; ++i) {
+            for (int i = 0; i < length; ++i) {
                 bool exit = false;
-                while (span[i](target, command)) {
-                    span[i] = span[lastIndex];
-                    lastIndex--;
-                    if (lastIndex < i) {
+                while (listeners[i](target, command)) {
+                    listeners[i] = listeners[length - 1];
+                    length--;
+                    if (length <= i) {
                         exit = true;
                         break;
                     }
@@ -99,7 +98,7 @@ public class Dispatcher<TTarget>
             }
         }
         finally {
-            listeners.RemoveRange(lastIndex + 1, span.Length - lastIndex - 1);
+            listeners.RemoveRange(length, initialLength - length);
         }
     }
 
@@ -109,11 +108,17 @@ public class Dispatcher<TTarget>
         _sending = true;
 
         try {
-            if (_commandListeners.TryGetValue(typeof(TCommand), out var commandListeners)) {
-                ExecuteListeners(target, commandListeners, command);
+            _commandListeners.TryGetValue(typeof(TCommand), out var commandListeners);
+            _targetListeners.TryGetValue(target, out var targetListeners);
+
+            int commandListenerCount = commandListeners != null ? commandListeners.Count : 0;
+            int targetListenerCount = targetListeners != null ? targetListeners.Count : 0;
+
+            if (commandListenerCount != 0) {
+                ExecuteListeners(target, commandListeners!, command, commandListenerCount);
             }
-            if (_targetListeners.TryGetValue(target, out var targetListeners)) {
-                ExecuteListeners(target, targetListeners, command);
+            if (targetListenerCount != 0) {
+                ExecuteListeners(target, targetListeners!, command, targetListenerCount);
             }
         }
         finally {

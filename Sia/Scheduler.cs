@@ -20,6 +20,8 @@ public class Scheduler
         public Status Status { get; internal set; } = Status.Added;
         public int? OrphanSeqIndex { get; internal set; }
 
+        public object? UserData { get; set; }
+
         internal HashSet<TaskGraphNode>? _dependedTasks;
         internal HashSet<TaskGraphNode>? _dependingTasks;
 
@@ -60,8 +62,9 @@ public class Scheduler
         return task;
     }
 
-    private void AddDependenciesToTask(TaskGraphNode task, IEnumerable<TaskGraphNode> dependencies)
+    private int AddDependenciesToTask(TaskGraphNode task, IEnumerable<TaskGraphNode> dependencies)
     {
+        int count = 0;
         foreach (var dependedTask in dependencies) {
             if (!_tasks.Contains(dependedTask)) {
                 foreach (var other in dependencies) {
@@ -81,7 +84,9 @@ public class Scheduler
 
             task._dependedTasks ??= new();
             task._dependedTasks.Add(dependedTask);
+            count++;
         }
+        return count;
     }
 
     public TaskGraphNode CreateTask(Func<bool> callback, IEnumerable<TaskGraphNode> dependencies)
@@ -89,9 +94,14 @@ public class Scheduler
         var task = new TaskGraphNode {
             Callback = callback
         };
-        AddDependenciesToTask(task, dependencies);
+        if (AddDependenciesToTask(task, dependencies) == 0) {
+            task.OrphanSeqIndex = _orphanTaskSeq.Count;
+            _orphanTaskSeq.Add(task);
+        }
+        else {
+            _dependedTaskSeqDirty = true;
+        }
         _tasks.Add(task);
-        _dependedTaskSeqDirty = true;
         return task;
     }
 
@@ -102,14 +112,12 @@ public class Scheduler
         };
         AddDependenciesToTask(task, dependencies);
         _tasks.Add(task);
-        _dependedTaskSeqDirty = true;
         return task;
     }
 
     private void RawRemoveTask(TaskGraphNode task)
     {
         if (task.DependingTasks != null && task.DependingTasks.Count != 0) {
-            task.Status = Status.Added;
             throw new TaskDependedException("Failed to remove task: there are other tasks depending on it");
         }
         if (task.OrphanSeqIndex is int index) {
