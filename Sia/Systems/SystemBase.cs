@@ -3,10 +3,10 @@ namespace Sia;
 public class SystemBase<TWorld> : ISystem
     where TWorld : World<EntityRef>
 {
-    public ISystemUnion? Children { get; protected init; }
-    public ISystemUnion? Dependencies { get; protected init; }
-    public ITypeUnion? Matcher { get; protected init; }
-    public ICommandUnion? Trigger { get; protected init; }
+    public ISystemUnion? Children { get; init; }
+    public ISystemUnion? Dependencies { get; init; }
+    public ITypeUnion? Matcher { get; init; }
+    public ICommandUnion? Trigger { get; init; }
 
     public virtual void BeforeExecute(TWorld world, Scheduler scheduler) {}
     public virtual void AfterExecute(TWorld world, Scheduler scheduler) {}

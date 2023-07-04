@@ -25,25 +25,17 @@ public static class Program
         public float Angle;
 
         public record SetPosition
-            : SingleValuePooledCommand<SetPosition, Vector2>
-            , IExecutable
+            : PropertyCommand<SetPosition, Vector2>
         {
-            public void Execute(EntityRef target)
-            {
-                ref var trans = ref target.Get<Transform>();
-                trans.Position = Value;
-            }
+            public override void Execute(EntityRef target)
+                => target.Get<Transform>().Position = Value;
         }
 
         public record SetAngle
-            : SingleValuePooledCommand<SetAngle, float>
-            , IExecutable
+            : PropertyCommand<SetAngle, float>
         {
-            public void Execute(EntityRef target)
-            {
-                ref var trans = ref target.Get<Transform>();
-                trans.Angle = Value;
-            }
+            public override void Execute(EntityRef target)
+                => target.Get<Transform>().Angle = Value;
         }
     }
 
@@ -55,25 +47,17 @@ public static class Program
         public Health() {}
 
         public record Damage
-            : SingleValuePooledCommand<Damage, float>
-            , IExecutable
+            : PropertyCommand<Damage, float>
         {
-            public void Execute(EntityRef target)
-            {
-                ref var health = ref target.Get<Health>();
-                health.Value -= Value;
-            }
+            public override void Execute(EntityRef target)
+                => target.Get<Health>().Value = Value;
         }
 
         public record SetDebuff
-            : SingleValuePooledCommand<SetDebuff, float>
-            , IExecutable
+            : PropertyCommand<SetDebuff, float>
         {
-            public void Execute(EntityRef target)
-            {
-                ref var health = ref target.Get<Health>();
-                health.Debuff = Value;
-            }
+            public override void Execute(EntityRef target)
+                => target.Get<Health>().Debuff = Value;
         }
     }
 

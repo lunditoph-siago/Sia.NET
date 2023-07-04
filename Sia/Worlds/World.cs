@@ -2,23 +2,23 @@ namespace Sia;
 
 using System.Runtime.InteropServices;
 
-public class World<TTarget> : Group<TTarget>
-    where TTarget : notnull
+public class World<T> : Group<T>
+    where T : notnull
 {
-    public WorldDispatcher<TTarget> Dispatcher { get; }
+    public WorldDispatcher<T> Dispatcher { get; }
 
-    public IReadOnlyList<WorldGroup<TTarget>> Groups => _groups;
+    public IReadOnlyList<WorldGroup<T>> Groups => _groups;
 
-    private List<WorldGroup<TTarget>> _groups = new();
+    private List<WorldGroup<T>> _groups = new();
 
     public World()
     {
-        Dispatcher = new WorldDispatcher<TTarget>(this);
+        Dispatcher = new WorldDispatcher<T>(this);
     }
 
-    public WorldGroup<TTarget> CreateGroup(Predicate<TTarget>? predicate = null)
+    public WorldGroup<T> CreateGroup(Predicate<T>? predicate = null)
     {
-        var group = new WorldGroup<TTarget>(this, predicate);
+        var group = new WorldGroup<T>(this, predicate);
         group.Index = _groups.Count;
         _groups.Add(group);
 
@@ -38,7 +38,7 @@ public class World<TTarget> : Group<TTarget>
         return group;
     }
 
-    public bool RemoveGroup(WorldGroup<TTarget> group)
+    public bool RemoveGroup(WorldGroup<T> group)
     {
         if (group.World != this) {
             return false;
@@ -59,7 +59,7 @@ public class World<TTarget> : Group<TTarget>
         return true;
     }
 
-    public override bool Add(in TTarget value)
+    public override bool Add(in T value)
     {
         if (!base.Add(value)) {
             return false;
@@ -73,7 +73,7 @@ public class World<TTarget> : Group<TTarget>
         return true;
     }
 
-    public override bool Remove(in TTarget value)
+    public override bool Remove(in T value)
     {
         if (!base.Remove(value)) {
             return false;
@@ -101,7 +101,7 @@ public class World<TTarget> : Group<TTarget>
         }
     }
 
-    public virtual void Modify(TTarget target, IExecutable<TTarget> command)
+    public virtual void Modify(T target, IExecutable<T> command)
     {
         command.Execute(target);
         Dispatcher.Send(target, command);

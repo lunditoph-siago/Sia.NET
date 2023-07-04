@@ -2,7 +2,7 @@ namespace Sia;
 
 using System.Runtime.InteropServices;
 
-public class Dispatcher<TTarget>
+public class Dispatcher<TTarget> : ICommandSender<ICommand, TTarget>
     where TTarget : notnull
 {
     public delegate bool Listener(TTarget target, ICommand command);
@@ -102,13 +102,12 @@ public class Dispatcher<TTarget>
         }
     }
 
-    public void Send<TCommand>(TTarget target, TCommand command)
-        where TCommand : ICommand
+    public void Send(TTarget target, ICommand command)
     {
         _sending = true;
 
         try {
-            _commandListeners.TryGetValue(typeof(TCommand), out var commandListeners);
+            _commandListeners.TryGetValue(command.GetType(), out var commandListeners);
             _targetListeners.TryGetValue(target, out var targetListeners);
 
             int commandListenerCount = commandListeners != null ? commandListeners.Count : 0;
