@@ -12,10 +12,6 @@ public class PooledNativeStorage<T> : IStorage<T>
 
     private static readonly int MemorySize = Marshal.SizeOf<T>();
 
-    public PooledNativeStorage()
-    {
-    }
-
     public PooledNativeStorage(int poolSize)
     {
         PoolSize = poolSize;
@@ -37,5 +33,10 @@ public class PooledNativeStorage<T> : IStorage<T>
         else {
             Marshal.FreeHGlobal(ptr);
         }
+    }
+
+    public void Clear()
+    {
+        _pooled.Clear();
     }
 }

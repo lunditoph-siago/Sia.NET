@@ -9,7 +9,7 @@ jobs:
   build:
     env:
       BUILD_CONFIG: 'Release'
-      SOLUTION: 'sia.sln'
+      SOLUTION: 'Sia.sln'
       PACKAGE_OUTPUT_DIRECTORY: ${{github.workspace}}/output
 
     runs-on: ubuntu-latest
