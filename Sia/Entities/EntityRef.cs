@@ -1,3 +1,5 @@
+#pragma warning disable CS8500
+
 namespace Sia;
 
 using System.Runtime.CompilerServices;
@@ -12,7 +14,6 @@ public record struct EntityRef(
         };
 
     public static unsafe EntityRef Create<TEntity>(TEntity* entity)
-        where TEntity : unmanaged
         => new EntityRef {
             Pointer = (IntPtr)entity,
             Descriptor = EntityDescriptor.Get<TEntity>()
@@ -31,7 +32,6 @@ public static class EntityRefExtensions
         => entityRef.Descriptor.Contains(componentType);
 
     public unsafe static ref TComponent Get<TComponent>(this EntityRef entityRef)
-        where TComponent : unmanaged
     {
         if (!entityRef.Descriptor.TryGetOffset<TComponent>(out var offset)) {
             throw new ComponentNotFoundException("Component not found: " + typeof(TComponent));
@@ -48,7 +48,6 @@ public static class EntityRefExtensions
     }
 
     public unsafe static ref TComponent GetOrNullRef<TComponent>(this EntityRef entityRef)
-        where TComponent : unmanaged
     {
         if (!entityRef.Descriptor.TryGetOffset<TComponent>(out var offset)) {
             return ref Unsafe.NullRef<TComponent>();
