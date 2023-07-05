@@ -3,7 +3,7 @@ namespace Sia;
 using System.Runtime.CompilerServices;
 using CommunityToolkit.HighPerformance.Buffers;
 
-public class PoolStorage<T> : IStorage<T>, IDisposable
+public sealed class PoolStorage<T> : IStorage<T>, IDisposable
 {
     public int Capacity { get; }
     public int Count { get; private set; }
@@ -42,7 +42,7 @@ public class PoolStorage<T> : IStorage<T>, IDisposable
         }
     }
 
-    public virtual unsafe IntPtr Allocate()
+    public unsafe IntPtr Allocate()
     {
         if (Count == Capacity) {
             throw new IndexOutOfRangeException("Pool storage is full");
@@ -71,7 +71,7 @@ public class PoolStorage<T> : IStorage<T>, IDisposable
         return ptr;
     }
 
-    public virtual void Release(IntPtr ptr)
+    public void Release(IntPtr ptr)
     {
         int index = (int)(ptr - _initialPtr);
         if (ptr < _initialPtr || !_allocated.Remove(index)) {

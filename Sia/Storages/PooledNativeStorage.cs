@@ -2,7 +2,7 @@ namespace Sia;
 
 using System.Runtime.InteropServices;
 
-public class PooledNativeStorage<T> : IStorage<T>
+public sealed class PooledNativeStorage<T> : IStorage<T>
 {
     public int PoolSize { get; set; }
     public int Capacity { get; } = int.MaxValue;
@@ -17,7 +17,7 @@ public class PooledNativeStorage<T> : IStorage<T>
         PoolSize = poolSize;
     }
 
-    public virtual IntPtr Allocate()
+    public IntPtr Allocate()
     {
         if (!_pooled.TryPop(out var ptr)) {
             ptr = Marshal.AllocHGlobal(MemorySize);
@@ -25,7 +25,7 @@ public class PooledNativeStorage<T> : IStorage<T>
         return ptr;
     }
 
-    public virtual void Release(IntPtr ptr)
+    public void Release(IntPtr ptr)
     {
         if (_pooled.Count < PoolSize) {
             _pooled.Push(ptr);
