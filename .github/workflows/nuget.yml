@@ -47,5 +47,3 @@ jobs:
       - name: Publish packages
         run: |
           dotnet nuget push ${PACKAGE_OUTPUT_DIRECTORY}/*.nupkg -k ${{secrets.NUGET_API_KEY}} -s 'https://api.nuget.org/v3/index.json' --skip-duplicate
-          dotnet nuget add source --username sicusa --password ${{ secrets.GITHUB_TOKEN }} --store-password-in-clear-text --name github "https://nuget.pkg.github.com/sicusa/index.json"
-          dotnet nuget push ${PACKAGE_OUTPUT_DIRECTORY}/*.nupkg --source "github"
