@@ -75,7 +75,7 @@ public static class Program
             Matcher = new TypeUnion<Health>();
         }
 
-        public override void Execute(GameWorld world, Scheduler scheduler, EntityRef entity)
+        public override void Execute(GameWorld world, Scheduler scheduler, in EntityRef entity)
         {
             ref var health = ref entity.Get<Health>();
             if (health.Debuff != 0) {
@@ -93,7 +93,7 @@ public static class Program
             Dependencies = new SystemUnion<HealthUpdateSystem>();
         }
 
-        public override void Execute(GameWorld world, Scheduler scheduler, EntityRef entity)
+        public override void Execute(GameWorld world, Scheduler scheduler, in EntityRef entity)
         {
             if (entity.Get<Health>().Value <= 0) {
                 world.Remove(entity);
@@ -118,7 +118,7 @@ public static class Program
             Trigger = new CommandUnion<WorldCommands.Add, Transform.SetPosition>();
         }
 
-        public override void Execute(GameWorld world, Scheduler scheduler, EntityRef entity)
+        public override void Execute(GameWorld world, Scheduler scheduler, in EntityRef entity)
         {
             var pos = entity.Get<Transform>().Position;
             if (pos.X == 1 && pos.Y == 1) {
