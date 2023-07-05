@@ -10,7 +10,7 @@ public class SystemBase<TWorld> : ISystem
 
     public virtual void BeforeExecute(TWorld world, Scheduler scheduler) {}
     public virtual void AfterExecute(TWorld world, Scheduler scheduler) {}
-    public virtual void Execute(TWorld world, Scheduler scheduler, EntityRef entity) {}
+    public virtual void Execute(TWorld world, Scheduler scheduler, in EntityRef entity) {}
 
     SystemHandle ISystem.Register(
         World<EntityRef> world, Scheduler scheduler, Scheduler.TaskGraphNode[]? dependedTasks)
