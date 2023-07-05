@@ -183,7 +183,7 @@ public static class Tests
             Matcher = new TypeUnion<Position>();
         }
 
-        public override void Execute(World world, Scheduler scheduler, EntityRef entity)
+        public override void Execute(World world, Scheduler scheduler, in EntityRef entity)
         {
             Console.WriteLine(entity.Get<Position>());
         }
@@ -197,7 +197,7 @@ public static class Tests
             Trigger = new CommandUnion<Position.Set>();
         }
         
-        public override void Execute(World world, Scheduler scheduler, EntityRef entity)
+        public override void Execute(World world, Scheduler scheduler, in EntityRef entity)
         {
             Console.WriteLine("--> Changed: " + entity.Get<Position>());
         }

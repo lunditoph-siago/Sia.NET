@@ -17,7 +17,7 @@ public class CallbackSystem<TWorld> : SystemBase<TWorld>
         _afterExecute = afterExecute;
     }
 
-    public override void Execute(TWorld world, Scheduler scheduler, EntityRef entity)
+    public override void Execute(TWorld world, Scheduler scheduler, in EntityRef entity)
         => _execute(world, scheduler, entity);
 
     public override void BeforeExecute(TWorld world, Scheduler scheduler)
