@@ -2,14 +2,14 @@ namespace Sia;
 
 using System.Runtime.InteropServices;
 
-public class CommandMailbox<TCommand, TTarget> : ICommandSender<TCommand, TTarget>
-    where TCommand : ICommand
+public class CommandMailbox<TCommand, TTarget> : IEventSender<TCommand, TTarget>
+    where TCommand : ICommand<TTarget>
     where TTarget : notnull
 {
     public int Count => _commands.Count;
 
-    private List<CommandEntry> _commands = new();
-    private LinkedList<(TTarget, IDeferrable<TTarget>)> _deferredCommands = new();
+    private readonly List<CommandEntry> _commands = new();
+    private readonly LinkedList<(TTarget, IDeferrableCommand<TTarget>)> _deferredCommands = new();
 
     private record struct CommandEntry(int Index, int Priority, TTarget Target, TCommand Command);
 
@@ -23,13 +23,13 @@ public class CommandMailbox<TCommand, TTarget> : ICommandSender<TCommand, TTarge
         => Send(tuple.Item1, tuple.Item2);
     
     private int GetCommandPriority(TCommand command)
-        => command is ISortable sortable ? sortable.Priority : 0;
+        => command is ISortableCommand<TTarget> sortable ? sortable.Priority : 0;
 
-    public virtual void Send(TTarget target, TCommand command)
+    public virtual void Send(in TTarget target, TCommand command)
     {
         switch (command) {
-        case BatchedCommand<TCommand, TTarget> batchedCmd:
-            batchedCmd.Commands.ForEach(Send);
+        case BatchedEvent<TCommand, TTarget> batchedCmd:
+            batchedCmd.Events.ForEach(Send);
             batchedCmd.Dispose();
             return;
         default:
@@ -60,7 +60,7 @@ public class CommandMailbox<TCommand, TTarget> : ICommandSender<TCommand, TTarge
             var cmd = entry.Command;
             var target = entry.Target;
 
-            if (cmd is IDeferrable<TTarget> deferCmd && deferCmd.ShouldDefer(target)) {
+            if (cmd is IDeferrableCommand<TTarget> deferCmd && deferCmd.ShouldDefer(target)) {
                 _deferredCommands.AddLast((target, deferCmd));
                 continue;
             }
@@ -70,11 +70,11 @@ public class CommandMailbox<TCommand, TTarget> : ICommandSender<TCommand, TTarge
     }
 }
 
-public class CommandMailbox<TCommand> : CommandMailbox<TCommand, EntityRef>, ICommandSender<TCommand>
-    where TCommand : ICommand, IExecutable<EntityRef>
+public class CommandMailbox<TCommand> : CommandMailbox<TCommand, EntityRef>, IEventSender<TCommand>
+    where TCommand : ICommand<EntityRef>
 {
 }
 
-public class CommandMailbox : CommandMailbox<IExecutable<EntityRef>>
+public class CommandMailbox : CommandMailbox<ICommand<EntityRef>>
 {
 }

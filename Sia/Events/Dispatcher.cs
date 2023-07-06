@@ -2,29 +2,29 @@ namespace Sia;
 
 using System.Runtime.InteropServices;
 
-public class Dispatcher<TTarget> : ICommandSender<ICommand, TTarget>
+public class Dispatcher<TTarget> : IEventSender<IEvent, TTarget>
     where TTarget : notnull
 {
-    public delegate bool Listener(TTarget target, ICommand command);
-    public delegate bool Listener<TCommand>(TTarget target, TCommand command);
+    public delegate bool Listener(in TTarget target, IEvent e);
+    public delegate bool Listener<TEvent>(in TTarget target, TEvent e);
 
-    private Dictionary<Type, List<Listener>> _commandListeners = new();
-    private Dictionary<TTarget, List<Listener>> _targetListeners = new();
+    private readonly Dictionary<Type, List<Listener>> _eventListeners = new();
+    private readonly Dictionary<TTarget, List<Listener>> _targetListeners = new();
     private bool _sending = false;
 
-    public Listener Listen<TCommand>(Listener listener)
-        where TCommand : ICommand
-        => RawListen(_commandListeners, typeof(TCommand), listener);
+    public Listener Listen<TEvent>(Listener listener)
+        where TEvent : IEvent
+        => RawListen(_eventListeners, typeof(TEvent), listener);
 
-    public Listener ListenEx<TCommand>(Listener<TCommand> innerListener)
-        where TCommand : ICommand
+    public Listener ListenEx<TEvent>(Listener<TEvent> innerListener)
+        where TEvent : IEvent
     {
-        Listener wrapperListener = (target, cmd) => innerListener(target, (TCommand)cmd);
-        Listen<TCommand>(wrapperListener);
+        bool wrapperListener(in TTarget target, IEvent e) => innerListener(target, (TEvent)e);
+        Listen<TEvent>(wrapperListener);
         return wrapperListener;
     }
 
-    public Listener Listen(TTarget target, Listener listener)
+    public Listener Listen(in TTarget target, Listener listener)
         => RawListen(_targetListeners, target, listener);
 
     private Listener RawListen<TKey>(Dictionary<TKey, List<Listener>> dict, TKey key, Listener listener)
@@ -38,11 +38,11 @@ public class Dispatcher<TTarget> : ICommandSender<ICommand, TTarget>
         return listener;
     }
 
-    public bool Unlisten<TCommand>(Listener listener)
-        where TCommand : ICommand
-        => RawUnlisten(_commandListeners, typeof(TCommand), listener);
+    public bool Unlisten<TEvent>(Listener listener)
+        where TEvent : IEvent
+        => RawUnlisten(_eventListeners, typeof(TEvent), listener);
     
-    public bool Unlisten(TTarget target, Listener listener)
+    public bool Unlisten(in TTarget target, Listener listener)
         => RawUnlisten(_targetListeners, target, listener);
 
     private bool RawUnlisten<TKey>(Dictionary<TKey, List<Listener>> dict, TKey key, Listener listener)
@@ -66,27 +66,27 @@ public class Dispatcher<TTarget> : ICommandSender<ICommand, TTarget>
         return true;
     }
 
-    public bool UnlistenAll<TCommand>()
-        where TCommand : ICommand
-        => _commandListeners.Remove(typeof(TCommand));
+    public bool UnlistenAll<TEvent>()
+        where TEvent : IEvent
+        => _eventListeners.Remove(typeof(TEvent));
 
-    public bool UnlistenAll(TTarget target)
+    public bool UnlistenAll(in TTarget target)
         => _targetListeners.Remove(target);
     
     public void Clear()
     {
-        _commandListeners.Clear();
+        _eventListeners.Clear();
         _targetListeners.Clear();
     }
 
-    private void ExecuteListeners(TTarget target, List<Listener> listeners, ICommand command, int length)
+    private void ExecuteListeners(in TTarget target, List<Listener> listeners, IEvent e, int length)
     {
         int initialLength = length;
 
         try {
             for (int i = 0; i < length; ++i) {
                 bool exit = false;
-                while (listeners[i](target, command)) {
+                while (listeners[i](target, e)) {
                     listeners[i] = listeners[length - 1];
                     length--;
                     if (length <= i) {
@@ -102,27 +102,27 @@ public class Dispatcher<TTarget> : ICommandSender<ICommand, TTarget>
         }
     }
 
-    public void Send(TTarget target, ICommand command)
+    public void Send(in TTarget target, IEvent e)
     {
         _sending = true;
 
         try {
-            _commandListeners.TryGetValue(command.GetType(), out var commandListeners);
+            _eventListeners.TryGetValue(e.GetType(), out var eventListeners);
             _targetListeners.TryGetValue(target, out var targetListeners);
 
-            int commandListenerCount = commandListeners != null ? commandListeners.Count : 0;
+            int eventListenerCount = eventListeners != null ? eventListeners.Count : 0;
             int targetListenerCount = targetListeners != null ? targetListeners.Count : 0;
 
-            if (commandListenerCount != 0) {
-                ExecuteListeners(target, commandListeners!, command, commandListenerCount);
+            if (eventListenerCount != 0) {
+                ExecuteListeners(target, eventListeners!, e, eventListenerCount);
             }
             if (targetListenerCount != 0) {
-                ExecuteListeners(target, targetListeners!, command, targetListenerCount);
+                ExecuteListeners(target, targetListeners!, e, targetListenerCount);
             }
         }
         finally {
             _sending = false;
-            command.Dispose();
+            e.Dispose();
         }
     }
 }

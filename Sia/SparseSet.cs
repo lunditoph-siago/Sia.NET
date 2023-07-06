@@ -35,9 +35,9 @@ public sealed class SparseSet<T> : IDictionary<int, T>, IReadOnlyDictionary<int,
 
     public bool IsReadOnly => false;
 
-    private List<T> _dense = new List<T>();
-    private List<int> _reverse = new List<int>();
-    private MemoryOwner<int>[] _sparse;
+    private readonly List<T> _dense = new();
+    private readonly List<int> _reverse = new();
+    private readonly MemoryOwner<int>[] _sparse;
 
     public SparseSet(int pageCount = 1024, int pageSize = 1024)
     {

@@ -34,10 +34,10 @@ public class Scheduler
     public IReadOnlyList<TaskGraphNode> OrphanTaskSequence => _orphanTaskSeq;
     public IReadOnlyList<TaskGraphNode> DependedTaskSequnce => _dependedTaskSeq;
 
-    private HashSet<TaskGraphNode> _tasks = new();
-    private List<TaskGraphNode> _orphanTaskSeq = new();
-    private List<TaskGraphNode> _dependedTaskSeq = new();
-    private List<TaskGraphNode> _tasksToRemove = new();
+    private readonly HashSet<TaskGraphNode> _tasks = new();
+    private readonly List<TaskGraphNode> _orphanTaskSeq = new();
+    private readonly List<TaskGraphNode> _dependedTaskSeq = new();
+    private readonly List<TaskGraphNode> _tasksToRemove = new();
 
     private bool _dependedTaskSeqDirty = false;
     private bool _ticking = false;

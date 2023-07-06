@@ -9,8 +9,8 @@ public class Group<T> : IReadOnlyList<T>
     public int Count => _values.Count;
     public T this[int index] => _values[index];
 
-    private Dictionary<T, int> _indices = new();
-    private List<T> _values = new();
+    private readonly Dictionary<T, int> _indices = new();
+    private readonly List<T> _values = new();
 
     public Group() {}
 

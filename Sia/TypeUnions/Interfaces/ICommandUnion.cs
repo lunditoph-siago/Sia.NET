@@ -1,5 +1,5 @@
 namespace Sia;
 
-public interface ICommandUnion : ITypeUnion
+public interface IEventUnion : ITypeUnion
 {
 }

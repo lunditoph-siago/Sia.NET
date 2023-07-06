@@ -6,9 +6,22 @@ public record struct Position
     public float Y;
     public float Z;
 
-    public record Set(float X, float Y, float Z) : Command, IExecutable
+    public class Set : Command<Set>
     {
-        public void Execute(EntityRef target)
+        public float X { get; private set; }
+        public float Y { get; private set; }
+        public float Z { get; private set; }
+
+        public static Set Create(float x, float y, float z)
+        {
+            var cmd = CreateRaw();
+            cmd.X = x;
+            cmd.Y = y;
+            cmd.Z = z;
+            return cmd;
+        }
+
+        public override void Execute(in EntityRef target)
         {
             ref var pos = ref target.Get<Position>();
             pos.X = X;
@@ -127,9 +140,12 @@ public static class Tests
         sched.Tick();
     }
 
-    private record TestCommand : Command, IExecutable<int>
+    private class TestCommand : Command<TestCommand, int>
     {
-        public void Execute(int target)
+        public static TestCommand Create()
+            => CreateRaw();
+
+        public override void Execute(in int target)
         {
             Console.WriteLine("Command: " + target);
         }
@@ -141,12 +157,12 @@ public static class Tests
 
         var disp = new Dispatcher<int>();
 
-        disp.Listen<TestCommand>((target, cmd) => {
+        disp.Listen<TestCommand>((in int target, IEvent e) => {
             Console.WriteLine("Command: " + target);
             return target == 2;
         });
 
-        disp.Listen(1, (target, cmd) => {
+        disp.Listen(1, (in int target, IEvent e) => {
             Console.WriteLine("Command: " + target);
             return false;
         });
@@ -166,9 +182,9 @@ public static class Tests
 
         Console.WriteLine(u1.GetHashCode() == u2.GetHashCode());
 
-        var dict = new Dictionary<ITypeUnion, int>(new TypeUnionComparer());
-
-        dict.Add(new TypeUnion<int, string>(), 1);
+        var dict = new Dictionary<ITypeUnion, int>(new TypeUnionComparer()) {
+            { new TypeUnion<int, string>(), 1 }
+        };
         Console.WriteLine(dict[new TypeUnion<string, int>()]);
 
         dict.Add(new TypeUnion<string, string>(), 2);
@@ -194,7 +210,7 @@ public static class Tests
         public PositionChangeListenSystem()
         {
             Matcher = new TypeUnion<Position>();
-            Trigger = new CommandUnion<Position.Set>();
+            Trigger = new EventUnion<Position.Set>();
         }
         
         public override void Execute(World world, Scheduler scheduler, in EntityRef entity)
@@ -244,8 +260,8 @@ public static class Tests
         scheduler.Tick();
         scheduler.Tick();
 
-        world.Modify(e1Ref, new Position.Set(4, 5, 6));
-        world.Modify(e2Ref, new Position.Set(-4, -5, -6));
+        world.Modify(e1Ref, Position.Set.Create(4, 5, 6));
+        world.Modify(e2Ref, Position.Set.Create(-4, -5, -6));
         scheduler.Tick();
     }
 
@@ -253,7 +269,7 @@ public static class Tests
     {
         Console.WriteLine("== Test Storages ==");
 
-        void DoTest(IStorage storage)
+        static void DoTest(IStorage storage)
         {
             var ptr1 = storage.Allocate();
             var ptr2 = storage.Allocate();
@@ -278,7 +294,7 @@ public static class Tests
     {
         Console.WriteLine("== Test Entity Factory ==");
 
-        void DoTest(IStorage<TestEntity> storage)
+        static void DoTest(IStorage<TestEntity> storage)
         {
             var factory = new EntityFactory<TestEntity>(storage);
             var e1 = factory.Create();
@@ -295,6 +311,7 @@ public static class Tests
             e4.Destroy();
             e5.Destroy();
         }
+
         DoTest(new PoolStorage<TestEntity>());
         DoTest(new NativeStorage<TestEntity>());
         DoTest(new PooledNativeStorage<TestEntity>(2));

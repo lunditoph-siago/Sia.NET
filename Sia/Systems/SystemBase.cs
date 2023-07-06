@@ -6,7 +6,7 @@ public class SystemBase<TWorld> : ISystem
     public ISystemUnion? Children { get; init; }
     public ISystemUnion? Dependencies { get; init; }
     public ITypeUnion? Matcher { get; init; }
-    public ICommandUnion? Trigger { get; init; }
+    public IEventUnion? Trigger { get; init; }
 
     public virtual void BeforeExecute(TWorld world, Scheduler scheduler) {}
     public virtual void AfterExecute(TWorld world, Scheduler scheduler) {}
@@ -22,11 +22,9 @@ public class SystemBase<TWorld> : ISystem
         void AddDependedSystemTasks(ISystemUnion systemTypes, List<Scheduler.TaskGraphNode> result)
         {
             foreach (var systemType in systemTypes.ProxyTypes) {
-                var sysData = SystemGlobalData.Get(systemType);
-                if (sysData == null) {
-                    throw new ArgumentException(
+                var sysData = SystemGlobalData.Get(systemType)
+                    ?? throw new ArgumentException(
                         $"Failed to register system: invalid depended system type '{systemType}'");
-                }
                 if (!sysData.RegisterEntries.TryGetValue((world, scheduler), out var taskNode)) {
                     throw new InvalidSystemDependencyException(
                         $"Failed to register system: Depended system type '{this}' is not registered.");
@@ -76,7 +74,7 @@ public class SystemBase<TWorld> : ISystem
             }
         }
 
-        var sysData = SystemGlobalData.Acquire(this.GetType());
+        var sysData = SystemGlobalData.Acquire(GetType());
 
         var dependedTasksResult = new List<Scheduler.TaskGraphNode>();
         if (dependedTasks != null) {
@@ -117,28 +115,30 @@ public class SystemBase<TWorld> : ISystem
         Func<bool> taskFunc;
         Action disposeFunc;
 
-        var trigger = this.Trigger;
+        var trigger = Trigger;
         if (trigger != null) {
             var dispatcher = world.Dispatcher;
             var group = new Group<EntityRef>();
             var entityListeners = new Dictionary<EntityRef, Dispatcher.Listener>();
 
             var triggerTypes = new HashSet<Type>(trigger.ProxyTypes);
-            bool hasAddTrigger = triggerTypes.Contains(typeof(WorldCommands.Add));
-            bool hasRemoveTrigger = triggerTypes.Contains(typeof(WorldCommands.Remove));
+            bool hasAddTrigger = triggerTypes.Contains(typeof(WorldEvents.Add));
+            bool hasRemoveTrigger = triggerTypes.Contains(typeof(WorldEvents.Remove));
 
-            Dispatcher.Listener entityAddListener = (EntityRef target, ICommand command) => {
+            bool entityAddListener(in EntityRef target, IEvent e)
+            {
                 foreach (var compType in compTypes.AsSpan()) {
                     if (!target.Contains(compType)) {
                         return false;
                     }
                 }
 
-                Dispatcher.Listener commandListener = (EntityRef target, ICommand command) => {
-                    if (triggerTypes.Contains(command.GetType())) {
+                bool eventListener(in EntityRef target, IEvent e)
+                {
+                    if (triggerTypes.Contains(e.GetType())) {
                         group.Add(target);
                     }
-                    if (command is WorldCommands.Remove) {
+                    if (e is WorldEvents.Remove) {
                         entityListeners.Remove(target);
                         if (hasRemoveTrigger) {
                             group.Add(target);
@@ -149,18 +149,18 @@ public class SystemBase<TWorld> : ISystem
                         return true;
                     }
                     return false;
-                };
+                }
 
-                dispatcher.Listen(target, commandListener);
-                entityListeners.Add(target, commandListener);
+                dispatcher.Listen(target, eventListener);
+                entityListeners.Add(target, eventListener);
 
                 if (hasAddTrigger) {
                     group.Add(target);
                 }
                 return false;
-            };
+            }
 
-            dispatcher.Listen<WorldCommands.Add>(entityAddListener);
+            dispatcher.Listen<WorldEvents.Add>(entityAddListener);
 
             taskFunc = () => {
                 int count = group.Count;
@@ -178,7 +178,7 @@ public class SystemBase<TWorld> : ISystem
             };
 
             disposeFunc = () => {
-                dispatcher.Unlisten<WorldCommands.Add>(entityAddListener);
+                dispatcher.Unlisten<WorldEvents.Add>(entityAddListener);
                 foreach (var (entity, listener) in entityListeners) {
                     dispatcher.Unlisten(entity, listener);
                 }
@@ -233,9 +233,16 @@ public class SystemBase<TWorld> : ISystem
         DoRegisterSystem(sysData, task);
         childrenHandles = Children != null ? RegisterChildren(Children, task) : null;
 
-        return new SystemHandle(
+        SystemHandle? handle = null;
+
+        void OnWorldDisposed(World<EntityRef> world) => handle!.Dispose();
+        world.OnDisposed += OnWorldDisposed;
+
+        handle = new SystemHandle(
             this, task,
             handle => {
+                world.OnDisposed -= OnWorldDisposed;
+
                 DoUnregisterSystem(sysData, task);
                 disposeFunc();
 
@@ -246,6 +253,8 @@ public class SystemBase<TWorld> : ISystem
                 }
                 scheduler.RemoveTask(handle.Task);
             });
+
+        return handle;
     }
 }
 

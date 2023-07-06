@@ -8,19 +8,22 @@ public record struct EntityRef(
     IntPtr Pointer, EntityDescriptor Descriptor, IStorage? Storage)
 {
     public static unsafe EntityRef Create<TEntity>(ref TEntity entity)
-        => new EntityRef {
+        => new() {
             Pointer = (IntPtr)Unsafe.AsPointer(ref entity),
             Descriptor = EntityDescriptor.Get<TEntity>()
         };
 
     public static unsafe EntityRef Create<TEntity>(TEntity* entity)
-        => new EntityRef {
+        => new() {
             Pointer = (IntPtr)entity,
             Descriptor = EntityDescriptor.Get<TEntity>()
         };
     
-    public void Destroy()
+    public readonly void Destroy()
         => Storage?.Release(Pointer);
+
+    public override readonly int GetHashCode()
+        => (int)Pointer;
 }
 
 public static class EntityRefExtensions
