@@ -1,10 +1,13 @@
-﻿namespace Sia.Example.Tests;
+﻿using System.Runtime.CompilerServices;
+
+namespace Sia.Example.Tests;
 
 public record struct Position
 {
     public float X;
     public float Y;
     public float Z;
+    public List<int> ManagedTest;
 
     public class Set : Command<Set>
     {
@@ -71,7 +74,7 @@ public static class Tests
                 Z = 3
             }
         };
-        var ptr = (IntPtr)(&e);
+        var ptr = (IntPtr)Unsafe.AsPointer(ref e);
         Console.WriteLine(e.Scale);
 
         var desc = EntityDescriptor.Get<TestEntity>();
@@ -79,10 +82,10 @@ public static class Tests
         Console.WriteLine("Component offsets:");
 
         desc.TryGetOffset<Position>(out var offset);
-        Console.WriteLine("\tPosition: " + offset + ", Value: " + *((Position*)(ptr + offset)));
+        Console.WriteLine("\tPosition: " + offset + ", Value: " + Unsafe.AsRef<Position>((void*)(ptr + offset)));
 
         desc.TryGetOffset<Rotation>(out offset);
-        Console.WriteLine("\tRotation: " + offset + ", Value: " + *((Rotation*)(ptr + offset)));
+        Console.WriteLine("\tRotation: " + offset + ", Value: " + Unsafe.AsRef<Rotation>((void*)(ptr + offset)));
 
         desc.TryGetOffset<Scale>(out offset);
         Console.WriteLine("\tScale: " + offset + ", Value: " + *((Scale*)(ptr + offset)));

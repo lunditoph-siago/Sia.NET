@@ -1,6 +1,7 @@
 namespace Sia;
 
 using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 
 public sealed class PooledNativeStorage<T> : IStorage<T>
 {
@@ -10,7 +11,7 @@ public sealed class PooledNativeStorage<T> : IStorage<T>
 
     private readonly Stack<IntPtr> _pooled = new();
 
-    private static readonly int MemorySize = Marshal.SizeOf<T>();
+    private static readonly int MemorySize = Unsafe.SizeOf<T>();
 
     public PooledNativeStorage(int poolSize)
     {
