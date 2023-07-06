@@ -1,6 +1,7 @@
 namespace Sia;
 
 using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 
 public sealed class NativeStorage<T> : IStorage<T>
 {
@@ -9,7 +10,7 @@ public sealed class NativeStorage<T> : IStorage<T>
     public int Capacity { get; } = int.MaxValue;
     public int Count { get; private set; }
 
-    private static readonly int MemorySize = Marshal.SizeOf<T>();
+    private static readonly int MemorySize = Unsafe.SizeOf<T>();
 
     public IntPtr Allocate()
     {
