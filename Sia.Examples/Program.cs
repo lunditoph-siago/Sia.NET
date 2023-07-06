@@ -24,17 +24,17 @@ public static class Program
         public Vector2 Position;
         public float Angle;
 
-        public record SetPosition
+        public class SetPosition
             : PropertyCommand<SetPosition, Vector2>
         {
-            public override void Execute(EntityRef target)
+            public override void Execute(in EntityRef target)
                 => target.Get<Transform>().Position = Value;
         }
 
-        public record SetAngle
+        public class SetAngle
             : PropertyCommand<SetAngle, float>
         {
-            public override void Execute(EntityRef target)
+            public override void Execute(in EntityRef target)
                 => target.Get<Transform>().Angle = Value;
         }
     }
@@ -46,17 +46,17 @@ public static class Program
 
         public Health() {}
 
-        public record Damage
+        public class Damage
             : PropertyCommand<Damage, float>
         {
-            public override void Execute(EntityRef target)
-                => target.Get<Health>().Value = Value;
+            public override void Execute(in EntityRef target)
+                => target.Get<Health>().Value -= Value;
         }
 
-        public record SetDebuff
+        public class SetDebuff
             : PropertyCommand<SetDebuff, float>
         {
-            public override void Execute(EntityRef target)
+            public override void Execute(in EntityRef target)
                 => target.Get<Health>().Debuff = Value;
         }
     }
@@ -99,7 +99,9 @@ public static class Program
     {
         public HealthSystems()
         {
-            Children = new SystemUnion<HealthUpdateSystem, DeathSystem>();
+            Children = new SystemUnion<
+                HealthUpdateSystem,
+                DeathSystem>();
         }
     }
 
@@ -108,7 +110,7 @@ public static class Program
         public LocationDamageSystem()
         {
             Matcher = new TypeUnion<Transform, Health>();
-            Trigger = new CommandUnion<WorldCommands.Add, Transform.SetPosition>();
+            Trigger = new EventUnion<WorldEvents.Add, Transform.SetPosition>();
         }
 
         public override void Execute(GameWorld world, Scheduler scheduler, in EntityRef entity)

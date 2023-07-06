@@ -43,13 +43,11 @@ public class SystemGlobalData
         where TSystem : ISystem, new()
     {
         var data = Acquire(typeof(TSystem));
-        if (data.Creator == null) {
-            data.Creator = () => new TSystem();
-        }
+        data.Creator ??= () => new TSystem();
         return data;
     }
 
-    private static ConcurrentDictionary<Type, SystemGlobalData> s_instances = new();
+    private static readonly ConcurrentDictionary<Type, SystemGlobalData> s_instances = new();
 
     private SystemGlobalData() {}
 

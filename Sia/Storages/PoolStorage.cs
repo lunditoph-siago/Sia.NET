@@ -8,12 +8,12 @@ public sealed class PoolStorage<T> : IStorage<T>, IDisposable
     public int Capacity { get; }
     public int Count { get; private set; }
 
-    private MemoryOwner<T> _memory;
-    private IntPtr _initialPtr;
+    private readonly MemoryOwner<T> _memory;
+    private readonly IntPtr _initialPtr;
     private int _lastIndex;
 
-    private SparseSet<int> _allocated;
-    private SparseSet<int> _released;
+    private readonly SparseSet<int> _allocated;
+    private readonly SparseSet<int> _released;
 
     private bool _disposed;
 

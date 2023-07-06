@@ -1,8 +1,14 @@
 namespace Sia;
 
-public abstract record PropertyCommand<TCommand, T>
-    : SingleValuePooledCommand<TCommand, T>, IExecutable
-    where TCommand : IExecutable, new()
+public abstract class PropertyCommand<TCommand, TTarget, T>
+    : SingleValuePooledEvent<TCommand, T>, ICommand<TTarget>
+    where TCommand : ICommand<TTarget>, new()
 {
-    public abstract void Execute(EntityRef target);
+    public abstract void Execute(in TTarget target);
+}
+
+public abstract class PropertyCommand<TCommand, T>
+    : PropertyCommand<TCommand, EntityRef, T>, ICommand
+    where TCommand : ICommand<EntityRef>, new()
+{
 }

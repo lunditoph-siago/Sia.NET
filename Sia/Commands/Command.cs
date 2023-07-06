@@ -1,8 +1,14 @@
 namespace Sia;
 
-public abstract record Command : ICommand
+public abstract class Command<TCommand, TTarget>
+    : PooledEvent<TCommand>, ICommand<TTarget>
+    where TCommand : ICommand<TTarget>, new()
 {
-    public virtual void Dispose()
-    {
-    }
+    public abstract void Execute(in TTarget target);
+}
+
+public abstract class Command<TCommand>
+    : Command<TCommand, EntityRef>, ICommand
+    where TCommand : ICommand<EntityRef>, new()
+{
 }

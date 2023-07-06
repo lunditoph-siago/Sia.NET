@@ -16,8 +16,8 @@ public record EntityDescriptor
     public Type Type { get; }
     public int Size { get; }
 
-    private Dictionary<Type, FieldInfo> _compInfos = new();
-    private SparseSet<IntPtr> _compOffsets = new();
+    private readonly Dictionary<Type, FieldInfo> _compInfos = new();
+    private readonly SparseSet<IntPtr> _compOffsets = new();
 
     private EntityDescriptor(Type type)
     {

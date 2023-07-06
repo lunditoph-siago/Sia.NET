@@ -5,7 +5,7 @@ public class SystemHandle : IDisposable
     public ISystem System { get; }
     public Scheduler.TaskGraphNode Task { get; }
 
-    private Action<SystemHandle> _onDispose;
+    private readonly Action<SystemHandle> _onDispose;
     private bool _disposed;
 
     internal SystemHandle(

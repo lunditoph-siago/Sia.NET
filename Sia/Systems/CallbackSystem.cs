@@ -3,9 +3,9 @@ namespace Sia;
 public class CallbackSystem<TWorld> : SystemBase<TWorld>
     where TWorld : World<EntityRef>
 {
-    private Action<TWorld, Scheduler, EntityRef> _execute;
-    private Action<TWorld, Scheduler>? _beforeExecute;
-    private Action<TWorld, Scheduler>? _afterExecute;
+    private readonly Action<TWorld, Scheduler, EntityRef> _execute;
+    private readonly Action<TWorld, Scheduler>? _beforeExecute;
+    private readonly Action<TWorld, Scheduler>? _afterExecute;
 
     public CallbackSystem(
         Action<TWorld, Scheduler, EntityRef> execute,
