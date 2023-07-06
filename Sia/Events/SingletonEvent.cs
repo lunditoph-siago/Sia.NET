@@ -1,6 +1,6 @@
 namespace Sia;
 
-public abstract record SingletonEvent<TEvent> : IEvent
+public abstract class SingletonEvent<TEvent> : IEvent
     where TEvent : IEvent, new()
 {
     public static TEvent Instance { get; } = new();
