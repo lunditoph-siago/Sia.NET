@@ -18,6 +18,7 @@ public sealed class PoolStorage<T> : IStorage<T>, IDisposable
     private bool _disposed;
 
     private const int IndexPageSize = 1024;
+    private static readonly int MemorySize = Unsafe.SizeOf<T>();
 
     public PoolStorage()
         : this(512)
@@ -55,7 +56,7 @@ public sealed class PoolStorage<T> : IStorage<T>, IDisposable
             int index = _released.AsKeySpan()[releasedCount - 1];
             _released.Remove(index);
             _allocated.Add(index, index);
-            ptr = _initialPtr + index;
+            ptr = _initialPtr + index * MemorySize;
         }
         else {
             while (true) {
@@ -64,7 +65,7 @@ public sealed class PoolStorage<T> : IStorage<T>, IDisposable
                 }
                 _lastIndex = (_lastIndex + 1) % Capacity;
             }
-            ptr = _initialPtr + _lastIndex;
+            ptr = _initialPtr + _lastIndex * MemorySize;
         }
 
         Count++;
