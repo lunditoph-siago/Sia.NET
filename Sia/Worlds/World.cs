@@ -139,7 +139,7 @@ public class World<T> : Group<T>, IDisposable
             TypeIndexer<TSingleton>.Index, out bool exists);
 
         if (exists) {
-            throw new Exception("Singleton already exists");
+            throw new Exception("Singleton already exists: " + typeof(TSingleton));
         }
 
         entry.Storage = NativeStorage<TSingleton>.Instance;
@@ -165,7 +165,7 @@ public class World<T> : Group<T>, IDisposable
             TypeIndexer<TSingleton>.Index, out bool exists);
 
         if (!exists) {
-            throw new Exception("Singleton not found: " + typeof(T));
+            throw new Exception("Singleton not found: " + typeof(TSingleton));
         }
 
         return ref Unsafe.AsRef<TSingleton>((void*)entry.Pointer);
