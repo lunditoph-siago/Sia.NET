@@ -1,14 +1,20 @@
 namespace Sia;
 
-public interface IStorage
+public interface IStorage<T>
+    where T : struct
 {
     int Capacity { get; }
     int Count { get; }
+    bool IsManaged { get; }
 
-    IntPtr Allocate();
-    void Release(IntPtr pointer);
-}
+    Pointer<T> Allocate();
+    Pointer<T> Allocate(in T initial)
+    {
+        var ptr = Allocate();
+        UnsafeGetRef(ptr.Raw) = initial;
+        return ptr;
+    }
 
-public interface IStorage<T> : IStorage
-{
+    void UnsafeRelease(long rawPointer);
+    ref T UnsafeGetRef(long rawPointer);
 }

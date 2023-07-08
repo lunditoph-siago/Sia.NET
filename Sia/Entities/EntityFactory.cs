@@ -1,6 +1,9 @@
 namespace Sia;
 
-public class EntityFactory<T>
+using System.Runtime.CompilerServices;
+
+public class EntityFactory<T> : IEntityFactory<T>, IEntityAccessor, IEntityDisposer
+    where T : struct
 {
     public static EntityFactory<T> Native {
         get {
@@ -8,24 +11,60 @@ public class EntityFactory<T>
             return s_nativeFactory;
         }
     }
-    private static EntityFactory<T>? s_nativeFactory;
+
+    public static EntityDescriptor Descriptor { get; }
+        = EntityDescriptor.Get<T>();
 
     public IStorage<T> Storage { get; }
-    public EntityDescriptor Descriptor { get; } = EntityDescriptor.Get<T>();
 
-    public EntityFactory()
-    {
-        Storage = new NativeStorage<T>();
-    }
+    private static EntityFactory<T>? s_nativeFactory;
 
-    public EntityFactory(IStorage<T> storage)
+    public EntityFactory(IStorage<T> managedStorage)
     {
-        Storage = storage;
+        if (!managedStorage.IsManaged) {
+            throw new ArgumentException("Managed storage required");
+        }
+        Storage = managedStorage;
     }
 
     public EntityRef Create()
     {
         var ptr = Storage.Allocate();
-        return new EntityRef(ptr, Descriptor, Storage);
+        return new(ptr.Raw, this, this);
+    }
+
+    public EntityRef Create(in T initial)
+    {
+        var ptr = Storage.Allocate(initial);
+        return new(ptr.Raw, this, this);
+    }
+
+    public void DisposeEntity(long pointer)
+        => Storage.UnsafeRelease(pointer);
+
+    public bool Contains<TComponent>(long pointer)
+        => Descriptor.Contains<TComponent>();
+
+    public bool Contains(long pointer, Type type)
+        => Descriptor.Contains(type);
+
+    public unsafe ref TComponent Get<TComponent>(long pointer)
+    {
+        ref var entity = ref Storage.UnsafeGetRef(pointer);
+        if (!Descriptor.TryGetOffset<TComponent>(out var offset)) {
+            throw new ComponentNotFoundException("Component not found: " + typeof(TComponent));
+        }
+        return ref Unsafe.AsRef<TComponent>(
+            (void*)((IntPtr)Unsafe.AsPointer<T>(ref entity) + offset));
+    }
+
+    public unsafe ref TComponent GetOrNullRef<TComponent>(long pointer)
+    {
+        ref var entity = ref Storage.UnsafeGetRef(pointer);
+        if (!Descriptor.TryGetOffset<TComponent>(out var offset)) {
+            return ref Unsafe.NullRef<TComponent>();
+        }
+        return ref Unsafe.AsRef<TComponent>(
+            (void*)((IntPtr)Unsafe.AsPointer(ref entity) + offset));
     }
 }

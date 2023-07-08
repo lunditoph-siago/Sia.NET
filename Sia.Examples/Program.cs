@@ -19,7 +19,7 @@ public static class Program
         }
     }
 
-    public struct Transform
+    public record struct Transform
     {
         public Vector2 Position;
         public float Angle;
@@ -39,7 +39,7 @@ public static class Program
         }
     }
 
-    public struct Health
+    public record struct Health
     {
         public float Value;
         public float Debuff;
@@ -136,7 +136,7 @@ public static class Program
         }
     }
 
-    public struct Player
+    public record struct Player
     {
         public Transform Transform;
         public Health Health;
@@ -151,15 +151,14 @@ public static class Program
         var gameplaySystemsHandle =
             new GameplaySystems().Register(world, world.Scheduler);
 
-        var player = new Player() {
+        var playerRef = EntityFactory<Player>.Native.Create(new() {
             Transform = new() {
                 Position = new(1, 1)
             },
             Health = new() {
                 Value = 100
             }
-        };
-        var playerRef = EntityRef.Create(ref player);
+        });
 
         world.Add(playerRef);
         world.Update(0.5f);
