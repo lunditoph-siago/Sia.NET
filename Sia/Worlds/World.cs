@@ -118,6 +118,26 @@ public class World<T> : Group<T>, IDisposable
         where TSingleton : struct
         => NativeStorage<TSingleton>.Instance;
 
+    public ref TSingleton Acquire<TSingleton>()
+        where TSingleton : struct, IConstructable
+    {
+        var storage = GetSingletonStorage<TSingleton>();
+        ref var entry = ref _singletons.GetOrAddValueRef(
+            TypeIndexer<TSingleton>.Index, out bool exists);
+
+        if (exists) {
+            return ref storage.UnsafeGetRef(entry.Pointer);
+        }
+
+        var pointer = storage.Allocate().Raw;
+        entry.Pointer = pointer;
+        entry.Disposer = () => storage.UnsafeRelease(pointer);
+
+        ref var singleton = ref storage.UnsafeGetRef(pointer);
+        singleton.Construct();
+        return ref singleton;
+    }
+
     public unsafe ref TSingleton Add<TSingleton>()
         where TSingleton : struct
     {
