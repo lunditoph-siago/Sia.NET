@@ -1,27 +1,40 @@
 namespace Sia;
 
-using System.Runtime.InteropServices;
-using System.Runtime.CompilerServices;
+using System.Runtime.Serialization;
+using CommunityToolkit.HighPerformance;
 
 public sealed class NativeStorage<T> : IStorage<T>
+    where T : struct
 {
     public static NativeStorage<T> Instance { get; } = new();
 
     public int Capacity { get; } = int.MaxValue;
-    public int Count { get; private set; }
+    public int Count => _objects.Count;
+    public bool IsManaged => true;
 
-    private static readonly int MemorySize = Unsafe.SizeOf<T>();
+    private readonly Dictionary<long, Box<T>> _objects = new();
+    private readonly ObjectIDGenerator _idGenerator = new();
 
-    public IntPtr Allocate()
+    private NativeStorage() {}
+
+    public Pointer<T> Allocate()
+        => Allocate(default);
+
+    public Pointer<T> Allocate(in T initial)
     {
-        var ptr = Marshal.AllocHGlobal(MemorySize);
-        Count++;
-        return ptr;
+        Box<T> obj = initial;
+        long id = _idGenerator.GetId(obj, out bool _);
+        _objects[id] = obj;
+        return new(id, this);
     }
 
-    public void Release(IntPtr ptr)
+    public void UnsafeRelease(long rawPointer)
     {
-        Marshal.FreeHGlobal(ptr);
-        Count--;
+        if (!_objects.Remove(rawPointer)) {
+            throw new ArgumentException("Invalid argument");
+        }
     }
+
+    public ref T UnsafeGetRef(long rawPointer)
+        => ref _objects[rawPointer].GetReference();
 }

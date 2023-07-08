@@ -53,27 +53,30 @@ public record struct TestEntity
     public Scale Scale;
 }
 
-public static class Tests
+public unsafe static class Tests
 {
+    public static readonly TestEntity DefaultTestEntity = new() {
+        Position = new() {
+            X = 1,
+            Y = 2,
+            Z = 3
+        },
+        Rotation = new() {
+            Angle = 2
+        },
+        Scale = new() {
+            X = 1,
+            Y = 2,
+            Z = 3
+        }
+    };
+
     private unsafe static void TestEntityDescriptor()
     {
         Console.WriteLine("== Test Entity Descriptor ==");
 
-        var e = new TestEntity {
-            Position = new() {
-                X = 1,
-                Y = 2,
-                Z = 3
-            },
-            Rotation = new() {
-                Angle = 2
-            },
-            Scale = new() {
-                X = 1,
-                Y = 2,
-                Z = 3
-            }
-        };
+        var e = DefaultTestEntity;
+
         var ptr = (IntPtr)Unsafe.AsPointer(ref e);
         Console.WriteLine(e.Scale);
 
@@ -239,24 +242,20 @@ public static class Tests
 
         new PositionSystems().Register(world, scheduler);
 
-        var entity1 = new TestEntity {
+        var e1Ref = EntityFactory<TestEntity>.Native.Create(new() {
             Position = new Position {
                 X = 1,
                 Y = 2,
                 Z = 3
             }
-        };
-
-        var entity2 = new TestEntity {
+        });
+        var e2Ref = EntityFactory<TestEntity>.Native.Create(new() {
             Position = new Position {
                 X = -1,
                 Y = -2,
                 Z = -3
             }
-        };
-
-        var e1Ref = EntityRef.Create(ref entity1);
-        var e2Ref = EntityRef.Create(ref entity2);
+        });
 
         world.Add(e1Ref);
         world.Add(e2Ref);
@@ -272,23 +271,24 @@ public static class Tests
     {
         Console.WriteLine("== Test Storages ==");
 
-        static void DoTest(IStorage storage)
+        static void DoTest(IStorage<int> storage)
         {
             var ptr1 = storage.Allocate();
             var ptr2 = storage.Allocate();
-            storage.Release(ptr1);
-            storage.Release(ptr2);
+            ptr1.Dispose();
+            ptr2.Dispose();
             var ptr3 = storage.Allocate();
             var ptr4 = storage.Allocate();
             var ptr5 = storage.Allocate();
-            storage.Release(ptr3);
-            storage.Release(ptr5);
-            storage.Release(ptr4);
+            ptr3.Dispose();
+            ptr4.Dispose();
+            ptr5.Dispose();
         }
 
-        DoTest(new PoolStorage<int>());
-        DoTest(new NativeStorage<int>());
-        DoTest(new PooledNativeStorage<int>(2));
+        DoTest(new BufferStorage<int>(512));
+        DoTest(NativeStorage<int>.Instance);
+        DoTest(new PooledStorage<int>(2, NativeStorage<int>.Instance));
+        DoTest(UnmanagedHeapStorage<int>.Instance);
 
         Console.WriteLine("Finished");
     }
@@ -299,25 +299,31 @@ public static class Tests
 
         static void DoTest(IStorage<TestEntity> storage)
         {
+            Console.WriteLine($"[{storage}]");
             var factory = new EntityFactory<TestEntity>(storage);
-            var e1 = factory.Create();
+            var e1 = factory.Create(DefaultTestEntity);
             var e2 = factory.Create();
             var e3 = factory.Create();
             Console.WriteLine(e1.Get<Position>());
             Console.WriteLine(e1.Get<Rotation>());
             Console.WriteLine(e1.Get<Scale>());
+            Console.WriteLine(e2.Get<Position>());
+            Console.WriteLine(e3.Get<Position>());
             e1.Destroy();
             e2.Destroy();
             e3.Destroy();
             var e4 = factory.Create();
+            Console.WriteLine(e4.Get<Position>());
             var e5 = factory.Create();
+            Console.WriteLine(e5.Get<Position>());
             e4.Destroy();
             e5.Destroy();
         }
 
-        DoTest(new PoolStorage<TestEntity>());
-        DoTest(new NativeStorage<TestEntity>());
-        DoTest(new PooledNativeStorage<TestEntity>(2));
+        DoTest(new BufferStorage<TestEntity>(512));
+        DoTest(NativeStorage<TestEntity>.Instance);
+        DoTest(new PooledStorage<TestEntity>(2, NativeStorage<TestEntity>.Instance));
+        //DoTest(UnmanagedHeapStorage<TestEntity>.Instance);
     }
 
     public static void Run()

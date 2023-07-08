@@ -1,15 +1,15 @@
 namespace Sia;
 
-using System.Runtime.CompilerServices;
 using CommunityToolkit.HighPerformance.Buffers;
 
-public sealed class PoolStorage<T> : IStorage<T>, IDisposable
+public sealed class BufferStorage<T> : IStorage<T>, IDisposable
+    where T : struct
 {
     public int Capacity { get; }
     public int Count { get; private set; }
+    public bool IsManaged => true;
 
     private readonly MemoryOwner<T> _memory;
-    private readonly IntPtr _initialPtr;
     private int _lastIndex;
 
     private readonly SparseSet<int> _allocated;
@@ -18,19 +18,11 @@ public sealed class PoolStorage<T> : IStorage<T>, IDisposable
     private bool _disposed;
 
     private const int IndexPageSize = 1024;
-    private static readonly int MemorySize = Unsafe.SizeOf<T>();
 
-    public PoolStorage()
-        : this(512)
-    {
-    }
-
-    public unsafe PoolStorage(int capacity)
+    public unsafe BufferStorage(int capacity)
     {
         Capacity = capacity;
-
-        _memory = MemoryOwner<T>.Allocate(Capacity);
-        _initialPtr = (IntPtr)Unsafe.AsPointer(ref _memory.Span[0]);
+        _memory = MemoryOwner<T>.Allocate(Capacity, AllocationMode.Clear);
 
         if (capacity <= IndexPageSize) {
             _allocated = new(1, IndexPageSize);
@@ -43,20 +35,19 @@ public sealed class PoolStorage<T> : IStorage<T>, IDisposable
         }
     }
 
-    public unsafe IntPtr Allocate()
+    public unsafe Pointer<T> Allocate()
     {
         if (Count == Capacity) {
             throw new IndexOutOfRangeException("Pool storage is full");
         }
 
-        IntPtr ptr;
+        int index;
         int releasedCount = _released.Count;
 
         if (releasedCount > 0) {
-            int index = _released.AsKeySpan()[releasedCount - 1];
+            index = _released.AsKeySpan()[releasedCount - 1];
             _released.Remove(index);
             _allocated.Add(index, index);
-            ptr = _initialPtr + index * MemorySize;
         }
         else {
             while (true) {
@@ -65,18 +56,18 @@ public sealed class PoolStorage<T> : IStorage<T>, IDisposable
                 }
                 _lastIndex = (_lastIndex + 1) % Capacity;
             }
-            ptr = _initialPtr + _lastIndex * MemorySize;
+            index = _lastIndex;
         }
 
         Count++;
-        return ptr;
+        return new(index, this);
     }
 
-    public void Release(IntPtr ptr)
+    public void UnsafeRelease(long rawPointer)
     {
-        int index = (int)(ptr - _initialPtr);
-        if (ptr < _initialPtr || !_allocated.Remove(index)) {
-            throw new ArgumentException("Entity was not allocated from this storage");
+        int index = (int)rawPointer;
+        if (!_allocated.Remove(index)) {
+            throw new ArgumentException("Invalid pointer");
         }
 
         if (_lastIndex == index) {
@@ -85,8 +76,13 @@ public sealed class PoolStorage<T> : IStorage<T>, IDisposable
         else {
             _released.Add(index, index);
         }
+
+        _memory.Span[index] = default;
         Count--;
     }
+
+    public ref T UnsafeGetRef(long rawPointer)
+        => ref _memory.Span[(int)rawPointer];
 
     public void Dispose()
     {

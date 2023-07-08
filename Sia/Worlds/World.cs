@@ -15,7 +15,7 @@ public class World<T> : Group<T>, IDisposable
     public IReadOnlyList<WorldGroup<T>> Groups => _groups;
 
     private readonly List<WorldGroup<T>> _groups = new();
-    private readonly SparseSet<(IntPtr Pointer, IStorage Storage)> _singletons = new();
+    private readonly SparseSet<(long Pointer, Action Disposer)> _singletons = new();
 
     public World()
     {
@@ -114,26 +114,12 @@ public class World<T> : Group<T>, IDisposable
         Dispatcher.Send(target, command);
     }
 
-    public unsafe ref TSingleton Acquire<TSingleton>()
-        where TSingleton : new()
-    {
-        ref var entry = ref _singletons.GetOrAddValueRef(
-            TypeIndexer<T>.Index, out bool exists);
+    protected IStorage<TSingleton> GetSingletonStorage<TSingleton>()
+        where TSingleton : struct
+        => NativeStorage<TSingleton>.Instance;
 
-        if (!exists) {
-            entry.Storage = NativeStorage<TSingleton>.Instance;
-            entry.Pointer = entry.Storage.Allocate();
-
-            ref var objRef = ref Unsafe.AsRef<TSingleton>((void*)entry.Pointer);
-            objRef = new();
-            return ref objRef!;
-        }
-
-        return ref Unsafe.AsRef<TSingleton>((void*)entry.Pointer);
-    }
-
-    public unsafe ref TSingleton Create<TSingleton>()
-        where TSingleton : new()
+    public unsafe ref TSingleton Add<TSingleton>()
+        where TSingleton : struct
     {
         ref var entry = ref _singletons.GetOrAddValueRef(
             TypeIndexer<TSingleton>.Index, out bool exists);
@@ -142,40 +128,42 @@ public class World<T> : Group<T>, IDisposable
             throw new Exception("Singleton already exists: " + typeof(TSingleton));
         }
 
-        entry.Storage = NativeStorage<TSingleton>.Instance;
-        entry.Pointer = entry.Storage.Allocate();
-
-        ref var objRef = ref Unsafe.AsRef<TSingleton>((void*)entry.Pointer);
-        objRef = new();
-        return ref objRef!;
+        var storage = GetSingletonStorage<TSingleton>();
+        var pointer = storage.Allocate().Raw;
+        entry.Pointer = pointer;
+        entry.Disposer = () => storage.UnsafeRelease(pointer);
+        return ref storage.UnsafeGetRef(pointer);
     }
 
     public bool Remove<TSingleton>()
+        where TSingleton : struct
     {
         if (!_singletons.Remove(TypeIndexer<TSingleton>.Index, out var entry)) {
             return false;
         }
-        entry.Storage.Release(entry.Pointer);
+        entry.Disposer();
         return true;
     }
 
     public unsafe ref TSingleton Get<TSingleton>()
-    {
-        ref var entry = ref _singletons.GetOrAddValueRef(
-            TypeIndexer<TSingleton>.Index, out bool exists);
-
-        if (!exists) {
-            throw new Exception("Singleton not found: " + typeof(TSingleton));
-        }
-
-        return ref Unsafe.AsRef<TSingleton>((void*)entry.Pointer);
-    }
-    
-    public unsafe ref TSingleton GetOrNullRef<TSingleton>()
+        where TSingleton : struct
     {
         ref var entry = ref _singletons.GetValueRefOrNullRef(
             TypeIndexer<TSingleton>.Index);
-        return ref Unsafe.AsRef<TSingleton>((void*)entry.Pointer);
+
+        if (Unsafe.IsNullRef(ref entry)) {
+            throw new Exception("Singleton not found: " + typeof(TSingleton));
+        }
+
+        return ref GetSingletonStorage<TSingleton>().UnsafeGetRef(entry.Pointer);
+    }
+    
+    public unsafe ref TSingleton GetOrNullRef<TSingleton>()
+        where TSingleton : struct
+    {
+        ref var entry = ref _singletons.GetValueRefOrNullRef(
+            TypeIndexer<TSingleton>.Index);
+        return ref GetSingletonStorage<TSingleton>().UnsafeGetRef(entry.Pointer);
     }
 
     public bool Contains<TSingleton>()
@@ -188,8 +176,8 @@ public class World<T> : Group<T>, IDisposable
         }
         IsDisposed = true;
 
-        foreach (var (pointer, storage) in _singletons.Values) {
-            storage.Release(pointer);
+        foreach (var (_, disposer) in _singletons.AsValueSpan()) {
+            disposer();
         }
 
         OnDisposed?.Invoke(this);
