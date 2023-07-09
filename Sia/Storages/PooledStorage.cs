@@ -20,10 +20,7 @@ public class PooledStorage<T> : IStorage<T>
 
     public Pointer<T> Allocate()
     {
-        if (_pooled.TryPop(out var ptr)) {
-            InnerStorage.UnsafeGetRef(ptr) = default;
-        }
-        else {
+        if (!_pooled.TryPop(out var ptr)) {
             ptr = InnerStorage.Allocate().Raw;
         }
         return new(ptr, this);
@@ -43,6 +40,7 @@ public class PooledStorage<T> : IStorage<T>
     public void UnsafeRelease(long rawPointer)
     {
         if (_pooled.Count < PoolSize) {
+            InnerStorage.UnsafeGetRef(rawPointer) = default;
             _pooled.Push(rawPointer);
         }
         else {
