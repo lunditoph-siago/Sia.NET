@@ -242,14 +242,14 @@ public unsafe static class Tests
 
         new PositionSystems().Register(world, scheduler);
 
-        var e1Ref = EntityFactory<TestEntity>.Native.Create(new() {
+        var e1Ref = EntityFactory<TestEntity>.Default.Create(new() {
             Position = new Position {
                 X = 1,
                 Y = 2,
                 Z = 3
             }
         });
-        var e2Ref = EntityFactory<TestEntity>.Native.Create(new() {
+        var e2Ref = EntityFactory<TestEntity>.Default.Create(new() {
             Position = new Position {
                 X = -1,
                 Y = -2,
@@ -286,8 +286,8 @@ public unsafe static class Tests
         }
 
         DoTest(new BufferStorage<int>(512));
-        DoTest(NativeStorage<int>.Instance);
-        DoTest(new PooledStorage<int>(2, NativeStorage<int>.Instance));
+        DoTest(ManagedHeapStorage<int>.Instance);
+        DoTest(new PooledStorage<int>(2, ManagedHeapStorage<int>.Instance));
         DoTest(UnmanagedHeapStorage<int>.Instance);
 
         Console.WriteLine("Finished");
@@ -321,8 +321,8 @@ public unsafe static class Tests
         }
 
         DoTest(new BufferStorage<TestEntity>(512));
-        DoTest(NativeStorage<TestEntity>.Instance);
-        DoTest(new PooledStorage<TestEntity>(2, NativeStorage<TestEntity>.Instance));
+        DoTest(ManagedHeapStorage<TestEntity>.Instance);
+        DoTest(new PooledStorage<TestEntity>(2, ManagedHeapStorage<TestEntity>.Instance));
         //DoTest(UnmanagedHeapStorage<TestEntity>.Instance);
     }
 

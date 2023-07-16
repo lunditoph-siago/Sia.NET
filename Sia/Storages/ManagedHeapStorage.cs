@@ -3,10 +3,10 @@ namespace Sia;
 using System.Runtime.Serialization;
 using CommunityToolkit.HighPerformance;
 
-public sealed class NativeStorage<T> : IStorage<T>
+public sealed class ManagedHeapStorage<T> : IStorage<T>
     where T : struct
 {
-    public static NativeStorage<T> Instance { get; } = new();
+    public static ManagedHeapStorage<T> Instance { get; } = new();
 
     public int Capacity { get; } = int.MaxValue;
     public int Count => _objects.Count;
@@ -15,7 +15,7 @@ public sealed class NativeStorage<T> : IStorage<T>
     private readonly Dictionary<long, Box<T>> _objects = new();
     private readonly ObjectIDGenerator _idGenerator = new();
 
-    private NativeStorage() {}
+    private ManagedHeapStorage() {}
 
     public Pointer<T> Allocate()
         => Allocate(default);
@@ -31,7 +31,7 @@ public sealed class NativeStorage<T> : IStorage<T>
     public void UnsafeRelease(long rawPointer)
     {
         if (!_objects.Remove(rawPointer)) {
-            throw new ArgumentException("Invalid argument");
+            throw new ArgumentException("Invalid pointer");
         }
     }
 

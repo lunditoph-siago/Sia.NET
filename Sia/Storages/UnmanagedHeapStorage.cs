@@ -14,7 +14,7 @@ public sealed class UnmanagedHeapStorage<T> : IStorage<T>
     public int Count { get; private set; }
     public bool IsManaged => false;
 
-    private static readonly int MemorySize = Unsafe.SizeOf<T>();
+    private static readonly int ElementSize = Unsafe.SizeOf<T>();
 
     private UnmanagedHeapStorage() {}
 
@@ -23,7 +23,7 @@ public sealed class UnmanagedHeapStorage<T> : IStorage<T>
 
     public unsafe Pointer<T> Allocate(in T initial)
     {
-        var ptr = Marshal.AllocHGlobal(MemorySize);
+        var ptr = Marshal.AllocHGlobal(ElementSize);
         *(T*)ptr = initial;
         Count++;
         return new(ptr, this);

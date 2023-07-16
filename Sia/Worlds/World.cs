@@ -116,7 +116,7 @@ public class World<T> : Group<T>, IDisposable
 
     protected IStorage<TSingleton> GetSingletonStorage<TSingleton>()
         where TSingleton : struct
-        => NativeStorage<TSingleton>.Instance;
+        => ManagedHeapStorage<TSingleton>.Instance;
 
     public ref TSingleton Acquire<TSingleton>()
         where TSingleton : struct, IConstructable
