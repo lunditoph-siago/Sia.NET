@@ -25,8 +25,8 @@ public sealed class BufferStorage<T> : IStorage<T>, IDisposable
         _memory = MemoryOwner<T>.Allocate(Capacity, AllocationMode.Clear);
 
         if (capacity <= IndexPageSize) {
-            _allocated = new(1, IndexPageSize);
-            _released = new(1, IndexPageSize);
+            _allocated = new(1, capacity);
+            _released = new(1, capacity);
         }
         else {
             int pageCount = capacity / IndexPageSize + capacity % IndexPageSize;
