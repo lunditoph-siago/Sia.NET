@@ -5,10 +5,10 @@ using System.Runtime.CompilerServices;
 public class EntityFactory<T> : IEntityFactory<T>, IEntityAccessor, IEntityDisposer
     where T : struct
 {
-    public static EntityFactory<T> Native {
+    public static EntityFactory<T> Default {
         get {
-            s_nativeFactory ??= new(NativeStorage<T>.Instance);
-            return s_nativeFactory;
+            s_defaultFactory ??= new(ManagedHeapStorage<T>.Instance);
+            return s_defaultFactory;
         }
     }
 
@@ -17,7 +17,7 @@ public class EntityFactory<T> : IEntityFactory<T>, IEntityAccessor, IEntityDispo
 
     public IStorage<T> Storage { get; }
 
-    private static EntityFactory<T>? s_nativeFactory;
+    private static EntityFactory<T>? s_defaultFactory;
 
     public EntityFactory(IStorage<T> managedStorage)
     {

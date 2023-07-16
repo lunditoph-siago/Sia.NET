@@ -9,6 +9,8 @@ public sealed class BufferStorage<T> : IStorage<T>, IDisposable
     public int Count { get; private set; }
     public bool IsManaged => true;
 
+    public int IndexPageSize { get; }
+
     private readonly MemoryOwner<T> _memory;
     private int _lastIndex;
 
@@ -17,11 +19,11 @@ public sealed class BufferStorage<T> : IStorage<T>, IDisposable
 
     private bool _disposed;
 
-    private const int IndexPageSize = 1024;
-
-    public unsafe BufferStorage(int capacity)
+    public BufferStorage(int capacity, int indexPageSize = 1024)
     {
         Capacity = capacity;
+        IndexPageSize = indexPageSize;
+
         _memory = MemoryOwner<T>.Allocate(Capacity, AllocationMode.Clear);
 
         if (capacity <= IndexPageSize) {
@@ -35,10 +37,10 @@ public sealed class BufferStorage<T> : IStorage<T>, IDisposable
         }
     }
 
-    public unsafe Pointer<T> Allocate()
+    public Pointer<T> Allocate()
     {
         if (Count == Capacity) {
-            throw new IndexOutOfRangeException("Pool storage is full");
+            throw new IndexOutOfRangeException("Storage is full");
         }
 
         int index;

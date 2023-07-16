@@ -3,16 +3,16 @@ namespace Sia;
 public class UnmanagedEntityFactory<T> : IEntityFactory<T>, IEntityDisposer
     where T : unmanaged
 {
-    public static UnmanagedEntityFactory<T> Heap {
+    public static UnmanagedEntityFactory<T> Default {
         get {
-            s_heapFactory ??= new(UnmanagedHeapStorage<T>.Instance);
-            return s_heapFactory;
+            s_defaultFactory ??= new(UnmanagedHeapStorage<T>.Instance);
+            return s_defaultFactory;
         }
     }
 
     public IStorage<T> Storage { get; }
 
-    private static UnmanagedEntityFactory<T>? s_heapFactory;
+    private static UnmanagedEntityFactory<T>? s_defaultFactory;
 
     public UnmanagedEntityFactory(IStorage<T> storage)
     {
