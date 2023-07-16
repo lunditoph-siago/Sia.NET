@@ -15,7 +15,7 @@ public class World<T> : Group<T>, IDisposable
     public IReadOnlyList<WorldGroup<T>> Groups => _groups;
 
     private readonly List<WorldGroup<T>> _groups = new();
-    private readonly SparseSet<(long Pointer, Action Disposer)> _singletons = new();
+    private readonly SparseSet<object> _singletons = new();
 
     public World()
     {
@@ -114,26 +114,18 @@ public class World<T> : Group<T>, IDisposable
         Dispatcher.Send(target, command);
     }
 
-    protected IStorage<TSingleton> GetSingletonStorage<TSingleton>()
-        where TSingleton : struct
-        => ManagedHeapStorage<TSingleton>.Instance;
-
     public ref TSingleton Acquire<TSingleton>()
         where TSingleton : struct, IConstructable
     {
-        var storage = GetSingletonStorage<TSingleton>();
-        ref var entry = ref _singletons.GetOrAddValueRef(
-            TypeIndexer<TSingleton>.Index, out bool exists);
+        ref var box = ref _singletons.GetOrAddValueRef(
+            WorldSingletonIndexer<TSingleton>.Index, out bool exists);
 
         if (exists) {
-            return ref storage.UnsafeGetRef(entry.Pointer);
+            return ref Unsafe.Unbox<TSingleton>(box);
         }
 
-        var pointer = storage.Allocate().Raw;
-        entry.Pointer = pointer;
-        entry.Disposer = () => storage.UnsafeRelease(pointer);
-
-        ref var singleton = ref storage.UnsafeGetRef(pointer);
+        box = new TSingleton();
+        ref var singleton = ref Unsafe.Unbox<TSingleton>(box);
         singleton.Construct();
         return ref singleton;
     }
@@ -141,53 +133,45 @@ public class World<T> : Group<T>, IDisposable
     public unsafe ref TSingleton Add<TSingleton>()
         where TSingleton : struct
     {
-        ref var entry = ref _singletons.GetOrAddValueRef(
-            TypeIndexer<TSingleton>.Index, out bool exists);
+        ref var box = ref _singletons.GetOrAddValueRef(
+            WorldSingletonIndexer<TSingleton>.Index, out bool exists);
 
         if (exists) {
             throw new Exception("Singleton already exists: " + typeof(TSingleton));
         }
-
-        var storage = GetSingletonStorage<TSingleton>();
-        var pointer = storage.Allocate().Raw;
-        entry.Pointer = pointer;
-        entry.Disposer = () => storage.UnsafeRelease(pointer);
-        return ref storage.UnsafeGetRef(pointer);
+        return ref Unsafe.Unbox<TSingleton>(box);
     }
 
     public bool Remove<TSingleton>()
         where TSingleton : struct
-    {
-        if (!_singletons.Remove(TypeIndexer<TSingleton>.Index, out var entry)) {
-            return false;
-        }
-        entry.Disposer();
-        return true;
-    }
+        => _singletons.Remove(WorldSingletonIndexer<TSingleton>.Index);
 
     public unsafe ref TSingleton Get<TSingleton>()
         where TSingleton : struct
     {
-        ref var entry = ref _singletons.GetValueRefOrNullRef(
-            TypeIndexer<TSingleton>.Index);
+        ref var box = ref _singletons.GetValueRefOrNullRef(
+            WorldSingletonIndexer<TSingleton>.Index);
 
-        if (Unsafe.IsNullRef(ref entry)) {
+        if (Unsafe.IsNullRef(ref box)) {
             throw new Exception("Singleton not found: " + typeof(TSingleton));
         }
-
-        return ref GetSingletonStorage<TSingleton>().UnsafeGetRef(entry.Pointer);
+        return ref Unsafe.Unbox<TSingleton>(box);
     }
     
     public unsafe ref TSingleton GetOrNullRef<TSingleton>()
         where TSingleton : struct
     {
-        ref var entry = ref _singletons.GetValueRefOrNullRef(
-            TypeIndexer<TSingleton>.Index);
-        return ref GetSingletonStorage<TSingleton>().UnsafeGetRef(entry.Pointer);
+        ref var box = ref _singletons.GetValueRefOrNullRef(
+            WorldSingletonIndexer<TSingleton>.Index);
+
+        if (Unsafe.IsNullRef(ref box)) {
+            return ref Unsafe.NullRef<TSingleton>();
+        }
+        return ref Unsafe.Unbox<TSingleton>(box);
     }
 
     public bool Contains<TSingleton>()
-        => _singletons.ContainsKey(TypeIndexer<TSingleton>.Index);
+        => _singletons.ContainsKey(WorldSingletonIndexer<TSingleton>.Index);
     
     public virtual void Dispose()
     {
@@ -195,11 +179,6 @@ public class World<T> : Group<T>, IDisposable
             return;
         }
         IsDisposed = true;
-
-        foreach (var (_, disposer) in _singletons.AsValueSpan()) {
-            disposer();
-        }
-
         OnDisposed?.Invoke(this);
     }
 }
