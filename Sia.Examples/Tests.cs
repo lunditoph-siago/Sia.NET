@@ -309,15 +309,15 @@ public unsafe static class Tests
             Console.WriteLine(e1.Get<Scale>());
             Console.WriteLine(e2.Get<Position>());
             Console.WriteLine(e3.Get<Position>());
-            e1.Destroy();
-            e2.Destroy();
-            e3.Destroy();
+            e1.Dispose();
+            e2.Dispose();
+            e3.Dispose();
             var e4 = factory.Create();
             Console.WriteLine(e4.Get<Position>());
             var e5 = factory.Create();
             Console.WriteLine(e5.Get<Position>());
-            e4.Destroy();
-            e5.Destroy();
+            e4.Dispose();
+            e5.Dispose();
         }
 
         DoTest(new BufferStorage<TestEntity>(512));
