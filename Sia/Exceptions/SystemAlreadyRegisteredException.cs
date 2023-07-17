@@ -1,11 +1,11 @@
 namespace Sia;
 
-[System.Serializable]
-public class SystemAlreadyRegisteredException : System.Exception
+[Serializable]
+public class SystemAlreadyRegisteredException : Exception
 {
     public SystemAlreadyRegisteredException() { }
     public SystemAlreadyRegisteredException(string message) : base(message) { }
-    public SystemAlreadyRegisteredException(string message, System.Exception inner) : base(message, inner) { }
+    public SystemAlreadyRegisteredException(string message, Exception inner) : base(message, inner) { }
     protected SystemAlreadyRegisteredException(
         System.Runtime.Serialization.SerializationInfo info,
         System.Runtime.Serialization.StreamingContext context) : base(info, context) { }
