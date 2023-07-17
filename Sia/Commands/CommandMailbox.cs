@@ -22,7 +22,7 @@ public class CommandMailbox<TCommand, TTarget> : IEventSender<TCommand, TTarget>
     private void Send((TTarget, TCommand) tuple)
         => Send(tuple.Item1, tuple.Item2);
     
-    private int GetCommandPriority(TCommand command)
+    private static int GetCommandPriority(TCommand command)
         => command is ISortableCommand<TTarget> sortable ? sortable.Priority : 0;
 
     public virtual void Send(in TTarget target, TCommand command)
