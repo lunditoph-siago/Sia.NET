@@ -55,7 +55,7 @@ public class EntityFactory<T> : IEntityFactory<T>, IEntityAccessor, IEntityDispo
             throw new ComponentNotFoundException("Component not found: " + typeof(TComponent));
         }
         return ref Unsafe.AsRef<TComponent>(
-            (void*)((IntPtr)Unsafe.AsPointer<T>(ref entity) + offset));
+            (void*)((IntPtr)Unsafe.AsPointer(ref entity) + offset));
     }
 
     public unsafe ref TComponent GetOrNullRef<TComponent>(long pointer)
