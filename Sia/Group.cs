@@ -52,7 +52,9 @@ public class Group<T> : IReadOnlyList<T>
         }
         int lastIndex = _values.Count - 1;
         if (index != lastIndex) {
-            _values[index] = _values[lastIndex];
+            ref var lastValue = ref CollectionsMarshal.AsSpan(_values)[lastIndex];
+            _values[index] = lastValue;
+            _indices[lastValue] = index;
         }
         _values.RemoveAt(lastIndex);
         return true;
