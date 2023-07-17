@@ -158,7 +158,7 @@ public static class Program
         var gameplaySystemsHandle =
             new GameplaySystems().Register(world, world.Scheduler);
 
-        var playerRef = EntityFactory<Player>.Native.Create(new() {
+        var playerRef = EntityFactory<Player>.Default.Create(new() {
             Transform = new() {
                 Position = new(1, 1)
             },
