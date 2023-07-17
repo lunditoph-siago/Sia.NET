@@ -1,7 +1,7 @@
 namespace Sia;
 
 public readonly record struct EntityRef(
-    long Pointer, IEntityAccessor Accessor, IEntityDisposer? Disposer = null)
+    long Pointer, IEntityAccessor Accessor, IEntityDisposer? Disposer = null) : IDisposable
 {
     public bool Contains<TComponent>()
         => Accessor.Contains<TComponent>(Pointer);
@@ -15,6 +15,6 @@ public readonly record struct EntityRef(
     public ref TComponent GetOrNullRef<TComponent>()
         => ref Accessor.GetOrNullRef<TComponent>(Pointer);
 
-    public readonly void Destroy()
+    public readonly void Dispose()
         => Disposer?.DisposeEntity(Pointer);
 }
