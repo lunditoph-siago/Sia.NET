@@ -14,7 +14,7 @@ public sealed class BufferStorage<T> : IStorage<T>
     private readonly SparseSet<T> _memory;
     private readonly SparseSet<int> _released;
 
-    public BufferStorage(int capacity, int pageSize = 1024)
+    public BufferStorage(int capacity, int pageSize = 256)
     {
         Capacity = capacity;
         PageSize = pageSize;
