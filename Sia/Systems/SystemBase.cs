@@ -73,7 +73,7 @@ public class SystemBase<TWorld> : ISystem
                 throw new ObjectDisposedException("System has been disposed");
             }
             if (removedTask != task) {
-                throw new ObjectDisposedException("Internal error: removed task is not the task to be disposed");
+                throw new InvalidOperationException("Internal error: removed task is not the task to be disposed");
             }
             Uninitialize(world, scheduler);
         }
