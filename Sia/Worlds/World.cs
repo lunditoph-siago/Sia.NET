@@ -172,14 +172,24 @@ public class World<T> : Group<T>, IDisposable
 
     public bool Contains<TSingleton>()
         => _singletons.ContainsKey(WorldSingletonIndexer<TSingleton>.Index);
-    
-    public virtual void Dispose()
+
+    protected virtual void Dispose(bool disposing)
     {
-        if (IsDisposed) {
-            return;
-        }
+        if (IsDisposed) { return; }
         IsDisposed = true;
         OnDisposed?.Invoke(this);
+    }
+
+    // TODO: 仅当“Dispose(bool disposing)”拥有用于释放未托管资源的代码时才替代终结器
+    ~World()
+    {
+        Dispose(false);
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
     }
 }
 
