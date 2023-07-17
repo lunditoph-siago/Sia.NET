@@ -59,7 +59,7 @@ public sealed class SparseSet<T> : IDictionary<int, T>, IReadOnlyDictionary<int,
     }
 
     IEnumerator IEnumerable.GetEnumerator()
-        => ((IEnumerable<KeyValuePair<int, T>>)this).GetEnumerator();
+        => GetEnumerator();
 
     public bool Add(int index, T value)
     {
