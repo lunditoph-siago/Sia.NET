@@ -1,39 +1,32 @@
 namespace Sia;
 
-using CommunityToolkit.HighPerformance.Buffers;
-
-public sealed class BufferStorage<T> : IStorage<T>, IDisposable
+public sealed class BufferStorage<T> : IStorage<T>
     where T : struct
 {
     public int Capacity { get; }
     public int Count { get; private set; }
     public bool IsManaged => true;
 
-    public int IndexPageSize { get; }
+    public int PageSize { get; }
 
-    private readonly MemoryOwner<T> _memory;
     private int _lastIndex;
 
-    private readonly SparseSet<int> _allocated;
+    private readonly SparseSet<T> _memory;
     private readonly SparseSet<int> _released;
 
-    private bool _disposed;
-
-    public BufferStorage(int capacity, int indexPageSize = 1024)
+    public BufferStorage(int capacity, int pageSize = 1024)
     {
         Capacity = capacity;
-        IndexPageSize = indexPageSize;
+        PageSize = pageSize;
 
-        _memory = MemoryOwner<T>.Allocate(Capacity, AllocationMode.Clear);
-
-        if (capacity <= IndexPageSize) {
-            _allocated = new(1, capacity);
+        if (capacity <= PageSize) {
+            _memory = new(1, capacity);
             _released = new(1, capacity);
         }
         else {
-            int pageCount = capacity / IndexPageSize + capacity % IndexPageSize;
-            _allocated = new(pageCount, IndexPageSize);
-            _released = new(pageCount, IndexPageSize);
+            int pageCount = capacity / PageSize + (capacity % PageSize != 0 ? 1 : 0);
+            _memory = new(pageCount, PageSize);
+            _released = new(pageCount, PageSize);
         }
     }
 
@@ -49,13 +42,12 @@ public sealed class BufferStorage<T> : IStorage<T>, IDisposable
         if (releasedCount > 0) {
             index = _released.AsKeySpan()[releasedCount - 1];
             _released.Remove(index);
-            _allocated.Add(index, index);
+            _memory.GetOrAddValueRef(index, out bool _);
         }
         else {
             while (true) {
-                if (_allocated.Add(_lastIndex, _lastIndex)) {
-                    break;
-                }
+                _memory.GetOrAddValueRef(_lastIndex, out bool exists);
+                if (!exists) { break; }
                 _lastIndex = (_lastIndex + 1) % Capacity;
             }
             index = _lastIndex;
@@ -68,28 +60,18 @@ public sealed class BufferStorage<T> : IStorage<T>, IDisposable
     public void UnsafeRelease(long rawPointer)
     {
         int index = (int)rawPointer;
-        if (!_allocated.Remove(index)) {
+        if (!_memory.Remove(index)) {
             throw new ArgumentException("Invalid pointer");
         }
-
         if (_lastIndex == index) {
             _lastIndex--;
         }
         else {
             _released.Add(index, index);
         }
-
-        _memory.Span[index] = default;
         Count--;
     }
 
     public ref T UnsafeGetRef(long rawPointer)
-        => ref _memory.Span[(int)rawPointer];
-
-    public void Dispose()
-    {
-        if (_disposed) { return; }
-        _disposed = true;
-        _memory.Dispose();
-    }
+        => ref _memory.GetValueRefOrNullRef((int)rawPointer);
 }
