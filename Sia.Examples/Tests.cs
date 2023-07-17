@@ -285,7 +285,7 @@ public unsafe static class Tests
             ptr5.Dispose();
         }
 
-        DoTest(new BufferStorage<int>(512));
+        DoTest(new BufferStorage<int>(5120));
         DoTest(ManagedHeapStorage<int>.Instance);
         DoTest(new PooledStorage<int>(2, ManagedHeapStorage<int>.Instance));
         DoTest(UnmanagedHeapStorage<int>.Instance);
