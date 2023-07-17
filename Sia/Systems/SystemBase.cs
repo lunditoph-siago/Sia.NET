@@ -8,6 +8,8 @@ public class SystemBase<TWorld> : ISystem
     public ITypeUnion? Matcher { get; init; }
     public IEventUnion? Trigger { get; init; }
 
+    public virtual void Initialize(TWorld world, Scheduler scheduler) {}
+    public virtual void Uninitialize(TWorld world, Scheduler scheduler) {}
     public virtual void BeforeExecute(TWorld world, Scheduler scheduler) {}
     public virtual void AfterExecute(TWorld world, Scheduler scheduler) {}
     public virtual void Execute(TWorld world, Scheduler scheduler, in EntityRef entity) {}
@@ -62,6 +64,7 @@ public class SystemBase<TWorld> : ISystem
                 throw new SystemAlreadyRegisteredException(
                     "Failed to register system: system already registered in World and Scheduler pair");
             }
+            Initialize(world, scheduler);
         }
 
         void DoUnregisterSystem(SystemGlobalData sysData, Scheduler.TaskGraphNode task)
@@ -72,6 +75,7 @@ public class SystemBase<TWorld> : ISystem
             if (removedTask != task) {
                 throw new ObjectDisposedException("Internal error: removed task is not the task to be disposed");
             }
+            Uninitialize(world, scheduler);
         }
 
         var sysData = SystemGlobalData.Acquire(GetType());
