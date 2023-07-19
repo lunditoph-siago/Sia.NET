@@ -5,11 +5,11 @@ Elegant ECS framework for .NET
 ## Example
 
 ```C#
-namespace Sia.Example;
+namespace Sia.Examples;
 
 using System.Numerics;
 
-public static class Program
+public static class Example1
 {
     public class GameWorld : World
     {
@@ -26,11 +26,8 @@ public static class Program
         }
     }
 
-    public record struct Transform
+    public record struct Transform(Vector2 Position, float Angle)
     {
-        public Vector2 Position;
-        public float Angle;
-
         public class SetPosition
             : PropertyCommand<SetPosition, Vector2>
         {
@@ -46,13 +43,8 @@ public static class Program
         }
     }
 
-    public record struct Health
+    public record struct Health(float Value, float Debuff)
     {
-        public float Value;
-        public float Debuff;
-
-        public Health() {}
-
         public class Damage
             : PropertyCommand<Damage, float>
         {
@@ -143,13 +135,10 @@ public static class Program
         }
     }
 
-    public record struct Player
-    {
-        public Transform Transform;
-        public Health Health;
-    }
+    public record struct Player(
+        Transform Transform, Health Health);
 
-    public static void Main()
+    public static void Run()
     {
         var world = new GameWorld();
 
