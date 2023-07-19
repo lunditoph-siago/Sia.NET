@@ -14,7 +14,7 @@ public class Dispatcher<TTarget> : IEventSender<IEvent, TTarget>
 
     public Listener Listen<TEvent>(Listener listener)
         where TEvent : IEvent
-        => RawListen(_eventListeners, typeof(TEvent), listener);
+        => Dispatcher<TTarget>.RawListen(_eventListeners, typeof(TEvent), listener);
 
     public Listener ListenEx<TEvent>(Listener<TEvent> innerListener)
         where TEvent : IEvent
@@ -27,7 +27,7 @@ public class Dispatcher<TTarget> : IEventSender<IEvent, TTarget>
     public Listener Listen(in TTarget target, Listener listener)
         => RawListen(_targetListeners, target, listener);
 
-    private Listener RawListen<TKey>(Dictionary<TKey, List<Listener>> dict, TKey key, Listener listener)
+    private static Listener RawListen<TKey>(Dictionary<TKey, List<Listener>> dict, TKey key, Listener listener)
         where TKey : notnull
     {
         ref var listeners = ref CollectionsMarshal.GetValueRefOrAddDefault(dict, key, out bool exists);
@@ -79,7 +79,7 @@ public class Dispatcher<TTarget> : IEventSender<IEvent, TTarget>
         _targetListeners.Clear();
     }
 
-    private void ExecuteListeners(in TTarget target, List<Listener> listeners, IEvent e, int length)
+    private static void ExecuteListeners(in TTarget target, List<Listener> listeners, IEvent e, int length)
     {
         int initialLength = length;
 
