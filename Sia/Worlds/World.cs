@@ -180,7 +180,6 @@ public class World<T> : Group<T>, IDisposable
         OnDisposed?.Invoke(this);
     }
 
-    // TODO: 仅当“Dispose(bool disposing)”拥有用于释放未托管资源的代码时才替代终结器
     ~World()
     {
         Dispose(false);
