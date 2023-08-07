@@ -1,14 +1,14 @@
 namespace Sia;
 
-public abstract class SingleValuePooledEvent<TEvent, T> : PooledEvent<TEvent>
+public abstract class SingleValuePooledEvent<TEvent, TValue> : PooledEvent<TEvent>
     where TEvent : IEvent, new()
 {
-    public T? Value { get; set; }
+    public TValue? Value { get; set; }
 
-    public static TEvent Create(T value)
+    public static TEvent Create(TValue value)
     {
         var e = CreateRaw();
-        (e as SingleValuePooledEvent<TEvent, T>)!.Value = value;
+        (e as SingleValuePooledEvent<TEvent, TValue>)!.Value = value;
         return e;
     }
 }
