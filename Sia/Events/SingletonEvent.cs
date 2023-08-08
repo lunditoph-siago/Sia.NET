@@ -1,7 +1,7 @@
 namespace Sia;
 
 public abstract class SingletonEvent<TEvent> : IEvent
-    where TEvent : IEvent, new()
+    where TEvent : SingletonEvent<TEvent>, new()
 {
     public static TEvent Instance { get; } = new();
 
