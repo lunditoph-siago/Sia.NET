@@ -3,7 +3,7 @@ namespace Sia;
 using System.Collections.Concurrent;
 
 public abstract class PooledEvent<TEvent> : IEvent
-    where TEvent : IEvent, new()
+    where TEvent : PooledEvent<TEvent>, new()
 {
     private static readonly ConcurrentStack<IEvent> s_pool = new();
 

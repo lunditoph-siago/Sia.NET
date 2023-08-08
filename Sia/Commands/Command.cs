@@ -2,7 +2,7 @@ namespace Sia;
 
 public abstract class ImpureCommand<TCommand, TTarget>
     : PooledEvent<TCommand>, ICommand<TTarget>
-    where TCommand : ICommand<TTarget>, new()
+    where TCommand : ImpureCommand<TCommand, TTarget>, new()
     where TTarget : notnull
 {
     public abstract void Execute(World<TTarget> world, in TTarget target);
@@ -10,13 +10,13 @@ public abstract class ImpureCommand<TCommand, TTarget>
 
 public abstract class ImpureCommand<TCommand>
     : ImpureCommand<TCommand, EntityRef>, ICommand
-    where TCommand : ICommand<EntityRef>, new()
+    where TCommand : ImpureCommand<TCommand>, new()
 {
 }
 
 public abstract class Command<TCommand, TTarget>
     : PooledEvent<TCommand>, ICommand<TTarget>
-    where TCommand : ICommand<TTarget>, new()
+    where TCommand : Command<TCommand, TTarget>, new()
     where TTarget : notnull
 {
     public void Execute(World<TTarget> world, in TTarget target)
@@ -27,6 +27,6 @@ public abstract class Command<TCommand, TTarget>
 
 public abstract class Command<TCommand>
     : Command<TCommand, EntityRef>, ICommand
-    where TCommand : ICommand<EntityRef>, new()
+    where TCommand : Command<TCommand>, new()
 {
 }
