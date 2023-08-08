@@ -1,8 +1,9 @@
 namespace Sia;
 
 public interface ICommand<TTarget> : IEvent
+    where TTarget : notnull
 {
-    void Execute(in TTarget target);
+    void Execute(World<TTarget> world, in TTarget target);
 }
 
 public interface ICommand : ICommand<EntityRef>
