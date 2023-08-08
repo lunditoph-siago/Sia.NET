@@ -1,6 +1,6 @@
-﻿using System.Runtime.CompilerServices;
+﻿namespace Sia.Examples;
 
-namespace Sia.Examples.Tests;
+using System.Runtime.CompilerServices;
 
 public record struct Position
 {
