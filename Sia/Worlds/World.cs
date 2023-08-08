@@ -110,7 +110,7 @@ public class World<T> : Group<T>, IDisposable
 
     public virtual void Modify(in T target, ICommand<T> command)
     {
-        command.Execute(target);
+        command.Execute(this, target);
         Dispatcher.Send(target, command);
     }
 
