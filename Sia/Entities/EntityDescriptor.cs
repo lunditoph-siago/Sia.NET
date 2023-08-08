@@ -19,12 +19,17 @@ public record EntityDescriptor
     private readonly Dictionary<Type, FieldInfo> _compInfos = new();
     private readonly SparseSet<IntPtr> _compOffsets = new();
 
+    private const BindingFlags s_bindingFlags =
+        BindingFlags.Public |
+        BindingFlags.NonPublic | 
+        BindingFlags.Instance;
+
     private EntityDescriptor(Type type)
     {
         Type = type;
         Size = Marshal.SizeOf(type);
 
-        foreach (var member in type.GetMembers()) {
+        foreach (var member in type.GetMembers(s_bindingFlags)) {
             if (member.MemberType != MemberTypes.Field) {
                 continue;
             }
