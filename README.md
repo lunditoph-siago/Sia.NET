@@ -175,8 +175,6 @@ public static class Example1
 
         gameplaySystemsHandle.Dispose();
         healthSystemsHandle.Dispose();
-
-        Tests.Tests.Run();
     }
 }
 ```
