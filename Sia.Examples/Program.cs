@@ -1,3 +1,4 @@
 using Sia.Examples;
 
-Example2.Run();
+Example1.Run();
+Tests.Run();
