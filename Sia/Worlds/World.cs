@@ -3,7 +3,7 @@ namespace Sia;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-public class World<T> : Group<T>, IDisposable
+public class World<T> : Group<T>, IEventSender<IEvent, T>, IDisposable
     where T : notnull
 {
     public event Action<World<T>>? OnDisposed;
@@ -107,6 +107,9 @@ public class World<T> : Group<T>, IDisposable
             group.Clear();
         }
     }
+
+    public void Send(in T target, IEvent e)
+        => Dispatcher.Send(target, e);
 
     public virtual void Modify(in T target, ICommand<T> command)
     {
