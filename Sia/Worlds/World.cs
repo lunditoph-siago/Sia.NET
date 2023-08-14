@@ -160,7 +160,7 @@ public class World<T> : Group<T>, IEventSender<IEvent, T>, IDisposable
         }
         return ref Unsafe.Unbox<TSingleton>(box);
     }
-    
+
     public unsafe ref TSingleton GetOrNullRef<TSingleton>()
         where TSingleton : struct
     {

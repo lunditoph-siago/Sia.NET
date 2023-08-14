@@ -1,32 +1,12 @@
 namespace Sia;
 
 using System.Collections.Concurrent;
-using System.Diagnostics.CodeAnalysis;
 
 public class SystemGlobalData
 {
-    private class WorldGroupKeyComparer : EqualityComparer<(World<EntityRef>, ITypeUnion)>
-    {
-        public override bool Equals((World<EntityRef>, ITypeUnion) x, (World<EntityRef>, ITypeUnion) y)
-            => x.Item1 == y.Item1 && TypeUnionComparer.Instance.Equals(x.Item2, y.Item2);
-
-        public override int GetHashCode([DisallowNull] (World<EntityRef>, ITypeUnion) obj)
-            => obj.GetHashCode();
-    }
-
-    internal class WorldGroupCacheEntry
-    {
-        public WorldGroup<EntityRef> Group { get; }
-        public int RefCount { get; set; }
-
-        public WorldGroupCacheEntry(WorldGroup<EntityRef> group)
-        {
-            Group = group;
-        }
-    }
-
-    internal static ConcurrentDictionary<(World<EntityRef>, ITypeUnion), WorldGroupCacheEntry> WorldGroupCache { get; }
-        = new(new WorldGroupKeyComparer());
+    public static SystemGlobalData? Get<TSystem>()
+        where TSystem : ISystem
+        => Get(typeof(TSystem));
 
     public static SystemGlobalData? Get(Type systemType)
         => s_instances.TryGetValue(systemType, out var instance) ? instance : null;
@@ -51,7 +31,7 @@ public class SystemGlobalData
 
     private SystemGlobalData() {}
 
-    public Func<ISystem>? Creator;
+    public Func<ISystem>? Creator { get; private set; }
 
     internal ConcurrentDictionary<(World<EntityRef>, Scheduler), Scheduler.TaskGraphNode> RegisterEntries { get; } = new();
 }
