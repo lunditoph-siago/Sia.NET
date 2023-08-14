@@ -8,7 +8,7 @@ public abstract class SingleValuePooledEvent<TEvent, TValue> : PooledEvent<TEven
     public static TEvent Create(TValue value)
     {
         var e = CreateRaw();
-        (e as SingleValuePooledEvent<TEvent, TValue>)!.Value = value;
+        e.Value = value;
         return e;
     }
 }
