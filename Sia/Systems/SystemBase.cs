@@ -114,8 +114,6 @@ public class SystemBase<TWorld> : ISystem
                 });
         }
 
-        var compTypes = matcher.ProxyTypes;
-
         Func<bool> taskFunc;
         Action disposeFunc;
 
@@ -128,6 +126,8 @@ public class SystemBase<TWorld> : ISystem
             var triggerTypes = new HashSet<Type>(trigger.ProxyTypes);
             bool hasAddTrigger = triggerTypes.Contains(typeof(WorldEvents.Add));
             bool hasRemoveTrigger = triggerTypes.Contains(typeof(WorldEvents.Remove));
+
+            var compTypes = matcher.ProxyTypes;
 
             bool entityAddListener(in EntityRef target, IEvent e)
             {
@@ -189,24 +189,9 @@ public class SystemBase<TWorld> : ISystem
             };
         }
         else {
-            var worldGroupCache = SystemGlobalData.WorldGroupCache;
-            var cacheKey = ((World<EntityRef>)world, matcher);
+            var groupCacheHandle = WorldGroupCache.Acquire(world, matcher);
 
-            if (!worldGroupCache.TryGetValue(cacheKey, out var entry)) {
-                entry = worldGroupCache.GetOrAdd(cacheKey, key => new(
-                    world.CreateGroup(entity => {
-                        foreach (var compType in compTypes.AsSpan()) {
-                            if (!entity.Contains(compType)) {
-                                return false;
-                            }
-                        }
-                        return true;
-                    }))
-                );
-                entry.RefCount++;
-            }
-
-            var group = entry.Group;
+            var group = groupCacheHandle.Group;
             taskFunc = () => {
                 var span = group.AsSpan();
                 if (span.Length == 0) {
@@ -220,15 +205,7 @@ public class SystemBase<TWorld> : ISystem
                 return false;
             };
 
-            disposeFunc = () => {
-                entry.RefCount--;
-                if (entry.RefCount == 0) {
-                    world.RemoveGroup(entry.Group);
-                    if(!worldGroupCache.TryRemove(KeyValuePair.Create(cacheKey, entry))) {
-                        throw new ObjectDisposedException("Failed to remove cached system group");
-                    }
-                }
-            };
+            disposeFunc = groupCacheHandle.Dispose;
         }
 
         task = scheduler.CreateTask(taskFunc, dependedTasksResult);
