@@ -1,5 +1,6 @@
 namespace Sia;
 
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 public class Dispatcher<TTarget> : IEventSender<IEvent, TTarget>
@@ -94,6 +95,7 @@ public class Dispatcher<TTarget> : IEventSender<IEvent, TTarget>
         _targetListeners.Clear();
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void ExecuteListeners(in TTarget target, List<Listener> listeners, IEvent e, int length)
     {
         int initialLength = length;
