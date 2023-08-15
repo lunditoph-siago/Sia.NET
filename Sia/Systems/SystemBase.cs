@@ -143,6 +143,7 @@ public class SystemBase<TWorld> : ISystem
                     }
                     return false;
                 }
+
                 dispatcher.Listen(OnEvent);
                 disposeFunc = () => dispatcher.Unlisten(OnEvent);
             }
