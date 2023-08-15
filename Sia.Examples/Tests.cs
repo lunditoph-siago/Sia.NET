@@ -53,6 +53,12 @@ public record struct TestEntity
     public Scale Scale;
 }
 
+public record struct TestEntity2
+{
+    public Position Position;
+    public Rotation Rotation;
+}
+
 public unsafe static class Tests
 {
     public static readonly TestEntity DefaultTestEntity = new() {
@@ -188,7 +194,7 @@ public unsafe static class Tests
 
         Console.WriteLine(u1.GetHashCode() == u2.GetHashCode());
 
-        var dict = new Dictionary<ITypeUnion, int>(new TypeUnionComparer()) {
+        var dict = new Dictionary<ITypeUnion, int>() {
             { new TypeUnion<int, string>(), 1 }
         };
         Console.WriteLine(dict[new TypeUnion<string, int>()]);
@@ -198,11 +204,43 @@ public unsafe static class Tests
         Console.WriteLine(dict[new TypeUnion<string, string, string>()]);
     }
 
+    private static void TestMatcher()
+    {
+        Console.WriteLine("== Test Matcher ==");
+
+        Console.WriteLine(new TypeUnion<int>().ToMatcher().Equals(new TypeUnion<long>().ToMatcher()));
+        Console.WriteLine(
+            new TypeUnion<long, int>().ToMatcher()
+                .With(new TypeUnion<int>()).Equals(
+                    new TypeUnion<int, long>().ToMatcher()
+                        .With(new TypeUnion<int>())));
+    }
+
+    private static void TestWorldGroupCache()
+    {
+        Console.WriteLine("== Test WorldGroupCache ==");
+
+        var world = new World();
+
+        var e1Ref = EntityFactory<TestEntity>.Default.Create();
+        var e2Ref = EntityFactory<TestEntity2>.Default.Create();
+
+        world.Add(e1Ref);
+        world.Add(e2Ref);
+
+        var handle = WorldGroupCache.Acquire<TypeUnion<Position>>(world);
+        Console.WriteLine(handle.Group.Contains(e1Ref));
+        Console.WriteLine(handle.Group.Contains(e2Ref));
+
+        var handle2 = WorldGroupCache.Acquire<TypeUnion<Position>>(world);
+        Console.WriteLine(handle.Cache == handle2.Cache);
+    }
+
     private class PositionPrintSystem : SystemBase
     {
         public PositionPrintSystem()
         {
-            Matcher = new TypeUnion<Position>();
+            Matcher = Matchers.From<TypeUnion<Position>>();
         }
 
         public override void Execute(World world, Scheduler scheduler, in EntityRef entity)
@@ -215,7 +253,7 @@ public unsafe static class Tests
     {
         public PositionChangeListenSystem()
         {
-            Matcher = new TypeUnion<Position>();
+            Matcher = new TypeUnion<Position>().ToMatcher();
             Trigger = new EventUnion<Position.Set>();
         }
         
@@ -333,6 +371,8 @@ public unsafe static class Tests
         TestScheduler();
         TestDispatcher();
         TestTypeUnion();
+        TestMatcher();
+        TestWorldGroupCache();
         TestSystem();
         TestStorages();
         TestEntityFactory();

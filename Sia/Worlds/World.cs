@@ -6,6 +6,8 @@ using System.Runtime.InteropServices;
 public class World<T> : Group<T>, IEventSender<IEvent, T>, IDisposable
     where T : notnull
 {
+    public delegate bool GroupPredicate(in T target);
+
     public event Action<World<T>>? OnDisposed;
 
     public bool IsDisposed { get; private set; }
@@ -22,7 +24,7 @@ public class World<T> : Group<T>, IEventSender<IEvent, T>, IDisposable
         Dispatcher = new WorldDispatcher<T>(this);
     }
 
-    public WorldGroup<T> CreateGroup(Predicate<T>? predicate = null)
+    public WorldGroup<T> CreateGroup(GroupPredicate? predicate = null)
     {
         var group = new WorldGroup<T>(this, predicate) {
             Index = _groups.Count

@@ -64,7 +64,7 @@ public static class Example1
     {
         public HealthUpdateSystem()
         {
-            Matcher = new TypeUnion<Health>();
+            Matcher = Matchers.From<TypeUnion<Health>>();
         }
 
         public override void Execute(GameWorld world, Scheduler scheduler, in EntityRef entity)
@@ -81,7 +81,7 @@ public static class Example1
     {
         public DeathSystem()
         {
-            Matcher = new TypeUnion<Health>();
+            Matcher = Matchers.From<TypeUnion<Health>>();
             Dependencies = new SystemUnion<HealthUpdateSystem>();
         }
 
@@ -108,7 +108,7 @@ public static class Example1
     {
         public LocationDamageSystem()
         {
-            Matcher = new TypeUnion<Transform, Health>();
+            Matcher = Matchers.From<TypeUnion<Transform, Health>>();
             Trigger = new EventUnion<WorldEvents.Add, Transform.SetPosition>();
         }
 
@@ -138,7 +138,7 @@ public static class Example1
     public record struct Player(
         Transform Transform, Health Health);
 
-    public static void Run()
+    public static void Main()
     {
         var world = new GameWorld();
 

@@ -35,7 +35,7 @@ public static class Example2
     {
         public HPAutoRecoverSystem()
         {
-            Matcher = new TypeUnion<HP>();
+            Matcher = Matchers.From<TypeUnion<HP>>();
         }
 
         public override void Execute(World world, Scheduler scheduler, in EntityRef entity)
@@ -56,7 +56,7 @@ public static class Example2
     {
         public DamageDisplaySystem()
         {
-            Matcher = new TypeUnion<HP, Name>();
+            Matcher = Matchers.From<TypeUnion<HP, Name>>();
             Trigger = new EventUnion<HP.Damage>();
         }
 
