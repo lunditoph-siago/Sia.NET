@@ -2,7 +2,7 @@ namespace Sia;
 
 using System.Collections.Immutable;
 
-public interface ITypeUnion
+public interface ITypeUnion : IEquatable<ITypeUnion>
 {
     static virtual ImmutableArray<Type> Types { get; } = ImmutableArray<Type>.Empty;
     static virtual int Hash { get; } = 0;

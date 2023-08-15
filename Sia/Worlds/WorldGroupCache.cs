@@ -1,13 +1,12 @@
 namespace Sia;
 
 using System.Collections.Concurrent;
-using System.Diagnostics.CodeAnalysis;
 
 public sealed class WorldGroupCache
 {
     public sealed class Handle : IDisposable
     {
-        public (World<EntityRef>, ITypeUnion) Key { get; private init; }
+        public (World<EntityRef>, IMatcher) Key { get; private init; }
         public WorldGroupCache Cache { get; private init; }
 
         public WorldGroup<EntityRef> Group => Cache.Group;
@@ -15,7 +14,7 @@ public sealed class WorldGroupCache
 
         private bool _disposed;
 
-        internal Handle((World<EntityRef>, ITypeUnion) key, WorldGroupCache cache)
+        internal Handle((World<EntityRef>, IMatcher) key, WorldGroupCache cache)
         {
             Key = key;
             Cache = cache;
@@ -46,42 +45,24 @@ public sealed class WorldGroupCache
         }
     }
 
-    private class WorldGroupKeyComparer : EqualityComparer<(World<EntityRef>, ITypeUnion)>
-    {
-        public override bool Equals((World<EntityRef>, ITypeUnion) x, (World<EntityRef>, ITypeUnion) y)
-            => x.Item1 == y.Item1 && TypeUnionComparer.Instance.Equals(x.Item2, y.Item2);
-
-        public override int GetHashCode([DisallowNull] (World<EntityRef>, ITypeUnion) obj)
-            => obj.GetHashCode();
-    }
-
     public static Handle Acquire<TTypeUnion>(World<EntityRef> world)
         where TTypeUnion : ITypeUnion, new()
-        => Acquire(world, new TTypeUnion());
+        => Acquire(world, new TTypeUnion().ToMatcher());
 
-    public static Handle Acquire(World<EntityRef> world, ITypeUnion typeUnion)
+    public static Handle Acquire(World<EntityRef> world, IMatcher matcher)
     {
-        var cacheKey = (world, typeUnion);
+        var cacheKey = (world, matcher);
 
         if (!s_entries.TryGetValue(cacheKey, out var entry)) {
-            entry = s_entries.GetOrAdd(cacheKey, key => new(
-                world.CreateGroup(entity => {
-                    foreach (var compType in typeUnion.ProxyTypes.AsSpan()) {
-                        if (!entity.Contains(compType)) {
-                            return false;
-                        }
-                    }
-                    return true;
-                }))
-            );
+            entry = s_entries.GetOrAdd(cacheKey,
+                key => new(world.CreateGroup(matcher.Match)));
         }
 
         entry.RefCount++;
         return new(cacheKey, entry);
     }
 
-    private static readonly ConcurrentDictionary<(World<EntityRef>, ITypeUnion), WorldGroupCache> s_entries
-        = new(new WorldGroupKeyComparer());
+    private static readonly ConcurrentDictionary<(World<EntityRef>, IMatcher), WorldGroupCache> s_entries = new();
 
     public WorldGroup<EntityRef> Group { get; }
     public int RefCount { get; private set; }

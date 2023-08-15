@@ -5,7 +5,7 @@ public class SystemBase<TWorld> : ISystem
 {
     public ISystemUnion? Children { get; init; }
     public ISystemUnion? Dependencies { get; init; }
-    public ITypeUnion? Matcher { get; init; }
+    public IMatcher? Matcher { get; init; }
     public IEventUnion? Trigger { get; init; }
 
     public virtual void Initialize(TWorld world, Scheduler scheduler) {}
@@ -93,7 +93,7 @@ public class SystemBase<TWorld> : ISystem
         SystemHandle[]? childrenHandles;
 
         var matcher = Matcher;
-        if (matcher == null || matcher.ProxyTypes.Length == 0) {
+        if (matcher == null) {
             task = scheduler.CreateTask(dependedTasksResult);
             task.UserData = this;
 
@@ -127,17 +127,13 @@ public class SystemBase<TWorld> : ISystem
             bool hasAddTrigger = triggerTypes.Contains(typeof(WorldEvents.Add));
             bool hasRemoveTrigger = triggerTypes.Contains(typeof(WorldEvents.Remove));
 
-            var compTypes = matcher.ProxyTypes;
-
-            bool entityAddListener(in EntityRef target, IEvent e)
+            bool OnEntityAdded(in EntityRef target, IEvent e)
             {
-                foreach (var compType in compTypes.AsSpan()) {
-                    if (!target.Contains(compType)) {
-                        return false;
-                    }
+                if (!matcher.Match(target)) {
+                    return false;
                 }
 
-                bool eventListener(in EntityRef target, IEvent e)
+                bool OnEvent(in EntityRef target, IEvent e)
                 {
                     if (triggerTypes.Contains(e.GetType())) {
                         group.Add(target);
@@ -155,8 +151,8 @@ public class SystemBase<TWorld> : ISystem
                     return false;
                 }
 
-                dispatcher.Listen(target, eventListener);
-                entityListeners.Add(target, eventListener);
+                dispatcher.Listen(target, OnEvent);
+                entityListeners.Add(target, OnEvent);
 
                 if (hasAddTrigger) {
                     group.Add(target);
@@ -164,7 +160,7 @@ public class SystemBase<TWorld> : ISystem
                 return false;
             }
 
-            dispatcher.Listen<WorldEvents.Add>(entityAddListener);
+            dispatcher.Listen<WorldEvents.Add>(OnEntityAdded);
 
             taskFunc = () => {
                 int count = group.Count;
@@ -182,7 +178,7 @@ public class SystemBase<TWorld> : ISystem
             };
 
             disposeFunc = () => {
-                dispatcher.Unlisten<WorldEvents.Add>(entityAddListener);
+                dispatcher.Unlisten<WorldEvents.Add>(OnEntityAdded);
                 foreach (var (entity, listener) in entityListeners) {
                     dispatcher.Unlisten(entity, listener);
                 }
