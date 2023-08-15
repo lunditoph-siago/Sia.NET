@@ -93,7 +93,7 @@ public class SystemBase<TWorld> : ISystem
         SystemHandle[]? childrenHandles;
 
         var matcher = Matcher;
-        if (matcher == null) {
+        if (matcher == null || matcher == Matchers.None) {
             task = scheduler.CreateTask(dependedTasksResult);
             task.UserData = this;
 
@@ -121,24 +121,40 @@ public class SystemBase<TWorld> : ISystem
         if (trigger != null) {
             var dispatcher = world.Dispatcher;
             var group = new Group<EntityRef>();
-            var entityListeners = new Dictionary<EntityRef, Dispatcher.Listener>();
 
             var triggerTypes = new HashSet<Type>(trigger.ProxyTypes);
             bool hasAddTrigger = triggerTypes.Contains(typeof(WorldEvents.Add));
             bool hasRemoveTrigger = triggerTypes.Contains(typeof(WorldEvents.Remove));
 
-            bool OnEntityAdded(in EntityRef target, IEvent e)
-            {
-                if (!matcher.Match(target)) {
+            if (matcher == Matchers.Any) {
+                bool OnEvent(in EntityRef target, IEvent e)
+                {
+                    if (triggerTypes.Contains(e.GetType())) {
+                        group.Add(target);
+                    }
+                    if (e == WorldEvents.Remove.Instance) {
+                        if (hasRemoveTrigger) {
+                            group.Add(target);
+                        }
+                        else {
+                            group.Remove(target);
+                        }
+                        return true;
+                    }
                     return false;
                 }
+                dispatcher.Listen(OnEvent);
+                disposeFunc = () => dispatcher.Unlisten(OnEvent);
+            }
+            else {
+                var entityListeners = new Dictionary<EntityRef, Dispatcher.Listener>();
 
                 bool OnEvent(in EntityRef target, IEvent e)
                 {
                     if (triggerTypes.Contains(e.GetType())) {
                         group.Add(target);
                     }
-                    if (e is WorldEvents.Remove) {
+                    if (e == WorldEvents.Remove.Instance) {
                         entityListeners.Remove(target);
                         if (hasRemoveTrigger) {
                             group.Add(target);
@@ -151,16 +167,30 @@ public class SystemBase<TWorld> : ISystem
                     return false;
                 }
 
-                dispatcher.Listen(target, OnEvent);
-                entityListeners.Add(target, OnEvent);
+                bool OnEntityAdded(in EntityRef target, IEvent e)
+                {
+                    if (!matcher.Match(target)) {
+                        return false;
+                    }
 
-                if (hasAddTrigger) {
-                    group.Add(target);
+                    dispatcher.Listen(target, OnEvent);
+                    entityListeners.Add(target, OnEvent);
+
+                    if (hasAddTrigger) {
+                        group.Add(target);
+                    }
+                    return false;
                 }
-                return false;
-            }
 
-            dispatcher.Listen<WorldEvents.Add>(OnEntityAdded);
+                dispatcher.Listen<WorldEvents.Add>(OnEntityAdded);
+
+                disposeFunc = () => {
+                    dispatcher.Unlisten<WorldEvents.Add>(OnEntityAdded);
+                    foreach (var (entity, listener) in entityListeners) {
+                        dispatcher.Unlisten(entity, listener);
+                    }
+                };
+            }
 
             taskFunc = () => {
                 int count = group.Count;
@@ -175,13 +205,6 @@ public class SystemBase<TWorld> : ISystem
                 AfterExecute(world, scheduler);
                 group.Clear();
                 return false;
-            };
-
-            disposeFunc = () => {
-                dispatcher.Unlisten<WorldEvents.Add>(OnEntityAdded);
-                foreach (var (entity, listener) in entityListeners) {
-                    dispatcher.Unlisten(entity, listener);
-                }
             };
         }
         else {
