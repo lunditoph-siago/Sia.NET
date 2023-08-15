@@ -120,6 +120,7 @@ public class SystemBase<TWorld> : ISystem
         var trigger = Trigger;
         if (trigger != null) {
             var dispatcher = world.Dispatcher;
+
             var group = new Group<EntityRef>();
 
             var triggerTypes = new HashSet<Type>(trigger.ProxyTypes);
@@ -209,9 +210,18 @@ public class SystemBase<TWorld> : ISystem
             };
         }
         else {
-            var groupCacheHandle = WorldGroupCache.Acquire(world, matcher);
+            Group<EntityRef> group;
 
-            var group = groupCacheHandle.Group;
+            if (matcher == Matchers.Any) {
+                group = world;
+                disposeFunc = () => {};
+            }
+            else {
+                var groupCacheHandle = WorldGroupCache.Acquire(world, matcher);
+                group = groupCacheHandle.Group;
+                disposeFunc = groupCacheHandle.Dispose;
+            }
+
             taskFunc = () => {
                 var span = group.AsSpan();
                 if (span.Length == 0) {
@@ -224,8 +234,6 @@ public class SystemBase<TWorld> : ISystem
                 AfterExecute(world, scheduler);
                 return false;
             };
-
-            disposeFunc = groupCacheHandle.Dispose;
         }
 
         task = scheduler.CreateTask(taskFunc, dependedTasksResult);
