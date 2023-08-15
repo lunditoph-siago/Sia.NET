@@ -8,13 +8,20 @@ public class Dispatcher<TTarget> : IEventSender<IEvent, TTarget>
     public delegate bool Listener(in TTarget target, IEvent e);
     public delegate bool Listener<TEvent>(in TTarget target, TEvent e);
 
+    private readonly List<Listener> _globalListeners = new();
     private readonly Dictionary<Type, List<Listener>> _eventListeners = new();
     private readonly Dictionary<TTarget, List<Listener>> _targetListeners = new();
     private bool _sending = false;
 
+    public Listener Listen(Listener listener)
+    {
+        _globalListeners.Add(listener);
+        return listener;
+    }
+
     public Listener Listen<TEvent>(Listener listener)
         where TEvent : IEvent
-        => Dispatcher<TTarget>.RawListen(_eventListeners, typeof(TEvent), listener);
+        => RawListen(_eventListeners, typeof(TEvent), listener);
 
     public Listener ListenEx<TEvent>(Listener<TEvent> innerListener)
         where TEvent : IEvent
@@ -36,6 +43,14 @@ public class Dispatcher<TTarget> : IEventSender<IEvent, TTarget>
         }
         listeners!.Add(listener);
         return listener;
+    }
+
+    public bool Unlisten(Listener listener)
+    {
+        if (_sending) {
+            throw new InvalidOperationException("Cannot do unlisten while sending");
+        }
+        return _globalListeners.Remove(listener);
     }
 
     public bool Unlisten<TEvent>(Listener listener)
@@ -84,10 +99,11 @@ public class Dispatcher<TTarget> : IEventSender<IEvent, TTarget>
         int initialLength = length;
 
         try {
+            var span = CollectionsMarshal.AsSpan(listeners);
             for (int i = 0; i < length; ++i) {
                 bool exit = false;
-                while (listeners[i](target, e)) {
-                    listeners[i] = listeners[length - 1];
+                while (span[i](target, e)) {
+                    span[i] = span[length - 1];
                     length--;
                     if (length <= i) {
                         exit = true;
@@ -110,9 +126,13 @@ public class Dispatcher<TTarget> : IEventSender<IEvent, TTarget>
             _eventListeners.TryGetValue(e.GetType(), out var eventListeners);
             _targetListeners.TryGetValue(target, out var targetListeners);
 
+            int globalListenerCount = _globalListeners.Count;
             int eventListenerCount = eventListeners != null ? eventListeners.Count : 0;
             int targetListenerCount = targetListeners != null ? targetListeners.Count : 0;
-
+            
+            if (globalListenerCount != 0) {
+                ExecuteListeners(target, _globalListeners, e, globalListenerCount);
+            }
             if (eventListenerCount != 0) {
                 ExecuteListeners(target, eventListeners!, e, eventListenerCount);
             }
