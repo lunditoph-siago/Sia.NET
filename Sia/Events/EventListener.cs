@@ -1,7 +1,8 @@
 namespace Sia;
 
-public class EventListener<TTarget> : IDisposable
+public class EventListener<TTarget, TEvent> : IDisposable
     where TTarget : notnull
+    where TEvent : IEvent
 {
     public Dispatcher<TTarget> Dispatcher { get; }
     public Dispatcher<TTarget>.Listener Listener { get; }
@@ -12,7 +13,7 @@ public class EventListener<TTarget> : IDisposable
     {
         Dispatcher = dispatcher;
         Listener = listener;
-        dispatcher.Listen(listener);
+        dispatcher.Listen<TEvent>(listener);
     }
 
     protected virtual void Dispose(bool disposing)
@@ -34,7 +35,8 @@ public class EventListener<TTarget> : IDisposable
     }
 }
 
-public class EventListener : EventListener<EntityRef>
+public class EventListener<TEvent> : EventListener<EntityRef, TEvent>
+    where TEvent : IEvent
 {
     public EventListener(Dispatcher<EntityRef> dispatcher, Dispatcher<EntityRef>.Listener listener)
         : base(dispatcher, listener)
