@@ -19,7 +19,7 @@ public class EventListener<TTarget, TEvent> : IDisposable
     protected virtual void Dispose(bool disposing)
     {
         if (_disposed) { return; }
-        Dispatcher.Unlisten(Listener);
+        Dispatcher.Unlisten<TEvent>(Listener);
         _disposed = true;
     }
 
