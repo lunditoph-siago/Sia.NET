@@ -7,6 +7,7 @@ public class SystemBase<TWorld> : ISystem
     public ISystemUnion? Dependencies { get; init; }
     public IMatcher? Matcher { get; init; }
     public IEventUnion? Trigger { get; init; }
+    public IEventUnion? Filter { get; init; }
 
     public virtual void Initialize(TWorld world, Scheduler scheduler) {}
     public virtual void Uninitialize(TWorld world, Scheduler scheduler) {}
@@ -118,98 +119,10 @@ public class SystemBase<TWorld> : ISystem
         Action disposeFunc;
 
         var trigger = Trigger;
-        if (trigger != null) {
-            var dispatcher = world.Dispatcher;
+        var filter = Filter;
+        var dispatcher = world.Dispatcher;
 
-            var group = new Group<EntityRef>();
-
-            var triggerTypes = new HashSet<Type>(trigger.ProxyTypes);
-            bool hasAddTrigger = triggerTypes.Contains(typeof(WorldEvents.Add));
-            bool hasRemoveTrigger = triggerTypes.Contains(typeof(WorldEvents.Remove));
-
-            if (matcher == Matchers.Any) {
-                bool OnEvent(in EntityRef target, IEvent e)
-                {
-                    if (triggerTypes.Contains(e.GetType())) {
-                        group.Add(target);
-                    }
-                    if (e == WorldEvents.Remove.Instance) {
-                        if (hasRemoveTrigger) {
-                            group.Add(target);
-                        }
-                        else {
-                            group.Remove(target);
-                        }
-                        return true;
-                    }
-                    return false;
-                }
-
-                dispatcher.Listen(OnEvent);
-                disposeFunc = () => dispatcher.Unlisten(OnEvent);
-            }
-            else {
-                var entityListeners = new Dictionary<EntityRef, Dispatcher.Listener>();
-
-                bool OnEvent(in EntityRef target, IEvent e)
-                {
-                    if (triggerTypes.Contains(e.GetType())) {
-                        group.Add(target);
-                    }
-                    if (e == WorldEvents.Remove.Instance) {
-                        entityListeners.Remove(target);
-                        if (hasRemoveTrigger) {
-                            group.Add(target);
-                        }
-                        else {
-                            group.Remove(target);
-                        }
-                        return true;
-                    }
-                    return false;
-                }
-
-                bool OnEntityAdded(in EntityRef target, IEvent e)
-                {
-                    if (!matcher.Match(target)) {
-                        return false;
-                    }
-
-                    dispatcher.Listen(target, OnEvent);
-                    entityListeners.Add(target, OnEvent);
-
-                    if (hasAddTrigger) {
-                        group.Add(target);
-                    }
-                    return false;
-                }
-
-                dispatcher.Listen<WorldEvents.Add>(OnEntityAdded);
-
-                disposeFunc = () => {
-                    dispatcher.Unlisten<WorldEvents.Add>(OnEntityAdded);
-                    foreach (var (entity, listener) in entityListeners) {
-                        dispatcher.Unlisten(entity, listener);
-                    }
-                };
-            }
-
-            taskFunc = () => {
-                int count = group.Count;
-                if (count == 0) {
-                    return false;
-                }
-                BeforeExecute(world, scheduler);
-                for (int i = 0; i < count; ++i) {
-                    Execute(world, scheduler, group[i]);
-                    count = group.Count;
-                }
-                AfterExecute(world, scheduler);
-                group.Clear();
-                return false;
-            };
-        }
-        else {
+        if (trigger == null && filter == null) {
             Group<EntityRef> group;
 
             if (matcher == Matchers.Any) {
@@ -234,6 +147,186 @@ public class SystemBase<TWorld> : ISystem
                 AfterExecute(world, scheduler);
                 return false;
             };
+        }
+        else {
+            var group = new Group<EntityRef>();
+
+            taskFunc = () => {
+                int count = group.Count;
+                if (count == 0) {
+                    return false;
+                }
+                BeforeExecute(world, scheduler);
+                for (int i = 0; i < count; ++i) {
+                    Execute(world, scheduler, group[i]);
+                    count = group.Count;
+                }
+                AfterExecute(world, scheduler);
+                group.Clear();
+                return false;
+            };
+
+            if (trigger != null && filter != null) {
+                var triggerTypes = new HashSet<Type>(trigger.ProxyTypes);
+                var filterTypes = new HashSet<Type>(filter.ProxyTypes);
+
+                foreach (var filterType in filterTypes) {
+                    triggerTypes.Remove(filterType);
+                }
+
+                bool hasRemoveTrigger = triggerTypes.Contains(typeof(WorldEvents.Remove));
+
+                if (matcher == Matchers.Any) {
+                    bool OnEvent(in EntityRef target, IEvent e)
+                    {
+                        if (e == WorldEvents.Remove.Instance) {
+                            if (hasRemoveTrigger) {
+                                group.Add(target);
+                            }
+                            else {
+                                group.Remove(target);
+                            }
+                            return false;
+                        }
+
+                        var type = e.GetType();
+
+                        if (triggerTypes.Contains(type)) {
+                            group.Add(target);
+                        }
+                        else if (filterTypes.Contains(type)) {
+                            group.Remove(target);
+                        }
+                        return false;
+                    }
+
+                    dispatcher.Listen(OnEvent);
+                    disposeFunc = () => dispatcher.Unlisten(OnEvent);
+                }
+                else {
+                    var listeners = new Dictionary<EntityRef, Dispatcher.Listener>();
+                    bool hasAddTrigger = triggerTypes.Contains(typeof(WorldEvents.Add));
+
+                    bool OnEvent(in EntityRef target, IEvent e)
+                    {
+                        if (e == WorldEvents.Remove.Instance) {
+                            listeners.Remove(target);
+                            if (hasRemoveTrigger) {
+                                group.Add(target);
+                            }
+                            else {
+                                group.Remove(target);
+                            }
+                            return true;
+                        }
+
+                        var type = e.GetType();
+
+                        if (triggerTypes.Contains(type)) {
+                            group.Add(target);
+                        }
+                        else if (filterTypes.Contains(type)) {
+                            group.Remove(target);
+                        }
+                        return false;
+                    }
+
+                    bool OnEntityAdded(in EntityRef target, IEvent e)
+                    {
+                        if (matcher.Match(target)) {
+                            dispatcher.Listen(target, OnEvent);
+                            listeners.Add(target, OnEvent);
+
+                            if (hasAddTrigger) {
+                                group.Add(target);
+                            }
+                        }
+                        return false;
+                    }
+
+                    dispatcher.Listen<WorldEvents.Add>(OnEntityAdded);
+
+                    disposeFunc = () => {
+                        dispatcher.Unlisten<WorldEvents.Add>(OnEntityAdded);
+                        foreach (var (entity, listener) in listeners) {
+                            dispatcher.Unlisten(entity, listener);
+                        }
+                    };
+                }
+            }
+            else if (trigger != null) {
+                var triggerTypes = new HashSet<Type>(trigger.ProxyTypes);
+                bool hasRemoveTrigger = triggerTypes.Contains(typeof(WorldEvents.Remove));
+
+                if (matcher == Matchers.Any) {
+                    bool OnEvent(in EntityRef target, IEvent e)
+                    {
+                        if (e == WorldEvents.Remove.Instance) {
+                            if (hasRemoveTrigger) {
+                                group.Add(target);
+                            }
+                            else {
+                                group.Remove(target);
+                            }
+                        }
+                        else if (triggerTypes.Contains(e.GetType())) {
+                            group.Add(target);
+                        }
+                        return false;
+                    }
+
+                    dispatcher.Listen(OnEvent);
+                    disposeFunc = () => dispatcher.Unlisten(OnEvent);
+                }
+                else {
+                    var listeners = new Dictionary<EntityRef, Dispatcher.Listener>();
+                    bool hasAddTrigger = triggerTypes.Contains(typeof(WorldEvents.Add));
+
+                    bool OnEvent(in EntityRef target, IEvent e)
+                    {
+                        if (e == WorldEvents.Remove.Instance) {
+                            listeners.Remove(target);
+                            if (hasRemoveTrigger) {
+                                group.Add(target);
+                            }
+                            else {
+                                group.Remove(target);
+                            }
+                            return true;
+                        }
+                        if (triggerTypes.Contains(e.GetType())) {
+                            group.Add(target);
+                        }
+                        return false;
+                    }
+
+                    bool OnEntityAdded(in EntityRef target, IEvent e)
+                    {
+                        if (matcher.Match(target)) {
+                            dispatcher.Listen(target, OnEvent);
+                            listeners.Add(target, OnEvent);
+
+                            if (hasAddTrigger) {
+                                group.Add(target);
+                            }
+                        }
+                        return false;
+                    }
+
+                    dispatcher.Listen<WorldEvents.Add>(OnEntityAdded);
+
+                    disposeFunc = () => {
+                        dispatcher.Unlisten<WorldEvents.Add>(OnEntityAdded);
+                        foreach (var (entity, listener) in listeners) {
+                            dispatcher.Unlisten(entity, listener);
+                        }
+                    };
+                }
+            }
+            else {
+                throw new InvalidSystemAttributeException(
+                    "Failed to register system: system must have non-null trigger when filter is specified");
+            }
         }
 
         task = scheduler.CreateTask(taskFunc, dependedTasksResult);
