@@ -1,30 +1,30 @@
 namespace Sia;
 
+using System.Collections.Concurrent;
+
 public abstract class PooledEvent<TEvent> : IEvent
     where TEvent : PooledEvent<TEvent>, new()
 {
-    [ThreadStatic]
-    private static Stack<TEvent>? s_pool;
+    private readonly static ConcurrentStack<TEvent> s_pool = new();
 
-    public bool IsDisposed { get; private set; }
+    private int _disposed;
 
     protected static TEvent CreateRaw()
     {
-        s_pool ??= new();
-
         if (s_pool.TryPop(out var e)) {
-            e.IsDisposed = false;
+            Interlocked.Exchange(ref e._disposed, 0);
             return e;
         }
         return new();
     }
 
+#pragma warning disable CA1816
     public virtual void Dispose()
     {
-        if (IsDisposed) {
+        if (Interlocked.Exchange(ref _disposed, 1) == 1) {
             return;
         }
         s_pool?.Push((TEvent)this);
-        IsDisposed = true;
     }
+#pragma warning restore CA1816
 }

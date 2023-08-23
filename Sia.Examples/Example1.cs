@@ -140,7 +140,7 @@ public static class Example1
         var gameplaySystemsHandle =
             new GameplaySystems().Register(world, world.Scheduler);
 
-        var playerRef = EntityFactory<Player>.Default.Create(new() {
+        var playerRef = EntityFactory<Player>.Buffer.Create(new() {
             Transform = new() {
                 Position = new(1, 1)
             },

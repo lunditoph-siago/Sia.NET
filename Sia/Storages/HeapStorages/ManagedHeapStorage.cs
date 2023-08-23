@@ -1,6 +1,7 @@
 namespace Sia;
 
 using System.Runtime.Serialization;
+using System.Runtime.CompilerServices;
 using CommunityToolkit.HighPerformance;
 
 public sealed class ManagedHeapStorage<T> : IStorage<T>
@@ -10,16 +11,18 @@ public sealed class ManagedHeapStorage<T> : IStorage<T>
 
     public int Capacity { get; } = int.MaxValue;
     public int Count => _objects.Count;
+    public int PointerValidBits => 32;
     public bool IsManaged => true;
 
-    private readonly Dictionary<long, Box<T>> _objects = new();
-    private readonly ObjectIDGenerator _idGenerator = new();
+    private Dictionary<long, Box<T>> _objects = new();
+    private ObjectIDGenerator _idGenerator = new();
 
     private ManagedHeapStorage() {}
 
     public Pointer<T> Allocate()
         => Allocate(default);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Pointer<T> Allocate(in T initial)
     {
         Box<T> obj = initial;
@@ -28,6 +31,7 @@ public sealed class ManagedHeapStorage<T> : IStorage<T>
         return new(id, this);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void UnsafeRelease(long rawPointer)
     {
         if (!_objects.Remove(rawPointer)) {
@@ -35,6 +39,13 @@ public sealed class ManagedHeapStorage<T> : IStorage<T>
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T UnsafeGetRef(long rawPointer)
         => ref _objects[rawPointer].GetReference();
+    
+    public void Dispose()
+    {
+        _objects = null!;
+        _idGenerator = null!;
+    }
 }
