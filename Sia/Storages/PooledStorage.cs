@@ -1,61 +1,114 @@
-namespace Sia;
+using System.Runtime.CompilerServices;
 
-public class PooledStorage<T> : IStorage<T>
+namespace Sia
+{
+
+public static class PooledStorage<T>
     where T : struct
 {
-    public int PoolSize { get; set; }
-    public IStorage<T> InnerStorage { get; }
+    public static PooledStorage<T, TStorage> Create<TStorage>(
+        TStorage storage, int poolSize = int.MaxValue)
+        where TStorage : class, IStorage<T>
+        => new(storage, poolSize);
+}
 
-    public int Capacity => InnerStorage.Capacity;
-    public int Count => InnerStorage.Count;
-    public bool IsManaged => InnerStorage.IsManaged;
-
-    private readonly Stack<long> _pooled = new();
-
-    public PooledStorage(int poolSize, IStorage<T> innerStorage)
+public class PooledStorage<T, TStorage>
+    : Internal.PooledStorage<T, StorageWrapper<T, TStorage>>
+    where T : struct
+    where TStorage : class, IStorage<T>
+{
+    public PooledStorage(TStorage innerStorage, int poolSize = int.MaxValue)
+        : base(new(innerStorage), poolSize)
     {
-        PoolSize = poolSize;
-        InnerStorage = innerStorage;
     }
+}
 
-    public Pointer<T> Allocate()
+namespace Internal
+{
+    public class PooledStorage<T, TStorage> : IStorage<T>
+        where T : struct
+        where TStorage : IStorage<T>
     {
-        if (!_pooled.TryPop(out var ptr)) {
-            ptr = InnerStorage.Allocate().Raw;
-        }
-        return new(ptr, this);
-    }
+        public TStorage InnerStorage { get; }
+        public int PoolSize { get; set; }
 
-    public Pointer<T> Allocate(in T initial)
-    {
-        if (_pooled.TryPop(out var ptr)) {
-            InnerStorage.UnsafeGetRef(ptr) = initial;
+        public int Capacity {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => InnerStorage.Capacity;
         }
-        else {
-            ptr = InnerStorage.Allocate(initial).Raw;
+        public int Count {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => InnerStorage.Count;
         }
-        return new(ptr, this);
-    }
+        public int PointerValidBits {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => InnerStorage.PointerValidBits;
+        }
+        public bool IsManaged {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => InnerStorage.IsManaged;
+        }
 
-    public void UnsafeRelease(long rawPointer)
-    {
-        if (_pooled.Count < PoolSize) {
-            InnerStorage.UnsafeGetRef(rawPointer) = default;
-            _pooled.Push(rawPointer);
+        private Stack<long> _pooled = new();
+
+        internal PooledStorage(TStorage innerStorage, int poolSize)
+        {
+            InnerStorage = innerStorage;
+            PoolSize = poolSize;
         }
-        else {
-            InnerStorage.UnsafeRelease(rawPointer);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public Pointer<T> Allocate()
+        {
+            if (!_pooled.TryPop(out var ptr)) {
+                ptr = InnerStorage.Allocate().Raw;
+            }
+            return new(ptr, this);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public Pointer<T> Allocate(in T initial)
+        {
+            if (_pooled.TryPop(out var ptr)) {
+                InnerStorage.UnsafeGetRef(ptr) = initial;
+            }
+            else {
+                ptr = InnerStorage.Allocate(initial).Raw;
+            }
+            return new(ptr, this);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void UnsafeRelease(long rawPointer)
+        {
+            if (_pooled.Count < PoolSize) {
+                InnerStorage.UnsafeGetRef(rawPointer) = default;
+                _pooled.Push(rawPointer);
+            }
+            else {
+                InnerStorage.UnsafeRelease(rawPointer);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ref T UnsafeGetRef(long rawPointer)
+            => ref InnerStorage.UnsafeGetRef(rawPointer);
+
+        public void Clear()
+        {
+            foreach (var pointer in _pooled) {
+                InnerStorage.UnsafeRelease(pointer);
+            }
+            _pooled.Clear();
+        }
+
+        public void Dispose()
+        {
+            InnerStorage.Dispose();
+            _pooled = null!;
+            GC.SuppressFinalize(this);
         }
     }
+}
 
-    public ref T UnsafeGetRef(long rawPointer)
-        => ref InnerStorage.UnsafeGetRef(rawPointer);
-
-    public void Clear()
-    {
-        foreach (var pointer in _pooled) {
-            InnerStorage.UnsafeRelease(pointer);
-        }
-        _pooled.Clear();
-    }
 }

@@ -222,8 +222,8 @@ public unsafe static class Tests
 
         var world = new World();
 
-        var e1Ref = EntityFactory<TestEntity>.Default.Create();
-        var e2Ref = EntityFactory<TestEntity2>.Default.Create();
+        var e1Ref = EntityFactory<TestEntity>.ManagedHeap.Create();
+        var e2Ref = EntityFactory<TestEntity2>.ManagedHeap.Create();
 
         world.Add(e1Ref);
         world.Add(e2Ref);
@@ -280,14 +280,14 @@ public unsafe static class Tests
 
         new PositionSystems().Register(world, scheduler);
 
-        var e1Ref = EntityFactory<TestEntity>.Default.Create(new() {
+        var e1Ref = EntityFactory<TestEntity>.ManagedHeap.Create(new() {
             Position = new Position {
                 X = 1,
                 Y = 2,
                 Z = 3
             }
         });
-        var e2Ref = EntityFactory<TestEntity>.Default.Create(new() {
+        var e2Ref = EntityFactory<TestEntity>.ManagedHeap.Create(new() {
             Position = new Position {
                 X = -1,
                 Y = -2,
@@ -311,21 +311,36 @@ public unsafe static class Tests
 
         static void DoTest(IStorage<int> storage)
         {
-            var ptr1 = storage.Allocate();
-            var ptr2 = storage.Allocate();
-            ptr1.Dispose();
-            ptr2.Dispose();
-            var ptr3 = storage.Allocate();
-            var ptr4 = storage.Allocate();
-            var ptr5 = storage.Allocate();
-            ptr3.Dispose();
-            ptr4.Dispose();
-            ptr5.Dispose();
+            var pointers = new List<Pointer<int>>();
+            
+            for (int c = 0; c < 10; c++) {
+                if (Random.Shared.NextSingle() < 0.5) {
+                    var count = Random.Shared.Next(1, 30);
+                    for (int i = 0; i < count; ++i) {
+                        pointers.Add(storage.Allocate());
+                    }
+                }
+                else {
+                    while (pointers.Count > 0) {
+                        int index = Random.Shared.Next(0, pointers.Count);
+                        pointers[index].Dispose();
+                        pointers.RemoveAt(index);
+                    }
+                }
+            }
+
+            while (pointers.Count > 0) {
+                int index = Random.Shared.Next(0, pointers.Count);
+                pointers[index].Dispose();
+                pointers.RemoveAt(index);
+            }
+            return;
         }
 
-        DoTest(new BufferStorage<int>(5120));
+        DoTest(new ArrayBufferStorage<int>(5120));
+        DoTest(new SparseBufferStorage<int>(5120));
         DoTest(ManagedHeapStorage<int>.Instance);
-        DoTest(new PooledStorage<int>(2, ManagedHeapStorage<int>.Instance));
+        DoTest(PooledStorage<int>.Create(ManagedHeapStorage<int>.Instance, 2));
         DoTest(UnmanagedHeapStorage<int>.Instance);
 
         Console.WriteLine("Finished");
@@ -335,10 +350,11 @@ public unsafe static class Tests
     {
         Console.WriteLine("== Test Entity Factory ==");
 
-        static void DoTest(IStorage<TestEntity> storage)
+        static void DoTest<TStorage>(TStorage storage)
+            where TStorage : class, IStorage<TestEntity>
         {
             Console.WriteLine($"[{storage}]");
-            var factory = new EntityFactory<TestEntity>(storage);
+            var factory = new EntityFactory<TestEntity, TStorage>(storage);
             var e1 = factory.Create(DefaultTestEntity);
             var e2 = factory.Create();
             var e3 = factory.Create();
@@ -358,9 +374,11 @@ public unsafe static class Tests
             e5.Dispose();
         }
 
-        DoTest(new BufferStorage<TestEntity>(512));
+        DoTest(new ArrayBufferStorage<TestEntity>(512));
+        DoTest(new SparseBufferStorage<TestEntity>(512));
         DoTest(ManagedHeapStorage<TestEntity>.Instance);
-        DoTest(new PooledStorage<TestEntity>(2, ManagedHeapStorage<TestEntity>.Instance));
+        DoTest(PooledStorage<TestEntity>.Create(ManagedHeapStorage<TestEntity>.Instance, 2));
+        DoTest(new VariableStorage<TestEntity, SparseBufferStorage<TestEntity>>(() => new(1)));
         //DoTest(UnmanagedHeapStorage<TestEntity>.Instance);
     }
 

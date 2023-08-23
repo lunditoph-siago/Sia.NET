@@ -29,6 +29,8 @@ public static class Example2
                 target.Get<HP>().Value -= Value;
             }
         }
+
+        public HP() : this(100, 100, 0) {}
     }
 
     public class HPAutoRecoverSystem : SystemBase
@@ -66,7 +68,16 @@ public static class Example2
         }
     }
 
-    public record struct Player(Name Name, HP HP);
+    public record struct Player(Name Name, HP HP)
+    {
+        public static EntityRef CreateResilient(string name)
+            => EntityFactory<Player>.Buffer.Create(new() {
+                Name = name,
+                HP = new() {
+                    AutoRecoverRate = 10
+                }
+            });
+    }
 
     public static void Run()
     {
@@ -76,14 +87,7 @@ public static class Example2
         new DamageDisplaySystem().Register(world, scheduler);
         new HPAutoRecoverSystem().Register(world, scheduler);
 
-        EntityRef player = EntityFactory<Player>.Default.Create(new() {
-            Name = "玩家",
-            HP = new() {
-                Value = 100,
-                Maximum = 100,
-                AutoRecoverRate = 5
-            }
-        });
+        var player = Player.CreateResilient("玩家");
         world.Add(player);
 
         ref var hp = ref player.Get<HP>();
