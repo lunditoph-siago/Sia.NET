@@ -4,14 +4,8 @@ using System.Runtime.CompilerServices;
 
 public sealed class SparseBuffer<T> : IBuffer<T>
 {
-    public int Capacity {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _sparseSet.Capacity;
-    }
-    public int Count {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _sparseSet.Count;
-    }
+    public int Capacity => _sparseSet.Capacity;
+    public int Count  => _sparseSet.Count;
 
     private SparseSet<T> _sparseSet;
 

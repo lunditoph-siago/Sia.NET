@@ -339,6 +339,7 @@ public unsafe static class Tests
 
         DoTest(new ArrayBufferStorage<int>(5120));
         DoTest(new SparseBufferStorage<int>(5120));
+        DoTest(new HashBufferStorage<int>());
         DoTest(ManagedHeapStorage<int>.Instance);
         DoTest(PooledStorage<int>.Create(ManagedHeapStorage<int>.Instance, 2));
         DoTest(UnmanagedHeapStorage<int>.Instance);
@@ -376,6 +377,7 @@ public unsafe static class Tests
 
         DoTest(new ArrayBufferStorage<TestEntity>(512));
         DoTest(new SparseBufferStorage<TestEntity>(512));
+        DoTest(new HashBufferStorage<TestEntity>());
         DoTest(ManagedHeapStorage<TestEntity>.Instance);
         DoTest(PooledStorage<TestEntity>.Create(ManagedHeapStorage<TestEntity>.Instance, 2));
         DoTest(new VariableStorage<TestEntity, SparseBufferStorage<TestEntity>>(() => new(1)));
