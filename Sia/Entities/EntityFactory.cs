@@ -6,22 +6,22 @@ namespace Sia
 public static class EntityFactory<T>
     where T : struct
 {
-    public static EntityFactory<T, ManagedHeapStorage<T>> ManagedHeap => s_managedHeapFactory.Value;
-    public static EntityFactory<T, UnmanagedHeapStorage<T>> UnmanagedHeap => s_unmanagedHeapFactory.Value;
-    public static EntityFactory<T, SparseBufferStorage<T>> Buffer => s_bufferStorage.Value;
-    public static EntityFactory<T, VariableStorage<T, SparseBufferStorage<T>>> VariableBuffer => s_variableBufferStorage.Value;
+    public static EntityFactory<T, ManagedHeapStorage<T>> ManagedHeap => s_managedHeapFactory.Value!;
+    public static EntityFactory<T, UnmanagedHeapStorage<T>> UnmanagedHeap => s_unmanagedHeapFactory.Value!;
+    public static EntityFactory<T, SparseBufferStorage<T>> Buffer => s_bufferStorage.Value!;
+    public static EntityFactory<T, VariableStorage<T, SparseBufferStorage<T>>> VariableBuffer => s_variableBufferStorage.Value!;
 
-    private static readonly Lazy<EntityFactory<T, UnmanagedHeapStorage<T>>> s_unmanagedHeapFactory
-        = new(() => new(UnmanagedHeapStorage<T>.Instance), true);
+    private static readonly ThreadLocal<EntityFactory<T, ManagedHeapStorage<T>>> s_managedHeapFactory
+        = new(() => new(ManagedHeapStorage<T>.Instance), false);
 
-    private static readonly Lazy<EntityFactory<T, ManagedHeapStorage<T>>> s_managedHeapFactory
-        = new(() => new(ManagedHeapStorage<T>.Instance), true);
+    private static readonly ThreadLocal<EntityFactory<T, UnmanagedHeapStorage<T>>> s_unmanagedHeapFactory
+        = new(() => new(UnmanagedHeapStorage<T>.Instance), false);
 
-    private static readonly Lazy<EntityFactory<T, SparseBufferStorage<T>>> s_bufferStorage
-        = new(() => new(new()), true);
+    private static readonly ThreadLocal<EntityFactory<T, SparseBufferStorage<T>>> s_bufferStorage
+        = new(() => new(new()), false);
 
-    private static readonly Lazy<EntityFactory<T, VariableStorage<T, SparseBufferStorage<T>>>> s_variableBufferStorage
-        = new(() => new(new(() => new())), true);
+    private static readonly ThreadLocal<EntityFactory<T, VariableStorage<T, SparseBufferStorage<T>>>> s_variableBufferStorage
+        = new(() => new(new(() => new())), false);
 
     public static EntityFactory<T, TStorage> Create<TStorage>(TStorage storage)
         where TStorage : class, IStorage<T>
