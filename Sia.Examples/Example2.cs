@@ -71,7 +71,7 @@ public static class Example2
     public record struct Player(Name Name, HP HP)
     {
         public static EntityRef CreateResilient(string name)
-            => EntityFactory<Player>.Buffer.Create(new() {
+            => EntityFactory<Player>.Hash.Create(new() {
                 Name = name,
                 HP = new() {
                     AutoRecoverRate = 10

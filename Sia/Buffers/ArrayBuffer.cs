@@ -4,11 +4,7 @@ using System.Runtime.CompilerServices;
 
 public sealed class ArrayBuffer<T> : IBuffer<T>
 {
-    public int Capacity {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _arr.Length;
-    }
-
+    public int Capacity => _arr.Length;
     public int Count { get; set; }
 
     private Entry[] _arr;
