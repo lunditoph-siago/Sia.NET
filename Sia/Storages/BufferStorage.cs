@@ -76,13 +76,10 @@ namespace Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Pointer<T> Allocate()
         {
-            var chunkNode = _firstFreeChunkNode;
-            if (chunkNode == null) {
-                throw new IndexOutOfRangeException("Storage is full");
-            }
-
+            var chunkNode = _firstFreeChunkNode
+                ?? throw new IndexOutOfRangeException("Storage is full");
             int index = chunkNode.ValueRef.Index;
-            _firstFreeChunkNode = AllocateFromFreeChunk(chunkNode).Next!;
+            _firstFreeChunkNode = AllocateFromFreeChunk(chunkNode).Next;
 
             ref var entry = ref _buffer.GetOrAddValueRef(index, out bool _);
             entry.Index = index;
