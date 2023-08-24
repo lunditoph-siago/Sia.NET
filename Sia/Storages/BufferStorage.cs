@@ -58,7 +58,7 @@ namespace Internal
 
         private readonly TBuffer _buffer;
         private LinkedList<Chunk> _chunks = new();
-        private LinkedListNode<Chunk> _firstFreeChunkNode;
+        private LinkedListNode<Chunk>? _firstFreeChunkNode;
 
         internal BufferStorage(TBuffer buffer)
         {
@@ -76,13 +76,13 @@ namespace Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Pointer<T> Allocate()
         {
-            if (Count == Capacity) {
+            var chunkNode = _firstFreeChunkNode;
+            if (chunkNode == null) {
                 throw new IndexOutOfRangeException("Storage is full");
             }
 
-            var chunkNode = _firstFreeChunkNode;
             int index = chunkNode.ValueRef.Index;
-            AllocateFromFreeChunk(chunkNode);
+            _firstFreeChunkNode = AllocateFromFreeChunk(chunkNode).Next!;
 
             ref var entry = ref _buffer.GetOrAddValueRef(index, out bool _);
             entry.Index = index;
@@ -114,7 +114,8 @@ namespace Internal
                 chunkNode.ValueRef.IsAllocated = false;
             }
 
-            if (_firstFreeChunkNode.List == null
+            if (_firstFreeChunkNode == null
+                    || _firstFreeChunkNode.List == null
                     || chunkNode.ValueRef.Index < _firstFreeChunkNode.ValueRef.Index) {
                 _firstFreeChunkNode = chunkNode;
             }
