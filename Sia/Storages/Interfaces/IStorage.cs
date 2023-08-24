@@ -10,9 +10,9 @@ public interface IStorage<T> : IDisposable
     int PointerValidBits { get; }
     bool IsManaged { get; }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     Pointer<T> Allocate();
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     Pointer<T> Allocate(in T initial)
     {
         var ptr = Allocate();
