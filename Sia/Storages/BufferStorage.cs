@@ -99,7 +99,7 @@ namespace Internal
                 throw new ArgumentException("Invalid pointer");
             }
 
-            var chunkNode = FindChunkNodeFromIndex(entry.Index);
+            var chunkNode = FindChunkNodeByIndex(entry.Index);
             ref var chunk = ref chunkNode.ValueRef;
 
             var offset = entry.Index - chunk.Index;
@@ -124,7 +124,7 @@ namespace Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private LinkedListNode<Chunk> FindChunkNodeFromIndex(int index)
+        private LinkedListNode<Chunk> FindChunkNodeByIndex(int index)
         {
             var node = _chunks.First!.Next;
 
