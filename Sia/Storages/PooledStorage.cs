@@ -36,14 +36,17 @@ namespace Internal
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => InnerStorage.Capacity;
         }
+
         public int Count {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => InnerStorage.Count;
         }
+
         public int PointerValidBits {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => InnerStorage.PointerValidBits;
         }
+
         public bool IsManaged {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => InnerStorage.IsManaged;
