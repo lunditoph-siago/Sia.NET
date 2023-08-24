@@ -25,6 +25,9 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
     {
         ref var entry = ref _arr[index];
         exists = entry.IsAllocated;
+        if (!exists) {
+            entry.IsAllocated = true;
+        }
         return ref entry.Value;
     }
 
@@ -32,7 +35,7 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
     public ref T GetValueRefOrNullRef(int index)
     {
         ref var entry = ref _arr[index];
-        if (entry.IsAllocated) {
+        if (!entry.IsAllocated) {
             return ref Unsafe.NullRef<T>();
         }
         return ref entry.Value;
