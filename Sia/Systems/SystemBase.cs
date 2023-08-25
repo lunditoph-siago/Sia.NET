@@ -11,9 +11,13 @@ public class SystemBase<TWorld> : ISystem
 
     public virtual void Initialize(TWorld world, Scheduler scheduler) {}
     public virtual void Uninitialize(TWorld world, Scheduler scheduler) {}
+
     public virtual void BeforeExecute(TWorld world, Scheduler scheduler) {}
     public virtual void AfterExecute(TWorld world, Scheduler scheduler) {}
     public virtual void Execute(TWorld world, Scheduler scheduler, in EntityRef entity) {}
+
+    public virtual bool OnTriggerEvent(TWorld world, Scheduler scheduler, in EntityRef entity, IEvent e) => true;
+    public virtual bool OnFilterEvent(TWorld world, Scheduler scheduler, in EntityRef entity, IEvent e) => true;
 
     SystemHandle ISystem.Register(
         World<EntityRef> world, Scheduler scheduler, Scheduler.TaskGraphNode[]? dependedTasks)
@@ -181,7 +185,9 @@ public class SystemBase<TWorld> : ISystem
                     {
                         if (e == WorldEvents.Remove.Instance) {
                             if (hasRemoveTrigger) {
-                                group.Add(target);
+                                if (OnTriggerEvent(world, scheduler, target, e)) {
+                                    group.Add(target);
+                                }
                             }
                             else {
                                 group.Remove(target);
@@ -192,10 +198,14 @@ public class SystemBase<TWorld> : ISystem
                         var type = e.GetType();
 
                         if (triggerTypes.Contains(type)) {
-                            group.Add(target);
+                            if (OnTriggerEvent(world, scheduler, target, e)) {
+                                group.Add(target);
+                            }
                         }
                         else if (filterTypes.Contains(type)) {
-                            group.Remove(target);
+                            if (OnFilterEvent(world, scheduler, target, e)) {
+                                group.Remove(target);
+                            }
                         }
                         return false;
                     }
@@ -212,7 +222,9 @@ public class SystemBase<TWorld> : ISystem
                         if (e == WorldEvents.Remove.Instance) {
                             listeners.Remove(target);
                             if (hasRemoveTrigger) {
-                                group.Add(target);
+                                if (OnTriggerEvent(world, scheduler, target, e)) {
+                                    group.Add(target);
+                                }
                             }
                             else {
                                 group.Remove(target);
@@ -223,10 +235,14 @@ public class SystemBase<TWorld> : ISystem
                         var type = e.GetType();
 
                         if (triggerTypes.Contains(type)) {
-                            group.Add(target);
+                            if (OnTriggerEvent(world, scheduler, target, e)) {
+                                group.Add(target);
+                            }
                         }
                         else if (filterTypes.Contains(type)) {
-                            group.Remove(target);
+                            if (OnFilterEvent(world, scheduler, target, e)) {
+                                group.Remove(target);
+                            }
                         }
                         return false;
                     }
@@ -238,7 +254,9 @@ public class SystemBase<TWorld> : ISystem
                             listeners.Add(target, OnEvent);
 
                             if (hasAddTrigger) {
-                                group.Add(target);
+                                if (OnTriggerEvent(world, scheduler, target, e)) {
+                                    group.Add(target);
+                                }
                             }
                         }
                         return false;
@@ -263,14 +281,18 @@ public class SystemBase<TWorld> : ISystem
                     {
                         if (e == WorldEvents.Remove.Instance) {
                             if (hasRemoveTrigger) {
-                                group.Add(target);
+                                if (OnTriggerEvent(world, scheduler, target, e)) {
+                                    group.Add(target);
+                                }
                             }
                             else {
                                 group.Remove(target);
                             }
                         }
                         else if (triggerTypes.Contains(e.GetType())) {
-                            group.Add(target);
+                            if (OnTriggerEvent(world, scheduler, target, e)) {
+                                group.Add(target);
+                            }
                         }
                         return false;
                     }
@@ -287,7 +309,9 @@ public class SystemBase<TWorld> : ISystem
                         if (e == WorldEvents.Remove.Instance) {
                             listeners.Remove(target);
                             if (hasRemoveTrigger) {
-                                group.Add(target);
+                                if (OnTriggerEvent(world, scheduler, target, e)) {
+                                    group.Add(target);
+                                }
                             }
                             else {
                                 group.Remove(target);
@@ -295,7 +319,9 @@ public class SystemBase<TWorld> : ISystem
                             return true;
                         }
                         if (triggerTypes.Contains(e.GetType())) {
-                            group.Add(target);
+                            if (OnTriggerEvent(world, scheduler, target, e)) {
+                                group.Add(target);
+                            }
                         }
                         return false;
                     }
@@ -307,7 +333,9 @@ public class SystemBase<TWorld> : ISystem
                             listeners.Add(target, OnEvent);
 
                             if (hasAddTrigger) {
-                                group.Add(target);
+                                if (OnTriggerEvent(world, scheduler, target, e)) {
+                                    group.Add(target);
+                                }
                             }
                         }
                         return false;
