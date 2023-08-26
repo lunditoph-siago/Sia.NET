@@ -17,7 +17,7 @@ public class World<T> : Group<T>, IEventSender<IEvent, T>, IDisposable
     public IReadOnlyList<WorldGroup<T>> Groups => _groups;
 
     private readonly List<WorldGroup<T>> _groups = new();
-    private readonly SparseSet<object> _singletons = new();
+    private readonly SparseSet<object> _singletons = new(256, 256);
 
     public World()
     {

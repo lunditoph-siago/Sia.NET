@@ -59,7 +59,7 @@ public sealed class SparseSet<T> : IDictionary<int, T>, IReadOnlyDictionary<int,
         }
     }
 
-    public SparseSet(int pageCount = 1024, int pageSize = 1024)
+    public SparseSet(int pageCount, int pageSize)
     {
         PageCount = pageCount;
         PageSize = pageSize;
