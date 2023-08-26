@@ -16,9 +16,12 @@ using System.Diagnostics.CodeAnalysis;
 internal partial class ComponentPropertyGenerator : IIncrementalGenerator
 {
     private readonly record struct CodeGenerationInfo(
-        INamespaceSymbol Namespace, ImmutableArray<TypeDeclarationSyntax> ParentTypes,
-        TypeDeclarationSyntax ContainingType, string ValueName, string ValueType,
-        ImmutableDictionary<string, TypedConstant> Arguments);
+        INamespaceSymbol Namespace,
+        TypeDeclarationSyntax ContainingType,
+        ImmutableArray<TypeDeclarationSyntax> ParentTypes,
+        ImmutableDictionary<string, TypedConstant> Arguments,
+        string ValueName,
+        string ValueType);
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -54,8 +57,8 @@ internal partial class ComponentPropertyGenerator : IIncrementalGenerator
 
                 return new CodeGenerationInfo {
                     Namespace = syntax.TargetSymbol.ContainingNamespace,
-                    ParentTypes = parentTypes,
                     ContainingType = containtingType,
+                    ParentTypes = parentTypes,
                     Arguments = arguments,
                     ValueName = syntax.TargetSymbol.Name,
                     ValueType = syntax.TargetNode switch {
