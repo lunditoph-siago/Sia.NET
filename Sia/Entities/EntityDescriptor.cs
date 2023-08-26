@@ -18,7 +18,7 @@ public record EntityDescriptor
     public int Size { get; }
 
     private readonly Dictionary<Type, FieldInfo> _compInfos = new();
-    private readonly SparseSet<IntPtr> _compOffsets = new();
+    private readonly SparseSet<IntPtr> _compOffsets = new(512, 512);
 
     private const BindingFlags s_bindingFlags =
         BindingFlags.Public |
