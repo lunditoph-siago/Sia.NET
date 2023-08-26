@@ -5,105 +5,166 @@ Elegant ECS framework for .NET
 ## Example
 
 ```C#
-using Sia;
+using System.Numerics;
 
-public static class Program
+public static partial class Example1
 {
-    public record struct Name(string Value)
+    public class GameWorld : World
     {
-        public static implicit operator Name(string value)
-            => new(value);
-    }
+        public float DeltaTime { get; private set; }
+        public float Time { get; private set; }
 
-    public record struct HP(
-        int Value, int Maximum, int AutoRecoverRate)
-    {
-        public class Damage : Command<Damage>
+        public Scheduler Scheduler { get; } = new();
+
+        public void Update(float deltaTime)
         {
-            public int Value;
-
-            public static Damage Create(int value)
-            {
-                var cmd = CreateRaw();
-                cmd.Value = value;
-                return cmd;
-            }
-
-            public override void Execute(in EntityRef target)
-            {
-                target.Get<HP>().Value -= Value;
-            }
-        }
-
-        public HP() : this(100, 100, 0) {}
-    }
-
-    public class HPAutoRecoverSystem : SystemBase
-    {
-        public HPAutoRecoverSystem()
-        {
-            Matcher = Matchers.From<TypeUnion<HP>>();
-        }
-
-        public override void Execute(World world, Scheduler scheduler, in EntityRef entity)
-        {
-            ref var hp = ref entity.Get<HP>();
-
-            if (hp.Value < hp.Maximum) {
-                hp.Value = Math.Min(hp.Value + hp.AutoRecoverRate, hp.Maximum);
-                Console.WriteLine("血量已自动回复。");
-            }
-            else {
-                Console.WriteLine("血量已满，未自动回复。");
-            }
+            DeltaTime = deltaTime;
+            Time += deltaTime;
+            Scheduler.Tick();
         }
     }
 
-    public class DamageDisplaySystem : SystemBase
-    {
-        public DamageDisplaySystem()
-        {
-            Matcher = Matchers.From<TypeUnion<HP, Name>>();
-            Trigger = new EventUnion<HP.Damage>();
-        }
+    public partial record struct Transform(
+        [SiaProperty] Vector2 Position,
+        [SiaProperty] float Angle);
 
-        public override void Execute(World world, Scheduler scheduler, in EntityRef entity)
+    public partial record struct Health(
+        [SiaProperty] float Value,
+        [SiaProperty] float Debuff)
+    {
+        public Health() : this(100, 0) {}
+
+        public class Damage
+            : ImpurePropertyCommand<Damage, float>
         {
-            Console.WriteLine($"[{entity.Get<Name>().Value}] 受到攻击！");
+            public override void Execute(World<EntityRef> world, in EntityRef target)
+                => world.Modify(target, Health.SetValue.Create(target.Get<Health>().Value - Value));
         }
     }
 
-    public record struct Player(Name Name, HP HP)
+    public class HealthUpdateSystem : SystemBase<GameWorld>
     {
-        public static EntityRef CreateResilient(string name)
-            => EntityFactory<Player>.Hash.Create(new() {
-                Name = name,
-                HP = new() {
-                    AutoRecoverRate = 10
-                }
-            });
+        public HealthUpdateSystem()
+        {
+            Matcher = Matchers.From<TypeUnion<Health>>();
+        }
+
+        public override void Execute(GameWorld world, Scheduler scheduler, in EntityRef entity)
+        {
+            ref var health = ref entity.Get<Health>();
+            if (health.Debuff != 0) {
+                world.Modify(entity, Health.Damage.Create(health.Debuff * world.DeltaTime));
+                Console.WriteLine($"Damage: HP {entity.Get<Health>().Value}");
+            }
+        }
+    }
+
+    public class DeathSystem : SystemBase<GameWorld>
+    {
+        public DeathSystem()
+        {
+            Matcher = Matchers.From<TypeUnion<Health>>();
+            Dependencies = new SystemUnion<HealthUpdateSystem>();
+        }
+
+        public override void Execute(GameWorld world, Scheduler scheduler, in EntityRef entity)
+        {
+            if (entity.Get<Health>().Value <= 0) {
+                world.Remove(entity);
+                Console.WriteLine("Dead!");
+            }
+        }
+    }
+
+    public class HealthSystems : SystemBase<GameWorld>
+    {
+        public HealthSystems()
+        {
+            Children = new SystemUnion<
+                HealthUpdateSystem,
+                DeathSystem>();
+        }
+    }
+
+    public class LocationDamageSystem : SystemBase<GameWorld>
+    {
+        public LocationDamageSystem()
+        {
+            Matcher = Matchers.From<TypeUnion<Transform, Health>>();
+            Trigger = new EventUnion<WorldEvents.Add, Transform.SetPosition>();
+        }
+
+        public override void Execute(GameWorld world, Scheduler scheduler, in EntityRef entity)
+        {
+            var pos = entity.Get<Transform>().Position;
+            if (pos.X == 1 && pos.Y == 1) {
+                world.Modify(entity, Health.Damage.Create(10));
+                Console.WriteLine($"Damage: HP {entity.Get<Health>().Value}");
+            }
+            if (pos.X == 1 && pos.Y == 2) {
+                world.Modify(entity, Health.SetDebuff.Create(100));
+                Console.WriteLine("Debuff!");
+            }
+        }
+    }
+
+    public class GameplaySystems : SystemBase<GameWorld>
+    {
+        public GameplaySystems()
+        {
+            Children = new SystemUnion<LocationDamageSystem>();
+            Dependencies = new SystemUnion<HealthSystems>();
+        }
+    }
+
+    public struct Player
+    {
+        public static readonly Player Initial = new();
+
+        public static EntityRef Create() => Create(Initial);
+        public static EntityRef Create(in Player template)
+            => EntityFactory<Player>.Hash.Create(template);
+
+        public Transform Transform = new();
+        public Health Health = new();
+
+        public Player() {}
     }
 
     public static void Main()
     {
-        var world = new World();
-        var scheduler = new Scheduler();
+        var world = new GameWorld();
 
-        new DamageDisplaySystem().Register(world, scheduler);
-        new HPAutoRecoverSystem().Register(world, scheduler);
+        var healthSystemsHandle =
+            new HealthSystems().Register(world, world.Scheduler);
+        var gameplaySystemsHandle =
+            new GameplaySystems().Register(world, world.Scheduler);
+        
+        var playerRef = Player.Create(new() {
+            Transform = new() {
+                Position = new(1, 1)
+            }
+        });
 
-        var player = Player.CreateResilient("玩家");
-        world.Add(player);
+        world.Add(playerRef);
+        world.Update(0.5f);
 
-        ref var hp = ref player.Get<HP>();
+        world.Modify(playerRef, Transform.SetPosition.Create(new(1, 2)));
+        world.Update(0.5f);
 
-        Console.WriteLine("HP: " + hp.Value);
-        scheduler.Tick();
+        world.Scheduler.CreateTask(() => {
+            Console.WriteLine("Callback invoked after health and gameplay systems");
+            return true; // remove task
+        }, new[] {healthSystemsHandle.Task, gameplaySystemsHandle.Task});
+    
+        world.Modify(playerRef, Transform.SetPosition.Create(new(1, 3)));
+        world.Update(0.5f);
+        world.Update(0.5f);
+        world.Update(0.5f);
+        world.Update(0.5f); // player dead
 
-        world.Modify(player, HP.Damage.Create(50));
-        Console.WriteLine("HP: " + hp.Value);
-        scheduler.Tick();
-        Console.WriteLine("HP: " + hp.Value);
+        gameplaySystemsHandle.Dispose();
+        healthSystemsHandle.Dispose();
     }
 }
 ```

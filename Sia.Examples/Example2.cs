@@ -13,21 +13,10 @@ public static class Example2
     public record struct HP(
         int Value, int Maximum, int AutoRecoverRate)
     {
-        public class Damage : Command<Damage>
+        public class Damage : PropertyCommand<Damage, int>
         {
-            public int Value;
-
-            public static Damage Create(int value)
-            {
-                var cmd = CreateRaw();
-                cmd.Value = value;
-                return cmd;
-            }
-
             public override void Execute(in EntityRef target)
-            {
-                target.Get<HP>().Value -= Value;
-            }
+                => target.Get<HP>().Value -= Value;
         }
 
         public HP() : this(100, 100, 0) {}

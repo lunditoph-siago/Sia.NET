@@ -2,7 +2,7 @@ namespace Sia.Examples;
 
 using System.Numerics;
 
-public static class Example1
+public static partial class Example1
 {
     public class GameWorld : World
     {
@@ -19,37 +19,21 @@ public static class Example1
         }
     }
 
-    public record struct Transform(Vector2 Position, float Angle)
-    {
-        public class SetPosition
-            : PropertyCommand<SetPosition, Vector2>
-        {
-            public override void Execute(in EntityRef target)
-                => target.Get<Transform>().Position = Value;
-        }
+    public partial record struct Transform(
+        [SiaProperty] Vector2 Position,
+        [SiaProperty] float Angle);
 
-        public class SetAngle
-            : PropertyCommand<SetAngle, float>
-        {
-            public override void Execute(in EntityRef target)
-                => target.Get<Transform>().Angle = Value;
-        }
-    }
-
-    public record struct Health(float Value, float Debuff)
+    public partial record struct Health(
+        [SiaProperty] float Value,
+        [SiaProperty] float Debuff)
     {
+        public Health() : this(100, 0) {}
+
         public class Damage
-            : PropertyCommand<Damage, float>
+            : ImpurePropertyCommand<Damage, float>
         {
-            public override void Execute(in EntityRef target)
-                => target.Get<Health>().Value -= Value;
-        }
-
-        public class SetDebuff
-            : PropertyCommand<SetDebuff, float>
-        {
-            public override void Execute(in EntityRef target)
-                => target.Get<Health>().Debuff = Value;
+            public override void Execute(World<EntityRef> world, in EntityRef target)
+                => world.Modify(target, Health.SetValue.Create(target.Get<Health>().Value - Value));
         }
     }
 
@@ -128,8 +112,19 @@ public static class Example1
         }
     }
 
-    public record struct Player(
-        Transform Transform, Health Health);
+    public struct Player
+    {
+        public static readonly Player Initial = new();
+
+        public static EntityRef Create() => Create(Initial);
+        public static EntityRef Create(in Player template)
+            => EntityFactory<Player>.Hash.Create(template);
+
+        public Transform Transform = new();
+        public Health Health = new();
+
+        public Player() {}
+    }
 
     public static void Run()
     {
@@ -139,13 +134,10 @@ public static class Example1
             new HealthSystems().Register(world, world.Scheduler);
         var gameplaySystemsHandle =
             new GameplaySystems().Register(world, world.Scheduler);
-
-        var playerRef = EntityFactory<Player>.Hash.Create(new() {
+        
+        var playerRef = Player.Create(new() {
             Transform = new() {
                 Position = new(1, 1)
-            },
-            Health = new() {
-                Value = 100
             }
         });
 

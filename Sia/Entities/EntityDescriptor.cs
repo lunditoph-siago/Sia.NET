@@ -1,6 +1,7 @@
 ﻿namespace Sia;
 
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 public record EntityDescriptor
@@ -40,15 +41,19 @@ public record EntityDescriptor
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Contains(Type type)
         => _compInfos.ContainsKey(type);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Contains<TComponent>()
         => _compInfos.ContainsKey(typeof(TComponent));
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool TryGetOffset<TComponent>(out IntPtr offset)
         => UnsafeTryGetOffset(typeof(TComponent), TypeIndexer<TComponent>.Index, out offset);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool UnsafeTryGetOffset(Type componentType, int componentTypeIndex, out IntPtr offset)
     {
         if (_compOffsets.TryGetValue(componentTypeIndex, out offset)) {
