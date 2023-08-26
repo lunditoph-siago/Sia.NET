@@ -6,12 +6,17 @@ public class CommandMailbox<TCommand, TTarget> : IEventSender<TCommand, TTarget>
     where TCommand : ICommand<TTarget>
     where TTarget : notnull
 {
+    public delegate void Executor(in TTarget target, in TCommand command);
+
     public int Count => _commands.Count;
 
     private readonly List<CommandEntry> _commands = new();
     private readonly LinkedList<(TTarget, IDeferrableCommand<TTarget>)> _deferredCommands = new();
 
-    private record struct CommandEntry(int Index, int Priority, TTarget Target, TCommand Command);
+    private record struct CommandEntry(int Index, int Priority, TTarget Target)
+    {
+        public TCommand Command;
+    }
 
     private static Comparison<CommandEntry> CompareIndexedPriority { get; }
         = (e1, e2) => {
@@ -33,12 +38,14 @@ public class CommandMailbox<TCommand, TTarget> : IEventSender<TCommand, TTarget>
             batchedCmd.Dispose();
             return;
         default:
-            _commands.Add(new(_commands.Count, GetCommandPriority(command), target, command));
+            _commands.Add(new(_commands.Count, GetCommandPriority(command), target) {
+                Command = command
+            });
             return;
         }
     }
 
-    public virtual void Execute(Action<TTarget, TCommand> executor)
+    public virtual void Execute(Executor executor)
     {
         var deferredCmdNode = _deferredCommands.First;
         while (deferredCmdNode != null) {
@@ -57,7 +64,7 @@ public class CommandMailbox<TCommand, TTarget> : IEventSender<TCommand, TTarget>
         _commands.Sort(CompareIndexedPriority);
 
         foreach (ref var entry in span) {
-            var cmd = entry.Command;
+            ref var cmd = ref entry.Command;
             var target = entry.Target;
 
             if (cmd is IDeferrableCommand<TTarget> deferCmd && deferCmd.ShouldDefer(target)) {

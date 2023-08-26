@@ -1,5 +1,5 @@
 namespace Sia;
 
-public interface IEvent : IDisposable
+public interface IEvent
 {
 }

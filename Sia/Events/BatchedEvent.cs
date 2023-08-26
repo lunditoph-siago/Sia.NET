@@ -10,6 +10,7 @@ public class BatchedEvent<TEvent, TTarget> : PooledEvent<BatchedEvent<TEvent, TT
     {
         Events.Clear();
         base.Dispose();
+        GC.SuppressFinalize(this);
     }
 }
 

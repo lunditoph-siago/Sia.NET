@@ -144,7 +144,6 @@ public class Dispatcher<TTarget> : IEventSender<IEvent, TTarget>
         }
         finally {
             _sending = false;
-            e.Dispose();
         }
     }
 }

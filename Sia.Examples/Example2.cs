@@ -13,9 +13,9 @@ public static class Example2
     public record struct HP(
         int Value, int Maximum, int AutoRecoverRate)
     {
-        public class Damage : PropertyCommand<Damage, int>
+        public readonly record struct Damage(int Value) : ICommand
         {
-            public override void Execute(in EntityRef target)
+            public void Execute(World<EntityRef> _, in EntityRef target)
                 => target.Get<HP>().Value -= Value;
         }
 
@@ -84,7 +84,7 @@ public static class Example2
         Console.WriteLine("HP: " + hp.Value);
         scheduler.Tick();
 
-        world.Modify(player, HP.Damage.Create(50));
+        world.Modify(player, new HP.Damage(50));
         Console.WriteLine("HP: " + hp.Value);
         scheduler.Tick();
         Console.WriteLine("HP: " + hp.Value);

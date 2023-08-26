@@ -29,11 +29,10 @@ public static partial class Example1
     {
         public Health() : this(100, 0) {}
 
-        public class Damage
-            : ImpurePropertyCommand<Damage, float>
+        public readonly record struct Damage(float Value) : ICommand
         {
-            public override void Execute(World<EntityRef> world, in EntityRef target)
-                => world.Modify(target, Health.SetValue.Create(target.Get<Health>().Value - Value));
+            public void Execute(World<EntityRef> world, in EntityRef target)
+                => world.Modify(target, new SetValue(target.Get<Health>().Value - Value));
         }
     }
 
@@ -48,7 +47,7 @@ public static partial class Example1
         {
             ref var health = ref entity.Get<Health>();
             if (health.Debuff != 0) {
-                world.Modify(entity, Health.Damage.Create(health.Debuff * world.DeltaTime));
+                world.Modify(entity, new Health.Damage(health.Debuff * world.DeltaTime));
                 Console.WriteLine($"Damage: HP {entity.Get<Health>().Value}");
             }
         }
@@ -93,11 +92,11 @@ public static partial class Example1
         {
             var pos = entity.Get<Transform>().Position;
             if (pos.X == 1 && pos.Y == 1) {
-                world.Modify(entity, Health.Damage.Create(10));
+                world.Modify(entity, new Health.Damage(10));
                 Console.WriteLine($"Damage: HP {entity.Get<Health>().Value}");
             }
             if (pos.X == 1 && pos.Y == 2) {
-                world.Modify(entity, Health.SetDebuff.Create(100));
+                world.Modify(entity, new Health.SetDebuff(100));
                 Console.WriteLine("Debuff!");
             }
         }
@@ -116,9 +115,15 @@ public static partial class Example1
     {
         public static readonly Player Initial = new();
 
-        public static EntityRef Create() => Create(Initial);
-        public static EntityRef Create(in Player template)
-            => EntityFactory<Player>.Hash.Create(template);
+        public static EntityRef Create()
+            => EntityFactory<Player>.Hash.Create(Initial);
+
+        public static EntityRef Create(Vector2 position)
+            => EntityFactory<Player>.Hash.Create(Initial with {
+                Transform = new() {
+                    Position = position
+                }
+            });
 
         public Transform Transform = new();
         public Health Health = new();
@@ -135,16 +140,12 @@ public static partial class Example1
         var gameplaySystemsHandle =
             new GameplaySystems().Register(world, world.Scheduler);
         
-        var playerRef = Player.Create(new() {
-            Transform = new() {
-                Position = new(1, 1)
-            }
-        });
-
+        var playerRef = Player.Create(new(1, 1));
         world.Add(playerRef);
+
         world.Update(0.5f);
 
-        world.Modify(playerRef, Transform.SetPosition.Create(new(1, 2)));
+        world.Modify(playerRef, new Transform.SetPosition(new(1, 2)));
         world.Update(0.5f);
 
         world.Scheduler.CreateTask(() => {
@@ -152,7 +153,7 @@ public static partial class Example1
             return true; // remove task
         }, new[] {healthSystemsHandle.Task, gameplaySystemsHandle.Task});
     
-        world.Modify(playerRef, Transform.SetPosition.Create(new(1, 3)));
+        world.Modify(playerRef, new Transform.SetPosition(new(1, 3)));
         world.Update(0.5f);
         world.Update(0.5f);
         world.Update(0.5f);
