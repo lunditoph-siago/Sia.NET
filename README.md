@@ -6,6 +6,7 @@ Elegant ECS framework for .NET
 
 ```C#
 using System.Numerics;
+using Sia;
 
 public static partial class Example1
 {
