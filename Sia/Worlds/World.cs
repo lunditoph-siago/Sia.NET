@@ -151,7 +151,7 @@ public class World<T> : Group<T>, IEventSender<IEvent, T>, IDisposable
     }
 
     public bool RemoveAddon<TAddon>()
-        where TAddon : struct
+        where TAddon : class
         => _addons.Remove(WorldAddonIndexer<TAddon>.Index);
 
     public TAddon Get<TAddon>()
@@ -166,8 +166,9 @@ public class World<T> : Group<T>, IEventSender<IEvent, T>, IDisposable
         return (TAddon)addon;
     }
 
-    public bool ContainsAddon<Addon>()
-        => _addons.ContainsKey(WorldAddonIndexer<Addon>.Index);
+    public bool ContainsAddon<TAddon>()
+        where TAddon : class
+        => _addons.ContainsKey(WorldAddonIndexer<TAddon>.Index);
 
     protected virtual void Dispose(bool disposing)
     {
