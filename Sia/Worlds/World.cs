@@ -17,7 +17,7 @@ public class World<T> : Group<T>, IEventSender<IEvent, T>, IDisposable
     public IReadOnlyList<WorldGroup<T>> Groups => _groups;
 
     private readonly List<WorldGroup<T>> _groups = new();
-    private readonly SparseSet<object> _singletons = new(256, 256);
+    private readonly SparseSet<object> _addons = new(256, 256);
 
     public World()
     {
@@ -120,64 +120,54 @@ public class World<T> : Group<T>, IEventSender<IEvent, T>, IDisposable
         Dispatcher.Send(target, command);
     }
 
-    public ref TSingleton Acquire<TSingleton>()
-        where TSingleton : struct, IConstructable
+    public TAddon AcquireAddon<TAddon>()
+        where TAddon : class, new()
     {
-        ref var box = ref _singletons.GetOrAddValueRef(
-            WorldSingletonIndexer<TSingleton>.Index, out bool exists);
+        ref var addon = ref _addons.GetOrAddValueRef(
+            WorldAddonIndexer<TAddon>.Index, out bool exists);
 
         if (exists) {
-            return ref Unsafe.Unbox<TSingleton>(box);
+            return (TAddon)addon;
         }
 
-        box = new TSingleton();
-        ref var singleton = ref Unsafe.Unbox<TSingleton>(box);
-        singleton.Construct();
-        return ref singleton;
+        var newAddon = new TAddon();
+        addon = newAddon;
+        return newAddon;
     }
 
-    public unsafe ref TSingleton Add<TSingleton>()
-        where TSingleton : struct
+    public TAddon AddAddon<TAddon>()
+        where TAddon : class, new()
     {
-        ref var box = ref _singletons.GetOrAddValueRef(
-            WorldSingletonIndexer<TSingleton>.Index, out bool exists);
+        ref var singleton = ref _addons.GetOrAddValueRef(
+            WorldAddonIndexer<TAddon>.Index, out bool exists);
 
         if (exists) {
-            throw new Exception("Singleton already exists: " + typeof(TSingleton));
+            throw new Exception("Addon already exists: " + typeof(TAddon));
         }
-        return ref Unsafe.Unbox<TSingleton>(box);
+
+        var newSingleton = new TAddon();
+        singleton = newSingleton;
+        return newSingleton;
     }
 
-    public bool Remove<TSingleton>()
-        where TSingleton : struct
-        => _singletons.Remove(WorldSingletonIndexer<TSingleton>.Index);
+    public bool RemoveAddon<TAddon>()
+        where TAddon : struct
+        => _addons.Remove(WorldAddonIndexer<TAddon>.Index);
 
-    public unsafe ref TSingleton Get<TSingleton>()
-        where TSingleton : struct
+    public TAddon Get<TAddon>()
+        where TAddon : class
     {
-        ref var box = ref _singletons.GetValueRefOrNullRef(
-            WorldSingletonIndexer<TSingleton>.Index);
+        ref var addon = ref _addons.GetValueRefOrNullRef(
+            WorldAddonIndexer<TAddon>.Index);
 
-        if (Unsafe.IsNullRef(ref box)) {
-            throw new Exception("Singleton not found: " + typeof(TSingleton));
+        if (Unsafe.IsNullRef(ref addon)) {
+            throw new Exception("Addon not found: " + typeof(TAddon));
         }
-        return ref Unsafe.Unbox<TSingleton>(box);
+        return (TAddon)addon;
     }
 
-    public unsafe ref TSingleton GetOrNullRef<TSingleton>()
-        where TSingleton : struct
-    {
-        ref var box = ref _singletons.GetValueRefOrNullRef(
-            WorldSingletonIndexer<TSingleton>.Index);
-
-        if (Unsafe.IsNullRef(ref box)) {
-            return ref Unsafe.NullRef<TSingleton>();
-        }
-        return ref Unsafe.Unbox<TSingleton>(box);
-    }
-
-    public bool Contains<TSingleton>()
-        => _singletons.ContainsKey(WorldSingletonIndexer<TSingleton>.Index);
+    public bool ContainsAddon<Addon>()
+        => _addons.ContainsKey(WorldAddonIndexer<Addon>.Index);
 
     protected virtual void Dispose(bool disposing)
     {
