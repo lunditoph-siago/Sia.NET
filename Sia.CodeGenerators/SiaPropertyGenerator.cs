@@ -202,7 +202,7 @@ internal partial class ComponentPropertyGenerator : IIncrementalGenerator
         source.Write(commandName);
         source.Write("(");
         source.Write(info.ValueType);
-        source.WriteLine(" Value) : ICommand");
+        source.WriteLine(" Value) : global::Sia.ICommand");
         source.WriteLine("{");
         source.Indent++;
 
