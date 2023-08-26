@@ -113,7 +113,8 @@ public class World<T> : Group<T>, IEventSender<IEvent, T>, IDisposable
     public void Send(in T target, IEvent e)
         => Dispatcher.Send(target, e);
 
-    public virtual void Modify(in T target, ICommand<T> command)
+    public virtual void Modify<TCommand>(in T target, in TCommand command)
+        where TCommand : ICommand<T>
     {
         command.Execute(this, target);
         Dispatcher.Send(target, command);

@@ -198,17 +198,15 @@ internal partial class ComponentPropertyGenerator : IIncrementalGenerator
         source.WriteLine("{");
         source.Indent++;
 
-        source.Write("public sealed class ");
+        source.Write("public readonly record struct ");
         source.Write(commandName);
-        source.Write(" : global::Sia.PropertyCommand<");
-        source.Write(commandName);
-        source.Write(", ");
+        source.Write("(");
         source.Write(info.ValueType);
-        source.WriteLine(">");
+        source.WriteLine(" Value) : ICommand");
         source.WriteLine("{");
         source.Indent++;
 
-        source.WriteLine("public override void Execute(in global::Sia.EntityRef target)");
+        source.WriteLine("public void Execute(World<EntityRef> _, in global::Sia.EntityRef target)");
         source.Indent++;
         source.Write("=> target.Get<");
         source.Write(containingTypeName);
