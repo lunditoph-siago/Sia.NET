@@ -157,7 +157,7 @@ public class World<T> : Group<T>, IEventSender<T, IEvent>, IDisposable
         where TAddon : class
         => _addons.Remove(WorldAddonIndexer<TAddon>.Index);
 
-    public TAddon Get<TAddon>()
+    public TAddon GetAddon<TAddon>()
         where TAddon : class
     {
         ref var addon = ref _addons.GetValueRefOrNullRef(
