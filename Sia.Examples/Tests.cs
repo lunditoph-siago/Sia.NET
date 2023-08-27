@@ -217,8 +217,8 @@ public unsafe static class Tests
 
         var world = new World();
 
-        var e1Ref = EntityFactory<TestEntity>.ManagedHeap.Create();
-        var e2Ref = EntityFactory<TestEntity2>.ManagedHeap.Create();
+        var e1Ref = EntityLibrary<TestEntity>.ManagedHeap(world);
+        var e2Ref = EntityLibrary<TestEntity2>.ManagedHeap(world);
 
         world.Add(e1Ref);
         world.Add(e2Ref);
@@ -275,14 +275,14 @@ public unsafe static class Tests
 
         new PositionSystems().Register(world, scheduler);
 
-        var e1Ref = EntityFactory<TestEntity>.ManagedHeap.Create(new() {
+        var e1Ref = EntityLibrary<TestEntity>.ManagedHeap(world, new() {
             Position = new Position {
                 X = 1,
                 Y = 2,
                 Z = 3
             }
         });
-        var e2Ref = EntityFactory<TestEntity>.ManagedHeap.Create(new() {
+        var e2Ref = EntityLibrary<TestEntity>.ManagedHeap(world, new() {
             Position = new Position {
                 X = -1,
                 Y = -2,
