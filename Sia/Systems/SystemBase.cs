@@ -16,8 +16,137 @@ public class SystemBase<TWorld> : ISystem
     public virtual void AfterExecute(TWorld world, Scheduler scheduler) {}
     public virtual void Execute(TWorld world, Scheduler scheduler, in EntityRef entity) {}
 
-    public virtual bool OnTriggerEvent(TWorld world, Scheduler scheduler, in EntityRef entity, IEvent e) => true;
-    public virtual bool OnFilterEvent(TWorld world, Scheduler scheduler, in EntityRef entity, IEvent e) => true;
+    public virtual bool OnTriggerEvent<TEvent>(TWorld world, Scheduler scheduler, in EntityRef entity, in TEvent e)
+        where TEvent : IEvent
+        => true;
+    public virtual bool OnFilterEvent<TEvent>(TWorld world, Scheduler scheduler, in EntityRef entity, in TEvent e)
+        where TEvent : IEvent
+        => true;
+
+    private record MatchAnyEventListener(
+        SystemBase<TWorld> System, TWorld World, Scheduler Scheduler, Group<EntityRef> Group,
+        HashSet<Type> TriggerTypes, bool HasRemoveTrigger) : IEventListener
+    {
+        public bool OnEvent<TEvent>(in EntityRef target, in TEvent e)
+            where TEvent : IEvent
+        {
+            var type = typeof(TEvent);
+            if (type == typeof(WorldEvents.Remove)) {
+                if (HasRemoveTrigger) {
+                    if (System.OnTriggerEvent(World, Scheduler, target, e)) {
+                        Group.Add(target);
+                    }
+                }
+                else {
+                    Group.Remove(target);
+                }
+            }
+            else if (TriggerTypes.Contains(e.GetType())) {
+                if (System.OnTriggerEvent(World, Scheduler, target, e)) {
+                    Group.Add(target);
+                }
+            }
+            return false;
+        }
+    }
+
+    private record MatchAnyFilterableEventListener(
+        SystemBase<TWorld> System, TWorld World, Scheduler Scheduler, Group<EntityRef> Group,
+        HashSet<Type> TriggerTypes, HashSet<Type> FilterTypes, bool HasRemoveTrigger) : IEventListener
+    {
+        public bool OnEvent<TEvent>(in EntityRef target, in TEvent e)
+            where TEvent : IEvent
+        {
+            var type = typeof(TEvent);
+            if (type == typeof(WorldEvents.Remove)) {
+                if (HasRemoveTrigger) {
+                    if (System.OnTriggerEvent(World, Scheduler, target, e)) {
+                        Group.Add(target);
+                    }
+                }
+                else {
+                    Group.Remove(target);
+                }
+                return false;
+            }
+            if (TriggerTypes.Contains(type)) {
+                if (System.OnTriggerEvent(World, Scheduler, target, e)) {
+                    Group.Add(target);
+                }
+            }
+            else if (FilterTypes.Contains(type)) {
+                if (System.OnFilterEvent(World, Scheduler, target, e)) {
+                    Group.Remove(target);
+                }
+            }
+            return false;
+        }
+    }
+
+    private record TargetEventListener(
+        SystemBase<TWorld> System, TWorld World, Scheduler Scheduler, Group<EntityRef> Group,
+        Dictionary<EntityRef, IEventListener> Listeners,
+        HashSet<Type> TriggerTypes, bool HasRemoveTrigger) : IEventListener
+    {
+        public bool OnEvent<TEvent>(in EntityRef target, in TEvent e)
+            where TEvent : IEvent
+        {
+            var type = typeof(TEvent);
+            if (type == typeof(WorldEvents.Remove)) {
+                Listeners.Remove(target);
+                if (HasRemoveTrigger) {
+                    if (System.OnTriggerEvent(World, Scheduler, target, e)) {
+                        Group.Add(target);
+                    }
+                }
+                else {
+                    Group.Remove(target);
+                }
+                return true;
+            }
+            if (TriggerTypes.Contains(e.GetType())) {
+                if (System.OnTriggerEvent(World, Scheduler, target, e)) {
+                    Group.Add(target);
+                }
+            }
+            return false;
+        }
+    }
+
+    private record TargetFilterableEventListener(
+        SystemBase<TWorld> System, TWorld World, Scheduler Scheduler, Group<EntityRef> Group,
+        Dictionary<EntityRef, IEventListener> Listeners,
+        HashSet<Type> TriggerTypes, HashSet<Type> FilterTypes, bool HasRemoveTrigger) : IEventListener
+    {
+        public bool OnEvent<TEvent>(in EntityRef target, in TEvent e)
+            where TEvent : IEvent
+        {
+            var type = typeof(TEvent);
+            if (type == typeof(WorldEvents.Remove)) {
+                Listeners.Remove(target);
+                if (HasRemoveTrigger) {
+                    if (System.OnTriggerEvent(World, Scheduler, target, e)) {
+                        Group.Add(target);
+                    }
+                }
+                else {
+                    Group.Remove(target);
+                }
+                return true;
+            }
+            if (TriggerTypes.Contains(type)) {
+                if (System.OnTriggerEvent(World, Scheduler, target, e)) {
+                    Group.Add(target);
+                }
+            }
+            else if (FilterTypes.Contains(type)) {
+                if (System.OnFilterEvent(World, Scheduler, target, e)) {
+                    Group.Remove(target);
+                }
+            }
+            return false;
+        }
+    }
 
     SystemHandle ISystem.Register(
         World<EntityRef> world, Scheduler scheduler, Scheduler.TaskGraphNode[]? dependedTasks)
@@ -177,86 +306,47 @@ public class SystemBase<TWorld> : ISystem
                 foreach (var filterType in filterTypes) {
                     triggerTypes.Remove(filterType);
                 }
-
                 bool hasRemoveTrigger = triggerTypes.Contains(typeof(WorldEvents.Remove));
 
                 if (matcher == Matchers.Any) {
-                    bool OnEvent(in EntityRef target, IEvent e)
+                    var listener = new MatchAnyFilterableEventListener(
+                        System: this,
+                        World: world,
+                        Scheduler: scheduler,
+                        Group: group,
+                        TriggerTypes: triggerTypes,
+                        FilterTypes: filterTypes,
+                        HasRemoveTrigger: hasRemoveTrigger);
+
+                    dispatcher.Listen(listener);
+                    disposeFunc = () => dispatcher.Unlisten(listener);
+                }
+                else {
+                    var listeners = new Dictionary<EntityRef, IEventListener>();
+                    bool hasAddTrigger = triggerTypes.Contains(typeof(WorldEvents.Add));
+
+                    var listener = new TargetFilterableEventListener(
+                        System: this,
+                        World: world,
+                        Scheduler: scheduler,
+                        Group: group,
+                        Listeners: listeners,
+                        TriggerTypes: triggerTypes,
+                        FilterTypes: filterTypes,
+                        HasRemoveTrigger: hasRemoveTrigger);
+
+                    bool OnEntityAdded(in EntityRef target, in WorldEvents.Add e)
                     {
-                        if (e == WorldEvents.Remove.Instance) {
-                            if (hasRemoveTrigger) {
-                                if (OnTriggerEvent(world, scheduler, target, e)) {
-                                    group.Add(target);
-                                }
-                            }
-                            else {
-                                group.Remove(target);
-                            }
+                        if (!matcher.Match(target)) {
                             return false;
                         }
 
-                        var type = e.GetType();
+                        dispatcher.Listen(target, listener);
+                        listeners.Add(target, listener);
 
-                        if (triggerTypes.Contains(type)) {
+                        if (hasAddTrigger) {
                             if (OnTriggerEvent(world, scheduler, target, e)) {
                                 group.Add(target);
-                            }
-                        }
-                        else if (filterTypes.Contains(type)) {
-                            if (OnFilterEvent(world, scheduler, target, e)) {
-                                group.Remove(target);
-                            }
-                        }
-                        return false;
-                    }
-
-                    dispatcher.Listen(OnEvent);
-                    disposeFunc = () => dispatcher.Unlisten(OnEvent);
-                }
-                else {
-                    var listeners = new Dictionary<EntityRef, Dispatcher.Listener>();
-                    bool hasAddTrigger = triggerTypes.Contains(typeof(WorldEvents.Add));
-
-                    bool OnEvent(in EntityRef target, IEvent e)
-                    {
-                        if (e == WorldEvents.Remove.Instance) {
-                            listeners.Remove(target);
-                            if (hasRemoveTrigger) {
-                                if (OnTriggerEvent(world, scheduler, target, e)) {
-                                    group.Add(target);
-                                }
-                            }
-                            else {
-                                group.Remove(target);
-                            }
-                            return true;
-                        }
-
-                        var type = e.GetType();
-
-                        if (triggerTypes.Contains(type)) {
-                            if (OnTriggerEvent(world, scheduler, target, e)) {
-                                group.Add(target);
-                            }
-                        }
-                        else if (filterTypes.Contains(type)) {
-                            if (OnFilterEvent(world, scheduler, target, e)) {
-                                group.Remove(target);
-                            }
-                        }
-                        return false;
-                    }
-
-                    bool OnEntityAdded(in EntityRef target, IEvent e)
-                    {
-                        if (matcher.Match(target)) {
-                            dispatcher.Listen(target, OnEvent);
-                            listeners.Add(target, OnEvent);
-
-                            if (hasAddTrigger) {
-                                if (OnTriggerEvent(world, scheduler, target, e)) {
-                                    group.Add(target);
-                                }
                             }
                         }
                         return false;
@@ -277,60 +367,35 @@ public class SystemBase<TWorld> : ISystem
                 bool hasRemoveTrigger = triggerTypes.Contains(typeof(WorldEvents.Remove));
 
                 if (matcher == Matchers.Any) {
-                    bool OnEvent(in EntityRef target, IEvent e)
-                    {
-                        if (e == WorldEvents.Remove.Instance) {
-                            if (hasRemoveTrigger) {
-                                if (OnTriggerEvent(world, scheduler, target, e)) {
-                                    group.Add(target);
-                                }
-                            }
-                            else {
-                                group.Remove(target);
-                            }
-                        }
-                        else if (triggerTypes.Contains(e.GetType())) {
-                            if (OnTriggerEvent(world, scheduler, target, e)) {
-                                group.Add(target);
-                            }
-                        }
-                        return false;
-                    }
+                    var listener = new MatchAnyEventListener(
+                        System: this,
+                        World: world,
+                        Scheduler: scheduler,
+                        Group: group,
+                        TriggerTypes: triggerTypes,
+                        HasRemoveTrigger: hasRemoveTrigger);
 
-                    dispatcher.Listen(OnEvent);
-                    disposeFunc = () => dispatcher.Unlisten(OnEvent);
+                    dispatcher.Listen(listener);
+                    disposeFunc = () => dispatcher.Unlisten(listener);
                 }
                 else {
-                    var listeners = new Dictionary<EntityRef, Dispatcher.Listener>();
+                    var listeners = new Dictionary<EntityRef, IEventListener>();
                     bool hasAddTrigger = triggerTypes.Contains(typeof(WorldEvents.Add));
 
-                    bool OnEvent(in EntityRef target, IEvent e)
-                    {
-                        if (e == WorldEvents.Remove.Instance) {
-                            listeners.Remove(target);
-                            if (hasRemoveTrigger) {
-                                if (OnTriggerEvent(world, scheduler, target, e)) {
-                                    group.Add(target);
-                                }
-                            }
-                            else {
-                                group.Remove(target);
-                            }
-                            return true;
-                        }
-                        if (triggerTypes.Contains(e.GetType())) {
-                            if (OnTriggerEvent(world, scheduler, target, e)) {
-                                group.Add(target);
-                            }
-                        }
-                        return false;
-                    }
+                    var listener = new TargetEventListener(
+                        System: this,
+                        World: world,
+                        Scheduler: scheduler,
+                        Group: group,
+                        Listeners: listeners,
+                        TriggerTypes: triggerTypes,
+                        HasRemoveTrigger: hasRemoveTrigger);
 
-                    bool OnEntityAdded(in EntityRef target, IEvent e)
+                    bool OnEntityAdded(in EntityRef target, in WorldEvents.Add e)
                     {
                         if (matcher.Match(target)) {
-                            dispatcher.Listen(target, OnEvent);
-                            listeners.Add(target, OnEvent);
+                            dispatcher.Listen(target, listener);
+                            listeners.Add(target, listener);
 
                             if (hasAddTrigger) {
                                 if (OnTriggerEvent(world, scheduler, target, e)) {

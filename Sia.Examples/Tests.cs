@@ -167,16 +167,11 @@ public unsafe static class Tests
     {
         Console.WriteLine("== Test Dispatcher ==");
 
-        var disp = new Dispatcher<int>();
+        var disp = new Dispatcher<int, IEvent>();
 
-        disp.Listen<TestCommand>((in int target, IEvent e) => {
+        disp.Listen((in int target, in TestCommand e) => {
             Console.WriteLine("Command: " + target);
             return target == 2;
-        });
-
-        disp.Listen(1, (in int target, IEvent e) => {
-            Console.WriteLine("Command: " + target);
-            return false;
         });
 
         disp.Send(1, new TestCommand { });
