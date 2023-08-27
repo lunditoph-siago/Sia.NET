@@ -20,7 +20,7 @@ internal partial class ComponentPropertyGenerator
         [global::System.AttributeUsage(
             global::System.AttributeTargets.Property | global::System.AttributeTargets.Field | global::System.AttributeTargets.Parameter,
             Inherited = false, AllowMultiple = false)]
-        public sealed class SiaPropertyAttribute : global::System.Attribute
+        internal sealed class SiaPropertyAttribute : global::System.Attribute
         {
             public string? SetCommand { get; init; }
         }
