@@ -1,33 +1,44 @@
 namespace Sia;
 
-using System.Collections.Concurrent;
+public class WorldGroupCacheLibrary
+{
+    public IReadOnlyDictionary<IMatcher, WorldGroupCache> Caches => UnsafeCaches;
+    internal Dictionary<IMatcher, WorldGroupCache> UnsafeCaches = new();
+
+    public void Clear()
+    {
+        foreach (var cache in UnsafeCaches.Values) {
+            cache.RefCount = 0;
+            cache.Group.Clear();
+        }
+        UnsafeCaches.Clear();
+    }
+}
 
 public sealed class WorldGroupCache
 {
-    public sealed class Handle : IDisposable
+    public class Handle : IDisposable
     {
-        public (World<EntityRef>, IMatcher) Key { get; private init; }
-        public WorldGroupCache Cache { get; private init; }
+        public required World<EntityRef> World { get; init; }
+        public required IMatcher Matcher { get; init; }
+        public required WorldGroupCache Cache { get; init; }
 
         public WorldGroup<EntityRef> Group => Cache.Group;
         public int RefCount => Cache.RefCount;
 
         private bool _disposed;
 
-        internal Handle((World<EntityRef>, IMatcher) key, WorldGroupCache cache)
-        {
-            Key = key;
-            Cache = cache;
-        }
+        internal Handle() {}
 
         private void DoDispose()
         {
-            if (_disposed) { return; }
+            if (_disposed || Cache.RefCount == 0) { return; }
 
             Cache.RefCount--;
             if (Cache.RefCount == 0) {
-                s_entries.TryRemove(KeyValuePair.Create(Key, Cache));
-                Cache.Group.Clear();
+                var entries = World.GetAddon<WorldGroupCacheLibrary>().UnsafeCaches;
+                entries.Remove(Matcher);
+                Group.Clear();
             }
 
             _disposed = true;
@@ -51,24 +62,29 @@ public sealed class WorldGroupCache
 
     public static Handle Acquire(World<EntityRef> world, IMatcher matcher)
     {
-        var cacheKey = (world, matcher);
-
-        if (!s_entries.TryGetValue(cacheKey, out var entry)) {
-            entry = s_entries.GetOrAdd(cacheKey,
-                key => new(world.CreateGroup(matcher.Match)));
+        var entries = world.AcquireAddon<WorldGroupCacheLibrary>().UnsafeCaches;
+        if (!entries.TryGetValue(matcher, out var cache)) {
+            cache = new(world.CreateGroup(matcher.Match));
         }
-
-        entry.RefCount++;
-        return new(cacheKey, entry);
+        cache.RefCount++;
+        return new Handle {
+            World = world,
+            Matcher = matcher,
+            Cache = cache
+        };
     }
 
-    private static readonly ConcurrentDictionary<(World<EntityRef>, IMatcher), WorldGroupCache> s_entries = new();
-
     public WorldGroup<EntityRef> Group { get; }
-    public int RefCount { get; private set; }
+    public int RefCount { get; internal set; }
 
     private WorldGroupCache(WorldGroup<EntityRef> group)
     {
         Group = group;
     }
+}
+
+public static class WorldGroupCacheExtensions
+{
+    public static WorldGroupCache.Handle Query(this World<EntityRef> world, IMatcher matcher)
+        => WorldGroupCache.Acquire(world, matcher);
 }
