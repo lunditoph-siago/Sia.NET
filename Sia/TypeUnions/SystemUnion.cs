@@ -6,7 +6,7 @@ public class SystemUnion<T1>
 {
     static SystemUnion()
     {
-        SystemGlobalData.Acquire<T1>();
+        SystemLibrary.Ensure<T1>();
     }
 }
 
@@ -17,8 +17,8 @@ public class SystemUnion<T1, T2>
 {
     static SystemUnion()
     {
-        SystemGlobalData.Acquire<T1>();
-        SystemGlobalData.Acquire<T2>();
+        SystemLibrary.Ensure<T1>();
+        SystemLibrary.Ensure<T2>();
     }
 }
 
@@ -30,9 +30,9 @@ public class SystemUnion<T1, T2, T3>
 {
     static SystemUnion()
     {
-        SystemGlobalData.Acquire<T1>();
-        SystemGlobalData.Acquire<T2>();
-        SystemGlobalData.Acquire<T3>();
+        SystemLibrary.Ensure<T1>();
+        SystemLibrary.Ensure<T2>();
+        SystemLibrary.Ensure<T3>();
     }
 }
 
@@ -45,10 +45,10 @@ public class SystemUnion<T1, T2, T3, T4>
 {
     static SystemUnion()
     {
-        SystemGlobalData.Acquire<T1>();
-        SystemGlobalData.Acquire<T2>();
-        SystemGlobalData.Acquire<T3>();
-        SystemGlobalData.Acquire<T4>();
+        SystemLibrary.Ensure<T1>();
+        SystemLibrary.Ensure<T2>();
+        SystemLibrary.Ensure<T3>();
+        SystemLibrary.Ensure<T4>();
     }
 }
 
@@ -62,11 +62,11 @@ public class SystemUnion<T1, T2, T3, T4, T5>
 {
     static SystemUnion()
     {
-        SystemGlobalData.Acquire<T1>();
-        SystemGlobalData.Acquire<T2>();
-        SystemGlobalData.Acquire<T3>();
-        SystemGlobalData.Acquire<T4>();
-        SystemGlobalData.Acquire<T5>();
+        SystemLibrary.Ensure<T1>();
+        SystemLibrary.Ensure<T2>();
+        SystemLibrary.Ensure<T3>();
+        SystemLibrary.Ensure<T4>();
+        SystemLibrary.Ensure<T5>();
     }
 }
 
@@ -81,12 +81,12 @@ public class SystemUnion<T1, T2, T3, T4, T5, T6>
 {
     static SystemUnion()
     {
-        SystemGlobalData.Acquire<T1>();
-        SystemGlobalData.Acquire<T2>();
-        SystemGlobalData.Acquire<T3>();
-        SystemGlobalData.Acquire<T4>();
-        SystemGlobalData.Acquire<T5>();
-        SystemGlobalData.Acquire<T6>();
+        SystemLibrary.Ensure<T1>();
+        SystemLibrary.Ensure<T2>();
+        SystemLibrary.Ensure<T3>();
+        SystemLibrary.Ensure<T4>();
+        SystemLibrary.Ensure<T5>();
+        SystemLibrary.Ensure<T6>();
     }
 }
 
@@ -102,13 +102,13 @@ public class SystemUnion<T1, T2, T3, T4, T5, T6, T7>
 {
     static SystemUnion()
     {
-        SystemGlobalData.Acquire<T1>();
-        SystemGlobalData.Acquire<T2>();
-        SystemGlobalData.Acquire<T3>();
-        SystemGlobalData.Acquire<T4>();
-        SystemGlobalData.Acquire<T5>();
-        SystemGlobalData.Acquire<T6>();
-        SystemGlobalData.Acquire<T7>();
+        SystemLibrary.Ensure<T1>();
+        SystemLibrary.Ensure<T2>();
+        SystemLibrary.Ensure<T3>();
+        SystemLibrary.Ensure<T4>();
+        SystemLibrary.Ensure<T5>();
+        SystemLibrary.Ensure<T6>();
+        SystemLibrary.Ensure<T7>();
     }
 }
 
@@ -125,14 +125,14 @@ public class SystemUnion<T1, T2, T3, T4, T5, T6, T7, T8>
 {
     static SystemUnion()
     {
-        SystemGlobalData.Acquire<T1>();
-        SystemGlobalData.Acquire<T2>();
-        SystemGlobalData.Acquire<T3>();
-        SystemGlobalData.Acquire<T4>();
-        SystemGlobalData.Acquire<T5>();
-        SystemGlobalData.Acquire<T6>();
-        SystemGlobalData.Acquire<T7>();
-        SystemGlobalData.Acquire<T8>();
+        SystemLibrary.Ensure<T1>();
+        SystemLibrary.Ensure<T2>();
+        SystemLibrary.Ensure<T3>();
+        SystemLibrary.Ensure<T4>();
+        SystemLibrary.Ensure<T5>();
+        SystemLibrary.Ensure<T6>();
+        SystemLibrary.Ensure<T7>();
+        SystemLibrary.Ensure<T8>();
     }
 }
 
@@ -150,15 +150,15 @@ public class SystemUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9>
 {
     static SystemUnion()
     {
-        SystemGlobalData.Acquire<T1>();
-        SystemGlobalData.Acquire<T2>();
-        SystemGlobalData.Acquire<T3>();
-        SystemGlobalData.Acquire<T4>();
-        SystemGlobalData.Acquire<T5>();
-        SystemGlobalData.Acquire<T6>();
-        SystemGlobalData.Acquire<T7>();
-        SystemGlobalData.Acquire<T8>();
-        SystemGlobalData.Acquire<T9>();
+        SystemLibrary.Ensure<T1>();
+        SystemLibrary.Ensure<T2>();
+        SystemLibrary.Ensure<T3>();
+        SystemLibrary.Ensure<T4>();
+        SystemLibrary.Ensure<T5>();
+        SystemLibrary.Ensure<T6>();
+        SystemLibrary.Ensure<T7>();
+        SystemLibrary.Ensure<T8>();
+        SystemLibrary.Ensure<T9>();
     }
 }
 
@@ -177,16 +177,16 @@ public class SystemUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>
 {
     static SystemUnion()
     {
-        SystemGlobalData.Acquire<T1>();
-        SystemGlobalData.Acquire<T2>();
-        SystemGlobalData.Acquire<T3>();
-        SystemGlobalData.Acquire<T4>();
-        SystemGlobalData.Acquire<T5>();
-        SystemGlobalData.Acquire<T6>();
-        SystemGlobalData.Acquire<T7>();
-        SystemGlobalData.Acquire<T8>();
-        SystemGlobalData.Acquire<T9>();
-        SystemGlobalData.Acquire<T10>();
+        SystemLibrary.Ensure<T1>();
+        SystemLibrary.Ensure<T2>();
+        SystemLibrary.Ensure<T3>();
+        SystemLibrary.Ensure<T4>();
+        SystemLibrary.Ensure<T5>();
+        SystemLibrary.Ensure<T6>();
+        SystemLibrary.Ensure<T7>();
+        SystemLibrary.Ensure<T8>();
+        SystemLibrary.Ensure<T9>();
+        SystemLibrary.Ensure<T10>();
     }
 }
 
@@ -206,17 +206,17 @@ public class SystemUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>
 {
     static SystemUnion()
     {
-        SystemGlobalData.Acquire<T1>();
-        SystemGlobalData.Acquire<T2>();
-        SystemGlobalData.Acquire<T3>();
-        SystemGlobalData.Acquire<T4>();
-        SystemGlobalData.Acquire<T5>();
-        SystemGlobalData.Acquire<T6>();
-        SystemGlobalData.Acquire<T7>();
-        SystemGlobalData.Acquire<T8>();
-        SystemGlobalData.Acquire<T9>();
-        SystemGlobalData.Acquire<T10>();
-        SystemGlobalData.Acquire<T11>();
+        SystemLibrary.Ensure<T1>();
+        SystemLibrary.Ensure<T2>();
+        SystemLibrary.Ensure<T3>();
+        SystemLibrary.Ensure<T4>();
+        SystemLibrary.Ensure<T5>();
+        SystemLibrary.Ensure<T6>();
+        SystemLibrary.Ensure<T7>();
+        SystemLibrary.Ensure<T8>();
+        SystemLibrary.Ensure<T9>();
+        SystemLibrary.Ensure<T10>();
+        SystemLibrary.Ensure<T11>();
     }
 }
 
@@ -237,18 +237,18 @@ public class SystemUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>
 {
     static SystemUnion()
     {
-        SystemGlobalData.Acquire<T1>();
-        SystemGlobalData.Acquire<T2>();
-        SystemGlobalData.Acquire<T3>();
-        SystemGlobalData.Acquire<T4>();
-        SystemGlobalData.Acquire<T5>();
-        SystemGlobalData.Acquire<T6>();
-        SystemGlobalData.Acquire<T7>();
-        SystemGlobalData.Acquire<T8>();
-        SystemGlobalData.Acquire<T9>();
-        SystemGlobalData.Acquire<T10>();
-        SystemGlobalData.Acquire<T11>();
-        SystemGlobalData.Acquire<T12>();
+        SystemLibrary.Ensure<T1>();
+        SystemLibrary.Ensure<T2>();
+        SystemLibrary.Ensure<T3>();
+        SystemLibrary.Ensure<T4>();
+        SystemLibrary.Ensure<T5>();
+        SystemLibrary.Ensure<T6>();
+        SystemLibrary.Ensure<T7>();
+        SystemLibrary.Ensure<T8>();
+        SystemLibrary.Ensure<T9>();
+        SystemLibrary.Ensure<T10>();
+        SystemLibrary.Ensure<T11>();
+        SystemLibrary.Ensure<T12>();
     }
 }
 
@@ -270,19 +270,19 @@ public class SystemUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>
 {
     static SystemUnion()
     {
-        SystemGlobalData.Acquire<T1>();
-        SystemGlobalData.Acquire<T2>();
-        SystemGlobalData.Acquire<T3>();
-        SystemGlobalData.Acquire<T4>();
-        SystemGlobalData.Acquire<T5>();
-        SystemGlobalData.Acquire<T6>();
-        SystemGlobalData.Acquire<T7>();
-        SystemGlobalData.Acquire<T8>();
-        SystemGlobalData.Acquire<T9>();
-        SystemGlobalData.Acquire<T10>();
-        SystemGlobalData.Acquire<T11>();
-        SystemGlobalData.Acquire<T12>();
-        SystemGlobalData.Acquire<T13>();
+        SystemLibrary.Ensure<T1>();
+        SystemLibrary.Ensure<T2>();
+        SystemLibrary.Ensure<T3>();
+        SystemLibrary.Ensure<T4>();
+        SystemLibrary.Ensure<T5>();
+        SystemLibrary.Ensure<T6>();
+        SystemLibrary.Ensure<T7>();
+        SystemLibrary.Ensure<T8>();
+        SystemLibrary.Ensure<T9>();
+        SystemLibrary.Ensure<T10>();
+        SystemLibrary.Ensure<T11>();
+        SystemLibrary.Ensure<T12>();
+        SystemLibrary.Ensure<T13>();
     }
 }
 
@@ -305,20 +305,20 @@ public class SystemUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13,
 {
     static SystemUnion()
     {
-        SystemGlobalData.Acquire<T1>();
-        SystemGlobalData.Acquire<T2>();
-        SystemGlobalData.Acquire<T3>();
-        SystemGlobalData.Acquire<T4>();
-        SystemGlobalData.Acquire<T5>();
-        SystemGlobalData.Acquire<T6>();
-        SystemGlobalData.Acquire<T7>();
-        SystemGlobalData.Acquire<T8>();
-        SystemGlobalData.Acquire<T9>();
-        SystemGlobalData.Acquire<T10>();
-        SystemGlobalData.Acquire<T11>();
-        SystemGlobalData.Acquire<T12>();
-        SystemGlobalData.Acquire<T13>();
-        SystemGlobalData.Acquire<T14>();
+        SystemLibrary.Ensure<T1>();
+        SystemLibrary.Ensure<T2>();
+        SystemLibrary.Ensure<T3>();
+        SystemLibrary.Ensure<T4>();
+        SystemLibrary.Ensure<T5>();
+        SystemLibrary.Ensure<T6>();
+        SystemLibrary.Ensure<T7>();
+        SystemLibrary.Ensure<T8>();
+        SystemLibrary.Ensure<T9>();
+        SystemLibrary.Ensure<T10>();
+        SystemLibrary.Ensure<T11>();
+        SystemLibrary.Ensure<T12>();
+        SystemLibrary.Ensure<T13>();
+        SystemLibrary.Ensure<T14>();
     }
 }
 
@@ -342,21 +342,21 @@ public class SystemUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13,
 {
     static SystemUnion()
     {
-        SystemGlobalData.Acquire<T1>();
-        SystemGlobalData.Acquire<T2>();
-        SystemGlobalData.Acquire<T3>();
-        SystemGlobalData.Acquire<T4>();
-        SystemGlobalData.Acquire<T5>();
-        SystemGlobalData.Acquire<T6>();
-        SystemGlobalData.Acquire<T7>();
-        SystemGlobalData.Acquire<T8>();
-        SystemGlobalData.Acquire<T9>();
-        SystemGlobalData.Acquire<T10>();
-        SystemGlobalData.Acquire<T11>();
-        SystemGlobalData.Acquire<T12>();
-        SystemGlobalData.Acquire<T13>();
-        SystemGlobalData.Acquire<T14>();
-        SystemGlobalData.Acquire<T15>();
+        SystemLibrary.Ensure<T1>();
+        SystemLibrary.Ensure<T2>();
+        SystemLibrary.Ensure<T3>();
+        SystemLibrary.Ensure<T4>();
+        SystemLibrary.Ensure<T5>();
+        SystemLibrary.Ensure<T6>();
+        SystemLibrary.Ensure<T7>();
+        SystemLibrary.Ensure<T8>();
+        SystemLibrary.Ensure<T9>();
+        SystemLibrary.Ensure<T10>();
+        SystemLibrary.Ensure<T11>();
+        SystemLibrary.Ensure<T12>();
+        SystemLibrary.Ensure<T13>();
+        SystemLibrary.Ensure<T14>();
+        SystemLibrary.Ensure<T15>();
     }
 }
 
@@ -381,21 +381,21 @@ public class SystemUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13,
 {
     static SystemUnion()
     {
-        SystemGlobalData.Acquire<T1>();
-        SystemGlobalData.Acquire<T2>();
-        SystemGlobalData.Acquire<T3>();
-        SystemGlobalData.Acquire<T4>();
-        SystemGlobalData.Acquire<T5>();
-        SystemGlobalData.Acquire<T6>();
-        SystemGlobalData.Acquire<T7>();
-        SystemGlobalData.Acquire<T8>();
-        SystemGlobalData.Acquire<T9>();
-        SystemGlobalData.Acquire<T10>();
-        SystemGlobalData.Acquire<T11>();
-        SystemGlobalData.Acquire<T12>();
-        SystemGlobalData.Acquire<T13>();
-        SystemGlobalData.Acquire<T14>();
-        SystemGlobalData.Acquire<T15>();
-        SystemGlobalData.Acquire<T16>();
+        SystemLibrary.Ensure<T1>();
+        SystemLibrary.Ensure<T2>();
+        SystemLibrary.Ensure<T3>();
+        SystemLibrary.Ensure<T4>();
+        SystemLibrary.Ensure<T5>();
+        SystemLibrary.Ensure<T6>();
+        SystemLibrary.Ensure<T7>();
+        SystemLibrary.Ensure<T8>();
+        SystemLibrary.Ensure<T9>();
+        SystemLibrary.Ensure<T10>();
+        SystemLibrary.Ensure<T11>();
+        SystemLibrary.Ensure<T12>();
+        SystemLibrary.Ensure<T13>();
+        SystemLibrary.Ensure<T14>();
+        SystemLibrary.Ensure<T15>();
+        SystemLibrary.Ensure<T16>();
     }
 }

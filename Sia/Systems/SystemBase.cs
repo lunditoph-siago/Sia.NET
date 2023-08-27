@@ -155,13 +155,13 @@ public class SystemBase<TWorld> : ISystem
     public SystemHandle Register(
         TWorld world, Scheduler scheduler, Scheduler.TaskGraphNode[]? dependedTasks = null)
     {
+        var systemLib = world.AcquireAddon<SystemLibrary>();
+
         void AddDependedSystemTasks(ISystemUnion systemTypes, List<Scheduler.TaskGraphNode> result)
         {
             foreach (var systemType in systemTypes.ProxyTypes) {
-                var sysData = SystemGlobalData.Get(systemType)
-                    ?? throw new ArgumentException(
-                        $"Failed to register system: invalid depended system type '{systemType}'");
-                if (!sysData.RegisterEntries.TryGetValue((world, scheduler), out var taskNode)) {
+                var sysEntry = systemLib.Acquire(systemType);
+                if (!sysEntry.UnsafeTaskGraphNodes.TryGetValue(scheduler, out var taskNode)) {
                     throw new InvalidSystemDependencyException(
                         $"Failed to register system: Depended system type '{this}' is not registered.");
                 }
@@ -178,32 +178,27 @@ public class SystemBase<TWorld> : ISystem
             var childDependedTasks = new[] { taskNode };
 
             for (int i = 0; i != count; ++i) {
-                var childSysData = SystemGlobalData.Get(types[i]);
-                if (childSysData == null) {
-                    for (int j = 0; j != i; ++j) {
-                        handles[j].Dispose();
-                    }
-                    throw new InvalidSystemChildException(
-                        $"Failed to register system: invalid child system type '{types[i]}'");
-                }
-                handles[i] = childSysData.Creator!().Register(world, scheduler, childDependedTasks);
+                var childSysType = types[i];
+                var childSysEntry = systemLib.Acquire(childSysType);
+                var childSysCreator = SystemLibrary.GetCreator(childSysType);
+                handles[i] = childSysCreator().Register(world, scheduler, childDependedTasks);
             }
 
             return handles;
         }
 
-        void DoRegisterSystem(SystemGlobalData sysData, Scheduler.TaskGraphNode task)
+        void DoRegisterSystem(SystemLibrary.Entry sysEntry, Scheduler.TaskGraphNode task)
         {
-            if (!sysData.RegisterEntries.TryAdd((world, scheduler), task)) {
+            if (!sysEntry.UnsafeTaskGraphNodes.TryAdd(scheduler, task)) {
                 throw new SystemAlreadyRegisteredException(
                     "Failed to register system: system already registered in World and Scheduler pair");
             }
             Initialize(world, scheduler);
         }
 
-        void DoUnregisterSystem(SystemGlobalData sysData, Scheduler.TaskGraphNode task)
+        void DoUnregisterSystem(SystemLibrary.Entry sysEntry, Scheduler.TaskGraphNode task)
         {
-            if (!sysData.RegisterEntries.Remove((world, scheduler), out var removedTask)) {
+            if (!sysEntry.UnsafeTaskGraphNodes.Remove(scheduler, out var removedTask)) {
                 throw new ObjectDisposedException("System has been disposed");
             }
             if (removedTask != task) {
@@ -212,7 +207,7 @@ public class SystemBase<TWorld> : ISystem
             Uninitialize(world, scheduler);
         }
 
-        var sysData = SystemGlobalData.Acquire(GetType());
+        var sysEntry = systemLib.Acquire(GetType());
 
         var dependedTasksResult = new List<Scheduler.TaskGraphNode>();
         if (dependedTasks != null) {
@@ -231,13 +226,13 @@ public class SystemBase<TWorld> : ISystem
             task = scheduler.CreateTask(dependedTasksResult);
             task.UserData = this;
 
-            DoRegisterSystem(sysData, task);
+            DoRegisterSystem(sysEntry, task);
             childrenHandles = Children != null ? RegisterChildren(Children, task) : null;
 
             return new SystemHandle(
                 this, task,
                 handle => {
-                    DoUnregisterSystem(sysData, task);
+                    DoUnregisterSystem(sysEntry, task);
 
                     if (childrenHandles != null) {
                         for (int i = childrenHandles.Length - 1; i >= 0; --i) {
@@ -425,7 +420,7 @@ public class SystemBase<TWorld> : ISystem
         task = scheduler.CreateTask(taskFunc, dependedTasksResult);
         task.UserData = this;
 
-        DoRegisterSystem(sysData, task);
+        DoRegisterSystem(sysEntry, task);
         childrenHandles = Children != null ? RegisterChildren(Children, task) : null;
 
         SystemHandle? handle = null;
@@ -438,7 +433,7 @@ public class SystemBase<TWorld> : ISystem
             handle => {
                 world.OnDisposed -= OnWorldDisposed;
 
-                DoUnregisterSystem(sysData, task);
+                DoUnregisterSystem(sysEntry, task);
                 disposeFunc();
 
                 if (childrenHandles != null) {
