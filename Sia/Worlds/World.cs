@@ -3,7 +3,7 @@ namespace Sia;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-public class World<T> : Group<T>, IEventSender<IEvent, T>, IDisposable
+public class World<T> : Group<T>, IEventSender<T, IEvent>, IDisposable
     where T : notnull
 {
     public delegate bool GroupPredicate(in T target);
@@ -91,6 +91,7 @@ public class World<T> : Group<T>, IEventSender<IEvent, T>, IDisposable
             group.Remove(value);
         }
         Dispatcher.Send(value, WorldEvents.Remove.Instance);
+        Dispatcher.UnlistenAll(value);
         return true;
     }
 
@@ -102,6 +103,7 @@ public class World<T> : Group<T>, IEventSender<IEvent, T>, IDisposable
 
         foreach (ref var value in AsSpan()) {
             Dispatcher.Send(value, WorldEvents.Remove.Instance);
+            Dispatcher.UnlistenAll(value);
         }
         base.Clear();
 
@@ -110,10 +112,11 @@ public class World<T> : Group<T>, IEventSender<IEvent, T>, IDisposable
         }
     }
 
-    public void Send(in T target, IEvent e)
+    public void Send<TEvent>(in T target, in TEvent e)
+        where TEvent : IEvent
         => Dispatcher.Send(target, e);
 
-    public virtual void Modify<TCommand>(in T target, in TCommand command)
+    public void Modify<TCommand>(in T target, in TCommand command)
         where TCommand : ICommand<T>
     {
         command.Execute(this, target);

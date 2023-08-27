@@ -1,6 +1,6 @@
 namespace Sia;
 
-public class WorldDispatcher<TTarget> : Dispatcher<TTarget>
+public class WorldDispatcher<TTarget> : Dispatcher<TTarget, IEvent>
     where TTarget : notnull
 {
     public World<TTarget> World { get; }
