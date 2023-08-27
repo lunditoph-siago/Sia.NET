@@ -1,6 +1,6 @@
 namespace Sia;
 
-public class CallbackSystem<TWorld> : SystemBase<TWorld>
+public sealed class CallbackSystem<TWorld> : SystemBase<TWorld>
     where TWorld : World<EntityRef>
 {
     private readonly Action<TWorld, Scheduler, EntityRef> _execute;
