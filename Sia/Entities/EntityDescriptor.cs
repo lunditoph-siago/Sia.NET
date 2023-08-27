@@ -21,9 +21,7 @@ public record EntityDescriptor
     private readonly SparseSet<IntPtr> _compOffsets = new(512, 512);
 
     private const BindingFlags s_bindingFlags =
-        BindingFlags.Public |
-        BindingFlags.NonPublic | 
-        BindingFlags.Instance;
+        BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
 
     private EntityDescriptor(Type type)
     {
