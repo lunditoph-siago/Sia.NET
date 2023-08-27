@@ -1,6 +1,6 @@
 namespace Sia;
 
-public class SystemHandle : IDisposable
+public sealed class SystemHandle : IDisposable
 {
     public ISystem System { get; }
     public Scheduler.TaskGraphNode Task { get; }
