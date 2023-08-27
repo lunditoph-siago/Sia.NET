@@ -115,11 +115,11 @@ public static partial class Example1
     {
         public static readonly Player Initial = new();
 
-        public static EntityRef Create()
-            => EntityFactory<Player>.Hash.Create(Initial);
+        public static EntityRef Create(World world)
+            => EntityLibrary<Player>.Hash(world, Initial);
 
-        public static EntityRef Create(Vector2 position)
-            => EntityFactory<Player>.Hash.Create(Initial with {
+        public static EntityRef Create(World world, Vector2 position)
+            => EntityLibrary<Player>.Hash(world, Initial with {
                 Transform = new() {
                     Position = position
                 }
@@ -140,9 +140,7 @@ public static partial class Example1
         var gameplaySystemsHandle =
             new GameplaySystems().Register(world, world.Scheduler);
         
-        var playerRef = Player.Create(new(1, 1));
-        world.Add(playerRef);
-
+        var playerRef = Player.Create(world, new(1, 1));
         world.Update(0.5f);
 
         world.Modify(playerRef, new Transform.SetPosition(new(1, 2)));

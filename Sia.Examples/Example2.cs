@@ -59,8 +59,8 @@ public static class Example2
 
     public record struct Player(Name Name, HP HP)
     {
-        public static EntityRef CreateResilient(string name)
-            => EntityFactory<Player>.Hash.Create(new() {
+        public static EntityRef CreateResilient(World world, string name)
+            => EntityLibrary<Player>.Hash(world, new() {
                 Name = name,
                 HP = new() {
                     AutoRecoverRate = 10
@@ -76,9 +76,7 @@ public static class Example2
         new DamageDisplaySystem().Register(world, scheduler);
         new HPAutoRecoverSystem().Register(world, scheduler);
 
-        var player = Player.CreateResilient("玩家");
-        world.Add(player);
-
+        var player = Player.CreateResilient(world, "玩家");
         ref var hp = ref player.Get<HP>();
 
         Console.WriteLine("HP: " + hp.Value);

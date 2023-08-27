@@ -3,31 +3,10 @@ using System.Runtime.CompilerServices;
 namespace Sia
 {
 
-public static class EntityFactory<T>
+public class EntityFactory<T>
     where T : struct
 {
-    public static EntityFactory<T, ManagedHeapStorage<T>> ManagedHeap => s_managedHeapFactory.Value!;
-    public static EntityFactory<T, UnmanagedHeapStorage<T>> UnmanagedHeap => s_unmanagedHeapFactory.Value!;
-    public static EntityFactory<T, HashBufferStorage<T>> Hash => s_hashStorage.Value!;
-    public static EntityFactory<T, SparseBufferStorage<T>> Sparse => s_sparseStorage.Value!;
-    public static EntityFactory<T, VariableStorage<T, SparseBufferStorage<T>>> VariableSparse => s_variableSparseStorage.Value!;
-
-    private static readonly ThreadLocal<EntityFactory<T, ManagedHeapStorage<T>>> s_managedHeapFactory
-        = new(() => new(ManagedHeapStorage<T>.Instance), false);
-
-    private static readonly ThreadLocal<EntityFactory<T, UnmanagedHeapStorage<T>>> s_unmanagedHeapFactory
-        = new(() => new(UnmanagedHeapStorage<T>.Instance), false);
-
-    private static readonly ThreadLocal<EntityFactory<T, HashBufferStorage<T>>> s_hashStorage
-        = new(() => new(new()), false);
-
-    private static readonly ThreadLocal<EntityFactory<T, SparseBufferStorage<T>>> s_sparseStorage
-        = new(() => new(new()), false);
-
-    private static readonly ThreadLocal<EntityFactory<T, VariableStorage<T, SparseBufferStorage<T>>>> s_variableSparseStorage
-        = new(() => new(new(() => new())), false);
-
-    public static EntityFactory<T, TStorage> Create<TStorage>(TStorage storage)
+    public EntityFactory<T, TStorage> Create<TStorage>(TStorage storage)
         where TStorage : class, IStorage<T>
         => new(storage);
 }
