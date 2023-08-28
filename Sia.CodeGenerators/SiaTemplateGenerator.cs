@@ -26,7 +26,7 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
         context.RegisterPostInitializationOutput(static context => {
             context.AddSource("SiaTemplateAttribute.g.cs",
                 SourceText.From(SiaTemplateAttributeSource, Encoding.UTF8));
-            context.AddSource("SiaIgnore.g.cs",
+            context.AddSource("SiaIgnoreAttribute.g.cs",
                 SourceText.From(SiaIgnoreAttributeSource, Encoding.UTF8));
         });
 
