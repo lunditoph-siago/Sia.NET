@@ -48,7 +48,15 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
                     TemplateName: targetType.Identifier.ToString(),
                     ComponentName: syntax.Attributes[0].ConstructorArguments[0].Value as string
                         ?? throw new InvalidDataException("Invalid attribute"),
-                    Properties: targetType.Members.SelectMany(member => member switch {
+                    Properties:
+                        (targetType switch {
+                            RecordDeclarationSyntax recordDecl =>
+                                recordDecl.ParameterList?.Parameters
+                                    .Where(param => IsValidTemplateParameter(model, param, token))
+                                    .Select(param => (param.Identifier.ToString(), GetFullType(model, param.Type!, token))),
+                            _ => null
+                        } ?? Enumerable.Empty<(string, string)>())
+                        .Concat(targetType.Members.SelectMany(member => member switch {
                             PropertyDeclarationSyntax propDecl =>
                                 IsValidTemplateProperty(model, propDecl, token)
                                     ? ImmutableArray.Create(
@@ -60,14 +68,7 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
                                         .Zip(RepeatInfinitely(GetFullType(model, varDecl.Type, token)))
                                     : null,
                             _ => null
-                        } ?? Enumerable.Empty<(string, string)>())
-                        .Concat(targetType switch {
-                            RecordDeclarationSyntax recordDecl =>
-                                recordDecl.ParameterList?.Parameters
-                                    .Where(param => IsValidTemplateParameter(model, param, token))
-                                    .Select(param => (param.Identifier.ToString(), GetFullType(model, param.Type!, token))),
-                            _ => null
-                        } ?? Enumerable.Empty<(string, string)>())
+                        } ?? Enumerable.Empty<(string, string)>()))
                         .ToImmutableArray()
                 );
             });
