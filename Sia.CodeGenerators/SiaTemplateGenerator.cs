@@ -148,7 +148,7 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
                 foreach (var (name, type) in properties) {
                     SiaPropertyGenerator.GenerateSetCommand(source,
                         commandName: "Set" + name,
-                        containingType: componentName,
+                        componentName: componentName,
                         valueName: name,
                         valueType: type);
                     source.WriteLine();

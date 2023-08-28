@@ -17,7 +17,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
 {
     private record CodeGenerationInfo(
         INamespaceSymbol Namespace,
-        TypeDeclarationSyntax ContainingType,
+        TypeDeclarationSyntax ComponentType,
         ImmutableArray<TypeDeclarationSyntax> ParentTypes,
         ImmutableDictionary<string, TypedConstant> Arguments,
         string ValueName,
@@ -38,8 +38,8 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
                     && parent.Modifiers.Any(SyntaxKind.PartialKeyword)
                     && CheckWritable(syntaxNode),
             static (syntax, token) => {
-                FindParentNode<TypeDeclarationSyntax>(syntax.TargetNode, out var containingType);
-                return (syntax, containingType!, ParentTypes: GetParentTypes(containingType!));
+                FindParentNode<TypeDeclarationSyntax>(syntax.TargetNode, out var componentType);
+                return (syntax, componentType!, ParentTypes: GetParentTypes(componentType!));
             })
             .Where(static t => t.ParentTypes.All(
                 static typeDecl => typeDecl.Modifiers.Any(SyntaxKind.PartialKeyword)))
@@ -49,7 +49,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
 
                 return new CodeGenerationInfo(
                     Namespace: syntax.TargetSymbol.ContainingNamespace,
-                    ContainingType: containtingType,
+                    ComponentType: containtingType,
                     ParentTypes: parentTypes,
                     Arguments: arguments,
                     ValueName: syntax.TargetSymbol.Name,
@@ -96,7 +96,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
             builder.Append(parentType.Identifier.ToString());
             builder.Append('.');
         }
-        builder.Append(info.ContainingType.Identifier.ToString());
+        builder.Append(info.ComponentType.Identifier.ToString());
         builder.Append('.');
         builder.Append(info.ValueName);
         builder.Append(".g.cs");
@@ -109,10 +109,10 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
             ? setCmdName.Value!.ToString()! : $"Set{info.ValueName}";
 
         using (GenerateInNamespace(source, info.Namespace)) {
-            using (GenerateInPartialTypes(source, info.ParentTypes.Append(info.ContainingType))) {
+            using (GenerateInPartialTypes(source, info.ParentTypes.Append(info.ComponentType))) {
                 GenerateSetCommand(source,
                     commandName: commandName,
-                    containingType: info.ContainingType.Identifier.ToString(),
+                    componentName: info.ComponentType.Identifier.ToString(),
                     valueName: info.ValueName,
                     valueType: info.ValueType);
             }
@@ -122,7 +122,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
     }
 
     public static void GenerateSetCommand(
-        IndentedTextWriter source, string commandName, string containingType, string valueName, string valueType)
+        IndentedTextWriter source, string commandName, string componentName, string valueName, string valueType)
     {
         source.Write("public readonly record struct ");
         source.Write(commandName);
@@ -135,7 +135,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         source.WriteLine("public void Execute(World<EntityRef> _, in global::Sia.EntityRef target)");
         source.Indent++;
         source.Write("=> target.Get<");
-        source.Write(containingType);
+        source.Write(componentName);
         source.Write(">().");
         source.Write(valueName);
         source.WriteLine(" = Value;");
