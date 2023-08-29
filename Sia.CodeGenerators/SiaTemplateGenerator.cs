@@ -99,7 +99,7 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
 
         using (GenerateInNamespace(source, info.Namespace)) {
             using (GenerateInPartialTypes(source, info.ParentTypes)) {
-                source.Write("public record struct ");
+                source.Write("public partial record struct ");
                 source.Write(componentName);
                 source.WriteLine("(");
                 source.Indent++;
