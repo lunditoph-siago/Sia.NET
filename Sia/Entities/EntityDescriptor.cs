@@ -15,7 +15,6 @@ public record EntityDescriptor
         => Indexer<TEntity>.Descriptor;
 
     public Type Type { get; }
-    public int Size { get; }
 
     private readonly Dictionary<Type, FieldInfo> _compInfos = new();
     private readonly SparseSet<IntPtr> _compOffsets = new(512, 512);
@@ -26,7 +25,6 @@ public record EntityDescriptor
     private EntityDescriptor(Type type)
     {
         Type = type;
-        Size = Marshal.SizeOf(type);
 
         foreach (var member in type.GetMembers(s_bindingFlags)) {
             if (member.MemberType != MemberTypes.Field) {
