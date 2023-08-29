@@ -191,7 +191,7 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
         source.WriteLine("{");
         source.Indent++;
 
-        source.WriteLine("public void Execute(global::Sia.World<EntityRef> _, in global::Sia.EntityRef target)");
+        source.WriteLine("public void Execute(global::Sia.World<global::Sia.EntityRef> _, in global::Sia.EntityRef target)");
         source.WriteLine("{");
         source.Indent++;
 
