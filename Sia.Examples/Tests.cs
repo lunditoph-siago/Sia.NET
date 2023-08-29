@@ -87,7 +87,6 @@ public unsafe static class Tests
         Console.WriteLine(e.Scale);
 
         var desc = EntityDescriptor.Get<TestEntity>();
-        Console.WriteLine("Size: " + desc.Size);
         Console.WriteLine("Component offsets:");
 
         desc.TryGetOffset<Position>(out var offset);
