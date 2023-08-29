@@ -41,7 +41,22 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
                 var (syntax, parentTypes) = t;
                 var model = syntax.SemanticModel;
                 var targetType = (TypeDeclarationSyntax)syntax.TargetNode;
-                var typeSymbol = model.GetDeclaredSymbol(targetType, token)!;
+
+                static IEnumerable<(string, string)> GetProperties(INamedTypeSymbol symbol)
+                {
+                    var result = symbol.GetMembers().SelectMany(member => member switch {
+                        IFieldSymbol fieldSymbol =>
+                            IsValidTemplateMember(fieldSymbol)
+                                ? ImmutableArray.Create((fieldSymbol.Name, fieldSymbol.Type.ToDisplayString()))
+                                : Enumerable.Empty<(string, string)>(),
+                        IPropertySymbol propSymbol =>
+                            IsValidTemplateMember(propSymbol)
+                                ? ImmutableArray.Create((propSymbol.Name, propSymbol.Type.ToDisplayString()))
+                                : Enumerable.Empty<(string, string)>(),
+                        _ => Enumerable.Empty<(string, string)>()
+                    });
+                    return symbol.BaseType != null ? result.Concat(GetProperties(symbol.BaseType)) : result;
+                }
 
                 return new CodeGenerationInfo(
                     Namespace: syntax.TargetSymbol.ContainingNamespace,
@@ -49,18 +64,8 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
                     TemplateName: targetType.Identifier.ToString(),
                     ComponentName: syntax.Attributes[0].ConstructorArguments[0].Value as string
                         ?? throw new InvalidDataException("Invalid attribute"),
-                    Properties:
-                        typeSymbol.GetMembers().SelectMany(member => member switch {
-                            IFieldSymbol fieldSymbol =>
-                                IsValidTemplateMember(fieldSymbol)
-                                    ? ImmutableArray.Create((fieldSymbol.Name, fieldSymbol.Type.ToDisplayString()))
-                                    : Enumerable.Empty<(string, string)>(),
-                            IPropertySymbol propSymbol =>
-                                IsValidTemplateMember(propSymbol)
-                                    ? ImmutableArray.Create((propSymbol.Name, propSymbol.Type.ToDisplayString()))
-                                    : Enumerable.Empty<(string, string)>(),
-                            _ => Enumerable.Empty<(string, string)>()
-                        }).ToImmutableArray()
+                    Properties: GetProperties(model.GetDeclaredSymbol(targetType, token)!)
+                        .ToImmutableArray()
                 );
             });
         
