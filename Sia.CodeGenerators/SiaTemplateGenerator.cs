@@ -39,8 +39,9 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
                 static typeDecl => typeDecl.Modifiers.Any(SyntaxKind.PartialKeyword)))
             .Select(static (t, token) => {
                 var (syntax, parentTypes) = t;
-                var targetType = (TypeDeclarationSyntax)syntax.TargetNode;
                 var model = syntax.SemanticModel;
+                var targetType = (TypeDeclarationSyntax)syntax.TargetNode;
+                var typeSymbol = model.GetDeclaredSymbol(targetType, token)!;
 
                 return new CodeGenerationInfo(
                     Namespace: syntax.TargetSymbol.ContainingNamespace,
@@ -49,27 +50,17 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
                     ComponentName: syntax.Attributes[0].ConstructorArguments[0].Value as string
                         ?? throw new InvalidDataException("Invalid attribute"),
                     Properties:
-                        (targetType switch {
-                            RecordDeclarationSyntax recordDecl =>
-                                recordDecl.ParameterList?.Parameters
-                                    .Where(param => IsValidTemplateParameter(model, param, token))
-                                    .Select(param => (param.Identifier.ToString(), GetFullType(model, param.Type!, token))),
-                            _ => null
-                        } ?? Enumerable.Empty<(string, string)>())
-                        .Concat(targetType.Members.SelectMany(member => member switch {
-                            PropertyDeclarationSyntax propDecl =>
-                                IsValidTemplateProperty(model, propDecl, token)
-                                    ? ImmutableArray.Create(
-                                        (propDecl.Identifier.ToString(), GetFullType(model, propDecl.Type, token)))
-                                    : null,
-                            FieldDeclarationSyntax fieldDecl =>
-                                IsValidTemplateProperty(model, fieldDecl, token) && fieldDecl.Declaration is VariableDeclarationSyntax varDecl
-                                    ? varDecl.Variables.Select(var => var.Identifier.ToString())
-                                        .Zip(RepeatInfinitely(GetFullType(model, varDecl.Type, token)))
-                                    : null,
-                            _ => null
-                        } ?? Enumerable.Empty<(string, string)>()))
-                        .ToImmutableArray()
+                        typeSymbol.GetMembers().SelectMany(member => member switch {
+                            IFieldSymbol fieldSymbol =>
+                                IsValidTemplateMember(fieldSymbol)
+                                    ? ImmutableArray.Create((fieldSymbol.Name, fieldSymbol.Type.ToDisplayString()))
+                                    : Enumerable.Empty<(string, string)>(),
+                            IPropertySymbol propSymbol =>
+                                IsValidTemplateMember(propSymbol)
+                                    ? ImmutableArray.Create((propSymbol.Name, propSymbol.Type.ToDisplayString()))
+                                    : Enumerable.Empty<(string, string)>(),
+                            _ => Enumerable.Empty<(string, string)>()
+                        }).ToImmutableArray()
                 );
             });
         
@@ -81,16 +72,10 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static bool IsValidTemplateProperty(SemanticModel model, MemberDeclarationSyntax node, CancellationToken token)
-        => node.Modifiers.Any(SyntaxKind.PublicKeyword)
-            && !node.Modifiers.Any(SyntaxKind.StaticKeyword)
-            && !node.AttributeLists.Any(attrList => attrList.Attributes.Any(attr =>
-                GetFullType(model, attr, token) == SiaIgnoreAttributeName));
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static bool IsValidTemplateParameter(SemanticModel model, ParameterSyntax node, CancellationToken token)
-        => !node.AttributeLists.Any(attrList => attrList.Attributes.Any(attr =>
-                GetFullType(model, attr, token) == SiaIgnoreAttributeName));
+    private static bool IsValidTemplateMember(ISymbol symbol)
+        => !symbol.IsStatic && symbol.DeclaredAccessibility == Accessibility.Public
+            && !symbol.GetAttributes().Any(attr =>
+                attr.AttributeClass?.ToDisplayString() == SiaIgnoreAttributeName);
 
     private static string GenerateFileName(CodeGenerationInfo info)
     {
@@ -206,7 +191,7 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
         source.WriteLine("{");
         source.Indent++;
 
-        source.WriteLine("public void Execute(World<EntityRef> _, in global::Sia.EntityRef target)");
+        source.WriteLine("public void Execute(global::Sia.World<EntityRef> _, in global::Sia.EntityRef target)");
         source.WriteLine("{");
         source.Indent++;
 
