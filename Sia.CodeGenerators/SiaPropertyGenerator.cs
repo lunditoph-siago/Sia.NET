@@ -132,7 +132,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         source.WriteLine("{");
         source.Indent++;
 
-        source.WriteLine("public void Execute(World<EntityRef> _, in global::Sia.EntityRef target)");
+        source.WriteLine("public void Execute(global::Sia.World<EntityRef> _, in global::Sia.EntityRef target)");
         source.Indent++;
         source.Write("=> target.Get<");
         source.Write(componentName);
