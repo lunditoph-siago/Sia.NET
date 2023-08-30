@@ -4,13 +4,13 @@ using System.Text;
 using System.Diagnostics;
 using System.CodeDom.Compiler;
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
 using static Common;
-using System.Runtime.CompilerServices;
 
 [Generator]
 internal partial class SiaTemplateGenerator : IIncrementalGenerator
@@ -123,7 +123,9 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
                     index++;
                 }
 
-                source.WriteLine(")");
+                source.Write(") : IConstructable<");
+                source.Write(templateName);
+                source.WriteLine(">");
                 source.Indent--;
 
                 source.WriteLine("{");
@@ -132,6 +134,11 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
                 GenerateConstructor(source,
                     templateName: templateName,
                     componentName: componentName,
+                    properties: properties);
+                source.WriteLine();
+
+                GenerateConstructMethod(source,
+                    templateName: templateName,
                     properties: properties);
                 source.WriteLine();
 
@@ -187,6 +194,27 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
         source.Indent -= 2;
     }
 
+    public static void GenerateConstructMethod(
+        IndentedTextWriter source, string templateName, ImmutableArray<(string, string)> properties)
+    {
+        source.WriteLine("[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+        source.Write("public void Construct(");
+        source.Write(templateName);
+        source.WriteLine(" template)");
+        source.WriteLine("{");
+        source.Indent++;
+
+        foreach (var (name, _) in properties) {
+            source.Write(name);
+            source.Write(" = template.");
+            source.Write(name);
+            source.WriteLine(";");
+        }
+
+        source.Indent--;
+        source.WriteLine("}");
+    }
+
     public static void GenerateResetCommand(
         IndentedTextWriter source, string templateName, string componentName, ImmutableArray<(string, string)> properties)
     {
@@ -197,25 +225,12 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
         source.Indent++;
 
         source.WriteLine("public void Execute(global::Sia.World<global::Sia.EntityRef> _, in global::Sia.EntityRef target)");
-        source.WriteLine("{");
         source.Indent++;
-
-        source.Write("ref var comp = ref target.Get<");
+        source.Write("=> target.Get<");
         source.Write(componentName);
-        source.WriteLine(">();");
+        source.WriteLine(">().Construct(Value);");
 
-        foreach (var (name, _) in properties) {
-            source.Write("comp.");
-            source.Write(name);
-            source.Write(" = Value.");
-            source.Write(name);
-            source.WriteLine(";");
-        }
-
-        source.Indent--;
-        source.WriteLine("}");
-        
-        source.Indent--;
+        source.Indent -= 2;
         source.WriteLine("}");
     }
 }

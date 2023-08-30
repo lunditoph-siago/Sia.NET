@@ -4,6 +4,9 @@ using System.Numerics;
 
 public static partial class Example1
 {
+    [SiaTemplate(nameof(TestObject))]
+    public record TestTemplate(int Value);
+
     public class GameWorld : World
     {
         public float DeltaTime { get; private set; }
