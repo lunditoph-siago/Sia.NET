@@ -1,6 +1,7 @@
 namespace Sia;
 
 using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 
 public class SystemLibrary
 {
@@ -10,6 +11,7 @@ public class SystemLibrary
         internal Dictionary<Scheduler, Scheduler.TaskGraphNode> UnsafeTaskGraphNodes = new();
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void Ensure<TSystem>()
         where TSystem : ISystem, new()
         => s_systemCreators.TryAdd(typeof(TSystem), static () => new TSystem());
@@ -29,6 +31,7 @@ public class SystemLibrary
     public Entry Get(Type systemType)
         => _instances[systemType];
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal Entry Acquire(Type systemType)
     {
         if (!_instances.TryGetValue(systemType, out var instance)) {
