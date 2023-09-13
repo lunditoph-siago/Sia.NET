@@ -56,6 +56,10 @@ public readonly struct StorageWrapper<T, TStorage> : IStorage<T>, IEquatable<Sto
     public bool Equals(StorageWrapper<T, TStorage> other)
         => _storage == other._storage;
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void IterateAllocated(Action<long> func)
+        => _storage.IterateAllocated(func);
+
     public override bool Equals([AllowNull] object obj)
         => obj is StorageWrapper<T, TStorage> wrapper
             && Equals(wrapper);

@@ -22,4 +22,6 @@ public interface IStorage<T> : IDisposable
 
     void UnsafeRelease(long rawPointer);
     ref T UnsafeGetRef(long rawPointer);
+
+    void IterateAllocated(Action<long> func);
 }

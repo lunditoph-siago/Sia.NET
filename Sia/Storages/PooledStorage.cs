@@ -111,6 +111,10 @@ namespace Internal
             _pooled = null!;
             GC.SuppressFinalize(this);
         }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void IterateAllocated(Action<long> func)
+            => InnerStorage.IterateAllocated(func);
     }
 }
 

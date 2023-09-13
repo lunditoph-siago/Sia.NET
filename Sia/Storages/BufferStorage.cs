@@ -301,6 +301,23 @@ namespace Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ref T UnsafeGetRef(long rawPointer)
             => ref _buffer.GetValueRefOrNullRef((int)rawPointer).Value;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void IterateAllocated(Action<long> func)
+        {
+            var node = _chunks.First;
+
+            while (node != null) {
+                ref var nodeRef = ref node.ValueRef;
+                if (nodeRef.IsAllocated) {
+                    var lastIndex = nodeRef.Index + nodeRef.Size;
+                    for (int i = nodeRef.Index; i != lastIndex; ++i) {
+                        func(i);
+                    }
+                }
+                node = node.Next;
+            }
+        }
         
         public void Dispose()
         {

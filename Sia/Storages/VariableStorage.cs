@@ -103,6 +103,15 @@ namespace Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void IterateAllocated(Action<long> func)
+        {
+            var count = _storages.Count;
+            for (int i = 0; i != count; ++i) {
+                _storages[i]?.IterateAllocated(pointer => func(pointer << 32 | (uint)i));
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ref T UnsafeGetRef(long rawPointer)
         {
             var (index, pointer) = DeconstructRawPointer(rawPointer);
