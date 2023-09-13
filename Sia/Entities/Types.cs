@@ -72,6 +72,10 @@ public class World : World<EntityRef>
 {
 }
 
+public interface IAddonInitializeListener : IAddonInitializeListener<EntityRef>
+{
+}
+
 public interface IAddonUninitializeListener : IAddonUninitializeListener<EntityRef>
 {
 }

@@ -135,6 +135,7 @@ public class World<T> : Group<T>, IEventSender<T, IEvent>, IDisposable
 
         var newAddon = new TAddon();
         addon = newAddon;
+        (addon as IAddonInitializeListener<T>)?.OnInitialize(this);
         return newAddon;
     }
 
@@ -150,12 +151,19 @@ public class World<T> : Group<T>, IEventSender<T, IEvent>, IDisposable
 
         var newSingleton = new TAddon();
         singleton = newSingleton;
+        (singleton as IAddonInitializeListener<T>)?.OnInitialize(this);
         return newSingleton;
     }
 
     public bool RemoveAddon<TAddon>()
         where TAddon : class
-        => _addons.Remove(WorldAddonIndexer<TAddon>.Index);
+    {
+        if (_addons.Remove(WorldAddonIndexer<TAddon>.Index, out var addon)) {
+            (addon as IAddonUninitializeListener<T>)?.OnUninitialize(this);
+            return true;
+        }
+        return false;
+    }
 
     public TAddon GetAddon<TAddon>()
         where TAddon : class
