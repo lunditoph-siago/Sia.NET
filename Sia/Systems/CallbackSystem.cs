@@ -3,12 +3,14 @@ namespace Sia;
 public sealed class CallbackSystem<TWorld> : SystemBase<TWorld>
     where TWorld : World<EntityRef>
 {
-    private readonly Action<TWorld, Scheduler, EntityRef> _execute;
+    public delegate void ExecuteListener(TWorld world, Scheduler scheduler, in EntityRef entity);
+
+    private readonly ExecuteListener _execute;
     private readonly Action<TWorld, Scheduler>? _beforeExecute;
     private readonly Action<TWorld, Scheduler>? _afterExecute;
 
     public CallbackSystem(
-        Action<TWorld, Scheduler, EntityRef> execute,
+        ExecuteListener execute,
         Action<TWorld, Scheduler>? beforeExecute = null,
         Action<TWorld, Scheduler>? afterExecute = null)
     {

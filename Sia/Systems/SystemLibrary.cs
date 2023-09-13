@@ -7,8 +7,8 @@ public class SystemLibrary
 {
     public class Entry
     {
-        public IReadOnlyDictionary<Scheduler, Scheduler.TaskGraphNode> TaskGraphNodes => UnsafeTaskGraphNodes;
-        internal Dictionary<Scheduler, Scheduler.TaskGraphNode> UnsafeTaskGraphNodes = new();
+        public IReadOnlyDictionary<Scheduler, Scheduler.TaskGraphNode> TaskGraphNodes => _taskGraphNodes;
+        internal Dictionary<Scheduler, Scheduler.TaskGraphNode> _taskGraphNodes = new();
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
