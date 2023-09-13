@@ -74,12 +74,3 @@ public class CommandMailbox<TTarget, TCommand> : IEventSender<TTarget, TCommand>
         }
     }
 }
-
-public class CommandMailbox<TCommand> : CommandMailbox<EntityRef, TCommand>, IEventSender<TCommand>
-    where TCommand : ICommand<EntityRef>
-{
-}
-
-public class CommandMailbox : CommandMailbox<ICommand<EntityRef>>
-{
-}

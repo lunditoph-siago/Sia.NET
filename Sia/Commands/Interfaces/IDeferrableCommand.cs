@@ -5,7 +5,3 @@ public interface IDeferrableCommand<TTarget> : ICommand<TTarget>
 {
     bool ShouldDefer(in TTarget target);
 }
-
-public interface IDeferrableCommand : IDeferrableCommand<EntityRef>
-{
-}
