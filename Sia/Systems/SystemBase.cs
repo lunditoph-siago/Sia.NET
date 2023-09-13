@@ -161,7 +161,7 @@ public class SystemBase<TWorld> : ISystem
         {
             foreach (var systemType in systemTypes.ProxyTypes) {
                 var sysEntry = systemLib.Acquire(systemType);
-                if (!sysEntry.UnsafeTaskGraphNodes.TryGetValue(scheduler, out var taskNode)) {
+                if (!sysEntry._taskGraphNodes.TryGetValue(scheduler, out var taskNode)) {
                     throw new InvalidSystemDependencyException(
                         $"Failed to register system: Depended system type '{this}' is not registered.");
                 }
@@ -189,7 +189,7 @@ public class SystemBase<TWorld> : ISystem
 
         void DoRegisterSystem(SystemLibrary.Entry sysEntry, Scheduler.TaskGraphNode task)
         {
-            if (!sysEntry.UnsafeTaskGraphNodes.TryAdd(scheduler, task)) {
+            if (!sysEntry._taskGraphNodes.TryAdd(scheduler, task)) {
                 throw new SystemAlreadyRegisteredException(
                     "Failed to register system: system already registered in World and Scheduler pair");
             }
@@ -198,7 +198,7 @@ public class SystemBase<TWorld> : ISystem
 
         void DoUnregisterSystem(SystemLibrary.Entry sysEntry, Scheduler.TaskGraphNode task)
         {
-            if (!sysEntry.UnsafeTaskGraphNodes.Remove(scheduler, out var removedTask)) {
+            if (!sysEntry._taskGraphNodes.Remove(scheduler, out var removedTask)) {
                 throw new ObjectDisposedException("System has been disposed");
             }
             if (removedTask != task) {
