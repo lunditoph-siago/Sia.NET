@@ -6,6 +6,12 @@ using System.Runtime.CompilerServices;
 public sealed class FixedArrayStorage<T> : IStorage<T>
     where T : struct
 {
+    private struct Entry
+    {
+        public bool IsAllocated;
+        public T Value;
+    }
+
     public int Capacity { get; }
     public int Count { get; private set; }
     public int PointerValidBits => 32;
@@ -13,7 +19,7 @@ public sealed class FixedArrayStorage<T> : IStorage<T>
 
     private int _lastIndex;
 
-    private T[] _arr;
+    private Entry[] _arr;
     private int[] _released;
     private int _releasedCount;
 
@@ -24,7 +30,7 @@ public sealed class FixedArrayStorage<T> : IStorage<T>
         }
         Capacity = capacity;
 
-        _arr = ArrayPool<T>.Shared.Rent(capacity);
+        _arr = ArrayPool<Entry>.Shared.Rent(capacity);
         _released = ArrayPool<int>.Shared.Rent(capacity);
     }
 
@@ -52,6 +58,7 @@ public sealed class FixedArrayStorage<T> : IStorage<T>
         }
 
         Count++;
+        _arr[index].IsAllocated = true;
         return new(index, this);
     }
 
@@ -66,7 +73,18 @@ public sealed class FixedArrayStorage<T> : IStorage<T>
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T UnsafeGetRef(long rawPointer)
-        => ref _arr[rawPointer];
+        => ref _arr[rawPointer].Value;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void IterateAllocated(Action<long> func)
+    {
+        var count = _arr.Length;
+        for (int i = 0; i != count; ++i) {
+            if (_arr[i].IsAllocated) {
+                func(i);
+            }
+        }
+    }
     
     public void Dispose()
     {
@@ -74,7 +92,7 @@ public sealed class FixedArrayStorage<T> : IStorage<T>
             return;
         }
 
-        ArrayPool<T>.Shared.Return(_arr);
+        ArrayPool<Entry>.Shared.Return(_arr);
         ArrayPool<int>.Shared.Return(_released);
 
         _arr = null!;
