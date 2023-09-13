@@ -225,12 +225,3 @@ public class Dispatcher<TTarget, TEvent> : IEventSender<TTarget, TEvent>
         }
     }
 }
-
-public class Dispatcher<TEvent> : Dispatcher<EntityRef, TEvent>
-    where TEvent : IEvent
-{
-}
-
-public class Dispatcher : Dispatcher<IEvent>
-{
-}

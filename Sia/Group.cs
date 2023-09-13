@@ -69,7 +69,3 @@ public class Group<T> : IReadOnlyList<T>
         _values.Clear();
     }
 }
-
-public class Group : Group<EntityRef>
-{
-}

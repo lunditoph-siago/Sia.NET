@@ -8,12 +8,6 @@ public abstract class ImpureCommand<TCommand, TTarget>
     public abstract void Execute(World<TTarget> world, in TTarget target);
 }
 
-public abstract class ImpureCommand<TCommand>
-    : ImpureCommand<TCommand, EntityRef>, ICommand
-    where TCommand : ImpureCommand<TCommand>, new()
-{
-}
-
 public abstract class Command<TCommand, TTarget>
     : PooledEvent<TCommand>, ICommand<TTarget>
     where TCommand : Command<TCommand, TTarget>, new()
@@ -23,10 +17,4 @@ public abstract class Command<TCommand, TTarget>
         => Execute(target);
     
     public abstract void Execute(in TTarget target);
-}
-
-public abstract class Command<TCommand>
-    : Command<TCommand, EntityRef>, ICommand
-    where TCommand : Command<TCommand>, new()
-{
 }

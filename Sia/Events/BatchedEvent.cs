@@ -13,12 +13,3 @@ public class BatchedEvent<TEvent, TTarget> : PooledEvent<BatchedEvent<TEvent, TT
         GC.SuppressFinalize(this);
     }
 }
-
-public class BatchedEvent<TEvent> : BatchedEvent<TEvent, EntityRef>
-    where TEvent : IEvent
-{
-}
-
-public class BatchedEvent : BatchedEvent<IEvent>
-{
-}

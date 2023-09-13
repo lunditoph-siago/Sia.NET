@@ -191,7 +191,3 @@ public class World<T> : Group<T>, IEventSender<T, IEvent>, IDisposable
         GC.SuppressFinalize(this);
     }
 }
-
-public class World : World<EntityRef>
-{
-}

@@ -5,7 +5,3 @@ public interface ISortableCommand<TTarget> : ICommand<TTarget>
 {
     int Priority { get; }
 }
-
-public interface ISortableCommand : ISortableCommand<EntityRef>
-{
-}

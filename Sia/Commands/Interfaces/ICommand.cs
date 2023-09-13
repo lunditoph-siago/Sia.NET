@@ -5,7 +5,3 @@ public interface ICommand<TTarget> : IEvent
 {
     void Execute(World<TTarget> world, in TTarget target);
 }
-
-public interface ICommand : ICommand<EntityRef>
-{
-}
