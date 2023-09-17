@@ -1,5 +1,7 @@
 namespace Sia;
 
+using System.Runtime.CompilerServices;
+
 public sealed class WorldEntityHost<T, TStorage>
     : Internal.EntityHost<T, WrappedStorage<T, TStorage>>
     where T : struct
@@ -13,6 +15,7 @@ public sealed class WorldEntityHost<T, TStorage>
         World = world;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public override EntityRef Create()
     {
         var entity = base.Create();
@@ -20,6 +23,7 @@ public sealed class WorldEntityHost<T, TStorage>
         return entity;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public override EntityRef Create(in T initial)
     {
         var entity = base.Create(initial);
@@ -27,6 +31,7 @@ public sealed class WorldEntityHost<T, TStorage>
         return entity;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public override void Release(long pointer)
     {
         World.Dispatcher.Send(new(pointer, this), WorldEvents.Remove.Instance);

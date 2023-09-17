@@ -2,7 +2,6 @@ namespace Sia;
 
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 
 public class World : IEntityQuery, IEventSender
 {
@@ -47,6 +46,7 @@ public class World : IEntityQuery, IEventSender
             }
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void ForEach(WorldEntityHandler handler)
         {
             foreach (var host in _hosts) {
@@ -56,6 +56,7 @@ public class World : IEntityQuery, IEventSender
             }
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void ForEach<TData>(in TData data, WorldEntityHandler<TData> handler)
         {
             foreach (var host in _hosts) {
@@ -135,6 +136,7 @@ public class World : IEntityQuery, IEventSender
         Dispose(false);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void ForEach(WorldEntityHandler handler)
     {
         foreach (var host in _hosts.AsValueSpan()) {
@@ -144,6 +146,7 @@ public class World : IEntityQuery, IEventSender
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void ForEach<TData>(in TData data, WorldEntityHandler<TData> handler)
     {
         foreach (var host in _hosts.AsValueSpan()) {
@@ -153,10 +156,12 @@ public class World : IEntityQuery, IEventSender
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Query<TTypeUnion>(WorldEntityHandler handler)
         where TTypeUnion : ITypeUnion, new()
         => Query(Matchers.From<TTypeUnion>(), handler);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Query(IEntityMatcher matcher, WorldEntityHandler handler)
     {
         foreach (var host in _hosts.AsValueSpan()) {
@@ -166,6 +171,7 @@ public class World : IEntityQuery, IEventSender
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Query<TData>(IEntityMatcher matcher, in TData data, WorldEntityHandler<TData> handler)
     {
         foreach (var host in _hosts.AsValueSpan()) {
@@ -175,10 +181,12 @@ public class World : IEntityQuery, IEventSender
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public EntityQuery Query<TTypeUnion>()
         where TTypeUnion : ITypeUnion, new()
         => Query(Matchers.From<TTypeUnion>());
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public EntityQuery Query(IEntityMatcher matcher)
     {
         if (_queries.TryGetValue(matcher, out var query)) {
@@ -189,25 +197,19 @@ public class World : IEntityQuery, IEventSender
         return query;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public WorldEntityHost<TEntity, TStorage> GetHost<TEntity, TStorage>()
         where TEntity : struct
         where TStorage : class, IStorage<TEntity>, new()
-    {
-        ref var host = ref _hosts.GetOrAddValueRef(
-            WorldEntityHostIndexer<EntityHost<TEntity, TStorage>>.Index, out bool exists);
-        if (!exists) {
-            host = new WorldEntityHost<TEntity, TStorage>(this, new TStorage());
-            OnEntityHostCreated?.Invoke(host);
-        }
-        return (WorldEntityHost<TEntity, TStorage>)host;
-    }
+        => GetHost<TEntity, TStorage>(static () => new());
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public WorldEntityHost<TEntity, TStorage> GetHost<TEntity, TStorage>(Func<TStorage> creator)
         where TEntity : struct
         where TStorage : class, IStorage<TEntity>
     {
         ref var host = ref _hosts.GetOrAddValueRef(
-            WorldEntityHostIndexer<EntityHost<TEntity, TStorage>>.Index, out bool exists);
+            WorldEntityHostIndexer<WorldEntityHost<TEntity, TStorage>>.Index, out bool exists);
         if (!exists) {
             host = new WorldEntityHost<TEntity, TStorage>(this, creator());
             OnEntityHostCreated?.Invoke(host);
@@ -215,21 +217,13 @@ public class World : IEntityQuery, IEventSender
         return (WorldEntityHost<TEntity, TStorage>)host;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public WrappedWorldEntityHost<TEntity, THost> GetCustomHost<TEntity, THost>()
         where TEntity : struct
         where THost : IEntityHost<TEntity>, new()
-    {
-        ref var host = ref _hosts.GetOrAddValueRef(
-            WorldEntityHostIndexer<THost>.Index, out bool exists);
-        if (!exists) {
-            var newHost = new WrappedWorldEntityHost<TEntity, THost>(this, new());
-            host = newHost;
-            OnEntityHostCreated?.Invoke(host);
-            return newHost;
-        }
-        return (WrappedWorldEntityHost<TEntity, THost>)host;
-    }
+        => GetCustomHost<TEntity, THost>(static () => new());
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public WrappedWorldEntityHost<TEntity, THost> GetCustomHost<TEntity, THost>(Func<THost> creator)
         where TEntity : struct
         where THost : IEntityHost<TEntity>
@@ -245,6 +239,7 @@ public class World : IEntityQuery, IEventSender
         return (WrappedWorldEntityHost<TEntity, THost>)host;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool RemoveHost<THost>()
         where THost : IEntityHost
     {
@@ -255,6 +250,7 @@ public class World : IEntityQuery, IEventSender
         return false;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool RemoveHost<THost>([MaybeNullWhen(false)] out IEntityHost host)
         where THost : IEntityHost
     {
@@ -265,10 +261,12 @@ public class World : IEntityQuery, IEventSender
         return false;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Send<TEvent>(in EntityRef target, in TEvent e)
         where TEvent : IEvent
         => Dispatcher.Send(target, e);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Modify<TCommand>(in EntityRef target, in TCommand command)
         where TCommand : ICommand
     {
