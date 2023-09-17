@@ -3,13 +3,16 @@ namespace Sia;
 using System.Runtime.CompilerServices;
 
 // see https://github.com/dotnet/runtime/issues/32815
-public readonly struct BufferWrapper<T, TBuffer> : IBuffer<T>
+public readonly struct WrappedBuffer<T, TBuffer> : IBuffer<T>
     where TBuffer : IBuffer<T>
 {
+    public TBuffer InnerBuffer => _buffer;
+
     public int Capacity {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => _buffer.Capacity;
     }
+
     public int Count {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => _buffer.Count;
@@ -17,7 +20,7 @@ public readonly struct BufferWrapper<T, TBuffer> : IBuffer<T>
 
     private readonly TBuffer _buffer;
 
-    public BufferWrapper(TBuffer buffer)
+    public WrappedBuffer(TBuffer buffer)
     {
         _buffer = buffer;
     }

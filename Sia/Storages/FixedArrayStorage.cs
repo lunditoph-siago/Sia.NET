@@ -40,7 +40,7 @@ public sealed class FixedArrayStorage<T> : IStorage<T>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Pointer<T> Allocate()
+    public long UnsafeAllocate()
     {
         if (Count == Capacity) {
             throw new IndexOutOfRangeException("Storage is full");
@@ -59,7 +59,7 @@ public sealed class FixedArrayStorage<T> : IStorage<T>
 
         Count++;
         _arr[index].IsAllocated = true;
-        return new(index, this);
+        return index;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -76,12 +76,29 @@ public sealed class FixedArrayStorage<T> : IStorage<T>
         => ref _arr[rawPointer].Value;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void IterateAllocated(Action<long> func)
+    public void IterateAllocated(StoragePointerHandler handler)
     {
+        if (Count == 0) {
+            return;
+        }
         var count = _arr.Length;
         for (int i = 0; i != count; ++i) {
             if (_arr[i].IsAllocated) {
-                func(i);
+                handler(i);
+            }
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void IterateAllocated<TData>(in TData data, StoragePointerHandler<TData> handler)
+    {
+        if (Count == 0) {
+            return;
+        }
+        var count = _arr.Length;
+        for (int i = 0; i != count; ++i) {
+            if (_arr[i].IsAllocated) {
+                handler(data, i);
             }
         }
     }

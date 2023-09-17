@@ -18,7 +18,7 @@ public sealed class BufferStorage<T>
 }
 
 public class BufferStorage<T, TBuffer>
-    : Internal.BufferStorage<T, BufferWrapper<BufferStorageEntry<T>, TBuffer>>
+    : Internal.BufferStorage<T, WrappedBuffer<BufferStorageEntry<T>, TBuffer>>
     where T : struct
     where TBuffer : IBuffer<BufferStorageEntry<T>>
 {
@@ -74,7 +74,7 @@ namespace Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Pointer<T> Allocate()
+        public long UnsafeAllocate()
         {
             var chunkNode = _firstFreeChunkNode
                 ?? throw new IndexOutOfRangeException("Storage is full");
@@ -83,7 +83,7 @@ namespace Internal
 
             ref var entry = ref _buffer.GetOrAddValueRef(index, out bool _);
             entry.Index = index;
-            return new(index, this);
+            return index;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -303,7 +303,7 @@ namespace Internal
             => ref _buffer.GetValueRefOrNullRef((int)rawPointer).Value;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void IterateAllocated(Action<long> func)
+        public void IterateAllocated(StoragePointerHandler handler)
         {
             var node = _chunks.First;
 
@@ -312,7 +312,24 @@ namespace Internal
                 if (nodeRef.IsAllocated) {
                     var lastIndex = nodeRef.Index + nodeRef.Size;
                     for (int i = nodeRef.Index; i != lastIndex; ++i) {
-                        func(i);
+                        handler(i);
+                    }
+                }
+                node = node.Next;
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void IterateAllocated<TData>(in TData data, StoragePointerHandler<TData> handler)
+        {
+            var node = _chunks.First;
+
+            while (node != null) {
+                ref var nodeRef = ref node.ValueRef;
+                if (nodeRef.IsAllocated) {
+                    var lastIndex = nodeRef.Index + nodeRef.Size;
+                    for (int i = nodeRef.Index; i != lastIndex; ++i) {
+                        handler(data, i);
                     }
                 }
                 node = node.Next;

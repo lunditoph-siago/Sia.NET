@@ -3,62 +3,73 @@ using System.Runtime.CompilerServices;
 namespace Sia
 {
 
-public class EntityFactory<T>
+public class EntityHost<T>
     where T : struct
 {
-    public EntityFactory<T, TStorage> Create<TStorage>(TStorage storage)
+    public EntityHost<T, TStorage> Create<TStorage>(TStorage storage)
         where TStorage : class, IStorage<T>
         => new(storage);
 }
 
-public sealed class EntityFactory<T, TStorage>
-    : Internal.EntityFactory<T, StorageWrapper<T, TStorage>>
+public sealed class EntityHost<T, TStorage>
+    : Internal.EntityHost<T, WrappedStorage<T, TStorage>>
     where T : struct
     where TStorage : class, IStorage<T>
 {
-    public EntityFactory(TStorage managedStorage)
-        : base(new(managedStorage))
+    public EntityHost(TStorage storage)
+        : base(new(storage))
     {
     }
 }
 
 namespace Internal
 {
-    public class EntityFactory<T, TStorage> : IEntityFactory<T>, IEntityAccessor, IEntityDisposer
+    public class EntityHost<T, TStorage> : IEntityHost<T>
         where T : struct
         where TStorage : IStorage<T>
     {
+        EntityDescriptor IEntityHost.Descriptor => Descriptor;
+
+        public int Capacity => Storage.Capacity;
+        public int Count => Storage.Count;
+
         public static EntityDescriptor Descriptor { get; }
             = EntityDescriptor.Get<T>();
 
         public TStorage Storage { get; }
 
-        internal EntityFactory(TStorage managedStorage)
+        internal EntityHost(TStorage managedStorage)
         {
             Storage = managedStorage;
         }
 
-        public EntityRef Create()
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public virtual EntityRef Create()
         {
             var ptr = Storage.Allocate();
-            return new(ptr.Raw, this, this);
+            return new(ptr.Raw, this);
         }
 
-        public EntityRef Create(in T initial)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public virtual EntityRef Create(in T initial)
         {
-            var ptr = Storage.Allocate(initial);
-            return new(ptr.Raw, this, this);
+            var ptr = Storage.UnsafeAllocate(initial);
+            return new(ptr, this);
         }
 
-        public void DisposeEntity(long pointer)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public virtual void Release(long pointer)
             => Storage.UnsafeRelease(pointer);
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Contains<TComponent>(long pointer)
             => Descriptor.Contains<TComponent>();
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Contains(long pointer, Type type)
             => Descriptor.Contains(type);
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public unsafe ref TComponent Get<TComponent>(long pointer)
         {
             ref var entity = ref Storage.UnsafeGetRef(pointer);
@@ -69,6 +80,7 @@ namespace Internal
                 (void*)((IntPtr)Unsafe.AsPointer(ref entity) + offset));
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public unsafe ref TComponent GetOrNullRef<TComponent>(long pointer)
         {
             ref var entity = ref Storage.UnsafeGetRef(pointer);
@@ -78,6 +90,14 @@ namespace Internal
             return ref Unsafe.AsRef<TComponent>(
                 (void*)((IntPtr)Unsafe.AsPointer(ref entity) + offset));
         }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void IterateAllocated(StoragePointerHandler handler)
+            => Storage.IterateAllocated(handler);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void IterateAllocated<TData>(in TData data, StoragePointerHandler<TData> handler)
+            => Storage.IterateAllocated(data, handler);
     }
 }
 

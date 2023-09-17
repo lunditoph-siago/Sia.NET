@@ -36,7 +36,15 @@ public class Group<T> : IReadOnlyList<T>
     IEnumerator IEnumerable.GetEnumerator()
         => ((IEnumerable)_values).GetEnumerator();
 
-    public virtual bool Add(in T value)
+    public void Add(in T value)
+    {
+        if (!_indices.TryAdd(value, _values.Count)) {
+            throw new ArgumentException("Value already exists in the group");
+        }
+        _values.Add(value);
+    }
+
+    public bool TryAdd(in T value)
     {
         if (!_indices.TryAdd(value, _values.Count)) {
             return false;
@@ -45,7 +53,7 @@ public class Group<T> : IReadOnlyList<T>
         return true;
     }
 
-    public virtual bool Remove(in T value)
+    public bool Remove(in T value)
     {
         if (!_indices.Remove(value, out int index)) {
             return false;
@@ -63,7 +71,7 @@ public class Group<T> : IReadOnlyList<T>
     public bool Contains(in T value)
         => _values.Contains(value);
 
-    public virtual void Clear()
+    public void Clear()
     {
         _indices.Clear();
         _values.Clear();

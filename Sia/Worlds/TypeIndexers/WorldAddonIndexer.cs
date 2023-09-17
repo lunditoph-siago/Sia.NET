@@ -7,6 +7,7 @@ internal static class WorldAddonIndexerShared
 }
 
 public static class WorldAddonIndexer<T>
+    where T : IAddon
 {
     public static int Index { get; } = WorldAddonIndexerShared.GetNext();
 }

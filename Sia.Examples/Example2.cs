@@ -15,7 +15,7 @@ public static class Example2
     {
         public readonly record struct Damage(int Value) : ICommand
         {
-            public void Execute(World<EntityRef> _, in EntityRef target)
+            public void Execute(World _, in EntityRef target)
                 => target.Get<HP>().Value -= Value;
         }
 
@@ -60,7 +60,7 @@ public static class Example2
     public record struct Player(Name Name, HP HP)
     {
         public static EntityRef CreateResilient(World world, string name)
-            => EntityLibrary<Player>.Hash(world, new() {
+            => world.GetHashHost<Player>().Create(new() {
                 Name = name,
                 HP = new() {
                     AutoRecoverRate = 10

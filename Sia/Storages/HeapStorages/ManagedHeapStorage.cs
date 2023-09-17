@@ -19,16 +19,16 @@ public sealed class ManagedHeapStorage<T> : IStorage<T>
 
     private ManagedHeapStorage() {}
 
-    public Pointer<T> Allocate()
-        => Allocate(default);
+    public long UnsafeAllocate()
+        => UnsafeAllocate(default);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Pointer<T> Allocate(in T initial)
+    public long UnsafeAllocate(in T initial)
     {
         Box<T> obj = initial;
         long id = _idGenerator.GetId(obj, out bool _);
         _objects[id] = obj;
-        return new(id, this);
+        return id;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -42,7 +42,23 @@ public sealed class ManagedHeapStorage<T> : IStorage<T>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T UnsafeGetRef(long rawPointer)
         => ref _objects[rawPointer].GetReference();
-    
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void IterateAllocated(StoragePointerHandler handler)
+    {
+        foreach (var key in _objects.Keys) {
+            handler(key);
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void IterateAllocated<TData>(in TData data, StoragePointerHandler<TData> handler)
+    {
+        foreach (var key in _objects.Keys) {
+            handler(data, key);
+        }
+    }
+
     public void Dispose()
     {
         _objects = null!;

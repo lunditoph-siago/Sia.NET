@@ -4,30 +4,30 @@ using System.Collections.Immutable;
 
 public static class Matchers
 {
-    public static IMatcher Any { get; } = new AnyMatcher();
-    public static IMatcher None { get; } = new NoneMatcher();
+    public static IEntityMatcher Any { get; } = new AnyMatcher();
+    public static IEntityMatcher None { get; } = new NoneMatcher();
 
-    public static IMatcher From<TTypeUnion>()
+    public static IEntityMatcher From<TTypeUnion>()
         where TTypeUnion : ITypeUnion, new()
         => new InclusiveMatcher(new TTypeUnion().ProxyTypes);
 
-    public static IMatcher FromExclusive<TTypeUnion>()
+    public static IEntityMatcher FromExclusive<TTypeUnion>()
         where TTypeUnion : ITypeUnion, new()
         => new ExclusiveMatcher(new TTypeUnion().ProxyTypes);
 
-    public static IMatcher ToMatcher(this ITypeUnion typeUnion)
+    public static IEntityMatcher ToMatcher(this ITypeUnion typeUnion)
         => new InclusiveMatcher(typeUnion.ProxyTypes);
 
-    public static IMatcher ToExclusiveMatcher(this ITypeUnion typeUnion)
+    public static IEntityMatcher ToExclusiveMatcher(this ITypeUnion typeUnion)
         => new ExclusiveMatcher(typeUnion.ProxyTypes);
     
-    public static IMatcher And(this IMatcher left, IMatcher right)
+    public static IEntityMatcher And(this IEntityMatcher left, IEntityMatcher right)
         => new AndMatcher(left, right);
 
-    public static IMatcher Or(this IMatcher left, IMatcher right)
+    public static IEntityMatcher Or(this IEntityMatcher left, IEntityMatcher right)
         => new OrMatcher(left, right);
     
-    public static IMatcher Not(this IMatcher inner)
+    public static IEntityMatcher Not(this IEntityMatcher inner)
         => inner switch {
             NotMatcher m => m.Inner,
             InclusiveMatcher m => new ExclusiveMatcher(m.Types),
@@ -37,7 +37,7 @@ public static class Matchers
             _ => new NotMatcher(inner)
         };
 
-    public static IMatcher With(this IMatcher left, ITypeUnion right)
+    public static IEntityMatcher With(this IEntityMatcher left, ITypeUnion right)
         => left switch {
             InclusiveMatcher m => new InclusiveMatcher(m.Types.AddRange(right.ProxyTypes)),
             ExclusiveMatcher m => new InclusiveAndExclusiveMatcher(right.ProxyTypes, m.Types),
@@ -50,7 +50,7 @@ public static class Matchers
             _ => new WithMatcher(left, right.ProxyTypes)
         };
 
-    public static IMatcher Without(this IMatcher left, ITypeUnion right)
+    public static IEntityMatcher Without(this IEntityMatcher left, ITypeUnion right)
         => left switch {
             ExclusiveMatcher m => new ExclusiveMatcher(m.Types.AddRange(right.ProxyTypes)),
             InclusiveMatcher m => new InclusiveAndExclusiveMatcher(m.Types, right.ProxyTypes),
@@ -61,22 +61,22 @@ public static class Matchers
             _ => new WithoutMatcher(left, right.ProxyTypes)
         };
 
-    private record AnyMatcher : IMatcher
+    private record AnyMatcher : IEntityMatcher
     {
-        public bool Match(in EntityRef entity) => true;
+        public bool Match(EntityDescriptor descriptor) => true;
     }
 
-    private record NoneMatcher : IMatcher
+    private record NoneMatcher : IEntityMatcher
     {
-        public bool Match(in EntityRef entity) => false;
+        public bool Match(EntityDescriptor descriptor) => false;
     }
 
-    private record InclusiveMatcher(ImmutableArray<Type> Types) : IMatcher
+    private record InclusiveMatcher(ImmutableArray<Type> Types) : IEntityMatcher
     {
-        public bool Match(in EntityRef entity)
+        public bool Match(EntityDescriptor descriptor)
         {
             foreach (var compType in Types.AsSpan()) {
-                if (!entity.Contains(compType)) {
+                if (!descriptor.Contains(compType)) {
                     return false;
                 }
             }
@@ -84,12 +84,12 @@ public static class Matchers
         }
     }
 
-    private record ExclusiveMatcher(ImmutableArray<Type> Types) : IMatcher
+    private record ExclusiveMatcher(ImmutableArray<Type> Types) : IEntityMatcher
     {
-        public bool Match(in EntityRef entity)
+        public bool Match(EntityDescriptor descriptor)
         {
             foreach (var compType in Types.AsSpan()) {
-                if (entity.Contains(compType)) {
+                if (descriptor.Contains(compType)) {
                     return false;
                 }
             }
@@ -98,17 +98,17 @@ public static class Matchers
     }
 
     private record InclusiveAndExclusiveMatcher(
-        ImmutableArray<Type> InclusiveTypes, ImmutableArray<Type> ExclusiveTypes) : IMatcher
+        ImmutableArray<Type> InclusiveTypes, ImmutableArray<Type> ExclusiveTypes) : IEntityMatcher
     {
-        public bool Match(in EntityRef entity)
+        public bool Match(EntityDescriptor descriptor)
         {
             foreach (var compType in InclusiveTypes.AsSpan()) {
-                if (!entity.Contains(compType)) {
+                if (!descriptor.Contains(compType)) {
                     return false;
                 }
             }
             foreach (var compType in ExclusiveTypes.AsSpan()) {
-                if (entity.Contains(compType)) {
+                if (descriptor.Contains(compType)) {
                     return false;
                 }
             }
@@ -116,33 +116,33 @@ public static class Matchers
         }
     }
 
-    private record NotMatcher(IMatcher Inner) : IMatcher
+    private record NotMatcher(IEntityMatcher Inner) : IEntityMatcher
     {
-        public bool Match(in EntityRef entity)
-            => !Inner.Match(entity);
+        public bool Match(EntityDescriptor descriptor)
+            => !Inner.Match(descriptor);
     }
 
-    private record AndMatcher(IMatcher Left, IMatcher Right) : IMatcher
+    private record AndMatcher(IEntityMatcher Left, IEntityMatcher Right) : IEntityMatcher
     {
-        public bool Match(in EntityRef entity)
-            => Left.Match(entity) && Right.Match(entity);
+        public bool Match(EntityDescriptor descriptor)
+            => Left.Match(descriptor) && Right.Match(descriptor);
     }
 
-    private record OrMatcher(IMatcher Left, IMatcher Right) : IMatcher
+    private record OrMatcher(IEntityMatcher Left, IEntityMatcher Right) : IEntityMatcher
     {
-        public bool Match(in EntityRef entity)
-            => Left.Match(entity) || Right.Match(entity);
+        public bool Match(EntityDescriptor descriptor)
+            => Left.Match(descriptor) || Right.Match(descriptor);
     }
 
-    private record WithMatcher(IMatcher Left, ImmutableArray<Type> Right) : IMatcher
+    private record WithMatcher(IEntityMatcher Left, ImmutableArray<Type> Right) : IEntityMatcher
     {
-        public bool Match(in EntityRef entity)
+        public bool Match(EntityDescriptor descriptor)
         {
-            if (!Left.Match(entity)) {
+            if (!Left.Match(descriptor)) {
                 return false;
             }
             foreach (var compType in Right.AsSpan()) {
-                if (!entity.Contains(compType)) {
+                if (!descriptor.Contains(compType)) {
                     return false;
                 }
             }
@@ -150,15 +150,15 @@ public static class Matchers
         }
     }
 
-    private record WithoutMatcher(IMatcher Left, ImmutableArray<Type> Right) : IMatcher
+    private record WithoutMatcher(IEntityMatcher Left, ImmutableArray<Type> Right) : IEntityMatcher
     {
-        public bool Match(in EntityRef entity)
+        public bool Match(EntityDescriptor descriptor)
         {
-            if (!Left.Match(entity)) {
+            if (!Left.Match(descriptor)) {
                 return false;
             }
             foreach (var compType in Right.AsSpan()) {
-                if (entity.Contains(compType)) {
+                if (descriptor.Contains(compType)) {
                     return false;
                 }
             }
@@ -167,20 +167,20 @@ public static class Matchers
     }
 
     private record WithAndWithoutMatcher(
-        IMatcher Inner, ImmutableArray<Type> WithTypes, ImmutableArray<Type> WithoutTypes) : IMatcher
+        IEntityMatcher Inner, ImmutableArray<Type> WithTypes, ImmutableArray<Type> WithoutTypes) : IEntityMatcher
     {
-        public bool Match(in EntityRef entity)
+        public bool Match(EntityDescriptor descriptor)
         {
-            if (!Inner.Match(entity)) {
+            if (!Inner.Match(descriptor)) {
                 return false;
             }
             foreach (var compType in WithTypes.AsSpan()) {
-                if (!entity.Contains(compType)) {
+                if (!descriptor.Contains(compType)) {
                     return false;
                 }
             }
             foreach (var compType in WithoutTypes.AsSpan()) {
-                if (entity.Contains(compType)) {
+                if (descriptor.Contains(compType)) {
                     return false;
                 }
             }

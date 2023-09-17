@@ -9,22 +9,9 @@ public record struct Position
     public float Z;
     public List<int> ManagedTest;
 
-    public class Set : Command<Set>
+    public readonly record struct Set(float X, float Y, float Z) : ICommand
     {
-        public float X { get; private set; }
-        public float Y { get; private set; }
-        public float Z { get; private set; }
-
-        public static Set Create(float x, float y, float z)
-        {
-            var cmd = CreateRaw();
-            cmd.X = x;
-            cmd.Y = y;
-            cmd.Z = z;
-            return cmd;
-        }
-
-        public override void Execute(in EntityRef target)
+        public void Execute(World world, in EntityRef target)
         {
             ref var pos = ref target.Get<Position>();
             pos.X = X;
@@ -151,12 +138,9 @@ public unsafe static class Tests
         sched.Tick();
     }
 
-    private class TestCommand : Command<TestCommand, int>
+    private readonly record struct TestCommand(int Target) : ICommand
     {
-        public static TestCommand Create()
-            => CreateRaw();
-
-        public override void Execute(in int target)
+        public void Execute(World world, in EntityRef target)
         {
             Console.WriteLine("Command: " + target);
         }
@@ -210,24 +194,24 @@ public unsafe static class Tests
                         .With(new TypeUnion<int>())));
     }
 
-    private static void TestWorldGroupCache()
+    private static void TestWorldQuery()
     {
-        Console.WriteLine("== Test WorldGroupCache ==");
+        Console.WriteLine("== Test World.Query ==");
 
         var world = new World();
 
-        var e1Ref = EntityLibrary<TestEntity>.ManagedHeap(world);
-        var e2Ref = EntityLibrary<TestEntity2>.ManagedHeap(world);
+        var e1Ref = world.GetManagedHeapHost<TestEntity>().Create();
+        var e2Ref = world.GetManagedHeapHost<TestEntity2>().Create();
 
-        world.Add(e1Ref);
-        world.Add(e2Ref);
+        var query1 = world.Query<TypeUnion<Position>>();
+        var group = new Group();
+        query1.ForEach(group.Add);
 
-        var handle = WorldGroupCache.Acquire<TypeUnion<Position>>(world);
-        Console.WriteLine(handle.Group.Contains(e1Ref));
-        Console.WriteLine(handle.Group.Contains(e2Ref));
+        Console.WriteLine(group.Contains(e1Ref));
+        Console.WriteLine(group.Contains(e2Ref));
 
-        var handle2 = WorldGroupCache.Acquire<TypeUnion<Position>>(world);
-        Console.WriteLine(handle.Cache == handle2.Cache);
+        var query2 = world.Query<TypeUnion<Position>>();
+        Console.WriteLine(query1 == query2);
     }
 
     private class PositionPrintSystem : SystemBase
@@ -274,14 +258,14 @@ public unsafe static class Tests
 
         new PositionSystems().Register(world, scheduler);
 
-        var e1Ref = EntityLibrary<TestEntity>.ManagedHeap(world, new() {
+        var e1Ref = world.GetManagedHeapHost<TestEntity>().Create( new() {
             Position = new Position {
                 X = 1,
                 Y = 2,
                 Z = 3
             }
         });
-        var e2Ref = EntityLibrary<TestEntity>.ManagedHeap(world, new() {
+        var e2Ref = world.GetManagedHeapHost<TestEntity>().Create(new() {
             Position = new Position {
                 X = -1,
                 Y = -2,
@@ -289,13 +273,11 @@ public unsafe static class Tests
             }
         });
 
-        world.Add(e1Ref);
-        world.Add(e2Ref);
         scheduler.Tick();
         scheduler.Tick();
 
-        world.Modify(e1Ref, Position.Set.Create(4, 5, 6));
-        world.Modify(e2Ref, Position.Set.Create(-4, -5, -6));
+        world.Modify(e1Ref, new Position.Set(4, 5, 6));
+        world.Modify(e2Ref, new Position.Set(-4, -5, -6));
         scheduler.Tick();
     }
 
@@ -335,7 +317,6 @@ public unsafe static class Tests
         DoTest(new SparseBufferStorage<int>(5120));
         DoTest(new HashBufferStorage<int>());
         DoTest(ManagedHeapStorage<int>.Instance);
-        DoTest(PooledStorage<int>.Create(ManagedHeapStorage<int>.Instance, 2));
         DoTest(UnmanagedHeapStorage<int>.Instance);
 
         Console.WriteLine("Finished");
@@ -349,7 +330,7 @@ public unsafe static class Tests
             where TStorage : class, IStorage<TestEntity>
         {
             Console.WriteLine($"[{storage}]");
-            var factory = new EntityFactory<TestEntity, TStorage>(storage);
+            var factory = new EntityHost<TestEntity, TStorage>(storage);
             var e1 = factory.Create(DefaultTestEntity);
             var e2 = factory.Create();
             var e3 = factory.Create();
@@ -373,7 +354,6 @@ public unsafe static class Tests
         DoTest(new SparseBufferStorage<TestEntity>(512));
         DoTest(new HashBufferStorage<TestEntity>());
         DoTest(ManagedHeapStorage<TestEntity>.Instance);
-        DoTest(PooledStorage<TestEntity>.Create(ManagedHeapStorage<TestEntity>.Instance, 2));
         DoTest(new VariableStorage<TestEntity, SparseBufferStorage<TestEntity>>(() => new(1)));
         //DoTest(UnmanagedHeapStorage<TestEntity>.Instance);
     }
@@ -386,7 +366,7 @@ public unsafe static class Tests
         TestDispatcher();
         TestTypeUnion();
         TestMatcher();
-        TestWorldGroupCache();
+        TestWorldQuery();
         TestSystem();
         TestStorages();
         TestEntityFactory();

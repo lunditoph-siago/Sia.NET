@@ -22,7 +22,7 @@ public static class HOEvents
         public Type InnerEventType => typeof(TEvent);
     }
 
-    public class Revert<TEvent> : SingleValuePooledEvent<Revert<TEvent>, TEvent>, IRevertEvent
+    public readonly record struct Revert<TEvent>(TEvent Value) : IRevertEvent
         where TEvent : IRevertableEvent
     {
         public Type InnerEventType => typeof(TEvent);
