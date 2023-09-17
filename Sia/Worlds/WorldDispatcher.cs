@@ -1,11 +1,10 @@
 namespace Sia;
 
-public class WorldDispatcher<TTarget> : Dispatcher<TTarget, IEvent>
-    where TTarget : notnull
+public class WorldDispatcher : Dispatcher<EntityRef, IEvent>
 {
-    public World<TTarget> World { get; }
+    public World World { get; }
 
-    internal WorldDispatcher(World<TTarget> world)
+    internal WorldDispatcher(World world)
     {
         World = world;
     }

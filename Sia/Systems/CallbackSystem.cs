@@ -1,7 +1,7 @@
 namespace Sia;
 
 public sealed class CallbackSystem<TWorld> : SystemBase<TWorld>
-    where TWorld : World<EntityRef>
+    where TWorld : World
 {
     public delegate void ExecuteListener(TWorld world, Scheduler scheduler, in EntityRef entity);
 

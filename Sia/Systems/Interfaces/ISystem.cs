@@ -4,9 +4,8 @@ public interface ISystem
 {
     ISystemUnion? Children { get; }
     ISystemUnion? Dependencies { get; }
-    IMatcher? Matcher { get; }
+    IEntityMatcher? Matcher { get; }
     IEventUnion? Trigger { get; }
 
-    SystemHandle Register(
-        World<EntityRef> world, Scheduler scheduler, Scheduler.TaskGraphNode[]? dependedTasks = null);
+    SystemHandle Register(World world, Scheduler scheduler, Scheduler.TaskGraphNode[]? dependedTasks = null);
 }

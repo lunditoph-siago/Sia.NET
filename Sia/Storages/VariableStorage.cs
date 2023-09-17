@@ -14,7 +14,7 @@ public static class VariableStorage<T>
 }
 
 public class VariableStorage<T, TStorage>
-    : Internal.VariableStorage<T, StorageWrapper<T, TStorage>>
+    : Internal.VariableStorage<T, WrappedStorage<T, TStorage>>
     where T : struct
     where TStorage : class, IStorage<T>
 {
@@ -26,7 +26,7 @@ public class VariableStorage<T, TStorage>
         CreateFirstStorage();
     }
 
-    protected override StorageWrapper<T, TStorage> CreateStorage()
+    protected override WrappedStorage<T, TStorage> CreateStorage()
         => new(_storageCreator());
 }
 
@@ -59,7 +59,7 @@ namespace Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Pointer<T> Allocate()
+        public long UnsafeAllocate()
         {
             var (storage, index) = AcquireStorage();
             var pointer = storage.Allocate().Raw;
@@ -67,11 +67,11 @@ namespace Internal
                 _availableStorageIndices.Pop();
             }
             Count++;
-            return new(pointer << 32 | (uint)index, this);
+            return pointer << 32 | (uint)index;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Pointer<T> Allocate(in T initial)
+        public long UnsafeAllocate(in T initial)
         {
             var (storage, index) = AcquireStorage();
             var pointer = storage.Allocate(initial).Raw;
@@ -79,7 +79,7 @@ namespace Internal
                 _availableStorageIndices.Pop();
             }
             Count++;
-            return new(pointer << 32 | (uint)index, this);
+            return pointer << 32 | (uint)index;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -103,11 +103,26 @@ namespace Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void IterateAllocated(Action<long> func)
+        public void IterateAllocated(StoragePointerHandler handler)
         {
             var count = _storages.Count;
             for (int i = 0; i != count; ++i) {
-                _storages[i]?.IterateAllocated(pointer => func(pointer << 32 | (uint)i));
+                _storages[i]?.IterateAllocated(pointer => handler(pointer << 32 | (uint)i));
+            }
+        }
+
+        public record struct IterationData<TData>(
+            TData Data, StoragePointerHandler<TData> Handler, int Index);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void IterateAllocated<TData>(in TData data, StoragePointerHandler<TData> handler)
+        {
+            var count = _storages.Count;
+            for (int i = 0; i != count; ++i) {
+                _storages[i]?.IterateAllocated(
+                    new IterationData<TData>(data, handler, i),
+                    static (in IterationData<TData> data, long pointer) =>
+                        data.Handler(data.Data, pointer << 32 | (uint)data.Index));
             }
         }
 

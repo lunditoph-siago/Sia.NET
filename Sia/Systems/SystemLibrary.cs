@@ -3,7 +3,7 @@ namespace Sia;
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 
-public class SystemLibrary
+public class SystemLibrary : IAddon
 {
     public class Entry
     {

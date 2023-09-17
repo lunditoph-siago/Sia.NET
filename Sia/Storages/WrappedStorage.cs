@@ -4,10 +4,12 @@ using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 // see https://github.com/dotnet/runtime/issues/32815
-public readonly struct StorageWrapper<T, TStorage> : IStorage<T>, IEquatable<StorageWrapper<T, TStorage>>
+public readonly struct WrappedStorage<T, TStorage> : IStorage<T>, IEquatable<WrappedStorage<T, TStorage>>
     where T : struct
     where TStorage : class, IStorage<T>
 {
+    public TStorage InnerStorage => _storage;
+
     public int Capacity {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => _storage.Capacity;
@@ -27,10 +29,18 @@ public readonly struct StorageWrapper<T, TStorage> : IStorage<T>, IEquatable<Sto
 
     private readonly TStorage _storage;
 
-    public StorageWrapper(TStorage storage)
+    public WrappedStorage(TStorage storage)
     {
         _storage = storage;
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public long UnsafeAllocate()
+        => _storage.UnsafeAllocate();
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public long UnsafeAllocate(in T initial)
+        => _storage.UnsafeAllocate(initial);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Pointer<T> Allocate()
@@ -53,23 +63,27 @@ public readonly struct StorageWrapper<T, TStorage> : IStorage<T>, IEquatable<Sto
         => _storage.Dispose();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool Equals(StorageWrapper<T, TStorage> other)
+    public bool Equals(WrappedStorage<T, TStorage> other)
         => _storage == other._storage;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void IterateAllocated(Action<long> func)
-        => _storage.IterateAllocated(func);
+    public void IterateAllocated(StoragePointerHandler handler)
+        => _storage.IterateAllocated(handler);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void IterateAllocated<TData>(in TData data, StoragePointerHandler<TData> handler)
+        => _storage.IterateAllocated(data, handler);
 
     public override bool Equals([AllowNull] object obj)
-        => obj is StorageWrapper<T, TStorage> wrapper
+        => obj is WrappedStorage<T, TStorage> wrapper
             && Equals(wrapper);
 
     public override int GetHashCode()
         => _storage.GetHashCode();
 
-    public static bool operator ==(StorageWrapper<T, TStorage> left, StorageWrapper<T, TStorage> right)
+    public static bool operator ==(WrappedStorage<T, TStorage> left, WrappedStorage<T, TStorage> right)
         => left.Equals(right);
 
-    public static bool operator !=(StorageWrapper<T, TStorage> left, StorageWrapper<T, TStorage> right)
+    public static bool operator !=(WrappedStorage<T, TStorage> left, WrappedStorage<T, TStorage> right)
         => !(left == right);
 }

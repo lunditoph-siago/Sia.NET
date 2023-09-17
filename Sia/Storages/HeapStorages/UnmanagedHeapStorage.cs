@@ -22,31 +22,49 @@ public sealed class UnmanagedHeapStorage<T> : IStorage<T>
     private UnmanagedHeapStorage() {}
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Pointer<T> Allocate()
-        => Allocate(default);
+    public long UnsafeAllocate()
+        => UnsafeAllocate(default);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe Pointer<T> Allocate(in T initial)
+    public unsafe long UnsafeAllocate(in T initial)
     {
         var ptr = Marshal.AllocHGlobal(ElementSize);
         _allocated.Add(ptr);
         *(T*)ptr = initial;
         Count++;
-        return new(ptr, this);
+        return ptr;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void UnsafeRelease(long rawPointer)
     {
         var ptr = (nint)rawPointer;
+        if (!_allocated.Remove(ptr)) {
+            throw new ArgumentException("Invalid pointer");
+        }
         Marshal.FreeHGlobal(ptr);
-        _allocated.Add(ptr);
         Count--;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe ref T UnsafeGetRef(long rawPointer)
         => ref *(T*)rawPointer;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void IterateAllocated(StoragePointerHandler handler)
+    {
+        foreach (var pointer in _allocated) {
+            handler(pointer);
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void IterateAllocated<TData>(in TData data, StoragePointerHandler<TData> handler)
+    {
+        foreach (var pointer in _allocated) {
+            handler(data, pointer);
+        }
+    }
     
     public void Dispose()
     {

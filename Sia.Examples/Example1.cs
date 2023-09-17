@@ -34,7 +34,7 @@ public static partial class Example1
 
         public readonly record struct Damage(float Value) : ICommand
         {
-            public void Execute(World<EntityRef> world, in EntityRef target)
+            public void Execute(World world, in EntityRef target)
                 => world.Modify(target, new SetValue(target.Get<Health>().Value - Value));
         }
     }
@@ -67,7 +67,7 @@ public static partial class Example1
         public override void Execute(GameWorld world, Scheduler scheduler, in EntityRef entity)
         {
             if (entity.Get<Health>().Value <= 0) {
-                world.Remove(entity);
+                entity.Dispose();
                 Console.WriteLine("Dead!");
             }
         }
@@ -119,10 +119,10 @@ public static partial class Example1
         public static readonly Player Initial = new();
 
         public static EntityRef Create(World world)
-            => EntityLibrary<Player>.Hash(world, Initial);
+            => world.GetHashHost<Player>().Create(Initial);
 
         public static EntityRef Create(World world, Vector2 position)
-            => EntityLibrary<Player>.Hash(world, Initial with {
+            => world.GetHashHost<Player>().Create(Initial with {
                 Transform = new() {
                     Position = position
                 }

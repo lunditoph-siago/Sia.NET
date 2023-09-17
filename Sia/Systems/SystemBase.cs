@@ -1,11 +1,11 @@
 namespace Sia;
 
 public class SystemBase<TWorld> : ISystem
-    where TWorld : World<EntityRef>
+    where TWorld : World
 {
     public ISystemUnion? Children { get; init; }
     public ISystemUnion? Dependencies { get; init; }
-    public IMatcher? Matcher { get; init; }
+    public IEntityMatcher? Matcher { get; init; }
     public IEventUnion? Trigger { get; init; }
     public IEventUnion? Filter { get; init; }
 
@@ -24,7 +24,7 @@ public class SystemBase<TWorld> : ISystem
         => true;
 
     private record MatchAnyEventListener(
-        SystemBase<TWorld> System, TWorld World, Scheduler Scheduler, Group<EntityRef> Group,
+        SystemBase<TWorld> System, TWorld World, Scheduler Scheduler, Group Group,
         HashSet<Type> TriggerTypes, bool HasRemoveTrigger) : IEventListener
     {
         public bool OnEvent<TEvent>(in EntityRef target, in TEvent e)
@@ -114,16 +114,16 @@ public class SystemBase<TWorld> : ISystem
     }
 
     private record TargetFilterableEventListener(
-        SystemBase<TWorld> System, TWorld World, Scheduler Scheduler, Group<EntityRef> Group,
-        Dictionary<EntityRef, IEventListener> Listeners,
-        HashSet<Type> TriggerTypes, HashSet<Type> FilterTypes, bool HasRemoveTrigger) : IEventListener
+        SystemBase<TWorld> System, TWorld World, Scheduler Scheduler, Group Group,
+        HashSet<EntityRef> ListeningEntities, HashSet<Type> TriggerTypes, HashSet<Type> FilterTypes,
+        bool HasRemoveTrigger) : IEventListener
     {
         public bool OnEvent<TEvent>(in EntityRef target, in TEvent e)
             where TEvent : IEvent
         {
             var type = typeof(TEvent);
             if (type == typeof(WorldEvents.Remove)) {
-                Listeners.Remove(target);
+                ListeningEntities.Remove(target);
                 if (HasRemoveTrigger) {
                     if (System.OnTriggerEvent(World, Scheduler, target, e)) {
                         Group.Add(target);
@@ -149,7 +149,7 @@ public class SystemBase<TWorld> : ISystem
     }
 
     SystemHandle ISystem.Register(
-        World<EntityRef> world, Scheduler scheduler, Scheduler.TaskGraphNode[]? dependedTasks)
+        World world, Scheduler scheduler, Scheduler.TaskGraphNode[]? dependedTasks)
         => Register((TWorld)world, scheduler, dependedTasks);
 
     public SystemHandle Register(
@@ -251,46 +251,41 @@ public class SystemBase<TWorld> : ISystem
         var dispatcher = world.Dispatcher;
 
         if (trigger == null && filter == null) {
-            Group<EntityRef> group;
+            IEntityQuery query;
 
             if (matcher == Matchers.Any) {
-                group = world;
+                query = world;
                 disposeFunc = () => {};
             }
             else {
-                var groupCacheHandle = WorldGroupCache.Acquire(world, matcher);
-                group = groupCacheHandle.Group;
-                disposeFunc = groupCacheHandle.Dispose;
+                query = world.Query(matcher);
+                disposeFunc = query.Dispose;
             }
 
+            void EntityHandler(in EntityRef entity)
+                => Execute(world, scheduler, entity);
+
             taskFunc = () => {
-                var span = group.AsSpan();
-                if (span.Length == 0) {
-                    return false;
-                }
                 BeforeExecute(world, scheduler);
-                foreach (var entity in span) {
-                    Execute(world, scheduler, entity);
-                }
+                query.ForEach(EntityHandler);
                 AfterExecute(world, scheduler);
                 return false;
             };
         }
         else {
-            var group = new Group<EntityRef>();
+            var group = new Group();
 
             taskFunc = () => {
-                int count = group.Count;
-                if (count == 0) {
-                    return false;
-                }
                 BeforeExecute(world, scheduler);
-                for (int i = 0; i < count; ++i) {
-                    Execute(world, scheduler, group[i]);
-                    count = group.Count;
+                int count = group.Count;
+                if (count != 0) {
+                    for (int i = 0; i < count; ++i) {
+                        Execute(world, scheduler, group[i]);
+                        count = group.Count;
+                    }
+                    group.Clear();
                 }
                 AfterExecute(world, scheduler);
-                group.Clear();
                 return false;
             };
 
@@ -317,7 +312,7 @@ public class SystemBase<TWorld> : ISystem
                     disposeFunc = () => dispatcher.Unlisten(listener);
                 }
                 else {
-                    var listeners = new Dictionary<EntityRef, IEventListener>();
+                    var listeningEntities = new HashSet<EntityRef>();
                     bool hasAddTrigger = triggerTypes.Contains(typeof(WorldEvents.Add));
 
                     var listener = new TargetFilterableEventListener(
@@ -325,19 +320,19 @@ public class SystemBase<TWorld> : ISystem
                         World: world,
                         Scheduler: scheduler,
                         Group: group,
-                        Listeners: listeners,
+                        ListeningEntities: listeningEntities,
                         TriggerTypes: triggerTypes,
                         FilterTypes: filterTypes,
                         HasRemoveTrigger: hasRemoveTrigger);
 
                     bool OnEntityAdded(in EntityRef target, in WorldEvents.Add e)
                     {
-                        if (!matcher.Match(target)) {
+                        if (!matcher.Match(target.Host.Descriptor)) {
                             return false;
                         }
 
                         dispatcher.Listen(target, listener);
-                        listeners.Add(target, listener);
+                        listeningEntities.Add(target);
 
                         if (hasAddTrigger) {
                             if (OnTriggerEvent(world, scheduler, target, e)) {
@@ -351,7 +346,7 @@ public class SystemBase<TWorld> : ISystem
 
                     disposeFunc = () => {
                         dispatcher.Unlisten<WorldEvents.Add>(OnEntityAdded);
-                        foreach (var (entity, listener) in listeners) {
+                        foreach (var entity in listeningEntities) {
                             dispatcher.Unlisten(entity, listener);
                         }
                     };
@@ -388,7 +383,7 @@ public class SystemBase<TWorld> : ISystem
 
                     bool OnEntityAdded(in EntityRef target, in WorldEvents.Add e)
                     {
-                        if (matcher.Match(target)) {
+                        if (matcher.Match(target.Host.Descriptor)) {
                             dispatcher.Listen(target, listener);
                             listeners.Add(target, listener);
 
@@ -425,7 +420,7 @@ public class SystemBase<TWorld> : ISystem
 
         SystemHandle? handle = null;
 
-        void OnWorldDisposed(World<EntityRef> world) => handle!.Dispose();
+        void OnWorldDisposed(World world) => handle!.Dispose();
         world.OnDisposed += OnWorldDisposed;
 
         handle = new SystemHandle(
