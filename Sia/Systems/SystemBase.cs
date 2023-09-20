@@ -19,6 +19,7 @@ public class SystemBase<TWorld> : ISystem
     public virtual bool OnTriggerEvent<TEvent>(TWorld world, Scheduler scheduler, in EntityRef entity, in TEvent e)
         where TEvent : IEvent
         => true;
+
     public virtual bool OnFilterEvent<TEvent>(TWorld world, Scheduler scheduler, in EntityRef entity, in TEvent e)
         where TEvent : IEvent
         => true;
