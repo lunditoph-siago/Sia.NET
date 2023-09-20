@@ -18,7 +18,7 @@ public class World : IEntityQuery, IEventSender
             Matcher = matcher;
 
             World.OnEntityHostCreated += OnEntityHostCreated;
-            World.OnEntityHostRemoved += OnEntityHostRemoved;
+            World.OnEntityHostReleased += OnEntityHostReleased;
 
             foreach (var host in world._hosts.AsValueSpan()) {
                 if (matcher.Match(host.Descriptor)) {
@@ -39,7 +39,7 @@ public class World : IEntityQuery, IEventSender
             }
         }
 
-        private void OnEntityHostRemoved(IEntityHost host)
+        private void OnEntityHostReleased(IEntityHost host)
         {
             if (Matcher.Match(host.Descriptor)) {
                 _hosts.Remove(host);
@@ -80,7 +80,7 @@ public class World : IEntityQuery, IEventSender
 
             World._queries.Remove(Matcher);
             World.OnEntityHostCreated -= OnEntityHostCreated;
-            World.OnEntityHostRemoved -= OnEntityHostRemoved;
+            World.OnEntityHostReleased -= OnEntityHostReleased;
 
             World = null!;
             Matcher = null!;
@@ -88,7 +88,7 @@ public class World : IEntityQuery, IEventSender
     }
 
     public event Action<IEntityHost>? OnEntityHostCreated;
-    public event Action<IEntityHost>? OnEntityHostRemoved;
+    public event Action<IEntityHost>? OnEntityHostReleased;
     public event Action<World>? OnDisposed;
 
     public bool IsDisposed { get; private set; }
@@ -240,26 +240,43 @@ public class World : IEntityQuery, IEventSender
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool RemoveHost<THost>()
+    public bool ReleaseHost<THost>()
         where THost : IEntityHost
     {
         if (_hosts.Remove(WorldEntityHostIndexer<THost>.Index, out var host)) {
-            OnEntityHostRemoved?.Invoke(host);
+            OnEntityHostReleased?.Invoke(host);
             return true;
         }
         return false;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool RemoveHost<THost>([MaybeNullWhen(false)] out IEntityHost host)
+    public bool ReleaseHost<THost>([MaybeNullWhen(false)] out IEntityHost host)
         where THost : IEntityHost
     {
         if (_hosts.Remove(WorldEntityHostIndexer<THost>.Index, out host)) {
-            OnEntityHostRemoved?.Invoke(host);
+            OnEntityHostReleased?.Invoke(host);
             return true;
         }
         return false;
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryGetHost<THost>([MaybeNullWhen(false)] out THost host)
+        where THost : IEntityHost
+    {
+        if (_hosts.TryGetValue(WorldEntityHostIndexer<THost>.Index, out var rawHost)) {
+            host = (THost)rawHost;
+            return true;
+        }
+        host = default;
+        return false;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool ConainsHost<THost>()
+        where THost : IEntityHost
+        => _hosts.ContainsKey(WorldEntityHostIndexer<THost>.Index);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Send<TEvent>(in EntityRef target, in TEvent e)
@@ -331,6 +348,17 @@ public class World : IEntityQuery, IEventSender
     public bool ContainsAddon<TAddon>()
         where TAddon : IAddon
         => _addons.ContainsKey(WorldAddonIndexer<TAddon>.Index);
+    
+    public bool TryGetAddon<TAddon>([MaybeNullWhen(false)] out TAddon addon)
+        where TAddon : IAddon
+    {
+        if (_addons.TryGetValue(WorldAddonIndexer<TAddon>.Index, out var rawAddon)) {
+            addon = (TAddon)rawAddon;
+            return true;
+        }
+        addon = default;
+        return false;
+    }
 
     protected virtual void Dispose(bool disposing)
     {
