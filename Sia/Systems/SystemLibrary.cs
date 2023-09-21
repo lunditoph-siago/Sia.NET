@@ -11,12 +11,11 @@ public class SystemLibrary : IAddon
         internal Dictionary<Scheduler, Scheduler.TaskGraphNode> _taskGraphNodes = new();
     }
 
-    private readonly record struct MatchAnyEventListener<TSystem>(
+    private record MatchAnyEventListener<TSystem>(
         TSystem System, World World, Scheduler Scheduler, Group Group,
         HashSet<Type> TriggerTypes, bool HasRemoveTrigger) : IEventListener
         where TSystem : ISystem
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool OnEvent<TEvent>(in EntityRef target, in TEvent e)
             where TEvent : IEvent
         {
@@ -40,12 +39,11 @@ public class SystemLibrary : IAddon
         }
     }
 
-    private readonly record struct MatchAnyFilterableEventListener<TSystem>(
+    private record MatchAnyFilterableEventListener<TSystem>(
         TSystem System, World World, Scheduler Scheduler, Group<EntityRef> Group,
         HashSet<Type> TriggerTypes, HashSet<Type> FilterTypes, bool HasRemoveTrigger) : IEventListener
         where TSystem : ISystem
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool OnEvent<TEvent>(in EntityRef target, in TEvent e)
             where TEvent : IEvent
         {
@@ -75,13 +73,12 @@ public class SystemLibrary : IAddon
         }
     }
 
-    private readonly record struct TargetEventListener<TSystem>(
+    private record TargetEventListener<TSystem>(
         TSystem System, World World, Scheduler Scheduler, Group<EntityRef> Group,
         Dictionary<EntityRef, IEventListener> Listeners,
         HashSet<Type> TriggerTypes, bool HasRemoveTrigger) : IEventListener
         where TSystem : ISystem
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool OnEvent<TEvent>(in EntityRef target, in TEvent e)
             where TEvent : IEvent
         {
@@ -107,13 +104,12 @@ public class SystemLibrary : IAddon
         }
     }
 
-    private readonly record struct TargetFilterableEventListener<TSystem>(
+    private record TargetFilterableEventListener<TSystem>(
         TSystem System, World World, Scheduler Scheduler, Group Group,
         HashSet<EntityRef> ListeningEntities, HashSet<Type> TriggerTypes, HashSet<Type> FilterTypes,
         bool HasRemoveTrigger) : IEventListener
         where TSystem : ISystem
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool OnEvent<TEvent>(in EntityRef target, in TEvent e)
             where TEvent : IEvent
         {
