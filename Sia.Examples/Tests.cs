@@ -256,7 +256,7 @@ public unsafe static class Tests
         var world = new World();
         var scheduler = new Scheduler();
 
-        new PositionSystems().Register(world, scheduler);
+        world.RegisterSystem<PositionSystems>(scheduler);
 
         var e1Ref = world.GetManagedHeapHost<TestEntity>().Create( new() {
             Position = new Position {

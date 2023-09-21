@@ -3,7 +3,7 @@ namespace Sia;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
-public class World : IEntityQuery, IEventSender
+public sealed class World : IEntityQuery, IEventSender
 {
     public class EntityQuery : IEntityQuery
     {
@@ -360,7 +360,7 @@ public class World : IEntityQuery, IEventSender
         return false;
     }
 
-    protected virtual void Dispose(bool disposing)
+    private void Dispose(bool disposing)
     {
         if (IsDisposed) { return; }
         IsDisposed = true;

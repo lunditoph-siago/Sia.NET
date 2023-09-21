@@ -73,8 +73,8 @@ public static class Example2
         var world = new World();
         var scheduler = new Scheduler();
 
-        new DamageDisplaySystem().Register(world, scheduler);
-        new HPAutoRecoverSystem().Register(world, scheduler);
+        world.RegisterSystem<DamageDisplaySystem>(scheduler);
+        world.RegisterSystem<HPAutoRecoverSystem>(scheduler);
 
         var player = Player.CreateResilient(world, "玩家");
         ref var hp = ref player.Get<HP>();
