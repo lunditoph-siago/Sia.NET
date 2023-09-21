@@ -7,7 +7,7 @@ public static partial class Example1
     [SiaTemplate(nameof(TestObject))]
     public record TestTemplate(int Value);
 
-    public class GameWorld : World
+    public class Game : IAddon
     {
         public float DeltaTime { get; private set; }
         public float Time { get; private set; }
@@ -39,24 +39,25 @@ public static partial class Example1
         }
     }
 
-    public class HealthUpdateSystem : SystemBase<GameWorld>
+    public class HealthUpdateSystem : SystemBase
     {
         public HealthUpdateSystem()
         {
             Matcher = Matchers.From<TypeUnion<Health>>();
         }
 
-        public override void Execute(GameWorld world, Scheduler scheduler, in EntityRef entity)
+        public override void Execute(World world, Scheduler scheduler, in EntityRef entity)
         {
             ref var health = ref entity.Get<Health>();
             if (health.Debuff != 0) {
-                world.Modify(entity, new Health.Damage(health.Debuff * world.DeltaTime));
+                var game = world.GetAddon<Game>();
+                world.Modify(entity, new Health.Damage(health.Debuff * game.DeltaTime));
                 Console.WriteLine($"Damage: HP {entity.Get<Health>().Value}");
             }
         }
     }
 
-    public class DeathSystem : SystemBase<GameWorld>
+    public class DeathSystem : SystemBase
     {
         public DeathSystem()
         {
@@ -64,7 +65,7 @@ public static partial class Example1
             Dependencies = new SystemUnion<HealthUpdateSystem>();
         }
 
-        public override void Execute(GameWorld world, Scheduler scheduler, in EntityRef entity)
+        public override void Execute(World world, Scheduler scheduler, in EntityRef entity)
         {
             if (entity.Get<Health>().Value <= 0) {
                 entity.Dispose();
@@ -73,7 +74,7 @@ public static partial class Example1
         }
     }
 
-    public class HealthSystems : SystemBase<GameWorld>
+    public class HealthSystems : SystemBase
     {
         public HealthSystems()
         {
@@ -83,7 +84,7 @@ public static partial class Example1
         }
     }
 
-    public class LocationDamageSystem : SystemBase<GameWorld>
+    public class LocationDamageSystem : SystemBase
     {
         public LocationDamageSystem()
         {
@@ -91,7 +92,7 @@ public static partial class Example1
             Trigger = new EventUnion<WorldEvents.Add, Transform.SetPosition>();
         }
 
-        public override void Execute(GameWorld world, Scheduler scheduler, in EntityRef entity)
+        public override void Execute(World world, Scheduler scheduler, in EntityRef entity)
         {
             var pos = entity.Get<Transform>().Position;
             if (pos.X == 1 && pos.Y == 1) {
@@ -105,7 +106,7 @@ public static partial class Example1
         }
     }
 
-    public class GameplaySystems : SystemBase<GameWorld>
+    public class GameplaySystems : SystemBase
     {
         public GameplaySystems()
         {
@@ -136,29 +137,30 @@ public static partial class Example1
 
     public static void Run()
     {
-        var world = new GameWorld();
+        var world = new World();
+        var game = world.AcquireAddon<Game>();
 
         var healthSystemsHandle =
-            new HealthSystems().Register(world, world.Scheduler);
+            world.RegisterSystem<HealthSystems>(game.Scheduler);
         var gameplaySystemsHandle =
-            new GameplaySystems().Register(world, world.Scheduler);
+            world.RegisterSystem<GameplaySystems>(game.Scheduler);
         
         var playerRef = Player.Create(world, new(1, 1));
-        world.Update(0.5f);
+        game.Update(0.5f);
 
         world.Modify(playerRef, new Transform.SetPosition(new(1, 2)));
-        world.Update(0.5f);
+        game.Update(0.5f);
 
-        world.Scheduler.CreateTask(() => {
+        game.Scheduler.CreateTask(() => {
             Console.WriteLine("Callback invoked after health and gameplay systems");
             return true; // remove task
         }, new[] {healthSystemsHandle.Task, gameplaySystemsHandle.Task});
     
         world.Modify(playerRef, new Transform.SetPosition(new(1, 3)));
-        world.Update(0.5f);
-        world.Update(0.5f);
-        world.Update(0.5f);
-        world.Update(0.5f); // player dead
+        game.Update(0.5f);
+        game.Update(0.5f);
+        game.Update(0.5f);
+        game.Update(0.5f); // player dead
 
         gameplaySystemsHandle.Dispose();
         healthSystemsHandle.Dispose();
