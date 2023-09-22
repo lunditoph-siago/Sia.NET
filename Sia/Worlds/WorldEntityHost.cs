@@ -41,8 +41,11 @@ public sealed class WorldEntityHost<T, TStorage>
     public override void Release(long pointer)
     {
         var entity = new EntityRef(pointer, this);
-        World.Dispatcher.Send(entity, WorldEvents.Remove.Instance);
-        World.Dispatcher.UnlistenAll(entity);
+
+        var dispatcher = World.Dispatcher;
+        dispatcher.Send(entity, WorldEvents.Remove.Instance);
+        dispatcher.UnlistenAll(entity);
+
         OnEntityReleased?.Invoke(entity);
         base.Release(pointer);
     }
