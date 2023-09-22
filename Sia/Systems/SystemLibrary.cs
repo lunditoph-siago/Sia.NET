@@ -160,7 +160,7 @@ public class SystemLibrary : IAddon
                 var sysEntry = Acquire(systemType);
                 if (!sysEntry._taskGraphNodes.TryGetValue(scheduler, out var taskNode)) {
                     throw new InvalidSystemDependencyException(
-                        $"Failed to register system: Depended system type '{this}' is not registered.");
+                        $"Failed to register system: Depended system '{this}' is not registered.");
                 }
                 result.Add(taskNode);
             }
