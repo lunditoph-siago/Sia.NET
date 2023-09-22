@@ -8,11 +8,13 @@ public static class WorldCommonHostExtensions
 
     public static WorldEntityHost<TEntity, ArrayBufferStorage<TEntity>> GetArrayHost<TEntity>(this World world, int capacity)
         where TEntity : struct
-        => world.GetHost<TEntity, ArrayBufferStorage<TEntity>>(() => new(capacity));
+        => world.TryGetHost<WorldEntityHost<TEntity, ArrayBufferStorage<TEntity>>>(out var host)
+            ? host : world.GetHost<TEntity, ArrayBufferStorage<TEntity>>(() => new(capacity));
 
     public static WorldEntityHost<TEntity, SparseBufferStorage<TEntity>> GetSparseHost<TEntity>(this World world, int capacity = 65535, int pageSize = 256)
         where TEntity : struct
-        => world.GetHost<TEntity, SparseBufferStorage<TEntity>>(() => new(capacity, pageSize));
+        => world.TryGetHost<WorldEntityHost<TEntity, SparseBufferStorage<TEntity>>>(out var host)
+            ? host : world.GetHost<TEntity, SparseBufferStorage<TEntity>>(() => new(capacity, pageSize));
 
     public static WorldEntityHost<TEntity, ManagedHeapStorage<TEntity>> GetManagedHeapHost<TEntity>(this World world)
         where TEntity : struct
