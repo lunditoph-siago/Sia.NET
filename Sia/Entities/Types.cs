@@ -28,3 +28,24 @@ public class EventMailbox<TEvent> : EventMailbox<EntityRef, TEvent>, IEventSende
 public class EventMailbox : EventMailbox<EntityRef, IEvent>, IEventSender
 {
 }
+
+public interface IHistory<TEvent> : IHistory<EntityRef, TEvent>
+    where TEvent : IEvent
+{
+}
+
+public class InfiniteHistory<TEvent> : InfiniteHistory<EntityRef, TEvent>, IHistory<TEvent>
+    where TEvent : IEvent
+{
+    public InfiniteHistory(Dispatcher<EntityRef, TEvent> dispatcher) : base(dispatcher)
+    {
+    }
+}
+
+public class SizedHistory<TEvent> : SizedHistory<EntityRef, TEvent>, IHistory<TEvent>
+    where TEvent : IEvent
+{
+    public SizedHistory(Dispatcher<EntityRef, TEvent> dispatcher, int capacity) : base(dispatcher, capacity)
+    {
+    }
+}
