@@ -20,6 +20,12 @@ public interface IEntityHost
     void IterateAllocated<TData>(in TData data, StoragePointerHandler<TData> handler);
 }
 
+public interface IReactiveEntityHost : IEntityHost
+{
+    event EntityHandler? OnEntityCreated;
+    event EntityHandler? OnEntityReleased;
+}
+
 public interface IEntityHost<T> : IEntityHost
     where T : struct
 {

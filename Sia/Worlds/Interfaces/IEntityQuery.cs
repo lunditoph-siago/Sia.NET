@@ -2,6 +2,6 @@ namespace Sia;
 
 public interface IEntityQuery : IDisposable
 {
-    void ForEach(WorldEntityHandler handler);
-    void ForEach<TData>(in TData data, WorldEntityHandler<TData> handler);
+    void ForEach(EntityHandler handler);
+    void ForEach<TData>(in TData data, EntityHandler<TData> handler);
 }

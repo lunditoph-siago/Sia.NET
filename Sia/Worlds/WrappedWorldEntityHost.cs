@@ -3,10 +3,13 @@ using System.Runtime.CompilerServices;
 
 namespace Sia;
 
-public readonly struct WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>
+public record WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>, IReactiveEntityHost
     where T : struct
     where TEntityHost : IEntityHost<T>
 {
+    public event EntityHandler? OnEntityCreated;
+    public event EntityHandler? OnEntityReleased;
+
     public World World { get; }
     public TEntityHost InnerHost => _host;
 
@@ -37,6 +40,7 @@ public readonly struct WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>
     public EntityRef Create()
     {
         var entity = _host.Create();
+        OnEntityCreated?.Invoke(entity);
         World.Dispatcher.Send(entity, WorldEvents.Add.Instance);
         return entity;
     }
@@ -45,6 +49,7 @@ public readonly struct WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>
     public EntityRef Create(in T initial)
     {
         var entity = _host.Create(initial);
+        OnEntityCreated?.Invoke(entity);
         World.Dispatcher.Send(entity, WorldEvents.Add.Instance);
         return entity;
     }
@@ -53,7 +58,10 @@ public readonly struct WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Release(long pointer)
     {
-        World.Dispatcher.Send(new(pointer, this), WorldEvents.Remove.Instance);
+        var entity = new EntityRef(pointer, this);
+        World.Dispatcher.Send(entity, WorldEvents.Remove.Instance);
+        World.Dispatcher.UnlistenAll(entity);
+        OnEntityReleased?.Invoke(entity);
         _host.Release(pointer);
     }
 
