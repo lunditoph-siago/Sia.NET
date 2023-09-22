@@ -13,7 +13,7 @@ public class SystemLibrary : IAddon
 
     private record MatchAnyEventListener<TSystem>(
         TSystem System, World World, Scheduler Scheduler, Group Group,
-        HashSet<Type> TriggerTypes, bool HasRemoveTrigger) : IEventListener
+        HashSet<Type> TriggerTypes) : IEventListener
         where TSystem : ISystem
     {
         public bool OnEvent<TEvent>(in EntityRef target, in TEvent e)
@@ -21,14 +21,7 @@ public class SystemLibrary : IAddon
         {
             var type = typeof(TEvent);
             if (type == typeof(WorldEvents.Remove)) {
-                if (HasRemoveTrigger) {
-                    if (System.OnTriggerEvent(World, Scheduler, target, e)) {
-                        Group.Add(target);
-                    }
-                }
-                else {
-                    Group.Remove(target);
-                }
+                Group.Remove(target);
             }
             else if (TriggerTypes.Contains(e.GetType())) {
                 if (System.OnTriggerEvent(World, Scheduler, target, e)) {
@@ -41,7 +34,7 @@ public class SystemLibrary : IAddon
 
     private record MatchAnyFilterableEventListener<TSystem>(
         TSystem System, World World, Scheduler Scheduler, Group<EntityRef> Group,
-        HashSet<Type> TriggerTypes, HashSet<Type> FilterTypes, bool HasRemoveTrigger) : IEventListener
+        HashSet<Type> TriggerTypes, HashSet<Type> FilterTypes) : IEventListener
         where TSystem : ISystem
     {
         public bool OnEvent<TEvent>(in EntityRef target, in TEvent e)
@@ -49,17 +42,9 @@ public class SystemLibrary : IAddon
         {
             var type = typeof(TEvent);
             if (type == typeof(WorldEvents.Remove)) {
-                if (HasRemoveTrigger) {
-                    if (System.OnTriggerEvent(World, Scheduler, target, e)) {
-                        Group.Add(target);
-                    }
-                }
-                else {
-                    Group.Remove(target);
-                }
-                return false;
+                Group.Remove(target);
             }
-            if (TriggerTypes.Contains(type)) {
+            else if (TriggerTypes.Contains(type)) {
                 if (System.OnTriggerEvent(World, Scheduler, target, e)) {
                     Group.Add(target);
                 }
@@ -75,8 +60,7 @@ public class SystemLibrary : IAddon
 
     private record TargetEventListener<TSystem>(
         TSystem System, World World, Scheduler Scheduler, Group<EntityRef> Group,
-        Dictionary<EntityRef, IEventListener> Listeners,
-        HashSet<Type> TriggerTypes, bool HasRemoveTrigger) : IEventListener
+        HashSet<Type> TriggerTypes) : IEventListener
         where TSystem : ISystem
     {
         public bool OnEvent<TEvent>(in EntityRef target, in TEvent e)
@@ -84,18 +68,9 @@ public class SystemLibrary : IAddon
         {
             var type = typeof(TEvent);
             if (type == typeof(WorldEvents.Remove)) {
-                Listeners.Remove(target);
-                if (HasRemoveTrigger) {
-                    if (System.OnTriggerEvent(World, Scheduler, target, e)) {
-                        Group.Add(target);
-                    }
-                }
-                else {
-                    Group.Remove(target);
-                }
-                return true;
+                Group.Remove(target);
             }
-            if (TriggerTypes.Contains(e.GetType())) {
+            else if (TriggerTypes.Contains(e.GetType())) {
                 if (System.OnTriggerEvent(World, Scheduler, target, e)) {
                     Group.Add(target);
                 }
@@ -106,8 +81,7 @@ public class SystemLibrary : IAddon
 
     private record TargetFilterableEventListener<TSystem>(
         TSystem System, World World, Scheduler Scheduler, Group Group,
-        HashSet<EntityRef> ListeningEntities, HashSet<Type> TriggerTypes, HashSet<Type> FilterTypes,
-        bool HasRemoveTrigger) : IEventListener
+        HashSet<Type> TriggerTypes, HashSet<Type> FilterTypes) : IEventListener
         where TSystem : ISystem
     {
         public bool OnEvent<TEvent>(in EntityRef target, in TEvent e)
@@ -115,18 +89,9 @@ public class SystemLibrary : IAddon
         {
             var type = typeof(TEvent);
             if (type == typeof(WorldEvents.Remove)) {
-                ListeningEntities.Remove(target);
-                if (HasRemoveTrigger) {
-                    if (System.OnTriggerEvent(World, Scheduler, target, e)) {
-                        Group.Add(target);
-                    }
-                }
-                else {
-                    Group.Remove(target);
-                }
-                return true;
+                Group.Remove(target);
             }
-            if (TriggerTypes.Contains(type)) {
+            else if (TriggerTypes.Contains(type)) {
                 if (System.OnTriggerEvent(World, Scheduler, target, e)) {
                     Group.Add(target);
                 }
@@ -333,7 +298,6 @@ public class SystemLibrary : IAddon
                 foreach (var filterType in filterTypes) {
                     triggerTypes.Remove(filterType);
                 }
-                bool hasRemoveTrigger = triggerTypes.Contains(typeof(WorldEvents.Remove));
 
                 if (matcher == Matchers.Any) {
                     var listener = new MatchAnyFilterableEventListener<TSystem>(
@@ -342,14 +306,12 @@ public class SystemLibrary : IAddon
                         Scheduler: scheduler,
                         Group: group,
                         TriggerTypes: triggerTypes,
-                        FilterTypes: filterTypes,
-                        HasRemoveTrigger: hasRemoveTrigger);
+                        FilterTypes: filterTypes);
 
                     dispatcher.Listen(listener);
                     disposeFunc = () => dispatcher.Unlisten(listener);
                 }
                 else {
-                    var listeningEntities = new HashSet<EntityRef>();
                     bool hasAddTrigger = triggerTypes.Contains(typeof(WorldEvents.Add));
 
                     var listener = new TargetFilterableEventListener<TSystem>(
@@ -357,35 +319,29 @@ public class SystemLibrary : IAddon
                         World: world,
                         Scheduler: scheduler,
                         Group: group,
-                        ListeningEntities: listeningEntities,
                         TriggerTypes: triggerTypes,
-                        FilterTypes: filterTypes,
-                        HasRemoveTrigger: hasRemoveTrigger);
+                        FilterTypes: filterTypes);
 
-                    bool OnEntityAdded(in EntityRef target, in WorldEvents.Add e)
-                    {
-                        if (!matcher.Match(target.Host.Descriptor)) {
-                            return false;
-                        }
+                    void OnEntityCreated(in EntityRef target)
+                        => dispatcher.Listen(target, listener);
 
-                        dispatcher.Listen(target, listener);
-                        listeningEntities.Add(target);
+                    var query = world.Query(matcher);
 
-                        if (hasAddTrigger) {
-                            if (system.OnTriggerEvent(world, scheduler, target, e)) {
-                                group.Add(target);
-                            }
-                        }
-                        return false;
-                    }
-
-                    dispatcher.Listen<WorldEvents.Add>(OnEntityAdded);
+                    query.OnEntityHostAdded += host => {
+                        host.OnEntityCreated += OnEntityCreated;
+                    };
+                    query.OnEntityHostRemoved += host => {
+                        host.OnEntityReleased -= OnEntityCreated;
+                    };
 
                     disposeFunc = () => {
-                        dispatcher.Unlisten<WorldEvents.Add>(OnEntityAdded);
-                        foreach (var entity in listeningEntities) {
+                        query.ForEach((in EntityRef entity) => {
                             dispatcher.Unlisten(entity, listener);
+                        });
+                        foreach (var host in query.Hosts) {
+                            host.OnEntityReleased -= OnEntityCreated;
                         }
+                        query.Dispose();
                     };
                 }
             }
@@ -399,14 +355,12 @@ public class SystemLibrary : IAddon
                         World: world,
                         Scheduler: scheduler,
                         Group: group,
-                        TriggerTypes: triggerTypes,
-                        HasRemoveTrigger: hasRemoveTrigger);
+                        TriggerTypes: triggerTypes);
 
                     dispatcher.Listen(listener);
                     disposeFunc = () => dispatcher.Unlisten(listener);
                 }
                 else {
-                    var listeners = new Dictionary<EntityRef, IEventListener>();
                     bool hasAddTrigger = triggerTypes.Contains(typeof(WorldEvents.Add));
 
                     var listener = new TargetEventListener<TSystem>(
@@ -414,32 +368,28 @@ public class SystemLibrary : IAddon
                         World: world,
                         Scheduler: scheduler,
                         Group: group,
-                        Listeners: listeners,
-                        TriggerTypes: triggerTypes,
-                        HasRemoveTrigger: hasRemoveTrigger);
+                        TriggerTypes: triggerTypes);
 
-                    bool OnEntityAdded(in EntityRef target, in WorldEvents.Add e)
-                    {
-                        if (matcher.Match(target.Host.Descriptor)) {
-                            dispatcher.Listen(target, listener);
-                            listeners.Add(target, listener);
+                    void OnEntityCreated(in EntityRef target)
+                        => dispatcher.Listen(target, listener);
 
-                            if (hasAddTrigger) {
-                                if (system.OnTriggerEvent(world, scheduler, target, e)) {
-                                    group.Add(target);
-                                }
-                            }
-                        }
-                        return false;
-                    }
+                    var query = world.Query(matcher);
 
-                    dispatcher.Listen<WorldEvents.Add>(OnEntityAdded);
+                    query.OnEntityHostAdded += host => {
+                        host.OnEntityCreated += OnEntityCreated;
+                    };
+                    query.OnEntityHostRemoved += host => {
+                        host.OnEntityReleased -= OnEntityCreated;
+                    };
 
                     disposeFunc = () => {
-                        dispatcher.Unlisten<WorldEvents.Add>(OnEntityAdded);
-                        foreach (var (entity, listener) in listeners) {
+                        query.ForEach((in EntityRef entity) => {
                             dispatcher.Unlisten(entity, listener);
+                        });
+                        foreach (var host in query.Hosts) {
+                            host.OnEntityReleased -= OnEntityCreated;
                         }
+                        query.Dispose();
                     };
                 }
             }

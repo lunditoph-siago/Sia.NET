@@ -7,10 +7,15 @@ public sealed class World : IEntityQuery, IEventSender
 {
     public class EntityQuery : IEntityQuery
     {
+        public event Action<IReactiveEntityHost>? OnEntityHostAdded;
+        public event Action<IReactiveEntityHost>? OnEntityHostRemoved;
+
         public World World { get; private set; }
         public IEntityMatcher Matcher { get; private set; }
 
-        private readonly List<IEntityHost> _hosts = new();
+        public IReadOnlyList<IReactiveEntityHost> Hosts => _hosts;
+
+        private readonly List<IReactiveEntityHost> _hosts = new();
 
         internal EntityQuery(World world, IEntityMatcher matcher)
         {
@@ -32,22 +37,24 @@ public sealed class World : IEntityQuery, IEventSender
             DoDispose();
         }
 
-        private void OnEntityHostCreated(IEntityHost host)
+        private void OnEntityHostCreated(IReactiveEntityHost host)
         {
             if (Matcher.Match(host.Descriptor)) {
                 _hosts.Add(host);
+                OnEntityHostAdded?.Invoke(host);
             }
         }
 
-        private void OnEntityHostReleased(IEntityHost host)
+        private void OnEntityHostReleased(IReactiveEntityHost host)
         {
             if (Matcher.Match(host.Descriptor)) {
                 _hosts.Remove(host);
+                OnEntityHostRemoved?.Invoke(host);
             }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void ForEach(WorldEntityHandler handler)
+        public void ForEach(EntityHandler handler)
         {
             foreach (var host in _hosts) {
                 if (host.Count != 0) {
@@ -57,7 +64,7 @@ public sealed class World : IEntityQuery, IEventSender
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void ForEach<TData>(in TData data, WorldEntityHandler<TData> handler)
+        public void ForEach<TData>(in TData data, EntityHandler<TData> handler)
         {
             foreach (var host in _hosts) {
                 if (host.Count != 0) {
@@ -87,8 +94,8 @@ public sealed class World : IEntityQuery, IEventSender
         }
     }
 
-    public event Action<IEntityHost>? OnEntityHostCreated;
-    public event Action<IEntityHost>? OnEntityHostReleased;
+    public event Action<IReactiveEntityHost>? OnEntityHostCreated;
+    public event Action<IReactiveEntityHost>? OnEntityHostReleased;
     public event Action<World>? OnDisposed;
 
     public bool IsDisposed { get; private set; }
@@ -100,15 +107,15 @@ public sealed class World : IEntityQuery, IEventSender
     public IEnumerable<IAddon> Addons => _addons.Values;
 
     private readonly Dictionary<IEntityMatcher, EntityQuery> _queries = new();
-    private readonly SparseSet<IEntityHost> _hosts = new(256, 256);
+    private readonly SparseSet<IReactiveEntityHost> _hosts = new(256, 256);
     private readonly SparseSet<IAddon> _addons = new(256, 256);
 
-    private record struct IterationData(IEntityHost Host, WorldEntityHandler Handler);
+    private record struct IterationData(IEntityHost Host, EntityHandler Handler);
     private record struct IterationData<TData>(
-        IEntityHost Host, TData Data, WorldEntityHandler<TData> Handler);
+        IEntityHost Host, TData Data, EntityHandler<TData> Handler);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void IterateHost(IEntityHost host, WorldEntityHandler handler)
+    private static void IterateHost(IEntityHost host, EntityHandler handler)
     {
         host.IterateAllocated(
             new IterationData(host, handler),
@@ -118,7 +125,7 @@ public sealed class World : IEntityQuery, IEventSender
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void IterateHost<TData>(
-        IEntityHost host, in TData data, WorldEntityHandler<TData> handler)
+        IEntityHost host, in TData data, EntityHandler<TData> handler)
     {
         host.IterateAllocated(
             new IterationData<TData>(host, data, handler),
@@ -137,7 +144,7 @@ public sealed class World : IEntityQuery, IEventSender
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void ForEach(WorldEntityHandler handler)
+    public void ForEach(EntityHandler handler)
     {
         foreach (var host in _hosts.AsValueSpan()) {
             if (host.Count != 0) {
@@ -147,7 +154,7 @@ public sealed class World : IEntityQuery, IEventSender
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void ForEach<TData>(in TData data, WorldEntityHandler<TData> handler)
+    public void ForEach<TData>(in TData data, EntityHandler<TData> handler)
     {
         foreach (var host in _hosts.AsValueSpan()) {
             if (host.Count != 0) {
@@ -157,12 +164,12 @@ public sealed class World : IEntityQuery, IEventSender
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Query<TTypeUnion>(WorldEntityHandler handler)
+    public void Query<TTypeUnion>(EntityHandler handler)
         where TTypeUnion : ITypeUnion, new()
         => Query(Matchers.From<TTypeUnion>(), handler);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Query(IEntityMatcher matcher, WorldEntityHandler handler)
+    public void Query(IEntityMatcher matcher, EntityHandler handler)
     {
         foreach (var host in _hosts.AsValueSpan()) {
             if (host.Count != 0 && matcher.Match(host.Descriptor)) {
@@ -172,7 +179,7 @@ public sealed class World : IEntityQuery, IEventSender
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Query<TData>(IEntityMatcher matcher, in TData data, WorldEntityHandler<TData> handler)
+    public void Query<TData>(IEntityMatcher matcher, in TData data, EntityHandler<TData> handler)
     {
         foreach (var host in _hosts.AsValueSpan()) {
             if (host.Count != 0 && matcher.Match(host.Descriptor)) {
@@ -251,7 +258,7 @@ public sealed class World : IEntityQuery, IEventSender
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool ReleaseHost<THost>([MaybeNullWhen(false)] out IEntityHost host)
+    public bool ReleaseHost<THost>([MaybeNullWhen(false)] out IReactiveEntityHost host)
         where THost : IEntityHost
     {
         if (_hosts.Remove(WorldEntityHostIndexer<THost>.Index, out host)) {
