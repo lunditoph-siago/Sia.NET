@@ -105,17 +105,11 @@ public class Dispatcher<TTarget, TEvent> : IEventSender<TTarget, TEvent>
         return true;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void GuardNotSending()
-    {
-        if (_sending) {
-            throw new InvalidOperationException("Cannot do this operation while the dispatcher is sending event.");
-        }
-    }
-
     public void UnlistenAll<UEvent>()
         where UEvent : TEvent
     {
+        GuardNotSending();
+
         if (_eventListeners.TryGetValue(typeof(UEvent), out var rawListeners)) {
             ((List<Listener<UEvent>>)rawListeners).Clear();
         }
@@ -123,6 +117,8 @@ public class Dispatcher<TTarget, TEvent> : IEventSender<TTarget, TEvent>
 
     public void UnlistenAll(in TTarget target)
     {
+        GuardNotSending();
+
         if (_targetListeners.Remove(target, out var listeners)) {
             _targetListenersPool.Push(listeners);
         }
@@ -130,10 +126,20 @@ public class Dispatcher<TTarget, TEvent> : IEventSender<TTarget, TEvent>
     
     public void Clear()
     {
+        GuardNotSending();
+
         _globalListeners.Clear();
         _eventListeners.Clear();
         _targetListeners.Clear();
         _targetListenersPool.Clear();
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void GuardNotSending()
+    {
+        if (_sending) {
+            throw new InvalidOperationException("Cannot do this operation while the dispatcher is sending event.");
+        }
     }
 
     public void Send<UEvent>(in TTarget target, in UEvent e)
