@@ -191,12 +191,16 @@ public class Scheduler
         _ticking = true;
 
         try {
-            foreach (var task in CollectionsMarshal.AsSpan(_orphanTaskSeq)) {
+            var count = _orphanTaskSeq.Count;
+            for (int i = 0; i != count; ++i) {
+                var task = _orphanTaskSeq[i];
                 if (task.Callback!()) {
                     _tasksToRemove.Add(task);
                 }
             }
-            foreach (var task in CollectionsMarshal.AsSpan(_dependedTaskSeq)) {
+            count = _dependedTaskSeq.Count;
+            for (int i = 0; i != count; ++i) {
+                var task = _dependedTaskSeq[i];
                 if (task.Callback!()) {
                     _tasksToRemove.Add(task);
                 }
