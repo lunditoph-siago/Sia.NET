@@ -86,23 +86,6 @@ public unsafe static class Tests
         Console.WriteLine("\tScale: " + offset + ", Value: " + *((Scale*)(ptr + offset)));
     }
 
-    private static void TestGroup()
-    {
-        Console.WriteLine("== Test Group ==");
-
-        var g = new Group<int> { 1, 2, 3 };
-        Console.WriteLine(g.Contains(1));
-        Console.WriteLine(g.Contains(2));
-        Console.WriteLine(g.Contains(3));
-
-        Console.WriteLine(g.Remove(1));
-        Console.WriteLine(g.Contains(1));
-
-        foreach (ref int v in g.AsSpan()) {
-            Console.WriteLine(v);
-        }
-    }
-
     private static void TestScheduler()
     {
         Console.WriteLine("== Test Scheduler ==");
@@ -204,7 +187,7 @@ public unsafe static class Tests
         var e2Ref = world.GetManagedHeapHost<TestEntity2>().Create();
 
         var query1 = world.Query<TypeUnion<Position>>();
-        var group = new Group();
+        var group = new List<EntityRef>();
         query1.ForEach(group.Add);
 
         Console.WriteLine(group.Contains(e1Ref));
@@ -221,9 +204,11 @@ public unsafe static class Tests
             Matcher = Matchers.From<TypeUnion<Position>>();
         }
 
-        public override void Execute(World world, Scheduler scheduler, in EntityRef entity)
+        public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
-            Console.WriteLine(entity.Get<Position>());
+            query.ForEach(static entity => {
+                Console.WriteLine(entity.Get<Position>());
+            });
         }
     }
 
@@ -235,9 +220,11 @@ public unsafe static class Tests
             Trigger = new EventUnion<Position.Set>();
         }
         
-        public override void Execute(World world, Scheduler scheduler, in EntityRef entity)
+        public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
-            Console.WriteLine("--> Changed: " + entity.Get<Position>());
+            query.ForEach(static entity => {
+                Console.WriteLine("--> Changed: " + entity.Get<Position>());
+            });
         }
     }
 
@@ -361,7 +348,6 @@ public unsafe static class Tests
     public static void Run()
     {
         TestEntityDescriptor();
-        TestGroup();
         TestScheduler();
         TestDispatcher();
         TestTypeUnion();

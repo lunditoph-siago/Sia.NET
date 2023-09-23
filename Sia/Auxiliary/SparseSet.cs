@@ -30,6 +30,9 @@ public sealed class SparseSet<T> : IDictionary<int, T>, IReadOnlyDictionary<int,
     public IEnumerable<int> Keys => _reverse;
     public IEnumerable<T> Values => _dense;
 
+    public List<int> UnsafeRawKeys => _reverse;
+    public List<T> UnsafeRawValues => _dense;
+
     ICollection<int> IDictionary<int, T>.Keys => _reverse.AsReadOnly();
     ICollection<T> IDictionary<int, T>.Values => _dense.AsReadOnly();
 

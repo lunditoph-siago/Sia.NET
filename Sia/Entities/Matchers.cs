@@ -1,7 +1,5 @@
 namespace Sia;
 
-using System.Collections.Immutable;
-
 public static class Matchers
 {
     public static IEntityMatcher Any { get; } = new AnyMatcher();

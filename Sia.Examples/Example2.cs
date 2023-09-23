@@ -29,17 +29,19 @@ public static class Example2
             Matcher = Matchers.From<TypeUnion<HP>>();
         }
 
-        public override void Execute(World world, Scheduler scheduler, in EntityRef entity)
+        public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
-            ref var hp = ref entity.Get<HP>();
+            query.ForEach(static entity => {
+                ref var hp = ref entity.Get<HP>();
 
-            if (hp.Value < hp.Maximum) {
-                hp.Value = Math.Min(hp.Value + hp.AutoRecoverRate, hp.Maximum);
-                Console.WriteLine("血量已自动回复。");
-            }
-            else {
-                Console.WriteLine("血量已满，未自动回复。");
-            }
+                if (hp.Value < hp.Maximum) {
+                    hp.Value = Math.Min(hp.Value + hp.AutoRecoverRate, hp.Maximum);
+                    Console.WriteLine("血量已自动回复。");
+                }
+                else {
+                    Console.WriteLine("血量已满，未自动回复。");
+                }
+            });
         }
     }
 
@@ -51,9 +53,11 @@ public static class Example2
             Trigger = new EventUnion<HP.Damage>();
         }
 
-        public override void Execute(World world, Scheduler scheduler, in EntityRef entity)
+        public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
-            Console.WriteLine($"[{entity.Get<Name>().Value}] 受到攻击！");
+            query.ForEach(static entity => {
+                Console.WriteLine($"[{entity.Get<Name>().Value}] 受到攻击！");
+            });
         }
     }
 

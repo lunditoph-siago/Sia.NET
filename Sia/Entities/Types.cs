@@ -1,6 +1,6 @@
 namespace Sia;
 
-public class Group : Group<EntityRef> {}
+using System.Runtime.CompilerServices;
 
 // Events
 
