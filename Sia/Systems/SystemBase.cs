@@ -1,6 +1,6 @@
 namespace Sia;
 
-public class SystemBase : ISystem
+public abstract class SystemBase : ISystem
 {
     public ISystemUnion? Children { get; init; }
     public ISystemUnion? Dependencies { get; init; }
