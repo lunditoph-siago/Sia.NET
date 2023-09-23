@@ -63,6 +63,7 @@ public class SystemLibrary : IAddon
         HashSet<Type> TriggerTypes) : IEventListener
         where TSystem : ISystem
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool OnEvent<TEvent>(in EntityRef target, in TEvent e)
             where TEvent : IEvent
         {
@@ -84,6 +85,7 @@ public class SystemLibrary : IAddon
         HashSet<Type> TriggerTypes, HashSet<Type> FilterTypes) : IEventListener
         where TSystem : ISystem
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool OnEvent<TEvent>(in EntityRef target, in TEvent e)
             where TEvent : IEvent
         {
@@ -312,42 +314,19 @@ public class SystemLibrary : IAddon
                     disposeFunc = () => dispatcher.Unlisten(listener);
                 }
                 else {
-                    bool hasAddTrigger = triggerTypes.Contains(typeof(WorldEvents.Add));
-
-                    var listener = new TargetFilterableEventListener<TSystem>(
-                        System: system,
-                        World: world,
-                        Scheduler: scheduler,
-                        Group: group,
-                        TriggerTypes: triggerTypes,
-                        FilterTypes: filterTypes);
-
-                    void OnEntityCreated(in EntityRef target)
-                        => dispatcher.Listen(target, listener);
-
-                    var query = world.Query(matcher);
-
-                    query.OnEntityHostAdded += host => {
-                        host.OnEntityCreated += OnEntityCreated;
-                    };
-                    query.OnEntityHostRemoved += host => {
-                        host.OnEntityReleased -= OnEntityCreated;
-                    };
-
-                    disposeFunc = () => {
-                        query.ForEach((in EntityRef entity) => {
-                            dispatcher.Unlisten(entity, listener);
-                        });
-                        foreach (var host in query.Hosts) {
-                            host.OnEntityReleased -= OnEntityCreated;
-                        }
-                        query.Dispose();
-                    };
+                    disposeFunc = RegisterReactiveListener(
+                        dispatcher, triggerTypes, world.Query(matcher),
+                        new TargetFilterableEventListener<TSystem>(
+                            System: system,
+                            World: world,
+                            Scheduler: scheduler,
+                            Group: group,
+                            TriggerTypes: triggerTypes,
+                            FilterTypes: filterTypes));
                 }
             }
             else if (trigger != null) {
                 var triggerTypes = new HashSet<Type>(trigger.ProxyTypes);
-                bool hasRemoveTrigger = triggerTypes.Contains(typeof(WorldEvents.Remove));
 
                 if (matcher == Matchers.Any) {
                     var listener = new MatchAnyEventListener<TSystem>(
@@ -361,36 +340,14 @@ public class SystemLibrary : IAddon
                     disposeFunc = () => dispatcher.Unlisten(listener);
                 }
                 else {
-                    bool hasAddTrigger = triggerTypes.Contains(typeof(WorldEvents.Add));
-
-                    var listener = new TargetEventListener<TSystem>(
-                        System: system,
-                        World: world,
-                        Scheduler: scheduler,
-                        Group: group,
-                        TriggerTypes: triggerTypes);
-
-                    void OnEntityCreated(in EntityRef target)
-                        => dispatcher.Listen(target, listener);
-
-                    var query = world.Query(matcher);
-
-                    query.OnEntityHostAdded += host => {
-                        host.OnEntityCreated += OnEntityCreated;
-                    };
-                    query.OnEntityHostRemoved += host => {
-                        host.OnEntityReleased -= OnEntityCreated;
-                    };
-
-                    disposeFunc = () => {
-                        query.ForEach((in EntityRef entity) => {
-                            dispatcher.Unlisten(entity, listener);
-                        });
-                        foreach (var host in query.Hosts) {
-                            host.OnEntityReleased -= OnEntityCreated;
-                        }
-                        query.Dispose();
-                    };
+                    disposeFunc = RegisterReactiveListener(
+                        dispatcher, triggerTypes, world.Query(matcher),
+                        new TargetEventListener<TSystem>(
+                            System: system,
+                            World: world,
+                            Scheduler: scheduler,
+                            Group: group,
+                            TriggerTypes: triggerTypes));
                 }
             }
             else {
@@ -427,5 +384,47 @@ public class SystemLibrary : IAddon
             });
 
         return handle;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool OnlyHasAddEventTrigger(HashSet<Type> triggerTypes)
+        => triggerTypes.Count == 1 && triggerTypes.Contains(typeof(WorldEvents.Add));
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static Action RegisterReactiveListener<TListener>(
+        WorldDispatcher dispatcher, HashSet<Type> triggerTypes, World.EntityQuery query, TListener listener)
+        where TListener : IEventListener
+    {
+        if (OnlyHasAddEventTrigger(triggerTypes)) {
+            void OnEntityCreated(in EntityRef target)
+                => listener.OnEvent(target, WorldEvents.Add.Instance);
+
+            query.OnEntityHostAdded += host => host.OnEntityCreated += OnEntityCreated;
+            query.OnEntityHostRemoved += host => host.OnEntityReleased -= OnEntityCreated;
+
+            return () => {
+                foreach (var host in query.Hosts) {
+                    host.OnEntityReleased -= OnEntityCreated;
+                }
+                query.Dispose();
+            };
+        }
+        else {
+            void OnEntityCreated(in EntityRef target)
+                => dispatcher.Listen(target, listener);
+
+            query.OnEntityHostAdded += host => host.OnEntityCreated += OnEntityCreated;
+            query.OnEntityHostRemoved += host => host.OnEntityReleased -= OnEntityCreated;
+
+            return () => {
+                query.ForEach((in EntityRef entity) => {
+                    dispatcher.Unlisten(entity, listener);
+                });
+                foreach (var host in query.Hosts) {
+                    host.OnEntityReleased -= OnEntityCreated;
+                }
+                query.Dispose();
+            };
+        }
     }
 }
