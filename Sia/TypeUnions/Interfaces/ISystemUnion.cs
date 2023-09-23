@@ -1,5 +1,5 @@
 namespace Sia;
 
-public interface ISystemUnion : ITypeUnion
+public interface ISystemUnion : IStaticTypeUnion
 {
 }

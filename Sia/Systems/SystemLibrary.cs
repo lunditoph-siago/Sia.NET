@@ -158,7 +158,7 @@ public class SystemLibrary : IAddon
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         void AddDependedSystemTasks(ISystemUnion systemTypes, List<Scheduler.TaskGraphNode> result)
         {
-            foreach (var systemType in systemTypes.ProxyTypes) {
+            foreach (var systemType in systemTypes.Types) {
                 var sysEntry = Acquire(systemType);
                 if (!sysEntry._taskGraphNodes.TryGetValue(scheduler, out var taskNode)) {
                     throw new InvalidSystemDependencyException(
@@ -172,7 +172,7 @@ public class SystemLibrary : IAddon
         SystemHandle[] RegisterChildren(
             ITypeUnion children, Scheduler.TaskGraphNode taskNode)
         {
-            var types = children.ProxyTypes;
+            var types = children.Types;
             int count = types.Length;
             var handles = new SystemHandle[count];
             var childDependedTasks = new[] { taskNode };
@@ -294,8 +294,8 @@ public class SystemLibrary : IAddon
             };
 
             if (trigger != null && filter != null) {
-                var triggerTypes = new HashSet<Type>(trigger.ProxyTypes);
-                var filterTypes = new HashSet<Type>(filter.ProxyTypes);
+                var triggerTypes = new HashSet<Type>(trigger.Types);
+                var filterTypes = new HashSet<Type>(filter.Types);
 
                 foreach (var filterType in filterTypes) {
                     triggerTypes.Remove(filterType);
@@ -326,7 +326,7 @@ public class SystemLibrary : IAddon
                 }
             }
             else if (trigger != null) {
-                var triggerTypes = new HashSet<Type>(trigger.ProxyTypes);
+                var triggerTypes = new HashSet<Type>(trigger.Types);
 
                 if (matcher == Matchers.Any) {
                     var listener = new MatchAnyEventListener<TSystem>(

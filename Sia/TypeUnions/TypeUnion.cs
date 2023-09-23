@@ -1,18 +1,21 @@
 namespace Sia;
 
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 
 internal static class TypeUnionHelper
 {
-    public static ImmutableArray<Type> Sort(params (int, Type)[] types)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ImmutableSortedDictionary<int, Type> CreateDict(params (int, Type)[] types)
     {
-        var dict = new SortedDictionary<int, Type>();
+        var builder = ImmutableSortedDictionary.CreateBuilder<int, Type>();
         foreach (var t in types) {
-            dict.TryAdd(t.Item1, t.Item2);
+            builder.Add(t.Item1, t.Item2);
         }
-        return dict.Values.ToImmutableArray();
+        return builder.ToImmutableSortedDictionary();
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int CalculateHash(ImmutableArray<Type> types)
     {
         if (types.Length == 1) {
@@ -24,19 +27,16 @@ internal static class TypeUnionHelper
         }
         return hashCode.ToHashCode();
     }
-}
 
-public abstract class TypeUnionBase : ITypeUnion
-{
-    public abstract ImmutableArray<Type> ProxyTypes { get; }
-
-    public bool Equals(ITypeUnion? other)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static bool Equals(ITypeUnion lhs, ITypeUnion? rhs)
     {
-        if (this == other) { return true; }
-        if (other == null) { return false; }
+        if (lhs == rhs) { return true; }
+        if (rhs == null) { return false; }
+        if (lhs.GetHashCode() != rhs.GetHashCode()) { return false; }
 
-        var typesA = ProxyTypes;
-        var typesB = other.ProxyTypes;
+        var typesA = lhs.Types;
+        var typesB = rhs.Types;
 
         if (typesA.Length != typesB.Length) { return false; }
 
@@ -51,86 +51,126 @@ public abstract class TypeUnionBase : ITypeUnion
     }
 }
 
-public class TypeUnion<T1> : TypeUnionBase
+public class TypeUnion : ITypeUnion
 {
-    public static ImmutableArray<Type> Types { get; } = new[] { typeof(T1) }.ToImmutableArray();
-    public static int Hash { get; } = typeof(T1).GetHashCode();
+    public ImmutableSortedDictionary<int, Type> IndexTypeDictionary { get; }
+    public ImmutableArray<Type> Types { get; }
 
-    public override ImmutableArray<Type> ProxyTypes => Types;
+    private readonly int _hashCode;
 
-    public override int GetHashCode() => Hash;
+    public TypeUnion(ImmutableSortedDictionary<int, Type> indexTypeDictionary)
+    {
+        IndexTypeDictionary = indexTypeDictionary;
+        Types = indexTypeDictionary.Values.ToImmutableArray();
+        _hashCode = TypeUnionHelper.CalculateHash(Types);
+    }
+
+    public override int GetHashCode() => _hashCode;
+    public bool Equals(ITypeUnion? other) => TypeUnionHelper.Equals(this, other);
+
+    public ITypeUnion Merge(ITypeUnion other)
+        => new TypeUnion(IndexTypeDictionary.AddRange(other.IndexTypeDictionary));
 }
 
-public class TypeUnion<T1, T2> : TypeUnionBase
+public abstract class StaticTypeUnionBase : IStaticTypeUnion
 {
-    public static ImmutableArray<Type> Types { get; } =
-        TypeUnionHelper.Sort(
+    public abstract ImmutableArray<Type> Types { get; }
+    public abstract ImmutableSortedDictionary<int, Type> IndexTypeDictionary { get; }
+
+    public bool Equals(ITypeUnion? other) => TypeUnionHelper.Equals(this, other);
+
+    public ITypeUnion Merge(ITypeUnion other)
+        => new TypeUnion(IndexTypeDictionary.AddRange(other.IndexTypeDictionary));
+}
+
+public class TypeUnion<T1> : StaticTypeUnionBase
+{
+    public static ImmutableSortedDictionary<int, Type> StaticIndexTypeDictionary { get; }
+        = TypeUnionHelper.CreateDict((TypeIndexer<T1>.Index, typeof(T1)));
+
+    public static ImmutableArray<Type> StaticTypes { get; } = StaticIndexTypeDictionary.Values.ToImmutableArray();
+    public static int StaticHash { get; } = typeof(T1).GetHashCode();
+
+    public override ImmutableArray<Type> Types => StaticTypes;
+    public override ImmutableSortedDictionary<int, Type> IndexTypeDictionary => StaticIndexTypeDictionary;
+
+    public override int GetHashCode() => StaticHash;
+}
+
+public class TypeUnion<T1, T2> : StaticTypeUnionBase
+{
+    public static ImmutableSortedDictionary<int, Type> StaticIndexTypeDictionary { get; }
+        = TypeUnionHelper.CreateDict(
             (TypeIndexer<T1>.Index, typeof(T1)),
             (TypeIndexer<T2>.Index, typeof(T2)));
 
-    public static int Hash { get; } =
-        TypeUnionHelper.CalculateHash(Types);
+    public static ImmutableArray<Type> StaticTypes { get; } = StaticIndexTypeDictionary.Values.ToImmutableArray();
+    public static int StaticHash { get; } = TypeUnionHelper.CalculateHash(StaticTypes);
 
-    public override ImmutableArray<Type> ProxyTypes => Types;
+    public override ImmutableArray<Type> Types => StaticTypes;
+    public override ImmutableSortedDictionary<int, Type> IndexTypeDictionary => StaticIndexTypeDictionary;
 
-    public override int GetHashCode() => Hash;
+    public override int GetHashCode() => StaticHash;
 }
 
-public class TypeUnion<T1, T2, T3> : TypeUnionBase
+public class TypeUnion<T1, T2, T3> : StaticTypeUnionBase
 {
-    public static ImmutableArray<Type> Types { get; } =
-        TypeUnionHelper.Sort(
+    public static ImmutableSortedDictionary<int, Type> StaticIndexTypeDictionary { get; }
+        = TypeUnionHelper.CreateDict(
             (TypeIndexer<T1>.Index, typeof(T1)),
             (TypeIndexer<T2>.Index, typeof(T2)),
             (TypeIndexer<T3>.Index, typeof(T3)));
 
-    public static int Hash { get; } =
-        TypeUnionHelper.CalculateHash(Types);
+    public static ImmutableArray<Type> StaticTypes { get; } = StaticIndexTypeDictionary.Values.ToImmutableArray();
+    public static int StaticHash { get; } = TypeUnionHelper.CalculateHash(StaticTypes);
 
-    public override ImmutableArray<Type> ProxyTypes => Types;
+    public override ImmutableArray<Type> Types => StaticTypes;
+    public override ImmutableSortedDictionary<int, Type> IndexTypeDictionary => StaticIndexTypeDictionary;
 
-    public override int GetHashCode() => Hash;
+    public override int GetHashCode() => StaticHash;
 }
 
-public class TypeUnion<T1, T2, T3, T4> : TypeUnionBase
+public class TypeUnion<T1, T2, T3, T4> : StaticTypeUnionBase
 {
-    public static ImmutableArray<Type> Types { get; } =
-        TypeUnionHelper.Sort(
+    public static ImmutableSortedDictionary<int, Type> StaticIndexTypeDictionary { get; }
+        = TypeUnionHelper.CreateDict(
             (TypeIndexer<T1>.Index, typeof(T1)),
             (TypeIndexer<T2>.Index, typeof(T2)),
             (TypeIndexer<T3>.Index, typeof(T3)),
             (TypeIndexer<T4>.Index, typeof(T4)));
 
-    public static int Hash { get; } =
-        TypeUnionHelper.CalculateHash(Types);
+    public static ImmutableArray<Type> StaticTypes { get; } = StaticIndexTypeDictionary.Values.ToImmutableArray();
+    public static int StaticHash { get; } = TypeUnionHelper.CalculateHash(StaticTypes);
 
-    public override ImmutableArray<Type> ProxyTypes => Types;
+    public override ImmutableArray<Type> Types => StaticTypes;
+    public override ImmutableSortedDictionary<int, Type> IndexTypeDictionary => StaticIndexTypeDictionary;
 
-    public override int GetHashCode() => Hash;
+    public override int GetHashCode() => StaticHash;
 }
 
-public class TypeUnion<T1, T2, T3, T4, T5> : TypeUnionBase
+public class TypeUnion<T1, T2, T3, T4, T5> : StaticTypeUnionBase
 {
-    public static ImmutableArray<Type> Types { get; } =
-        TypeUnionHelper.Sort(
+    public static ImmutableSortedDictionary<int, Type> StaticIndexTypeDictionary { get; }
+        = TypeUnionHelper.CreateDict(
             (TypeIndexer<T1>.Index, typeof(T1)),
             (TypeIndexer<T2>.Index, typeof(T2)),
             (TypeIndexer<T3>.Index, typeof(T3)),
             (TypeIndexer<T4>.Index, typeof(T4)),
             (TypeIndexer<T5>.Index, typeof(T5)));
 
-    public static int Hash { get; } =
-        TypeUnionHelper.CalculateHash(Types);
+    public static ImmutableArray<Type> StaticTypes { get; } = StaticIndexTypeDictionary.Values.ToImmutableArray();
+    public static int StaticHash { get; } = TypeUnionHelper.CalculateHash(StaticTypes);
 
-    public override ImmutableArray<Type> ProxyTypes => Types;
+    public override ImmutableArray<Type> Types => StaticTypes;
+    public override ImmutableSortedDictionary<int, Type> IndexTypeDictionary => StaticIndexTypeDictionary;
 
-    public override int GetHashCode() => Hash;
+    public override int GetHashCode() => StaticHash;
 }
 
-public class TypeUnion<T1, T2, T3, T4, T5, T6> : TypeUnionBase
+public class TypeUnion<T1, T2, T3, T4, T5, T6> : StaticTypeUnionBase
 {
-    public static ImmutableArray<Type> Types { get; } =
-        TypeUnionHelper.Sort(
+    public static ImmutableSortedDictionary<int, Type> StaticIndexTypeDictionary { get; }
+        = TypeUnionHelper.CreateDict(
             (TypeIndexer<T1>.Index, typeof(T1)),
             (TypeIndexer<T2>.Index, typeof(T2)),
             (TypeIndexer<T3>.Index, typeof(T3)),
@@ -138,18 +178,19 @@ public class TypeUnion<T1, T2, T3, T4, T5, T6> : TypeUnionBase
             (TypeIndexer<T5>.Index, typeof(T5)),
             (TypeIndexer<T6>.Index, typeof(T6)));
 
-    public static int Hash { get; } =
-        TypeUnionHelper.CalculateHash(Types);
+    public static ImmutableArray<Type> StaticTypes { get; } = StaticIndexTypeDictionary.Values.ToImmutableArray();
+    public static int StaticHash { get; } = TypeUnionHelper.CalculateHash(StaticTypes);
 
-    public override ImmutableArray<Type> ProxyTypes => Types;
+    public override ImmutableArray<Type> Types => StaticTypes;
+    public override ImmutableSortedDictionary<int, Type> IndexTypeDictionary => StaticIndexTypeDictionary;
 
-    public override int GetHashCode() => Hash;
+    public override int GetHashCode() => StaticHash;
 }
 
-public class TypeUnion<T1, T2, T3, T4, T5, T6, T7> : TypeUnionBase
+public class TypeUnion<T1, T2, T3, T4, T5, T6, T7> : StaticTypeUnionBase
 {
-    public static ImmutableArray<Type> Types { get; } =
-        TypeUnionHelper.Sort(
+    public static ImmutableSortedDictionary<int, Type> StaticIndexTypeDictionary { get; }
+        = TypeUnionHelper.CreateDict(
             (TypeIndexer<T1>.Index, typeof(T1)),
             (TypeIndexer<T2>.Index, typeof(T2)),
             (TypeIndexer<T3>.Index, typeof(T3)),
@@ -158,18 +199,19 @@ public class TypeUnion<T1, T2, T3, T4, T5, T6, T7> : TypeUnionBase
             (TypeIndexer<T6>.Index, typeof(T6)),
             (TypeIndexer<T7>.Index, typeof(T7)));
 
-    public static int Hash { get; } =
-        TypeUnionHelper.CalculateHash(Types);
+    public static ImmutableArray<Type> StaticTypes { get; } = StaticIndexTypeDictionary.Values.ToImmutableArray();
+    public static int StaticHash { get; } = TypeUnionHelper.CalculateHash(StaticTypes);
 
-    public override ImmutableArray<Type> ProxyTypes => Types;
+    public override ImmutableArray<Type> Types => StaticTypes;
+    public override ImmutableSortedDictionary<int, Type> IndexTypeDictionary => StaticIndexTypeDictionary;
 
-    public override int GetHashCode() => Hash;
+    public override int GetHashCode() => StaticHash;
 }
 
-public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8> : TypeUnionBase
+public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8> : StaticTypeUnionBase
 {
-    public static ImmutableArray<Type> Types { get; } =
-        TypeUnionHelper.Sort(
+    public static ImmutableSortedDictionary<int, Type> StaticIndexTypeDictionary { get; }
+        = TypeUnionHelper.CreateDict(
             (TypeIndexer<T1>.Index, typeof(T1)),
             (TypeIndexer<T2>.Index, typeof(T2)),
             (TypeIndexer<T3>.Index, typeof(T3)),
@@ -179,18 +221,19 @@ public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8> : TypeUnionBase
             (TypeIndexer<T7>.Index, typeof(T7)),
             (TypeIndexer<T8>.Index, typeof(T8)));
 
-    public static int Hash { get; } =
-        TypeUnionHelper.CalculateHash(Types);
+    public static ImmutableArray<Type> StaticTypes { get; } = StaticIndexTypeDictionary.Values.ToImmutableArray();
+    public static int StaticHash { get; } = TypeUnionHelper.CalculateHash(StaticTypes);
 
-    public override ImmutableArray<Type> ProxyTypes => Types;
+    public override ImmutableArray<Type> Types => StaticTypes;
+    public override ImmutableSortedDictionary<int, Type> IndexTypeDictionary => StaticIndexTypeDictionary;
 
-    public override int GetHashCode() => Hash;
+    public override int GetHashCode() => StaticHash;
 }
 
-public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9> : TypeUnionBase
+public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9> : StaticTypeUnionBase
 {
-    public static ImmutableArray<Type> Types { get; } =
-        TypeUnionHelper.Sort(
+    public static ImmutableSortedDictionary<int, Type> StaticIndexTypeDictionary { get; }
+        = TypeUnionHelper.CreateDict(
             (TypeIndexer<T1>.Index, typeof(T1)),
             (TypeIndexer<T2>.Index, typeof(T2)),
             (TypeIndexer<T3>.Index, typeof(T3)),
@@ -201,18 +244,19 @@ public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9> : TypeUnionBase
             (TypeIndexer<T8>.Index, typeof(T8)),
             (TypeIndexer<T9>.Index, typeof(T9)));
 
-    public static int Hash { get; } =
-        TypeUnionHelper.CalculateHash(Types);
+    public static ImmutableArray<Type> StaticTypes { get; } = StaticIndexTypeDictionary.Values.ToImmutableArray();
+    public static int StaticHash { get; } = TypeUnionHelper.CalculateHash(StaticTypes);
 
-    public override ImmutableArray<Type> ProxyTypes => Types;
+    public override ImmutableArray<Type> Types => StaticTypes;
+    public override ImmutableSortedDictionary<int, Type> IndexTypeDictionary => StaticIndexTypeDictionary;
 
-    public override int GetHashCode() => Hash;
+    public override int GetHashCode() => StaticHash;
 }
 
-public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10> : TypeUnionBase
+public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10> : StaticTypeUnionBase
 {
-    public static ImmutableArray<Type> Types { get; } =
-        TypeUnionHelper.Sort(
+    public static ImmutableSortedDictionary<int, Type> StaticIndexTypeDictionary { get; }
+        = TypeUnionHelper.CreateDict(
             (TypeIndexer<T1>.Index, typeof(T1)),
             (TypeIndexer<T2>.Index, typeof(T2)),
             (TypeIndexer<T3>.Index, typeof(T3)),
@@ -224,18 +268,19 @@ public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10> : TypeUnionBase
             (TypeIndexer<T9>.Index, typeof(T9)),
             (TypeIndexer<T10>.Index, typeof(T10)));
 
-    public static int Hash { get; } =
-        TypeUnionHelper.CalculateHash(Types);
+    public static ImmutableArray<Type> StaticTypes { get; } = StaticIndexTypeDictionary.Values.ToImmutableArray();
+    public static int StaticHash { get; } = TypeUnionHelper.CalculateHash(StaticTypes);
 
-    public override ImmutableArray<Type> ProxyTypes => Types;
+    public override ImmutableArray<Type> Types => StaticTypes;
+    public override ImmutableSortedDictionary<int, Type> IndexTypeDictionary => StaticIndexTypeDictionary;
 
-    public override int GetHashCode() => Hash;
+    public override int GetHashCode() => StaticHash;
 }
 
-public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11> : TypeUnionBase
+public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11> : StaticTypeUnionBase
 {
-    public static ImmutableArray<Type> Types { get; } =
-        TypeUnionHelper.Sort(
+    public static ImmutableSortedDictionary<int, Type> StaticIndexTypeDictionary { get; }
+        = TypeUnionHelper.CreateDict(
             (TypeIndexer<T1>.Index, typeof(T1)),
             (TypeIndexer<T2>.Index, typeof(T2)),
             (TypeIndexer<T3>.Index, typeof(T3)),
@@ -248,18 +293,19 @@ public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11> : TypeUnion
             (TypeIndexer<T10>.Index, typeof(T10)),
             (TypeIndexer<T11>.Index, typeof(T11)));
 
-    public static int Hash { get; } =
-        TypeUnionHelper.CalculateHash(Types);
+    public static ImmutableArray<Type> StaticTypes { get; } = StaticIndexTypeDictionary.Values.ToImmutableArray();
+    public static int StaticHash { get; } = TypeUnionHelper.CalculateHash(StaticTypes);
 
-    public override ImmutableArray<Type> ProxyTypes => Types;
+    public override ImmutableArray<Type> Types => StaticTypes;
+    public override ImmutableSortedDictionary<int, Type> IndexTypeDictionary => StaticIndexTypeDictionary;
 
-    public override int GetHashCode() => Hash;
+    public override int GetHashCode() => StaticHash;
 }
 
-public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12> : TypeUnionBase
+public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12> : StaticTypeUnionBase
 {
-    public static ImmutableArray<Type> Types { get; } =
-        TypeUnionHelper.Sort(
+    public static ImmutableSortedDictionary<int, Type> StaticIndexTypeDictionary { get; }
+        = TypeUnionHelper.CreateDict(
             (TypeIndexer<T1>.Index, typeof(T1)),
             (TypeIndexer<T2>.Index, typeof(T2)),
             (TypeIndexer<T3>.Index, typeof(T3)),
@@ -273,18 +319,19 @@ public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12> : Type
             (TypeIndexer<T11>.Index, typeof(T11)),
             (TypeIndexer<T12>.Index, typeof(T12)));
 
-    public static int Hash { get; } =
-        TypeUnionHelper.CalculateHash(Types);
+    public static ImmutableArray<Type> StaticTypes { get; } = StaticIndexTypeDictionary.Values.ToImmutableArray();
+    public static int StaticHash { get; } = TypeUnionHelper.CalculateHash(StaticTypes);
 
-    public override ImmutableArray<Type> ProxyTypes => Types;
+    public override ImmutableArray<Type> Types => StaticTypes;
+    public override ImmutableSortedDictionary<int, Type> IndexTypeDictionary => StaticIndexTypeDictionary;
 
-    public override int GetHashCode() => Hash;
+    public override int GetHashCode() => StaticHash;
 }
 
-public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13> : TypeUnionBase
+public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13> : StaticTypeUnionBase
 {
-    public static ImmutableArray<Type> Types { get; } =
-        TypeUnionHelper.Sort(
+    public static ImmutableSortedDictionary<int, Type> StaticIndexTypeDictionary { get; }
+        = TypeUnionHelper.CreateDict(
             (TypeIndexer<T1>.Index, typeof(T1)),
             (TypeIndexer<T2>.Index, typeof(T2)),
             (TypeIndexer<T3>.Index, typeof(T3)),
@@ -299,18 +346,19 @@ public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13> :
             (TypeIndexer<T12>.Index, typeof(T12)),
             (TypeIndexer<T13>.Index, typeof(T13)));
 
-    public static int Hash { get; } =
-        TypeUnionHelper.CalculateHash(Types);
+    public static ImmutableArray<Type> StaticTypes { get; } = StaticIndexTypeDictionary.Values.ToImmutableArray();
+    public static int StaticHash { get; } = TypeUnionHelper.CalculateHash(StaticTypes);
 
-    public override ImmutableArray<Type> ProxyTypes => Types;
+    public override ImmutableArray<Type> Types => StaticTypes;
+    public override ImmutableSortedDictionary<int, Type> IndexTypeDictionary => StaticIndexTypeDictionary;
 
-    public override int GetHashCode() => Hash;
+    public override int GetHashCode() => StaticHash;
 }
 
-public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14> : TypeUnionBase
+public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14> : StaticTypeUnionBase
 {
-    public static ImmutableArray<Type> Types { get; } =
-        TypeUnionHelper.Sort(
+    public static ImmutableSortedDictionary<int, Type> StaticIndexTypeDictionary { get; }
+        = TypeUnionHelper.CreateDict(
             (TypeIndexer<T1>.Index, typeof(T1)),
             (TypeIndexer<T2>.Index, typeof(T2)),
             (TypeIndexer<T3>.Index, typeof(T3)),
@@ -326,18 +374,19 @@ public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T
             (TypeIndexer<T13>.Index, typeof(T13)),
             (TypeIndexer<T14>.Index, typeof(T14)));
 
-    public static int Hash { get; } =
-        TypeUnionHelper.CalculateHash(Types);
+    public static ImmutableArray<Type> StaticTypes { get; } = StaticIndexTypeDictionary.Values.ToImmutableArray();
+    public static int StaticHash { get; } = TypeUnionHelper.CalculateHash(StaticTypes);
 
-    public override ImmutableArray<Type> ProxyTypes => Types;
+    public override ImmutableArray<Type> Types => StaticTypes;
+    public override ImmutableSortedDictionary<int, Type> IndexTypeDictionary => StaticIndexTypeDictionary;
 
-    public override int GetHashCode() => Hash;
+    public override int GetHashCode() => StaticHash;
 }
 
-public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15> : TypeUnionBase
+public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15> : StaticTypeUnionBase
 {
-    public static ImmutableArray<Type> Types { get; } =
-        TypeUnionHelper.Sort(
+    public static ImmutableSortedDictionary<int, Type> StaticIndexTypeDictionary { get; }
+        = TypeUnionHelper.CreateDict(
             (TypeIndexer<T1>.Index, typeof(T1)),
             (TypeIndexer<T2>.Index, typeof(T2)),
             (TypeIndexer<T3>.Index, typeof(T3)),
@@ -354,18 +403,19 @@ public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T
             (TypeIndexer<T14>.Index, typeof(T14)),
             (TypeIndexer<T15>.Index, typeof(T15)));
 
-    public static int Hash { get; } =
-        TypeUnionHelper.CalculateHash(Types);
+    public static ImmutableArray<Type> StaticTypes { get; } = StaticIndexTypeDictionary.Values.ToImmutableArray();
+    public static int StaticHash { get; } = TypeUnionHelper.CalculateHash(StaticTypes);
 
-    public override ImmutableArray<Type> ProxyTypes => Types;
+    public override ImmutableArray<Type> Types => StaticTypes;
+    public override ImmutableSortedDictionary<int, Type> IndexTypeDictionary => StaticIndexTypeDictionary;
 
-    public override int GetHashCode() => Hash;
+    public override int GetHashCode() => StaticHash;
 }
 
-public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16> : TypeUnionBase
+public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16> : StaticTypeUnionBase
 {
-    public static ImmutableArray<Type> Types { get; } =
-        TypeUnionHelper.Sort(
+    public static ImmutableSortedDictionary<int, Type> StaticIndexTypeDictionary { get; }
+        = TypeUnionHelper.CreateDict(
             (TypeIndexer<T1>.Index, typeof(T1)),
             (TypeIndexer<T2>.Index, typeof(T2)),
             (TypeIndexer<T3>.Index, typeof(T3)),
@@ -383,10 +433,11 @@ public class TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T
             (TypeIndexer<T15>.Index, typeof(T15)),
             (TypeIndexer<T16>.Index, typeof(T16)));
 
-    public static int Hash { get; } =
-        TypeUnionHelper.CalculateHash(Types);
+    public static ImmutableArray<Type> StaticTypes { get; } = StaticIndexTypeDictionary.Values.ToImmutableArray();
+    public static int StaticHash { get; } = TypeUnionHelper.CalculateHash(StaticTypes);
 
-    public override ImmutableArray<Type> ProxyTypes => Types;
+    public override ImmutableArray<Type> Types => StaticTypes;
+    public override ImmutableSortedDictionary<int, Type> IndexTypeDictionary => StaticIndexTypeDictionary;
 
-    public override int GetHashCode() => Hash;
+    public override int GetHashCode() => StaticHash;
 }
