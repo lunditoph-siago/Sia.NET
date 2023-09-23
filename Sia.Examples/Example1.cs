@@ -46,14 +46,16 @@ public static partial class Example1
             Matcher = Matchers.From<TypeUnion<Health>>();
         }
 
-        public override void Execute(World world, Scheduler scheduler, in EntityRef entity)
+        public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
-            ref var health = ref entity.Get<Health>();
-            if (health.Debuff != 0) {
-                var game = world.GetAddon<Game>();
-                world.Modify(entity, new Health.Damage(health.Debuff * game.DeltaTime));
-                Console.WriteLine($"Damage: HP {entity.Get<Health>().Value}");
-            }
+            query.ForEach(world, static (world, entity) => {
+                ref var health = ref entity.Get<Health>();
+                if (health.Debuff != 0) {
+                    var game = world.GetAddon<Game>();
+                    world.Modify(entity, new Health.Damage(health.Debuff * game.DeltaTime));
+                    Console.WriteLine($"Damage: HP {entity.Get<Health>().Value}");
+                }
+            });
         }
     }
 
@@ -65,12 +67,14 @@ public static partial class Example1
             Dependencies = new SystemUnion<HealthUpdateSystem>();
         }
 
-        public override void Execute(World world, Scheduler scheduler, in EntityRef entity)
+        public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
-            if (entity.Get<Health>().Value <= 0) {
-                entity.Dispose();
-                Console.WriteLine("Dead!");
-            }
+            query.ForEach(static entity => {
+                if (entity.Get<Health>().Value <= 0) {
+                    entity.Dispose();
+                    Console.WriteLine("Dead!");
+                }
+            });
         }
     }
 
@@ -92,17 +96,19 @@ public static partial class Example1
             Trigger = new EventUnion<WorldEvents.Add, Transform.SetPosition>();
         }
 
-        public override void Execute(World world, Scheduler scheduler, in EntityRef entity)
+        public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
-            var pos = entity.Get<Transform>().Position;
-            if (pos.X == 1 && pos.Y == 1) {
-                world.Modify(entity, new Health.Damage(10));
-                Console.WriteLine($"Damage: HP {entity.Get<Health>().Value}");
-            }
-            if (pos.X == 1 && pos.Y == 2) {
-                world.Modify(entity, new Health.SetDebuff(100));
-                Console.WriteLine("Debuff!");
-            }
+            query.ForEach(world, static (world, entity) => {
+                var pos = entity.Get<Transform>().Position;
+                if (pos.X == 1 && pos.Y == 1) {
+                    world.Modify(entity, new Health.Damage(10));
+                    Console.WriteLine($"Damage: HP {entity.Get<Health>().Value}");
+                }
+                if (pos.X == 1 && pos.Y == 2) {
+                    world.Modify(entity, new Health.SetDebuff(100));
+                    Console.WriteLine("Debuff!");
+                }
+            });
         }
     }
 

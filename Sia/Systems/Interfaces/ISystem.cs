@@ -11,9 +11,7 @@ public interface ISystem
     void Initialize(World world, Scheduler scheduler);
     void Uninitialize(World world, Scheduler scheduler);
 
-    void BeforeExecute(World world, Scheduler scheduler);
-    void AfterExecute(World world, Scheduler scheduler);
-    void Execute(World world, Scheduler scheduler, in EntityRef entity);
+    void Execute(World world, Scheduler scheduler, IEntityQuery query);
 
     bool OnTriggerEvent<TEvent>(World world, Scheduler scheduler, in EntityRef entity, in TEvent e)
         where TEvent : IEvent;

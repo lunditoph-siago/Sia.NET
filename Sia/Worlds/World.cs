@@ -64,7 +64,27 @@ public sealed class World : IEntityQuery, IEventSender
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void ForEach(SimpleEntityHandler handler)
+        {
+            foreach (var host in _hosts) {
+                if (host.Count != 0) {
+                    IterateHost(host, handler);
+                }
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void ForEach<TData>(in TData data, EntityHandler<TData> handler)
+        {
+            foreach (var host in _hosts) {
+                if (host.Count != 0) {
+                    IterateHost(host, data, handler);
+                }
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void ForEach<TData>(in TData data, SimpleEntityHandler<TData> handler)
         {
             foreach (var host in _hosts) {
                 if (host.Count != 0) {
@@ -111,8 +131,11 @@ public sealed class World : IEntityQuery, IEventSender
     private readonly SparseSet<IAddon> _addons = new(256, 256);
 
     private record struct IterationData(IEntityHost Host, EntityHandler Handler);
+    private record struct SimpleIterationData(IEntityHost Host, SimpleEntityHandler Handler);
     private record struct IterationData<TData>(
         IEntityHost Host, TData Data, EntityHandler<TData> Handler);
+    private record struct SimpleIterationData<TData>(
+        IEntityHost Host, TData Data, SimpleEntityHandler<TData> Handler);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void IterateHost(IEntityHost host, EntityHandler handler)
@@ -124,12 +147,31 @@ public sealed class World : IEntityQuery, IEventSender
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void IterateHost(IEntityHost host, SimpleEntityHandler handler)
+    {
+        host.IterateAllocated(
+            new SimpleIterationData(host, handler),
+            static (in SimpleIterationData data, long pointer) =>
+                data.Handler(new(pointer, data.Host)));
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void IterateHost<TData>(
         IEntityHost host, in TData data, EntityHandler<TData> handler)
     {
         host.IterateAllocated(
             new IterationData<TData>(host, data, handler),
             static (in IterationData<TData> data, long pointer) =>
+                data.Handler(data.Data, new(pointer, data.Host)));
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void IterateHost<TData>(
+        IEntityHost host, in TData data, SimpleEntityHandler<TData> handler)
+    {
+        host.IterateAllocated(
+            new SimpleIterationData<TData>(host, data, handler),
+            static (in SimpleIterationData<TData> data, long pointer) =>
                 data.Handler(data.Data, new(pointer, data.Host)));
     }
 
@@ -146,7 +188,21 @@ public sealed class World : IEntityQuery, IEventSender
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void ForEach(EntityHandler handler)
     {
-        foreach (var host in _hosts.AsValueSpan()) {
+        var hosts = _hosts.UnsafeRawValues;
+        for (int i = 0; i != hosts.Count; ++i) {
+            var host = hosts[i];
+            if (host.Count != 0) {
+                IterateHost(host, handler);
+            }
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void ForEach(SimpleEntityHandler handler)
+    {
+        var hosts = _hosts.UnsafeRawValues;
+        for (int i = 0; i != hosts.Count; ++i) {
+            var host = hosts[i];
             if (host.Count != 0) {
                 IterateHost(host, handler);
             }
@@ -156,7 +212,21 @@ public sealed class World : IEntityQuery, IEventSender
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void ForEach<TData>(in TData data, EntityHandler<TData> handler)
     {
-        foreach (var host in _hosts.AsValueSpan()) {
+        var hosts = _hosts.UnsafeRawValues;
+        for (int i = 0; i != hosts.Count; ++i) {
+            var host = hosts[i];
+            if (host.Count != 0) {
+                IterateHost(host, data, handler);
+            }
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void ForEach<TData>(in TData data, SimpleEntityHandler<TData> handler)
+    {
+        var hosts = _hosts.UnsafeRawValues;
+        for (int i = 0; i != hosts.Count; ++i) {
+            var host = hosts[i];
             if (host.Count != 0) {
                 IterateHost(host, data, handler);
             }
@@ -181,7 +251,9 @@ public sealed class World : IEntityQuery, IEventSender
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Query<TData>(IEntityMatcher matcher, in TData data, EntityHandler<TData> handler)
     {
-        foreach (var host in _hosts.AsValueSpan()) {
+        var hosts = _hosts.UnsafeRawValues;
+        for (int i = 0; i != hosts.Count; ++i) {
+            var host = hosts[i];
             if (host.Count != 0 && matcher.Match(host.Descriptor)) {
                 IterateHost(host, data, handler);
             }

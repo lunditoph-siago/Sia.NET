@@ -1,7 +1,8 @@
 namespace Sia;
 
-using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
+using System.Collections.Concurrent;
+using CommunityToolkit.HighPerformance.Buffers;
 
 public class SystemLibrary : IAddon
 {
@@ -11,8 +12,105 @@ public class SystemLibrary : IAddon
         internal Dictionary<Scheduler, Scheduler.TaskGraphNode> _taskGraphNodes = new();
     }
 
+    private class Collector : IEntityQuery
+    {
+        public int Count => _collectingSet.Count;
+        public bool IsExecuting { get; private set; }
+
+        private Dictionary<EntityRef, int> _collectingSet = new();
+        private Dictionary<EntityRef, int> _collectedSet = new();
+
+        private MemoryOwner<EntityRef?> _mem = MemoryOwner<EntityRef?>.Allocate(6);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void BeginExecution()
+        {
+            IsExecuting = true;
+            (_collectedSet, _collectingSet) = (_collectingSet, _collectedSet);
+
+            var count = _collectedSet.Count;
+            var memLenght = _mem.Length;
+            if (memLenght < count) {
+                do {
+                    memLenght *= 2;
+                } while (memLenght < count);
+
+                _mem.Dispose();
+                _mem = MemoryOwner<EntityRef?>.Allocate(memLenght);
+            }
+
+            var span = _mem.Span;
+            foreach (var (entity, index) in _collectedSet) {
+                span[index] = entity;
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void EndExecution()
+        {
+            _collectedSet.Clear();
+            IsExecuting = false;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Add(in EntityRef entity)
+            => _collectingSet.Add(entity, _collectingSet.Count);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool Remove(in EntityRef entity)
+        {
+            if (!IsExecuting) {
+                return _collectingSet.Remove(entity);
+            }
+            if (_collectedSet.Remove(entity, out int index)) {
+                _mem.Span[index] = null;
+            }
+            return true;
+        }
+
+        public void ForEach(EntityHandler handler)
+        {
+            foreach (ref var entity in _mem.Span[0.._collectedSet.Count]) {
+                if (entity.HasValue) {
+                    handler(entity.Value);
+                }
+            }
+        }
+
+        public void ForEach(SimpleEntityHandler handler)
+        {
+            foreach (ref var entity in _mem.Span) {
+                if (entity.HasValue) {
+                    handler(entity.Value);
+                }
+            }
+        }
+
+        public void ForEach<TData>(in TData data, EntityHandler<TData> handler)
+        {
+            foreach (ref var entity in _mem.Span) {
+                if (entity.HasValue) {
+                    handler(data, entity.Value);
+                }
+            }
+        }
+
+        public void ForEach<TData>(in TData data, SimpleEntityHandler<TData> handler)
+        {
+            foreach (ref var entity in _mem.Span) {
+                if (entity.HasValue) {
+                    handler(data, entity.Value);
+                }
+            }
+        }
+
+        public void Dispose()
+        {
+        }
+    }
+
     private record MatchAnyEventListener<TSystem>(
-        TSystem System, World World, Scheduler Scheduler, Group Group,
+        TSystem System, World World, Scheduler Scheduler, Collector Collector,
         HashSet<Type> TriggerTypes) : IEventListener
         where TSystem : ISystem
     {
@@ -21,11 +119,11 @@ public class SystemLibrary : IAddon
         {
             var type = typeof(TEvent);
             if (type == typeof(WorldEvents.Remove)) {
-                Group.Remove(target);
+                Collector.Remove(target);
             }
             else if (TriggerTypes.Contains(e.GetType())) {
                 if (System.OnTriggerEvent(World, Scheduler, target, e)) {
-                    Group.Add(target);
+                    Collector.Add(target);
                 }
             }
             return false;
@@ -33,7 +131,7 @@ public class SystemLibrary : IAddon
     }
 
     private record MatchAnyFilterableEventListener<TSystem>(
-        TSystem System, World World, Scheduler Scheduler, Group<EntityRef> Group,
+        TSystem System, World World, Scheduler Scheduler, Collector Collector,
         HashSet<Type> TriggerTypes, HashSet<Type> FilterTypes) : IEventListener
         where TSystem : ISystem
     {
@@ -42,16 +140,16 @@ public class SystemLibrary : IAddon
         {
             var type = typeof(TEvent);
             if (type == typeof(WorldEvents.Remove)) {
-                Group.Remove(target);
+                Collector.Remove(target);
             }
             else if (TriggerTypes.Contains(type)) {
                 if (System.OnTriggerEvent(World, Scheduler, target, e)) {
-                    Group.Add(target);
+                    Collector.Add(target);
                 }
             }
             else if (FilterTypes.Contains(type)) {
                 if (System.OnFilterEvent(World, Scheduler, target, e)) {
-                    Group.Remove(target);
+                    Collector.Remove(target);
                 }
             }
             return false;
@@ -59,7 +157,7 @@ public class SystemLibrary : IAddon
     }
 
     private record TargetEventListener<TSystem>(
-        TSystem System, World World, Scheduler Scheduler, Group<EntityRef> Group,
+        TSystem System, World World, Scheduler Scheduler, Collector Collector,
         HashSet<Type> TriggerTypes) : IEventListener
         where TSystem : ISystem
     {
@@ -69,11 +167,11 @@ public class SystemLibrary : IAddon
         {
             var type = typeof(TEvent);
             if (type == typeof(WorldEvents.Remove)) {
-                Group.Remove(target);
+                Collector.Remove(target);
             }
             else if (TriggerTypes.Contains(e.GetType())) {
                 if (System.OnTriggerEvent(World, Scheduler, target, e)) {
-                    Group.Add(target);
+                    Collector.Add(target);
                 }
             }
             return false;
@@ -81,7 +179,7 @@ public class SystemLibrary : IAddon
     }
 
     private record TargetFilterableEventListener<TSystem>(
-        TSystem System, World World, Scheduler Scheduler, Group Group,
+        TSystem System, World World, Scheduler Scheduler, Collector Collector,
         HashSet<Type> TriggerTypes, HashSet<Type> FilterTypes) : IEventListener
         where TSystem : ISystem
     {
@@ -91,16 +189,16 @@ public class SystemLibrary : IAddon
         {
             var type = typeof(TEvent);
             if (type == typeof(WorldEvents.Remove)) {
-                Group.Remove(target);
+                Collector.Remove(target);
             }
             else if (TriggerTypes.Contains(type)) {
                 if (System.OnTriggerEvent(World, Scheduler, target, e)) {
-                    Group.Add(target);
+                    Collector.Add(target);
                 }
             }
             else if (FilterTypes.Contains(type)) {
                 if (System.OnFilterEvent(World, Scheduler, target, e)) {
-                    Group.Remove(target);
+                    Collector.Remove(target);
                 }
             }
             return false;
@@ -253,14 +351,9 @@ public class SystemLibrary : IAddon
         var dispatcher = world.Dispatcher;
 
         if (trigger == null && filter == null) {
-            void EntityHandler(in EntityRef entity)
-                => system.Execute(world, scheduler, entity);
-
             if (matcher == Matchers.Any) {
                 taskFunc = () => {
-                    system.BeforeExecute(world, scheduler);
-                    world.ForEach(EntityHandler);
-                    system.AfterExecute(world, scheduler);
+                    system.Execute(world, scheduler, world);
                     return false;
                 };
                 disposeFunc = () => {};
@@ -268,28 +361,23 @@ public class SystemLibrary : IAddon
             else {
                 var query = world.Query(matcher);
                 taskFunc = () => {
-                    system.BeforeExecute(world, scheduler);
-                    query.ForEach(EntityHandler);
-                    system.AfterExecute(world, scheduler);
+                    system.Execute(world, scheduler, query);
                     return false;
                 };
                 disposeFunc = query.Dispose;
             }
         }
         else {
-            var group = new Group();
+            var collector = new Collector();
 
             taskFunc = () => {
-                system.BeforeExecute(world, scheduler);
-                int count = group.Count;
-                if (count != 0) {
-                    for (int i = 0; i < count; ++i) {
-                        system.Execute(world, scheduler, group[i]);
-                        count = group.Count;
-                    }
-                    group.Clear();
+                var count = collector.Count;
+                if (count == 0) {
+                    return false;
                 }
-                system.AfterExecute(world, scheduler);
+                collector.BeginExecution();
+                system.Execute(world, scheduler, collector);
+                collector.EndExecution();
                 return false;
             };
 
@@ -306,7 +394,7 @@ public class SystemLibrary : IAddon
                         System: system,
                         World: world,
                         Scheduler: scheduler,
-                        Group: group,
+                        Collector: collector,
                         TriggerTypes: triggerTypes,
                         FilterTypes: filterTypes);
 
@@ -320,7 +408,7 @@ public class SystemLibrary : IAddon
                             System: system,
                             World: world,
                             Scheduler: scheduler,
-                            Group: group,
+                            Collector: collector,
                             TriggerTypes: triggerTypes,
                             FilterTypes: filterTypes));
                 }
@@ -333,7 +421,7 @@ public class SystemLibrary : IAddon
                         System: system,
                         World: world,
                         Scheduler: scheduler,
-                        Group: group,
+                        Collector: collector,
                         TriggerTypes: triggerTypes);
 
                     dispatcher.Listen(listener);
@@ -346,7 +434,7 @@ public class SystemLibrary : IAddon
                             System: system,
                             World: world,
                             Scheduler: scheduler,
-                            Group: group,
+                            Collector: collector,
                             TriggerTypes: triggerTypes));
                 }
             }

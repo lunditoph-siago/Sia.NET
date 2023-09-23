@@ -185,11 +185,10 @@ public class Dispatcher<TTarget, TEvent> : IEventSender<TTarget, TEvent>
         int initialLength = length;
 
         try {
-            var span = CollectionsMarshal.AsSpan(listeners);
             for (int i = 0; i < length; ++i) {
                 bool exit = false;
-                while (span[i].OnEvent(target, e)) {
-                    span[i] = span[length - 1];
+                while (listeners[i].OnEvent(target, e)) {
+                    listeners[i] = listeners[length - 1];
                     length--;
                     if (length <= i) {
                         exit = true;
@@ -212,11 +211,10 @@ public class Dispatcher<TTarget, TEvent> : IEventSender<TTarget, TEvent>
         int initialLength = length;
 
         try {
-            var span = CollectionsMarshal.AsSpan(listeners);
             for (int i = 0; i < length; ++i) {
                 bool exit = false;
-                while (span[i](target, e)) {
-                    span[i] = span[length - 1];
+                while (listeners[i](target, e)) {
+                    listeners[i] = listeners[length - 1];
                     length--;
                     if (length <= i) {
                         exit = true;
