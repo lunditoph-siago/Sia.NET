@@ -79,7 +79,7 @@ public class SystemLibrary : IAddon
 
         public void ForEach(SimpleEntityHandler handler)
         {
-            foreach (ref var entity in _mem.Span) {
+            foreach (ref var entity in _mem.Span[0.._collectedSet.Count]) {
                 if (entity.HasValue) {
                     handler(entity.Value);
                 }
@@ -88,7 +88,7 @@ public class SystemLibrary : IAddon
 
         public void ForEach<TData>(in TData data, EntityHandler<TData> handler)
         {
-            foreach (ref var entity in _mem.Span) {
+            foreach (ref var entity in _mem.Span[0.._collectedSet.Count]) {
                 if (entity.HasValue) {
                     handler(data, entity.Value);
                 }
@@ -97,7 +97,7 @@ public class SystemLibrary : IAddon
 
         public void ForEach<TData>(in TData data, SimpleEntityHandler<TData> handler)
         {
-            foreach (ref var entity in _mem.Span) {
+            foreach (ref var entity in _mem.Span[0.._collectedSet.Count]) {
                 if (entity.HasValue) {
                     handler(data, entity.Value);
                 }
