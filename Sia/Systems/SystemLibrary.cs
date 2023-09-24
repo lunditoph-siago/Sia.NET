@@ -54,7 +54,7 @@ public class SystemLibrary : IAddon
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Add(in EntityRef entity)
-            => _collectingSet.Add(entity, _collectingSet.Count);
+            => _collectingSet.TryAdd(entity, _collectingSet.Count);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Remove(in EntityRef entity)
