@@ -6,8 +6,9 @@ Elegant ECS framework for .NET
 
 ```C#
 using System.Numerics;
+using Sia;
 
-public static class Example1
+public static partial class Example1
 {
     public class Game : IAddon
     {
@@ -123,24 +124,21 @@ public static class Example1
         }
     }
 
-    public struct Player
+    public static class Player
     {
-        public static readonly Player Initial = new();
-
         public static EntityRef Create(World world)
-            => world.GetHashHost<Player>().Create(Initial);
+            => world.CreateInHashHost(Tuple.Create(
+                new Transform(),
+                new Health()
+            ));
 
         public static EntityRef Create(World world, Vector2 position)
-            => world.GetHashHost<Player>().Create(Initial with {
-                Transform = new() {
+            => world.CreateInHashHost(Tuple.Create(
+                new Transform {
                     Position = position
-                }
-            });
-
-        public Transform Transform = new();
-        public Health Health = new();
-
-        public Player() {}
+                },
+                new Health()
+            ));
     }
 
     public static void Run()
