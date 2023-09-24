@@ -1,7 +1,6 @@
 namespace Sia.Examples;
 
 using System.Numerics;
-
 using Sia;
 
 public static class QuaternionExtensions
@@ -65,6 +64,23 @@ public static partial class Example3
         public float Delta { get; set; }
     }
 
+    public sealed class PositionPrintSystem : SystemBase
+    {
+        public PositionPrintSystem()
+        {
+            Matcher = Matchers.From<TypeUnion<Position>>();
+            Trigger = new EventUnion<WorldEvents.Add, Position.SetValue>();
+        }
+
+        public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+        {
+            Console.WriteLine("Start PositionPrintSystem");
+            query.ForEach(static entity => {
+                Console.WriteLine("\t" + entity.Get<Position>().Value);
+            });
+        }
+    }
+
     public sealed class MoverUpdateSystem : SystemBase
     {
         public MoverUpdateSystem()
@@ -108,13 +124,13 @@ public static partial class Example3
 
     public static class TestObject
     {
-        public static EntityRef Create(World world)
+        public static EntityRef Create(World world, Vector3 position)
         {
             return world.CreateInHashHost(Tuple.Create(
-                new Position(),
+                new Position(position),
                 new Rotation(),
-                new Mover(3f),
-                new Rotator(new(0f, 45f, 0f))
+                new Mover(5f),
+                new Rotator(new(0, 5f, 0))
             ));
         }
     }
@@ -124,14 +140,15 @@ public static partial class Example3
         var world = new World();
         var scheduler = new Scheduler();
 
+        world.RegisterSystem<PositionPrintSystem>(scheduler);
         world.RegisterSystem<MoverUpdateSystem>(scheduler);
         world.RegisterSystem<RotatorUpdateSystem>(scheduler);
 
         for (int i = 0; i != 50; ++i) {
-            var entity = TestObject.Create(world);
-            entity.Get<Position>().Value = new Vector3(
-                Random.Shared.NextSingle() * 100 - 50, 0,
-                Random.Shared.NextSingle() * 100 - 50);
+            TestObject.Create(world,
+                new Vector3(
+                    Random.Shared.NextSingle() * 100 - 50, 0,
+                    Random.Shared.NextSingle() * 100 - 50));
         }
 
         var frame = world.AcquireAddon<Frame>();
@@ -141,9 +158,5 @@ public static partial class Example3
         scheduler.Tick();
         scheduler.Tick();
         scheduler.Tick();
-
-        world.Query<TypeUnion<Position>>(entity => {
-            Console.WriteLine(entity.Get<Position>().Value);
-        });
     }
 }
