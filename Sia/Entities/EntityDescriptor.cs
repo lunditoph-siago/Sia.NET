@@ -50,6 +50,16 @@ public record EntityDescriptor
         => UnsafeTryGetOffset(typeof(TComponent), TypeIndexer<TComponent>.Index, out offset);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static int GetFieldOffset(FieldInfo fieldInfo)
+    {
+        var ptr = fieldInfo.FieldHandle.Value;
+        ptr = ptr + 4 + sizeof(IntPtr);
+        ushort length = *(ushort*)(ptr);
+        byte chunkSize = *(byte*)(ptr + 2);
+        return length + (chunkSize << 16);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool UnsafeTryGetOffset(Type componentType, int componentTypeIndex, out IntPtr offset)
     {
         if (_compOffsets.TryGetValue(componentTypeIndex, out offset)) {
@@ -59,7 +69,7 @@ public record EntityDescriptor
             offset = default;
             return false;
         }
-        offset = Marshal.OffsetOf(Type, compInfo.Name);
+        offset = GetFieldOffset(compInfo);
         _compOffsets.Add(componentTypeIndex, offset);
         return true;
     }
