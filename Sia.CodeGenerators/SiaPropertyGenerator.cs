@@ -142,6 +142,5 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
 
         source.Indent--;
         source.WriteLine("}");
-
     }
 }
