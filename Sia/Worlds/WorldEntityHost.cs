@@ -1,6 +1,5 @@
 namespace Sia;
 
-using System;
 using System.Runtime.CompilerServices;
 
 public sealed class WorldEntityHost<T, TStorage>

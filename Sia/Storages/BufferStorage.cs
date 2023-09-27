@@ -241,6 +241,7 @@ namespace Internal
             }
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private LinkedListNode<Chunk>? MergeWithPreviousChunk(LinkedListNode<Chunk> chunkNode)
         {
             var prevChunkNode = chunkNode.Previous;
@@ -259,6 +260,7 @@ namespace Internal
             return prevChunkNode;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private LinkedListNode<Chunk>? MergeWithNextChunk(LinkedListNode<Chunk> chunkNode)
         {
             var nextChunkNode = chunkNode.Next;
@@ -278,6 +280,7 @@ namespace Internal
             return nextChunkNode;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void UnsafeSplitChunk(LinkedListNode<Chunk> chunkNode, int position)
         {
             ref var chunk = ref chunkNode.ValueRef;
