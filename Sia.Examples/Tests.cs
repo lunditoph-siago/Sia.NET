@@ -232,7 +232,9 @@ public unsafe static class Tests
     {
         public PositionSystems()
         {
-            Children = new SystemUnion<PositionPrintSystem, PositionChangeListenSystem>();
+            Children = SystemChain.Empty
+                .Add<PositionPrintSystem>()
+                .Add<PositionChangeListenSystem>();
         }
     }
 

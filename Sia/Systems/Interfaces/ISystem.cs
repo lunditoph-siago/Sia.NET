@@ -2,8 +2,7 @@ namespace Sia;
 
 public interface ISystem
 {
-    ISystemUnion? Children { get; }
-    ISystemUnion? Dependencies { get; }
+    SystemChain? Children { get; }
     IEntityMatcher? Matcher { get; }
     IEventUnion? Trigger { get; }
     IEventUnion? Filter { get; }

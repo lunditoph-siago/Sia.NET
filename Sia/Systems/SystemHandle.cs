@@ -3,7 +3,7 @@ namespace Sia;
 public sealed class SystemHandle : IDisposable
 {
     public ISystem System { get; }
-    public Scheduler.TaskGraphNode Task { get; }
+    public Scheduler.TaskGraphNode TaskGraphNode { get; }
 
     private readonly Action<SystemHandle> _onDispose;
     private bool _disposed;
@@ -12,7 +12,7 @@ public sealed class SystemHandle : IDisposable
         ISystem system, Scheduler.TaskGraphNode taskGraphNode, Action<SystemHandle> onDispose)
     {
         System = system;
-        Task = taskGraphNode;
+        TaskGraphNode = taskGraphNode;
         _onDispose = onDispose;
     }
 
