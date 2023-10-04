@@ -2,8 +2,7 @@ namespace Sia;
 
 public abstract class SystemBase : ISystem
 {
-    public ISystemUnion? Children { get; init; }
-    public ISystemUnion? Dependencies { get; init; }
+    public SystemChain? Children { get; init; }
     public IEntityMatcher? Matcher { get; init; }
     public IEventUnion? Trigger { get; init; }
     public IEventUnion? Filter { get; init; }

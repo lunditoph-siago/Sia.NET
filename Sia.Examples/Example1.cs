@@ -61,12 +61,12 @@ public static partial class Example1
         }
     }
 
+    [AfterSystem<HealthUpdateSystem>]
     public class DeathSystem : SystemBase
     {
         public DeathSystem()
         {
             Matcher = Matchers.From<TypeUnion<Health>>();
-            Dependencies = new SystemUnion<HealthUpdateSystem>();
         }
 
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
@@ -84,9 +84,9 @@ public static partial class Example1
     {
         public HealthSystems()
         {
-            Children = new SystemUnion<
-                HealthUpdateSystem,
-                DeathSystem>();
+            Children = SystemChain.Empty
+                .Add<HealthUpdateSystem>()
+                .Add<DeathSystem>();
         }
     }
 
@@ -114,12 +114,13 @@ public static partial class Example1
         }
     }
 
+    [BeforeSystem<HealthSystems>]
     public class GameplaySystems : SystemBase
     {
         public GameplaySystems()
         {
-            Children = new SystemUnion<LocationDamageSystem>();
-            Dependencies = new SystemUnion<HealthSystems>();
+            Children = SystemChain.Empty
+                .Add<LocationDamageSystem>();
         }
     }
 
@@ -159,7 +160,7 @@ public static partial class Example1
         game.Scheduler.CreateTask(() => {
             Console.WriteLine("Callback invoked after health and gameplay systems");
             return true; // remove task
-        }, new[] {healthSystemsHandle.Task, gameplaySystemsHandle.Task});
+        }, new[] {healthSystemsHandle.TaskGraphNode, gameplaySystemsHandle.TaskGraphNode});
     
         world.Modify(playerRef, new Transform.SetPosition(new(1, 3)));
         game.Update(0.5f);

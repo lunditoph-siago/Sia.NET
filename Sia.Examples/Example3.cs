@@ -64,6 +64,7 @@ public static partial class Example3
         public float Delta { get; set; }
     }
 
+    [AfterSystem<MoverUpdateSystem>]
     public sealed class PositionPrintSystem : SystemBase
     {
         public PositionPrintSystem()
@@ -102,6 +103,7 @@ public static partial class Example3
         }
     }
 
+    [AfterSystem<MoverUpdateSystem>]
     public sealed class RotatorUpdateSystem : SystemBase
     {
         public RotatorUpdateSystem()
@@ -140,9 +142,11 @@ public static partial class Example3
         var world = new World();
         var scheduler = new Scheduler();
 
-        world.RegisterSystem<PositionPrintSystem>(scheduler);
-        world.RegisterSystem<MoverUpdateSystem>(scheduler);
-        world.RegisterSystem<RotatorUpdateSystem>(scheduler);
+        SystemChain.Empty
+            .Add<PositionPrintSystem>()
+            .Add<MoverUpdateSystem>()
+            .Add<RotatorUpdateSystem>()
+            .RegisterTo(world, scheduler);
 
         for (int i = 0; i != 50; ++i) {
             TestObject.Create(world,
