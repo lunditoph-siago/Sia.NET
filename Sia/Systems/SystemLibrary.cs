@@ -237,11 +237,10 @@ public class SystemLibrary : IAddon
 
     public SystemHandle Register<TSystem>(Scheduler scheduler, IEnumerable<Scheduler.TaskGraphNode>? dependedTasks = null)
         where TSystem : ISystem, new()
-        => Register<TSystem>(new(), scheduler, dependedTasks);
-
-    internal SystemHandle Register<TSystem>(TSystem system, Scheduler scheduler, IEnumerable<Scheduler.TaskGraphNode>? dependedTasks = null)
-        where TSystem : ISystem
     {
+        var system = new TSystem();
+        var sysEntry = Acquire(system.GetType());
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         void DoRegisterSystem(Entry sysEntry, Scheduler.TaskGraphNode task)
         {
@@ -260,8 +259,6 @@ public class SystemLibrary : IAddon
             }
             system.Uninitialize(_world, scheduler);
         }
-
-        var sysEntry = Acquire(system.GetType());
 
         Scheduler.TaskGraphNode? task;
         IDisposable? childrenDisposable;
