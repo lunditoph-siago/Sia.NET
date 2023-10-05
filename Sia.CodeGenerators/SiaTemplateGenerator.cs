@@ -18,7 +18,8 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
     private record CodeGenerationInfo(
         INamespaceSymbol Namespace,
         ImmutableArray<TypeDeclarationSyntax> ParentTypes,
-        string TemplateName, string ComponentName,
+        TypeDeclarationSyntax TemplateType, string? TypeConstraints,
+        string ComponentName,
         ImmutableArray<(string Name, string Type)> Properties);
     
     public void Initialize(IncrementalGeneratorInitializationContext context)
@@ -58,14 +59,17 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
                     return symbol.BaseType != null ? result.Concat(GetProperties(symbol.BaseType)) : result;
                 }
 
+                var targetSymbol = model.GetDeclaredSymbol(targetType, token)!;
                 return new CodeGenerationInfo(
                     Namespace: syntax.TargetSymbol.ContainingNamespace,
                     ParentTypes: parentTypes,
-                    TemplateName: targetType.Identifier.ToString(),
+                    TemplateType: targetType,
+                    TypeConstraints: 
+                        targetType.TypeParameterList != null
+                            ? GetTypeConstraints(targetSymbol) : null,
                     ComponentName: syntax.Attributes[0].ConstructorArguments[0].Value as string
                         ?? throw new InvalidDataException("Invalid attribute"),
-                    Properties: GetProperties(model.GetDeclaredSymbol(targetType, token)!)
-                        .ToImmutableArray()
+                    Properties: GetProperties(targetSymbol).ToImmutableArray()
                 );
             });
         
@@ -81,6 +85,15 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
         => !symbol.IsStatic && symbol.DeclaredAccessibility == Accessibility.Public
             && !symbol.GetAttributes().Any(attr =>
                 attr.AttributeClass?.ToDisplayString() == SiaIgnoreAttributeName);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static string GetTypeConstraints(INamedTypeSymbol targetSymbol)
+    {
+        var fullTemplateTypeString = 
+            targetSymbol.ToDisplayString(
+                SymbolDisplayFormats.QualifiedTypeNameWithTypeConstraints);
+        return fullTemplateTypeString[(fullTemplateTypeString.IndexOf('>') + 2)..];
+    }
 
     private static string GenerateFileName(CodeGenerationInfo info)
     {
@@ -98,14 +111,15 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
 
     private static void GenerateSource(IndentedTextWriter source, CodeGenerationInfo info)
     {
-        var templateName = info.TemplateName;
+        var templateType = info.TemplateType;
         var componentName = info.ComponentName;
         var properties = info.Properties;
 
         using (GenerateInNamespace(source, info.Namespace)) {
             using (GenerateInPartialTypes(source, info.ParentTypes)) {
                 source.Write("public partial record struct ");
-                source.Write(componentName);
+                source.Write(info.ComponentName);
+                WriteTypeParameters(source, templateType);
                 source.WriteLine("(");
                 source.Indent++;
 
@@ -124,21 +138,25 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
                 }
 
                 source.Write(") : IConstructable<");
-                source.Write(templateName);
+                source.Write(templateType.Identifier.ToString());
+                WriteTypeParameters(source, templateType);
                 source.WriteLine(">");
+                if (info.TypeConstraints != null) {
+                    source.WriteLine(info.TypeConstraints);
+                }
                 source.Indent--;
 
                 source.WriteLine("{");
                 source.Indent++;
 
                 GenerateConstructor(source,
-                    templateName: templateName,
+                    templateType: templateType,
                     componentName: componentName,
                     properties: properties);
                 source.WriteLine();
 
                 GenerateConstructMethod(source,
-                    templateName: templateName,
+                    templateType: templateType,
                     properties: properties);
                 source.WriteLine();
 
@@ -146,13 +164,14 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
                     SiaPropertyGenerator.GenerateSetCommand(source,
                         commandName: "Set" + name,
                         componentName: componentName,
+                        componentTypeParams: templateType.TypeParameterList,
                         valueName: name,
                         valueType: type);
                     source.WriteLine();
                 }
 
                 GenerateResetCommand(source,
-                    templateName: templateName,
+                    templateType: templateType,
                     componentName: componentName,
                     properties: properties);
 
@@ -165,12 +184,12 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
     }
 
     public static void GenerateConstructor(
-        IndentedTextWriter source, string templateName, string componentName, ImmutableArray<(string, string)> properties)
+        IndentedTextWriter source, TypeDeclarationSyntax templateType, string componentName, ImmutableArray<(string, string)> properties)
     {
         source.Write("public ");
         source.Write(componentName);
         source.Write("(");
-        source.Write(templateName);
+        WriteType(source, templateType);
         source.WriteLine(" template)");
         source.Indent++;
         source.WriteLine(": this(");
@@ -195,11 +214,11 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
     }
 
     public static void GenerateConstructMethod(
-        IndentedTextWriter source, string templateName, ImmutableArray<(string, string)> properties)
+        IndentedTextWriter source, TypeDeclarationSyntax templateType, ImmutableArray<(string, string)> properties)
     {
         source.WriteLine("[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
         source.Write("public void Construct(");
-        source.Write(templateName);
+        WriteType(source, templateType);
         source.WriteLine(" template)");
         source.WriteLine("{");
         source.Indent++;
@@ -216,10 +235,10 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
     }
 
     public static void GenerateResetCommand(
-        IndentedTextWriter source, string templateName, string componentName, ImmutableArray<(string, string)> properties)
+        IndentedTextWriter source, TypeDeclarationSyntax templateType, string componentName, ImmutableArray<(string, string)> properties)
     {
         source.Write("public readonly record struct Reset(");
-        source.Write(templateName);
+        WriteType(source, templateType);
         source.WriteLine(" Value) : global::Sia.ICommand");
         source.WriteLine("{");
         source.Indent++;
@@ -228,6 +247,7 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
         source.Indent++;
         source.Write("=> target.Get<");
         source.Write(componentName);
+        WriteTypeParameters(source, templateType);
         source.WriteLine(">().Construct(Value);");
 
         source.Indent -= 2;
