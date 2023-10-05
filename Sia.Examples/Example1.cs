@@ -6,8 +6,12 @@ using Sia;
 
 public static partial class Example1
 {
-    [SiaTemplate(nameof(TestObject))]
-    public record TestTemplate(int Value);
+    [SiaTemplate("TestObject")]
+    public record TestTemplate<T, U>(T Value, U Value2)
+        where T : IReadOnlyList<int>
+        where U : notnull;
+        
+    public partial record struct TestComp<T>([SiaProperty] T Value);
 
     public class Game : IAddon
     {

@@ -53,7 +53,7 @@ internal static class Common
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static string GetFullType(SemanticModel model, SyntaxNode typeNode, CancellationToken token)
-        => model.GetTypeInfo(typeNode, token).Type!.ToDisplayString();
+        => model.GetTypeInfo(typeNode, token).Type!.ToDisplayString(SymbolDisplayFormats.TypeParameter);
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static string GetVariableType(SemanticModel model, VariableDeclaratorSyntax syntax, CancellationToken token) {
@@ -139,12 +139,46 @@ internal static class Common
             default:
                 throw new InvalidDataException("Invalid containing type");
             }
-            source.WriteLine(typeDecl.Identifier.ToString());
+            
+            WriteType(source, typeDecl);
+
+            source.WriteLine();
             source.WriteLine("{");
             source.Indent++;
             indent++;
         }
         return indent != 0 ? new EnclosingDisposable(source, indent) : EmptyDisposable.Instance;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void WriteType(IndentedTextWriter source, TypeDeclarationSyntax typeDecl)
+    {
+        source.Write(typeDecl.Identifier.ToString());
+        WriteTypeParameters(source, typeDecl);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void WriteTypeParameters(IndentedTextWriter source, TypeDeclarationSyntax typeDecl)
+    {
+        var typeParams = typeDecl.TypeParameterList;
+        if (typeParams != null) {
+            WriteTypeParameters(source, typeParams);
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void WriteTypeParameters(IndentedTextWriter source, TypeParameterListSyntax typeParams)
+    {
+        source.Write('<');
+        var paramsList = typeParams.Parameters;
+        var lastIndex = paramsList.Count - 1;
+        for (int i = 0; i != paramsList.Count; ++i) {
+            source.Write(paramsList[i].Identifier.ToString());
+            if (i != lastIndex) {
+                source.Write(", ");
+            }
+        }
+        source.Write('>');
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

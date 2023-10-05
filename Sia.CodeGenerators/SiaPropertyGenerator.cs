@@ -106,12 +106,14 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
     {
         var commandName = info.Arguments.TryGetValue("SetCommand", out var setCmdName)
             ? setCmdName.Value!.ToString()! : $"Set{info.ValueName}";
+        var componentType = info.ComponentType;
 
         using (GenerateInNamespace(source, info.Namespace)) {
-            using (GenerateInPartialTypes(source, info.ParentTypes.Append(info.ComponentType))) {
+            using (GenerateInPartialTypes(source, info.ParentTypes.Append(componentType))) {
                 GenerateSetCommand(source,
                     commandName: commandName,
-                    componentName: info.ComponentType.Identifier.ToString(),
+                    componentName: componentType.Identifier.ToString(),
+                    componentTypeParams: componentType.TypeParameterList,
                     valueName: info.ValueName,
                     valueType: info.ValueType);
             }
@@ -121,7 +123,8 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
     }
 
     public static void GenerateSetCommand(
-        IndentedTextWriter source, string commandName, string componentName, string valueName, string valueType)
+        IndentedTextWriter source, string commandName, string componentName, string valueName, string valueType,
+        TypeParameterListSyntax? componentTypeParams = null)
     {
         source.Write("public readonly record struct ");
         source.Write(commandName);
@@ -135,6 +138,9 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         source.Indent++;
         source.Write("=> target.Get<");
         source.Write(componentName);
+        if (componentTypeParams != null) {
+            WriteTypeParameters(source, componentTypeParams);
+        }
         source.Write(">().");
         source.Write(valueName);
         source.WriteLine(" = Value;");
