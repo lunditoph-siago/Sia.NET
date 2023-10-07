@@ -27,6 +27,23 @@ public class EventChannel : EventChannel<EntityRef, IEvent>, IEventSender
 {
 }
 
+public class EventQueue<TEvent> : EventQueue<EntityRef, TEvent>, IEventSender<TEvent>
+    where TEvent : IEvent
+{
+    public EventQueue(IEventSender<EntityRef, TEvent> receiver)
+        : base(receiver)
+    {
+    }
+}
+
+public class EventQueue : EventQueue<EntityRef, IEvent>, IEventSender
+{
+    public EventQueue(IEventSender<EntityRef, IEvent> receiver)
+        : base(receiver)
+    {
+    }
+}
+
 public interface IHistory<TEvent> : IHistory<EntityRef, TEvent>
     where TEvent : IEvent
 {
