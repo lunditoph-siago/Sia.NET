@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Sia;
 
 public static class Matchers
@@ -33,7 +35,7 @@ public static class Matchers
             AnyMatcher => None,
             NoneMatcher => Any,
             _ => new NotMatcher(inner)
-        };
+    };
 
     public static IEntityMatcher With(this IEntityMatcher left, ITypeUnion right)
         => left switch {
