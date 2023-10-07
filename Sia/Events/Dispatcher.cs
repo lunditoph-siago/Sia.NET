@@ -1,7 +1,6 @@
 namespace Sia;
 
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 
 public class Dispatcher<TTarget, TEvent> : IEventSender<TTarget, TEvent>
     where TTarget : notnull
@@ -138,7 +137,7 @@ public class Dispatcher<TTarget, TEvent> : IEventSender<TTarget, TEvent>
     private void GuardNotSending()
     {
         if (_sending) {
-            throw new InvalidOperationException("Cannot do this operation while the dispatcher is sending event.");
+            throw new InvalidOperationException("Cannot do this operation while sending event.");
         }
     }
 
