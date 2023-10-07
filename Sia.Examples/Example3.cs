@@ -178,8 +178,9 @@ public static partial class Example3
         var frame = world.AcquireAddon<Frame>();
         frame.Delta = 0.5f;
 
-        for (int i = 0; i != 1000; ++i) {
-            scheduler.Tick();
-        }
+        scheduler.Tick();
+        scheduler.Tick();
+        scheduler.Tick();
+        scheduler.Tick();
     }
 }
