@@ -1,5 +1,7 @@
 namespace Sia;
 
+using System.Diagnostics.CodeAnalysis;
+
 public interface IBuffer<T> : IDisposable
 {
     int Capacity { get; }
@@ -9,4 +11,5 @@ public interface IBuffer<T> : IDisposable
     ref T GetValueRefOrNullRef(int index);
 
     bool Remove(int index);
+    bool Remove(int index, [MaybeNullWhen(false)] out T value);
 }

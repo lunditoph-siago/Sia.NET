@@ -1,5 +1,6 @@
 namespace Sia;
 
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 public sealed class SparseBuffer<T> : IBuffer<T>
@@ -7,7 +8,7 @@ public sealed class SparseBuffer<T> : IBuffer<T>
     public int Capacity => _sparseSet.Capacity;
     public int Count  => _sparseSet.Count;
 
-    private SparseSet<T> _sparseSet;
+    private readonly SparseSet<T> _sparseSet;
 
     public SparseBuffer(int capacity, int pageSize = 256)
     {
@@ -33,8 +34,11 @@ public sealed class SparseBuffer<T> : IBuffer<T>
         => _sparseSet.Remove(index);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool Remove(int index, [MaybeNullWhen(false)] out T value)
+        => _sparseSet.Remove(index, out value);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Dispose()
     {
-        _sparseSet = null!;
     }
 }
