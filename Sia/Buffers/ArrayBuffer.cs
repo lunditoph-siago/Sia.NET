@@ -1,61 +1,69 @@
 namespace Sia;
 
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 public sealed class ArrayBuffer<T> : IBuffer<T>
 {
-    public int Capacity => _arr.Length;
+    public int Capacity => _values.Length;
     public int Count { get; set; }
 
-    private Entry[] _arr;
-
-    private struct Entry
-    {
-        public bool IsAllocated;
-        public T Value;
-    }
+    private readonly T[] _values;
+    private readonly bool[] _allocatedTags;
 
     public ArrayBuffer(int capacity)
     {
-        _arr = new Entry[capacity];
+        _values = new T[capacity];
+        _allocatedTags = new bool[capacity];
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetOrAddValueRef(int index, out bool exists)
     {
-        ref var entry = ref _arr[index];
-        exists = entry.IsAllocated;
+        exists = _allocatedTags[index];
         if (!exists) {
-            entry.IsAllocated = true;
+            _allocatedTags[index] = true;
         }
-        return ref entry.Value;
+        return ref _values[index];
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetValueRefOrNullRef(int index)
     {
-        ref var entry = ref _arr[index];
-        if (!entry.IsAllocated) {
+        if (!_allocatedTags[index]) {
             return ref Unsafe.NullRef<T>();
         }
-        return ref entry.Value;
+        return ref _values[index];
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Remove(int index)
     {
-        ref var entry = ref _arr[index];
-        if (!entry.IsAllocated) {
+        ref var allocatedTag = ref _allocatedTags[index];
+        if (!allocatedTag) {
             return false;
         }
-        entry.IsAllocated = false;
-        entry.Value = default!;
+        allocatedTag = false;
+        _values[index] = default!;
+        return true;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool Remove(int index, [MaybeNullWhen(false)] out T value)
+    {
+        ref var allocatedTag = ref _allocatedTags[index];
+        if (!allocatedTag) {
+            value = default;
+            return false;
+        }
+        allocatedTag = false;
+        value = _values[index];
+        _values[index] = default!;
         return true;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Dispose()
     {
-        _arr = null!;
     }
 }

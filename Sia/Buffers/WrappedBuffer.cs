@@ -1,5 +1,6 @@
 namespace Sia;
 
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 // see https://github.com/dotnet/runtime/issues/32815
@@ -36,6 +37,10 @@ public readonly struct WrappedBuffer<T, TBuffer> : IBuffer<T>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Remove(int index)
         => _buffer.Remove(index);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool Remove(int index, [MaybeNullWhen(false)] out T value)
+        => _buffer.Remove(index, out value);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Dispose()
