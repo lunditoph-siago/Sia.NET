@@ -16,10 +16,20 @@ public record EntityDescriptor
     public Type Type { get; }
 
     private readonly Dictionary<Type, FieldInfo> _compInfos = new();
-    private readonly SparseSet<IntPtr> _compOffsets = new(512, 512);
+    private readonly ThreadLocal<SparseSet<IntPtr>> _compOffsets = new(() => new(512, 512));
 
     private const BindingFlags s_bindingFlags =
         BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private unsafe static int GetFieldOffset(FieldInfo fieldInfo)
+    {
+        var ptr = fieldInfo.FieldHandle.Value;
+        ptr = ptr + 4 + sizeof(IntPtr);
+        ushort length = *(ushort*)ptr;
+        byte chunkSize = *(byte*)(ptr + 2);
+        return length + (chunkSize << 16);
+    }
 
     private EntityDescriptor(Type type)
     {
@@ -48,20 +58,13 @@ public record EntityDescriptor
     public bool TryGetOffset<TComponent>(out IntPtr offset)
         => UnsafeTryGetOffset(typeof(TComponent), TypeIndexer<TComponent>.Index, out offset);
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static int GetFieldOffset(FieldInfo fieldInfo)
-    {
-        var ptr = fieldInfo.FieldHandle.Value;
-        ptr = ptr + 4 + sizeof(IntPtr);
-        ushort length = *(ushort*)ptr;
-        byte chunkSize = *(byte*)(ptr + 2);
-        return length + (chunkSize << 16);
-    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool UnsafeTryGetOffset(Type componentType, int componentTypeIndex, out IntPtr offset)
     {
-        if (_compOffsets.TryGetValue(componentTypeIndex, out offset)) {
+        var compOffsets = _compOffsets.Value!;
+
+        if (compOffsets.TryGetValue(componentTypeIndex, out offset)) {
             return true;
         }
         if (!_compInfos.TryGetValue(componentType, out var compInfo)) {
@@ -69,7 +72,7 @@ public record EntityDescriptor
             return false;
         }
         offset = GetFieldOffset(compInfo);
-        _compOffsets.Add(componentTypeIndex, offset);
+        compOffsets.Add(componentTypeIndex, offset);
         return true;
     }
 }
