@@ -1,5 +1,6 @@
 namespace Sia.Examples;
 
+using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using Sia;
 
@@ -65,12 +66,12 @@ public static partial class Example3
     }
 
     [AfterSystem<MoverUpdateSystem>]
-    public sealed class PositionPrintSystem : SystemBase
+    public sealed class PositionChangePrintSystem : SystemBase
     {
-        public PositionPrintSystem()
+        public PositionChangePrintSystem()
         {
             Matcher = Matchers.From<TypeUnion<Position>>();
-            Trigger = new EventUnion<WorldEvents.Add, Position.SetValue>();
+            Trigger = new EventUnion<Position.SetValue>();
         }
 
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
@@ -84,43 +85,63 @@ public static partial class Example3
 
     public sealed class MoverUpdateSystem : SystemBase
     {
+        [AllowNull] private Frame _frame;
+        [AllowNull] private WorldCommandBuffer _buffer;
+
         public MoverUpdateSystem()
         {
             Matcher = Matchers.From<TypeUnion<Mover, Position, Rotation>>();
         }
 
+        public override void Initialize(World world, Scheduler scheduler)
+        {
+            _frame = world.AcquireAddon<Frame>();
+            _buffer = world.CreateCommandBuffer();
+        }
+
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
-            query.ForEach(world, static (world, entity) => {
+            query.ForEachParallel(this, static (sys, entity) => {
                 ref var mover = ref entity.Get<Mover>();
                 ref var pos = ref entity.Get<Position>();
                 ref var rot = ref entity.Get<Rotation>();
 
-                var frame = world.GetAddon<Frame>();
-                var newPos = pos.Value + Vector3.Transform(Vector3.UnitZ, rot.Value) * mover.Speed * frame.Delta;
-                world.Modify(entity, new Position.SetValue(newPos));
+                var newPos = pos.Value + Vector3.Transform(Vector3.UnitZ, rot.Value) * mover.Speed * sys._frame.Delta;
+                sys._buffer.Modify(entity, new Position.SetValue(newPos));
             });
+
+            _buffer.Submit();
         }
     }
 
     [AfterSystem<MoverUpdateSystem>]
     public sealed class RotatorUpdateSystem : SystemBase
     {
+        [AllowNull] private Frame _frame;
+        [AllowNull] private WorldCommandBuffer _buffer;
+
         public RotatorUpdateSystem()
         {
             Matcher = Matchers.From<TypeUnion<Rotator, Rotation>>();
         }
 
+        public override void Initialize(World world, Scheduler scheduler)
+        {
+            _frame = world.AcquireAddon<Frame>();
+            _buffer = world.CreateCommandBuffer();
+        }
+
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
-            query.ForEach(world, static (world, entity) => {
+            query.ForEachParallel(this, static (sys, entity) => {
                 ref var rotator = ref entity.Get<Rotator>();
                 ref var rot = ref entity.Get<Rotation>();
 
-                var frame = world.GetAddon<Frame>();
-                var newRot = rot.Value.ToEulerAngles() + rotator.AngularSpeed * frame.Delta;
-                world.Modify(entity, new Rotation.SetValue(newRot.ToQuaternion()));
+                var newRot = rot.Value.ToEulerAngles() + rotator.AngularSpeed * sys._frame.Delta;
+                sys._buffer.Modify(entity, new Rotation.SetValue(newRot.ToQuaternion()));
             });
+
+            _buffer.Submit();
         }
     }
 
@@ -143,12 +164,11 @@ public static partial class Example3
         var scheduler = new Scheduler();
 
         SystemChain.Empty
-            .Add<PositionPrintSystem>()
             .Add<MoverUpdateSystem>()
             .Add<RotatorUpdateSystem>()
             .RegisterTo(world, scheduler);
 
-        for (int i = 0; i != 50; ++i) {
+        for (int i = 0; i != 5000000; ++i) {
             TestObject.Create(world,
                 new Vector3(
                     Random.Shared.NextSingle() * 100 - 50, 0,
@@ -158,9 +178,8 @@ public static partial class Example3
         var frame = world.AcquireAddon<Frame>();
         frame.Delta = 0.5f;
 
-        scheduler.Tick();
-        scheduler.Tick();
-        scheduler.Tick();
-        scheduler.Tick();
+        for (int i = 0; i != 1000; ++i) {
+            scheduler.Tick();
+        }
     }
 }

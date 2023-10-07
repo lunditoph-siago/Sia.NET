@@ -1,10 +1,8 @@
 namespace Sia;
 
-using System.Runtime.CompilerServices;
-
 // Events
 
-public interface IEventSender<TEvent> : IEventSender<EntityRef, TEvent>
+public interface IEventSender<in TEvent> : IEventSender<EntityRef, TEvent>
     where TEvent : IEvent
 {
 }
@@ -20,12 +18,12 @@ public class Dispatcher : Dispatcher<IEvent> {}
 
 public interface IEventListener : IEventListener<EntityRef> {}
 
-public class EventMailbox<TEvent> : EventMailbox<EntityRef, TEvent>, IEventSender<TEvent>
+public class EventChannel<TEvent> : EventChannel<EntityRef, TEvent>, IEventSender<TEvent>
     where TEvent : IEvent
 {
 }
 
-public class EventMailbox : EventMailbox<EntityRef, IEvent>, IEventSender
+public class EventChannel : EventChannel<EntityRef, IEvent>, IEventSender
 {
 }
 

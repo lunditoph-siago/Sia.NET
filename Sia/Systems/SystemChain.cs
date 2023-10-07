@@ -148,8 +148,8 @@ public record SystemChain(
     private static ImmutableArray<Type> GetAttributedSystemTypes<TSystem>(Type genericAttrType)
         where TSystem : ISystem
         => Attribute.GetCustomAttributes(typeof(TSystem))
+            .OfType<ISystemAttribute>()
             .Where(attr => attr.GetType().GetGenericTypeDefinition() == genericAttrType)
-            .Cast<ISystemAttribute>()
             .Select(attr => attr.SystemType)
             .ToImmutableArray();
 }

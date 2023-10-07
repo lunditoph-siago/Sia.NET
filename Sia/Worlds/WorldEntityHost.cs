@@ -22,6 +22,7 @@ public sealed class WorldEntityHost<T, TStorage>
     public override EntityRef Create()
     {
         var entity = base.Create();
+        World.Count++;
         OnEntityCreated?.Invoke(entity);
         World.Dispatcher.Send(entity, WorldEvents.Add.Instance);
         return entity;
@@ -31,6 +32,7 @@ public sealed class WorldEntityHost<T, TStorage>
     public override EntityRef Create(in T initial)
     {
         var entity = base.Create(initial);
+        World.Count++;
         OnEntityCreated?.Invoke(entity);
         World.Dispatcher.Send(entity, WorldEvents.Add.Instance);
         return entity;
@@ -42,6 +44,7 @@ public sealed class WorldEntityHost<T, TStorage>
         var entity = new EntityRef(pointer, this);
 
         var dispatcher = World.Dispatcher;
+        World.Count--;
         dispatcher.Send(entity, WorldEvents.Remove.Instance);
         dispatcher.UnlistenAll(entity);
 

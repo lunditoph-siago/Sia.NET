@@ -2,6 +2,7 @@ namespace Sia;
 
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 public sealed class World : IEntityQuery, IEventSender
 {
@@ -9,6 +10,16 @@ public sealed class World : IEntityQuery, IEventSender
     {
         public event Action<IReactiveEntityHost>? OnEntityHostAdded;
         public event Action<IReactiveEntityHost>? OnEntityHostRemoved;
+
+        public int Count {
+            get {
+                int count = 0;
+                foreach (var host in CollectionsMarshal.AsSpan(_hosts)) {
+                    count += host.Count;
+                }
+                return count;
+            }
+        }
 
         public World World { get; private set; }
         public IEntityMatcher Matcher { get; private set; }
@@ -124,6 +135,8 @@ public sealed class World : IEntityQuery, IEventSender
     public event Action<IReactiveEntityHost>? OnEntityHostCreated;
     public event Action<IReactiveEntityHost>? OnEntityHostReleased;
     public event Action<World>? OnDisposed;
+
+    public int Count { get; internal set; }
 
     public bool IsDisposed { get; private set; }
 
@@ -374,6 +387,13 @@ public sealed class World : IEntityQuery, IEventSender
         command.Execute(this, target);
         Dispatcher.Send(target, command);
     }
+
+    public WorldCommandBuffer CreateCommandBuffer()
+        => new(this);
+
+    public WorldCommandBuffer<TCommand> CreateCommandBuffer<TCommand>()
+        where TCommand : ICommand
+        => new(this);
 
     public TAddon AcquireAddon<TAddon>()
         where TAddon : IAddon, new()
