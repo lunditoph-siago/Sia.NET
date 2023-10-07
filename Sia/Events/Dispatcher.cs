@@ -137,7 +137,7 @@ public class Dispatcher<TTarget, TEvent> : IEventSender<TTarget, TEvent>
     private void GuardNotSending()
     {
         if (_sending) {
-            throw new InvalidOperationException("Cannot do this operation while sending event.");
+            throw new InvalidOperationException("This operation is not allowed while sending event.");
         }
     }
 
@@ -198,7 +198,9 @@ public class Dispatcher<TTarget, TEvent> : IEventSender<TTarget, TEvent>
             }
         }
         finally {
-            listeners.RemoveRange(length, initialLength - length);
+            if (initialLength != length) {
+                listeners.RemoveRange(length, initialLength - length);
+            }
         }
     }
 
