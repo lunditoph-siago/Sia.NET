@@ -3,7 +3,7 @@ namespace Sia;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-public class EventMailbox<TTarget, TEvent> : IEventSender<TTarget, TEvent>
+public class EventChannel<TTarget, TEvent> : IEventSender<TTarget, TEvent>
     where TEvent : IEvent
 {
     private interface ISender
