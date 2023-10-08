@@ -201,7 +201,7 @@ public unsafe static class Tests
     {
         public PositionPrintSystem()
         {
-            Matcher = Matchers.From<TypeUnion<Position>>();
+            Matcher = Matchers.AllOf<Position>();
         }
 
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
