@@ -148,7 +148,7 @@ public sealed class World : IEntityQuery, IEventSender
 
     private readonly Dictionary<IEntityMatcher, EntityQuery> _queries = new();
     private readonly SparseSet<IReactiveEntityHost> _hosts = new(256, 256);
-    private readonly SparseSet<IAddon> _addons = new(256, 256);
+    private readonly Dictionary<int, IAddon> _addons = new();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void IterateHost(IEntityHost host, EntityHandler handler)
@@ -398,11 +398,11 @@ public sealed class World : IEntityQuery, IEventSender
     public TAddon AcquireAddon<TAddon>()
         where TAddon : IAddon, new()
     {
-        ref var addon = ref _addons.GetOrAddValueRef(
-            WorldAddonIndexer<TAddon>.Index, out bool exists);
+        ref var addon = ref CollectionsMarshal.GetValueRefOrAddDefault(
+            _addons, WorldAddonIndexer<TAddon>.Index, out bool exists);
 
         if (exists) {
-            return (TAddon)addon;
+            return (TAddon)addon!;
         }
 
         var newAddon = new TAddon();
@@ -414,17 +414,17 @@ public sealed class World : IEntityQuery, IEventSender
     public TAddon AddAddon<TAddon>()
         where TAddon : IAddon, new()
     {
-        ref var singleton = ref _addons.GetOrAddValueRef(
-            WorldAddonIndexer<TAddon>.Index, out bool exists);
+        ref var addon = ref CollectionsMarshal.GetValueRefOrAddDefault(
+            _addons, WorldAddonIndexer<TAddon>.Index, out bool exists);
 
         if (exists) {
             throw new Exception("Addon already exists: " + typeof(TAddon));
         }
 
-        var newSingleton = new TAddon();
-        singleton = newSingleton;
-        newSingleton.OnInitialize(this);
-        return newSingleton;
+        var newAddon = new TAddon();
+        addon = newAddon;
+        newAddon.OnInitialize(this);
+        return newAddon;
     }
 
     public bool RemoveAddon<TAddon>()
@@ -439,15 +439,8 @@ public sealed class World : IEntityQuery, IEventSender
 
     public TAddon GetAddon<TAddon>()
         where TAddon : IAddon
-    {
-        ref var addon = ref _addons.GetValueRefOrNullRef(
-            WorldAddonIndexer<TAddon>.Index);
-
-        if (Unsafe.IsNullRef(ref addon)) {
-            throw new Exception("Addon not found: " + typeof(TAddon));
-        }
-        return (TAddon)addon;
-    }
+        => _addons.TryGetValue(WorldAddonIndexer<TAddon>.Index, out var addon)
+            ? (TAddon)addon : throw new Exception("Addon not found: " + typeof(TAddon));
 
     public bool ContainsAddon<TAddon>()
         where TAddon : IAddon

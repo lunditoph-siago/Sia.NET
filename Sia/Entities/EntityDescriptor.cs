@@ -16,7 +16,7 @@ public record EntityDescriptor
     public Type Type { get; }
 
     private readonly Dictionary<Type, FieldInfo> _compInfos = new();
-    private readonly ThreadLocal<SparseSet<IntPtr>> _compOffsets = new(() => new(512, 512));
+    private readonly ThreadLocal<Dictionary<int, IntPtr>> _compOffsets = new(() => new());
 
     private const BindingFlags s_bindingFlags =
         BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
