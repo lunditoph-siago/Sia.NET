@@ -1,7 +1,7 @@
 namespace Sia;
 
 public sealed class ArrayBufferStorage<T>
-    : BufferStorage<T, ArrayBuffer<BufferStorageEntry<T>>>
+    : BufferStorage<T, ArrayBuffer<T>>
     where T : struct
 {
     public ArrayBufferStorage(int capacity = 4096)
