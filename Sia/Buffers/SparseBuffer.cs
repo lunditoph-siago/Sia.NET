@@ -22,6 +22,10 @@ public sealed class SparseBuffer<T> : IBuffer<T>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool Contains(int index)
+        => _sparseSet.ContainsKey(index);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetOrAddValueRef(int index, out bool exists)
         => ref _sparseSet.GetOrAddValueRef(index, out exists);
 
@@ -36,6 +40,22 @@ public sealed class SparseBuffer<T> : IBuffer<T>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Remove(int index, [MaybeNullWhen(false)] out T value)
         => _sparseSet.Remove(index, out value);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void IterateAllocated(BufferIndexHandler handler)
+    {
+        foreach (int key in _sparseSet.AsKeySpan()) {
+            handler(key);
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void IterateAllocated<TData>(in TData data, BufferIndexHandler<TData> handler)
+    {
+        foreach (int key in _sparseSet.AsKeySpan()) {
+            handler(data, key);
+        }
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Dispose()
