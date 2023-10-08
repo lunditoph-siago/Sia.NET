@@ -78,7 +78,7 @@ public sealed class SparseSet<T> : IDictionary<int, T>, IReadOnlyDictionary<int,
         _pages = new Page[pageCount];
     }
 
-    public Span<int> AsKeySpan() => CollectionsMarshal.AsSpan(_reverse);
+    public ReadOnlySpan<int> AsKeySpan() => CollectionsMarshal.AsSpan(_reverse);
     public Span<T> AsValueSpan() => CollectionsMarshal.AsSpan(_dense);
 
     public IEnumerator<KeyValuePair<int, T>> GetEnumerator()
@@ -130,7 +130,7 @@ public sealed class SparseSet<T> : IDictionary<int, T>, IReadOnlyDictionary<int,
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool ContainsKey(int index)
-        => Unsafe.IsNullRef(ref GetPage(index, out int _));
+        => !Unsafe.IsNullRef(ref GetPage(index, out int _));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Contains(KeyValuePair<int, T> item)
