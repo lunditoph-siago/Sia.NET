@@ -1,7 +1,7 @@
 namespace Sia;
 
 public sealed class SparseBufferStorage<T>
-    : BufferStorage<T, SparseBuffer<BufferStorageEntry<T>>>
+    : BufferStorage<T, SparseBuffer<T>>
     where T : struct
 {
     public SparseBufferStorage(int capacity = 65535, int pageSize = 256)
