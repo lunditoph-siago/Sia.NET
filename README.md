@@ -46,7 +46,7 @@ public static partial class Example1
     {
         public HealthUpdateSystem()
         {
-            Matcher = Matchers.From<TypeUnion<Health>>();
+            Matcher = Matchers.Of<Health>();
         }
 
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
@@ -66,7 +66,7 @@ public static partial class Example1
     {
         public DeathSystem()
         {
-            Matcher = Matchers.From<TypeUnion<Health>>();
+            Matcher = Matchers.Of<Health>();
         }
 
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
@@ -94,7 +94,7 @@ public static partial class Example1
     {
         public LocationDamageSystem()
         {
-            Matcher = Matchers.From<TypeUnion<Transform, Health>>();
+            Matcher = Matchers.Of<Transform, Health>();
             Trigger = new EventUnion<WorldEvents.Add, Transform.SetPosition>();
         }
 
