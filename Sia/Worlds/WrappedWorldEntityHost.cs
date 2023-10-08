@@ -40,6 +40,7 @@ public record WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>, IReactive
     public EntityRef Create()
     {
         var entity = _host.Create();
+        World.Count++;
         OnEntityCreated?.Invoke(entity);
         World.Dispatcher.Send(entity, WorldEvents.Add.Instance);
         return entity;
@@ -49,6 +50,7 @@ public record WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>, IReactive
     public EntityRef Create(in T initial)
     {
         var entity = _host.Create(initial);
+        World.Count++;
         OnEntityCreated?.Invoke(entity);
         World.Dispatcher.Send(entity, WorldEvents.Add.Instance);
         return entity;
@@ -61,6 +63,7 @@ public record WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>, IReactive
         var entity = new EntityRef(pointer, this);
 
         var dispatcher = World.Dispatcher;
+        World.Count--;
         dispatcher.Send(entity, WorldEvents.Remove.Instance);
         dispatcher.UnlistenAll(entity);
 
