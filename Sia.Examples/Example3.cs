@@ -146,6 +146,33 @@ public static partial class Example3
         }
     }
 
+    public sealed class MoverRandomDestroySystem : SystemBase
+    {
+        [AllowNull] private WorldCommandBuffer _buffer;
+
+        public MoverRandomDestroySystem()
+        {
+            Matcher = Matchers.From<TypeUnion<Mover, Position>>();
+        }
+
+        public override void Initialize(World world, Scheduler scheduler)
+        {
+            _buffer = world.CreateCommandBuffer();
+        }
+
+        public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+        {
+            int entityCount = world.Count;
+            query.ForEachParallel(this, static (sys, entity) => {
+                if (Random.Shared.Next(3) == 2) {
+                    sys._buffer.Do(entity, static (world, entity) => entity.Dispose());
+                }
+            });
+            _buffer.Submit();
+            Console.WriteLine($"Destroyed {entityCount - world.Count} entities.");
+        }
+    }
+
     public static class TestObject
     {
         public static EntityRef Create(World world, Vector3 position)
@@ -167,9 +194,10 @@ public static partial class Example3
         SystemChain.Empty
             .Add<MoverUpdateSystem>()
             .Add<RotatorUpdateSystem>()
+            .Add<MoverRandomDestroySystem>()
             .RegisterTo(world, scheduler);
 
-        for (int i = 0; i != 5000000; ++i) {
+        for (int i = 0; i != 500000; ++i) {
             TestObject.Create(world,
                 new Vector3(
                     Random.Shared.NextSingle() * 100 - 50, 0,
