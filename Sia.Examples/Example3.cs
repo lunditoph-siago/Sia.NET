@@ -71,7 +71,7 @@ public static partial class Example3
     {
         public PositionChangePrintSystem()
         {
-            Matcher = Matchers.From<TypeUnion<Position>>();
+            Matcher = Matchers.Of<Position>();
             Trigger = new EventUnion<Position.SetValue>();
         }
 
@@ -91,7 +91,7 @@ public static partial class Example3
 
         public MoverUpdateSystem()
         {
-            Matcher = Matchers.From<TypeUnion<Mover, Position, Rotation>>();
+            Matcher = Matchers.Of<Mover, Position, Rotation>();
         }
 
         public override void Initialize(World world, Scheduler scheduler)
@@ -123,7 +123,7 @@ public static partial class Example3
 
         public RotatorUpdateSystem()
         {
-            Matcher = Matchers.From<TypeUnion<Rotator, Rotation>>();
+            Matcher = Matchers.Of<Rotator, Rotation>();
         }
 
         public override void Initialize(World world, Scheduler scheduler)
@@ -152,7 +152,7 @@ public static partial class Example3
 
         public MoverRandomDestroySystem()
         {
-            Matcher = Matchers.From<TypeUnion<Mover, Position>>();
+            Matcher = Matchers.Of<Mover, Position>();
         }
 
         public override void Initialize(World world, Scheduler scheduler)

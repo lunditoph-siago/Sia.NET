@@ -1,11 +1,75 @@
-using System.Text.Json.Serialization;
-
 namespace Sia;
 
 public static class Matchers
 {
     public static IEntityMatcher Any { get; } = new AnyMatcher();
     public static IEntityMatcher None { get; } = new NoneMatcher();
+    
+    public static IEntityMatcher Of<T1>()
+        => From<TypeUnion<T1>>();
+    public static IEntityMatcher Of<T1, T2>()
+        => From<TypeUnion<T1, T2>>();
+    public static IEntityMatcher Of<T1, T2, T3>()
+        => From<TypeUnion<T1, T2, T3>>();
+    public static IEntityMatcher Of<T1, T2, T3, T4>()
+        => From<TypeUnion<T1, T2, T3, T4>>();
+    public static IEntityMatcher Of<T1, T2, T3, T4, T5>()
+        => From<TypeUnion<T1, T2, T3, T4, T5>>();
+    public static IEntityMatcher Of<T1, T2, T3, T4, T5, T6>()
+        => From<TypeUnion<T1, T2, T3, T4, T5, T6>>();
+    public static IEntityMatcher Of<T1, T2, T3, T4, T5, T6, T7>()
+        => From<TypeUnion<T1, T2, T3, T4, T5, T6, T7>>();
+    public static IEntityMatcher Of<T1, T2, T3, T4, T5, T6, T7, T8>()
+        => From<TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8>>();
+    public static IEntityMatcher Of<T1, T2, T3, T4, T5, T6, T7, T8, T9>()
+        => From<TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9>>();
+    public static IEntityMatcher Of<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>()
+        => From<TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>>();
+    public static IEntityMatcher Of<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>()
+        => From<TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>>();
+    public static IEntityMatcher Of<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>()
+        => From<TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>>();
+    public static IEntityMatcher Of<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>()
+        => From<TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>>();
+    public static IEntityMatcher Of<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14>()
+        => From<TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14>>();
+    public static IEntityMatcher Of<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15>()
+        => From<TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15>>();
+    public static IEntityMatcher Of<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16>()
+        => From<TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16>>();
+
+    public static IEntityMatcher Exclude<T1>()
+        => FromExclusive<TypeUnion<T1>>();
+    public static IEntityMatcher Exclude<T1, T2>()
+        => FromExclusive<TypeUnion<T1, T2>>();
+    public static IEntityMatcher Exclude<T1, T2, T3>()
+        => FromExclusive<TypeUnion<T1, T2, T3>>();
+    public static IEntityMatcher Exclude<T1, T2, T3, T4>()
+        => FromExclusive<TypeUnion<T1, T2, T3, T4>>();
+    public static IEntityMatcher Exclude<T1, T2, T3, T4, T5>()
+        => FromExclusive<TypeUnion<T1, T2, T3, T4, T5>>();
+    public static IEntityMatcher Exclude<T1, T2, T3, T4, T5, T6>()
+        => FromExclusive<TypeUnion<T1, T2, T3, T4, T5, T6>>();
+    public static IEntityMatcher Exclude<T1, T2, T3, T4, T5, T6, T7>()
+        => FromExclusive<TypeUnion<T1, T2, T3, T4, T5, T6, T7>>();
+    public static IEntityMatcher Exclude<T1, T2, T3, T4, T5, T6, T7, T8>()
+        => FromExclusive<TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8>>();
+    public static IEntityMatcher Exclude<T1, T2, T3, T4, T5, T6, T7, T8, T9>()
+        => FromExclusive<TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9>>();
+    public static IEntityMatcher Exclude<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>()
+        => FromExclusive<TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>>();
+    public static IEntityMatcher Exclude<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>()
+        => FromExclusive<TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>>();
+    public static IEntityMatcher Exclude<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>()
+        => FromExclusive<TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>>();
+    public static IEntityMatcher Exclude<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>()
+        => FromExclusive<TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>>();
+    public static IEntityMatcher Exclude<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14>()
+        => FromExclusive<TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14>>();
+    public static IEntityMatcher Exclude<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15>()
+        => FromExclusive<TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15>>();
+    public static IEntityMatcher Exclude<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16>()
+        => FromExclusive<TypeUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16>>();
 
     public static IEntityMatcher From<TTypeUnion>()
         where TTypeUnion : ITypeUnion, new()
