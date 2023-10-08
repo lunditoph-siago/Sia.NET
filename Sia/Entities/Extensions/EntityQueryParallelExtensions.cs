@@ -56,6 +56,8 @@ public static class EntityQueryParallelExtensions
     public static unsafe void ForEachParallel(this IEntityQuery query, EntityHandler handler, int minimumActionsPerThread = 1)
     {
         var count = query.Count;
+        if (count == 0) { return; }
+
         using var spanOwner = SpanOwner<EntityRef>.Allocate(count);
         var memory = (EntityRef*)Unsafe.AsPointer(ref spanOwner.Span[0]);
 
@@ -75,6 +77,8 @@ public static class EntityQueryParallelExtensions
     public static unsafe void ForEachParallel<TData>(this IEntityQuery query, in TData data, EntityHandler<TData> handler, int minimumActionsPerThread = 1)
     {
         var count = query.Count;
+        if (count == 0) { return; }
+
         using var spanOwner = SpanOwner<EntityRef>.Allocate(count);
         var memory = (EntityRef*)Unsafe.AsPointer(ref spanOwner.Span[0]);
 
