@@ -1,5 +1,6 @@
 namespace Sia.Examples;
 
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using Sia;
@@ -178,9 +179,13 @@ public static partial class Example3
         var frame = world.AcquireAddon<Frame>();
         frame.Delta = 0.5f;
 
+        var sw = new Stopwatch();
+        sw.Start();
         scheduler.Tick();
         scheduler.Tick();
         scheduler.Tick();
         scheduler.Tick();
+        sw.Stop();
+        Console.WriteLine(sw.Elapsed);
     }
 }
