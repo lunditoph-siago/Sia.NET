@@ -12,6 +12,10 @@ public sealed class HashBuffer<T> : IBuffer<T>
     private readonly Dictionary<int, T> _dict = new();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool Contains(int index)
+        => _dict.ContainsKey(index);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetOrAddValueRef(int index, out bool exists)
         => ref CollectionsMarshal.GetValueRefOrAddDefault(_dict, index, out exists)!;
 
@@ -26,6 +30,22 @@ public sealed class HashBuffer<T> : IBuffer<T>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Remove(int index, [MaybeNullWhen(false)] out T value)
         => _dict.Remove(index, out value);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void IterateAllocated(BufferIndexHandler handler)
+    {
+        foreach (int index in _dict.Keys) {
+            handler(index);
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void IterateAllocated<TData>(in TData data, BufferIndexHandler<TData> handler)
+    {
+        foreach (int index in _dict.Keys) {
+            handler(data, index);
+        }
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Dispose()

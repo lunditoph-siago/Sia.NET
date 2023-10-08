@@ -27,6 +27,10 @@ public readonly struct WrappedBuffer<T, TBuffer> : IBuffer<T>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool Contains(int index)
+        => _buffer.Contains(index);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetOrAddValueRef(int index, out bool exists)
         => ref _buffer.GetOrAddValueRef(index, out exists);
 
@@ -41,6 +45,14 @@ public readonly struct WrappedBuffer<T, TBuffer> : IBuffer<T>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Remove(int index, [MaybeNullWhen(false)] out T value)
         => _buffer.Remove(index, out value);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void IterateAllocated(BufferIndexHandler handler)
+        => _buffer.IterateAllocated(handler);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void IterateAllocated<TData>(in TData data, BufferIndexHandler<TData> handler)
+        => _buffer.IterateAllocated(data, handler);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Dispose()

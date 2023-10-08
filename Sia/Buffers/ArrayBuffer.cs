@@ -18,10 +18,15 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool Contains(int index)
+        => _allocatedTags[index];
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetOrAddValueRef(int index, out bool exists)
     {
         exists = _allocatedTags[index];
         if (!exists) {
+            Count++;
             _allocatedTags[index] = true;
         }
         return ref _values[index];
@@ -43,6 +48,7 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
         if (!allocatedTag) {
             return false;
         }
+        Count--;
         allocatedTag = false;
         _values[index] = default!;
         return true;
@@ -56,11 +62,51 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
             value = default;
             return false;
         }
+        Count--;
         allocatedTag = false;
         value = _values[index];
         _values[index] = default!;
         return true;
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void IterateAllocated(BufferIndexHandler handler)
+    {
+        int capacity = Capacity;
+        int count = Count;
+        int accum = 0;
+
+        for (int i = 0; i != capacity; ++i) {
+            if (!_allocatedTags[i]) {
+                continue;
+            }
+            handler(i);
+            accum++;
+            if (accum == count) {
+                return;
+            }
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void IterateAllocated<TData>(in TData data, BufferIndexHandler<TData> handler)
+    {
+        int capacity = Capacity;
+        int count = Count;
+        int accum = 0;
+
+        for (int i = 0; i != capacity; ++i) {
+            if (!_allocatedTags[i]) {
+                continue;
+            }
+            handler(data, i);
+            accum++;
+            if (accum == count) {
+                return;
+            }
+        }
+    }
+    
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Dispose()
