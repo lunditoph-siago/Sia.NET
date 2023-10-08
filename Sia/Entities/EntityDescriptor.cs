@@ -21,16 +21,6 @@ public record EntityDescriptor
     private const BindingFlags s_bindingFlags =
         BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private unsafe static int GetFieldOffset(FieldInfo fieldInfo)
-    {
-        var ptr = fieldInfo.FieldHandle.Value;
-        ptr = ptr + 4 + sizeof(IntPtr);
-        ushort length = *(ushort*)ptr;
-        byte chunkSize = *(byte*)(ptr + 2);
-        return length + (chunkSize << 16);
-    }
-
     private EntityDescriptor(Type type)
     {
         Type = type;
@@ -74,5 +64,15 @@ public record EntityDescriptor
         offset = GetFieldOffset(compInfo);
         compOffsets.Add(componentTypeIndex, offset);
         return true;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private unsafe static int GetFieldOffset(FieldInfo fieldInfo)
+    {
+        var ptr = fieldInfo.FieldHandle.Value;
+        ptr = ptr + 4 + sizeof(IntPtr);
+        ushort length = *(ushort*)ptr;
+        byte chunkSize = *(byte*)(ptr + 2);
+        return length + (chunkSize << 16);
     }
 }

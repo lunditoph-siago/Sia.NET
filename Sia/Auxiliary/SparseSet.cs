@@ -92,6 +92,7 @@ public sealed class SparseSet<T> : IDictionary<int, T>, IReadOnlyDictionary<int,
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Add(int index, T value)
     {
         ref var valueRef = ref GetOrAddValueRef(index, out bool exists);
@@ -102,6 +103,7 @@ public sealed class SparseSet<T> : IDictionary<int, T>, IReadOnlyDictionary<int,
         return true;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Add(KeyValuePair<int, T> item)
         => Add(item.Key, item.Value);
 
@@ -119,9 +121,11 @@ public sealed class SparseSet<T> : IDictionary<int, T>, IReadOnlyDictionary<int,
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool ContainsKey(int index)
         => Unsafe.IsNullRef(ref GetPage(index, out int _));
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Contains(KeyValuePair<int, T> item)
     {
         ref int valueIndexRef = ref GetValueIndexRef(item.Key);
@@ -131,6 +135,7 @@ public sealed class SparseSet<T> : IDictionary<int, T>, IReadOnlyDictionary<int,
         return _dense[valueIndexRef]!.Equals(item.Value);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool TryGetValue(int index, [MaybeNullWhen(false)] out T value)
     {
         ref T valueRef = ref GetValueRefOrNullRef(index);
@@ -211,6 +216,7 @@ public sealed class SparseSet<T> : IDictionary<int, T>, IReadOnlyDictionary<int,
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetValueRefOrNullRef(int index)
     {
         ref int valueIndex = ref GetValueIndexRef(index);
@@ -257,6 +263,7 @@ public sealed class SparseSet<T> : IDictionary<int, T>, IReadOnlyDictionary<int,
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private ref T AddDefaultValue(ref int valueIndexRef, int index)
     {
         valueIndexRef = _dense.Count;
