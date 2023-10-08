@@ -1,5 +1,5 @@
-using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace Sia;
 
@@ -29,7 +29,7 @@ public class WorldCommandBuffer<TCommand>
 
     public World World { get; }
 
-    private readonly ConcurrentQueue<ISender> _queue = new();
+    private readonly ThreadLocal<List<ISender>> _senders = new(() => new(), true);
 
     internal WorldCommandBuffer(World world)
     {
@@ -41,14 +41,17 @@ public class WorldCommandBuffer<TCommand>
         where UCommand : TCommand
     {
         command.Execute(World, target);
-        _queue.Enqueue(new Sender<UCommand>(target, command));
+        _senders.Value!.Add(new Sender<UCommand>(target, command));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Submit()
     {
-        while (_queue.TryDequeue(out var sender)) {
-            sender.Send(World);
+        foreach (var senders in _senders.Values) {
+            foreach (var sender in CollectionsMarshal.AsSpan(senders)) {
+                sender.Send(World);
+            }
+            senders.Clear();
         }
     }
 }
