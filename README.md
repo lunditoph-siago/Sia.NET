@@ -1,6 +1,6 @@
 # Sia.NET
 
-Elegant ECS framework for .NET
+Modern ECS framework for .NET
 
 ## Example
 

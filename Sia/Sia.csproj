@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <PackageId>Sia</PackageId>
-    <PackageDescription>Elegant ECS framework for .NET</PackageDescription>
+    <PackageDescription>Modern ECS framework for .NET</PackageDescription>
     <Author>Phlamcenth Sicusa</Author>
     <Company>Gilatod.art</Company>
     <RepositoryUrl>https://github.com/sicusa/Sia.NET</RepositoryUrl>
