@@ -11,13 +11,14 @@ public record SystemChain(
         ImmutableArray<Type> PreceedingSystemTypes,
         ImmutableArray<Type> FollowingSystemTypes);
     
-    public sealed class Disposable : IDisposable
+    public sealed class Handle : IDisposable
     {
         public IReadOnlyList<SystemHandle> Handles => _handles;
+        public IEnumerable<Scheduler.TaskGraphNode> TaskGraphNodes => _handles.Select(h => h.TaskGraphNode);
 
         private List<SystemHandle> _handles;
 
-        internal Disposable(List<SystemHandle> handles)
+        internal Handle(List<SystemHandle> handles)
         {
             _handles = handles;
         }
@@ -63,7 +64,7 @@ public record SystemChain(
         return new(Sequence.Remove(typeof(TSystem)), newEntries);
     }
     
-    public Disposable RegisterTo(World world, Scheduler scheduler, IEnumerable<Scheduler.TaskGraphNode>? dependedTasks = null)
+    public Handle RegisterTo(World world, Scheduler scheduler, IEnumerable<Scheduler.TaskGraphNode>? dependedTasks = null)
     {
         var sysLib = world.AcquireAddon<SystemLibrary>();
         var depSysTypesDict = new Dictionary<Type, HashSet<Type>?>();
@@ -142,7 +143,7 @@ public record SystemChain(
         foreach (var type in Sequence) {
             DoRegister(type);
         }
-        return new Disposable(sysHandleList);
+        return new Handle(sysHandleList);
     }
     
     private static ImmutableArray<Type> GetAttributedSystemTypes<TSystem>(Type genericAttrType)
