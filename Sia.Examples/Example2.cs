@@ -4,11 +4,7 @@ using Sia;
 
 public static class Example2
 {
-    public record struct Name(string Value)
-    {
-        public static implicit operator Name(string value)
-            => new(value);
-    }
+    public record struct Name(string Value);
 
     public record struct HP(
         int Value, int Maximum, int AutoRecoverRate)
@@ -61,15 +57,15 @@ public static class Example2
         }
     }
 
-    public record struct Player(Name Name, HP HP)
+    public static class Player
     {
         public static EntityRef CreateResilient(World world, string name)
-            => world.GetHashHost<Player>().Create(new() {
-                Name = name,
-                HP = new() {
+            => world.CreateInHashHost(Tuple.Create(
+                new Name(name),
+                new HP {
                     AutoRecoverRate = 10
                 }
-            });
+            ));
     }
 
     public static void Run()
@@ -77,8 +73,10 @@ public static class Example2
         var world = new World();
         var scheduler = new Scheduler();
 
-        world.RegisterSystem<DamageDisplaySystem>(scheduler);
-        world.RegisterSystem<HPAutoRecoverSystem>(scheduler);
+        SystemChain.Empty
+            .Add<DamageDisplaySystem>()
+            .Add<HPAutoRecoverSystem>()
+            .RegisterTo(world, scheduler);
 
         var player = Player.CreateResilient(world, "玩家");
         ref var hp = ref player.Get<HP>();
