@@ -4,7 +4,7 @@ using System.Numerics;
 
 using Sia;
 
-public static partial class Example1
+public static partial class Example1_HealthDamage
 {
     [SiaTemplate("TestObject")]
     public record TestTemplate<T, U>(T Value, U Value2)
