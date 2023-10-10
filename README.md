@@ -42,20 +42,29 @@ public static partial class Example1
         }
     }
 
+
     public class HealthUpdateSystem : SystemBase
     {
+        private World? _world;
+        private Game? _game;
+
         public HealthUpdateSystem()
         {
             Matcher = Matchers.Of<Health>();
         }
 
+        public override void Initialize(World world, Scheduler scheduler)
+        {
+            _world = world;
+            _game = world.GetAddon<Game>();
+        }
+
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
-            query.ForEach(world, static (world, entity) => {
+            query.ForEach(this, static (sys, entity) => {
                 ref var health = ref entity.Get<Health>();
                 if (health.Debuff != 0) {
-                    var game = world.GetAddon<Game>();
-                    world.Modify(entity, new Health.Damage(health.Debuff * game.DeltaTime));
+                    sys._world!.Modify(entity, new Health.Damage(health.Debuff * sys._game!.DeltaTime));
                     Console.WriteLine($"Damage: HP {entity.Get<Health>().Value}");
                 }
             });
