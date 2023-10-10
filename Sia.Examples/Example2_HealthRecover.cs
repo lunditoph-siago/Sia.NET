@@ -2,7 +2,7 @@ namespace Sia.Examples;
 
 using Sia;
 
-public static class Example2
+public static class Example2_HealthRecover
 {
     public record struct Name(string Value);
 

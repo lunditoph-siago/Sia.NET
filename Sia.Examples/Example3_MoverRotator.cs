@@ -51,7 +51,7 @@ public static class QuaternionExtensions
     }
 }
 
-public static partial class Example3
+public static partial class Example3_MoveRotator
 {
     public partial record struct Position([SiaProperty] Vector3 Value);
     public partial record struct Rotation([SiaProperty] Quaternion Value)

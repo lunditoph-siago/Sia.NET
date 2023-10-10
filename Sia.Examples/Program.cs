@@ -2,6 +2,6 @@ using Sia;
 using Sia.Examples;
 
 Tests.Run();
-Example1.Run();
-Example2.Run();
-Example3.Run();
+Example1_HealthDamage.Run();
+Example2_HealthRecover.Run();
+Example3_MoveRotator.Run();
