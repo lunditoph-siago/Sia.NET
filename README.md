@@ -6,10 +6,18 @@ Modern ECS framework for .NET
 
 ```C#
 using System.Numerics;
+
 using Sia;
 
-public static partial class Example1
+public static partial class Example1_HealthDamage
 {
+    [SiaTemplate("TestObject")]
+    public record TestTemplate<T, U>(T Value, U Value2)
+        where T : IReadOnlyList<int>
+        where U : notnull;
+        
+    public partial record struct TestComp<T>([SiaProperty] T Value);
+
     public class Game : IAddon
     {
         public float DeltaTime { get; private set; }
@@ -42,7 +50,6 @@ public static partial class Example1
         }
     }
 
-
     public class HealthUpdateSystem : SystemBase
     {
         private World? _world;
@@ -71,6 +78,7 @@ public static partial class Example1
         }
     }
 
+    [AfterSystem<HealthUpdateSystem>]
     public class DeathSystem : SystemBase
     {
         public DeathSystem()
@@ -155,10 +163,10 @@ public static partial class Example1
         var world = new World();
         var game = world.AcquireAddon<Game>();
 
-        var healthSystemsHandle =
-            world.RegisterSystem<HealthSystems>(game.Scheduler);
-        var gameplaySystemsHandle =
-            world.RegisterSystem<GameplaySystems>(game.Scheduler);
+        var handle = SystemChain.Empty
+            .Add<HealthSystems>()
+            .Add<GameplaySystems>()
+            .RegisterTo(world, game.Scheduler);
         
         var playerRef = Player.Create(world, new(1, 1));
         game.Update(0.5f);
@@ -169,7 +177,7 @@ public static partial class Example1
         game.Scheduler.CreateTask(() => {
             Console.WriteLine("Callback invoked after health and gameplay systems");
             return true; // remove task
-        }, new[] {healthSystemsHandle.TaskGraphNode, gameplaySystemsHandle.TaskGraphNode});
+        }, handle.TaskGraphNodes);
     
         world.Modify(playerRef, new Transform.SetPosition(new(1, 3)));
         game.Update(0.5f);
@@ -177,8 +185,7 @@ public static partial class Example1
         game.Update(0.5f);
         game.Update(0.5f); // player dead
 
-        gameplaySystemsHandle.Dispose();
-        healthSystemsHandle.Dispose();
+        handle.Dispose();
     }
 }
 ```
