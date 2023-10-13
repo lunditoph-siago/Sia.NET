@@ -15,7 +15,7 @@ public record EntityDescriptor
 
     public Type Type { get; }
 
-    private readonly Dictionary<Type, FieldInfo> _compInfos = new();
+    private readonly Dictionary<Type, IntPtr> _rawCompOffsets = new();
     private readonly ThreadLocal<Dictionary<int, IntPtr>> _compOffsets = new(() => new());
 
     private const BindingFlags s_bindingFlags =
@@ -24,25 +24,36 @@ public record EntityDescriptor
     private EntityDescriptor(Type type)
     {
         Type = type;
+        RegisterFields(type);
+    }
 
+    private void RegisterFields(Type type, int baseOffset = 0)
+    {
         foreach (var member in type.GetMembers(s_bindingFlags)) {
             if (member.MemberType != MemberTypes.Field) {
                 continue;
             }
+
             var fieldInfo = (FieldInfo)member;
-            if (!_compInfos.TryAdd(fieldInfo.FieldType, fieldInfo)) {
-                throw new ComponentTypeConflictException("Entity component types conflict");
+            var offset = GetFieldOffset(fieldInfo);
+
+            var fieldType = fieldInfo.FieldType;
+            if (fieldType.IsAssignableTo(typeof(IComponentBundle))) {
+                RegisterFields(fieldType, baseOffset + offset);
+            }
+            else if (!_rawCompOffsets.TryAdd(fieldType, baseOffset + offset)) {
+                throw new InvalidDataException("Entity cannot have multiple components of the same type");
             }
         }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Contains(Type type)
-        => _compInfos.ContainsKey(type);
+        => _rawCompOffsets.ContainsKey(type);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Contains<TComponent>()
-        => _compInfos.ContainsKey(typeof(TComponent));
+        => _rawCompOffsets.ContainsKey(typeof(TComponent));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool TryGetOffset<TComponent>(out IntPtr offset)
@@ -50,24 +61,21 @@ public record EntityDescriptor
 
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool UnsafeTryGetOffset(Type componentType, int componentTypeIndex, out IntPtr offset)
+    public bool UnsafeTryGetOffset(Type type, int componentTypeIndex, out IntPtr offset)
     {
         var compOffsets = _compOffsets.Value!;
-
         if (compOffsets.TryGetValue(componentTypeIndex, out offset)) {
             return true;
         }
-        if (!_compInfos.TryGetValue(componentType, out var compInfo)) {
-            offset = default;
+        if (!_rawCompOffsets.TryGetValue(type, out offset)) {
             return false;
         }
-        offset = GetFieldOffset(compInfo);
         compOffsets.Add(componentTypeIndex, offset);
         return true;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private unsafe static int GetFieldOffset(FieldInfo fieldInfo)
+    private static unsafe int GetFieldOffset(FieldInfo fieldInfo)
     {
         var ptr = fieldInfo.FieldHandle.Value;
         ptr = ptr + 4 + sizeof(IntPtr);
