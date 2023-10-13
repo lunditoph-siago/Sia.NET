@@ -88,7 +88,13 @@ namespace Internal
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ref T UnsafeGetRef(long rawPointer)
-            => ref _buffer.GetValueRefOrNullRef((int)rawPointer);
+        {
+            ref var value = ref _buffer.GetValueRefOrNullRef((int)rawPointer);
+            if (Unsafe.IsNullRef(ref value)) {
+                throw new ArgumentException("Invalid pointer");
+            }
+            return ref value;
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void IterateAllocated(StoragePointerHandler handler)
