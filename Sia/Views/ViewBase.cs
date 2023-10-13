@@ -8,7 +8,8 @@ public abstract class ViewBase<TTypeUnion> : IAddon
     [AllowNull]
     public World World { get; private set; }
 
-    protected World.EntityQuery? Query { get; private set; }
+    [AllowNull]
+    protected World.EntityQuery Query { get; private set; }
 
     public virtual void OnInitialize(World world)
     {
@@ -33,7 +34,7 @@ public abstract class ViewBase<TTypeUnion> : IAddon
 
     public virtual void OnUninitialize(World world)
     {
-        foreach (var host in Query!.Hosts) {
+        foreach (var host in Query.Hosts) {
             host.OnEntityCreated -= OnEntityAdded;
             host.OnEntityReleased -= OnEntityRemoved;
         }
