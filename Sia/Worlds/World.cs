@@ -335,8 +335,7 @@ public sealed class World : IEntityQuery, IEventSender
             WorldEntityHostIndexer<THost>.Index, out bool exists);
         if (!exists) {
             var newHost = new WrappedWorldEntityHost<TEntity, THost>(this, creator());
-            host = newHost;
-            OnEntityHostCreated?.Invoke(host);
+            OnEntityHostCreated?.Invoke(newHost);
             return newHost;
         }
         return (WrappedWorldEntityHost<TEntity, THost>)host;
