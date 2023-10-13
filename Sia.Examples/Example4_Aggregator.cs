@@ -12,7 +12,7 @@ public static partial class Example4_Aggregator
 
     public record struct TestEntity(
         Aggregation<ObjectId> Aggregation,
-        ComponentCount ComponentCount): IAggregationEntity<ObjectId>
+        ComponentCount ComponentCount) : IAggregationEntity<ObjectId>
     {
         public static EntityRef Create(World world)
             => world.CreateInHashHost(new TestEntity {
@@ -30,10 +30,10 @@ public static partial class Example4_Aggregator
 
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
-            query.ForEach(static entity => {
+            query.ForEach(world, static (world, entity) => {
                 ref var aggr = ref entity.Get<Aggregation<ObjectId>>();
                 int count = aggr.Group.Count;
-                entity.Get<ComponentCount>().Value = count;
+                world.Modify(entity, new ComponentCount.SetValue(count));
                 Console.WriteLine($"[{aggr.Id}] Count: " + count);
             });
         }
