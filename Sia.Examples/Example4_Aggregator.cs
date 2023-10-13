@@ -10,11 +10,10 @@ public static partial class Example4_Aggregator
 
     public partial record struct ComponentCount([SiaProperty] int Value);
 
-    public struct TestEntity : IAggregationEntity<ObjectId>
+    public record struct TestEntity(
+        Aggregation<ObjectId> Aggregation,
+        ComponentCount ComponentCount): IAggregationEntity<ObjectId>
     {
-        public Aggregation<ObjectId> Aggregation { get; set; }
-        public ComponentCount ComponentCount { get; set; }
-
         public static EntityRef Create(World world)
             => world.CreateInHashHost(new TestEntity {
                 ComponentCount = new(0)

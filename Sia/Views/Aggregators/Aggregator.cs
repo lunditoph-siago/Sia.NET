@@ -1,49 +1,11 @@
 namespace Sia;
 
-using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-public static class Aggregation
-{
-    public readonly record struct EntityAdded(EntityRef Entity) : IEvent;
-    public readonly record struct EntityRemoved(EntityRef Entity) : IEvent;
-}
-
-public readonly record struct Aggregation<TId> : IEnumerable<EntityRef>, IDisposable
-    where TId : IEquatable<TId>
-{
-    public EntityRef Entity { get; }
-    public TId Id { get; }
-    public IReadOnlySet<EntityRef> Group => _group;
-
-    internal readonly HashSet<EntityRef> _group;
-
-    internal Aggregation(in EntityRef entity, in TId id, HashSet<EntityRef> group)
-    {
-        Entity = entity;
-        Id = id;
-        _group = group;
-    }
-
-    public HashSet<EntityRef>.Enumerator GetEnumerator()
-        => _group.GetEnumerator();
-
-    IEnumerator<EntityRef> IEnumerable<EntityRef>.GetEnumerator()
-        => _group.GetEnumerator();
-
-    IEnumerator IEnumerable.GetEnumerator()
-        => _group.GetEnumerator();
-
-    public void Dispose()
-    {
-        Entity.Dispose();
-    }
-}
-
-public class Aggregator<TEntity, TId> : ViewBase<TypeUnion<Id<TId>>>
-    where TEntity : IAggregationEntity<TId>
+public class Aggregator<TAggregationEntity, TId> : ViewBase<TypeUnion<Id<TId>>>
+    where TAggregationEntity : IAggregationEntity<TId>
     where TId : IEquatable<TId>
 {
     [AllowNull]
@@ -57,20 +19,16 @@ public class Aggregator<TEntity, TId> : ViewBase<TypeUnion<Id<TId>>>
 
     public Aggregator()
     {
-        if (!EntityDescriptor.Get<TEntity>().Contains<Aggregation<TId>>()) {
-            throw new InvalidDataException(
-                "Entity does not contain required component " + typeof(Aggregation<TId>));
-        }
+        EntityUtility.CheckComponent<TAggregationEntity, Aggregation<TId>>();
     }
 
     public override void OnInitialize(World world)
     {
-        base.OnInitialize(world);
-
         _aggregationQuery = world.Query<TypeUnion<Aggregation<TId>>>();
         _aggregationQuery.OnEntityHostAdded += host => host.OnEntityReleased += OnAggregationReleased;
 
         world.Dispatcher.Listen<Id<TId>.SetValue>(OnEntityIdChanged);
+        base.OnInitialize(world);
     }
 
     public override void OnUninitialize(World world)
@@ -87,14 +45,6 @@ public class Aggregator<TEntity, TId> : ViewBase<TypeUnion<Id<TId>>>
         world.Dispatcher.Unlisten<Id<TId>.SetValue>(OnEntityIdChanged);
     }
 
-    private bool OnEntityIdChanged(in EntityRef entity, in Id<TId>.SetValue e)
-    {
-        ref var id = ref entity.Get<Id<TId>>();
-        RemoveFromAggregation(entity, id.Previous);
-        AddToAggregation(entity, id.Value);
-        return false;
-    }
-
     private void OnAggregationReleased(in EntityRef target)
     {
         ref var aggr = ref target.Get<Aggregation<TId>>();
@@ -107,6 +57,14 @@ public class Aggregator<TEntity, TId> : ViewBase<TypeUnion<Id<TId>>>
         }
         group.Clear();
         _groupPool.Push(group);
+    }
+
+    private bool OnEntityIdChanged(in EntityRef entity, in Id<TId>.SetValue e)
+    {
+        ref var id = ref entity.Get<Id<TId>>();
+        RemoveFromAggregation(entity, id.Previous);
+        AddToAggregation(entity, id.Value);
+        return false;
     }
 
     public bool TryGet(in TId id, out Aggregation<TId> aggregation)
@@ -130,7 +88,7 @@ public class Aggregator<TEntity, TId> : ViewBase<TypeUnion<Id<TId>>>
         ref var aggr = ref CollectionsMarshal.GetValueRefOrAddDefault(_aggrs, id, out bool exists);
 
         if (!exists) {
-            var aggrEntity = TEntity.Create(World);
+            var aggrEntity = TAggregationEntity.Create(World);
             aggr = new(aggrEntity, id, _groupPool.TryPop(out var pooled) ? pooled : new());
             aggrEntity.Get<Aggregation<TId>>() = aggr;
         }

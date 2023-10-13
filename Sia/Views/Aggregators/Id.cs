@@ -12,9 +12,9 @@ public record struct Id<TId>(TId Value)
 
         public void ExecuteOnParallel(in EntityRef target)
         {
-            ref var TId = ref target.Get<Id<TId>>();
-            TId.Previous = TId.Value;
-            TId.Value = Value;
+            ref var id = ref target.Get<Id<TId>>();
+            id.Previous = id.Value;
+            id.Value = Value;
         }
     }
 }
