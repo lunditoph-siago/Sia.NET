@@ -28,8 +28,8 @@ public class EventChannel<TTarget, TEvent> : IEventSender<TTarget, TEvent>
             => receiver.Send(Target, Event);
     }
 
-    private record struct EventEntry(int Index, int Priority, ISender Sender);
-    private record struct DeferredEventEntry(IDeferrableEvent<TTarget> Event, ISender Sender);
+    private readonly record struct EventEntry(int Index, int Priority, ISender Sender);
+    private readonly record struct DeferredEventEntry(IDeferrableEvent<TTarget> Event, ISender Sender);
 
     public int Count => (_swapTag == 0 ? _events1 : _events2).Count;
 
@@ -130,10 +130,17 @@ public class EventChannel<TTarget, TEvent> : IEventSender<TTarget, TEvent>
             var span = CollectionsMarshal.AsSpan(relayingEvents);
             relayingEvents.Sort(CompareIndexedPriority);
 
-            foreach (ref var entry in span) {
-                entry.Sender.Send(receiver);
+            int count = 0;
+            try {
+                foreach (ref var entry in span) {
+                    ++count;
+                    entry.Sender.Send(receiver);
+                }
             }
-            
+            catch {
+                relayingEvents.RemoveRange(0, count);
+                throw;
+            }
             relayingEvents.Clear();
         }
     }
