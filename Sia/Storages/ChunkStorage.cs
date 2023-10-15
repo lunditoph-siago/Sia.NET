@@ -370,7 +370,7 @@ namespace Internal
             => _buffer.IterateAllocated(handler,
                 (in StoragePointerHandler handler, int index) => handler(index));
         
-        private record struct IterationData<TData>(TData Data, StoragePointerHandler<TData> Handler);
+        private readonly record struct IterationData<TData>(TData Data, StoragePointerHandler<TData> Handler);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void IterateAllocated<TData>(in TData data, StoragePointerHandler<TData> handler)

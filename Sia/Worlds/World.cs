@@ -125,11 +125,11 @@ public sealed class World : IEntityQuery, IEventSender
         }
     }
 
-    private record struct IterationData(IEntityHost Host, EntityHandler Handler);
-    private record struct SimpleIterationData(IEntityHost Host, SimpleEntityHandler Handler);
-    private record struct IterationData<TData>(
+    private readonly record struct IterationData(IEntityHost Host, EntityHandler Handler);
+    private readonly record struct SimpleIterationData(IEntityHost Host, SimpleEntityHandler Handler);
+    private readonly record struct IterationData<TData>(
         IEntityHost Host, TData Data, EntityHandler<TData> Handler);
-    private record struct SimpleIterationData<TData>(
+    private readonly record struct SimpleIterationData<TData>(
         IEntityHost Host, TData Data, SimpleEntityHandler<TData> Handler);
 
     public event Action<IReactiveEntityHost>? OnEntityHostCreated;
