@@ -11,23 +11,16 @@ public class WorldCommandBuffer<TCommand>
     
     private interface IExecutor
     {
-        void Execute(World world);
+        void Execute(World world, in EntityRef entity);
     }
 
-    private class Sender<UCommand> : IExecutor
+    private class PureEventSender<UCommand> : IExecutor
         where UCommand : TCommand
     {
-        private readonly EntityRef _target;
-        private readonly UCommand _command;
+        public static readonly PureEventSender<UCommand> Instance = new();
 
-        public Sender(in EntityRef target, in UCommand command)
-        {
-            _target = target;
-            _command = command;
-        }
-
-        public void Execute(World world)
-            => world.Send(_target, _command);
+        public void Execute(World world, in EntityRef entity)
+            => world.Send(entity, PureEvent<UCommand>.Instance);
     }
 
     private class CustomAction : IExecutor
@@ -39,7 +32,7 @@ public class WorldCommandBuffer<TCommand>
             _handler = handler;
         }
 
-        public void Execute(World world)
+        public void Execute(World world, in EntityRef entity)
             => _handler(world);
     }
 
@@ -54,7 +47,7 @@ public class WorldCommandBuffer<TCommand>
             _action = action;
         }
 
-        public void Execute(World world)
+        public void Execute(World world, in EntityRef entity)
             => _action(world, _data);
     }
 
@@ -69,13 +62,13 @@ public class WorldCommandBuffer<TCommand>
             _action = action;
         }
 
-        public void Execute(World world)
+        public void Execute(World world, in EntityRef entity)
             => _action(world, _data);
     }
 
     public World World { get; }
 
-    private readonly ThreadLocal<List<IExecutor>> _executors = new(() => new(), true);
+    private readonly ThreadLocal<List<(IExecutor, EntityRef)>> _executors = new(() => new(), true);
 
     internal WorldCommandBuffer(World world)
     {
@@ -87,20 +80,20 @@ public class WorldCommandBuffer<TCommand>
         where UCommand : TCommand
     {
         command.ExecuteOnParallel(target);
-        _executors.Value!.Add(new Sender<UCommand>(target, command));
+        _executors.Value!.Add((PureEventSender<UCommand>.Instance, target));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Do(Action<World> handler)
-        => _executors.Value!.Add(new CustomAction(handler));
+        => _executors.Value!.Add((new CustomAction(handler), default));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Do<TData>(in TData data, Handler<TData> handler)
-        => _executors.Value!.Add(new CustomAction<TData>(data, handler));
+        => _executors.Value!.Add((new CustomAction<TData>(data, handler), default));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Do<TData>(in TData data, SimpleHandler<TData> handler)
-        => _executors.Value!.Add(new SimpleCustomAction<TData>(data, handler));
+        => _executors.Value!.Add((new SimpleCustomAction<TData>(data, handler), default));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Submit()
@@ -108,9 +101,9 @@ public class WorldCommandBuffer<TCommand>
         foreach (var senders in _executors.Values) {
             int count = 0;
             try {
-                foreach (var sender in CollectionsMarshal.AsSpan(senders)) {
+                foreach (var (sender, entity) in CollectionsMarshal.AsSpan(senders)) {
                     ++count;
-                    sender.Execute(World);
+                    sender.Execute(World, entity);
                 }
             }
             catch {
