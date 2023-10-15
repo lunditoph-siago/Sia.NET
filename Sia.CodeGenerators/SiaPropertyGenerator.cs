@@ -130,9 +130,25 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         source.Write(commandName);
         source.Write("(");
         source.Write(valueType);
-        source.WriteLine(" Value) : global::Sia.IParallelCommand");
+        source.Write(" Value) : global::Sia.IReconstructableCommand<");
+        source.Write(commandName);
+        source.WriteLine(">, IParallelCommand");
         source.WriteLine("{");
         source.Indent++;
+
+        source.Write("public static ");
+        source.Write(commandName);
+        source.WriteLine(" ReconstructFromCurrentState(in global::Sia.EntityRef entity)");
+        source.Indent++;
+        source.Write("=> new(entity.Get<");
+        source.Write(componentName);
+        if (componentTypeParams != null) {
+            WriteTypeParameters(source, componentTypeParams);
+        }
+        source.Write(">().");
+        source.Write(valueName);
+        source.WriteLine(");");
+        source.Indent--;
 
         source.WriteLine("public void Execute(global::Sia.World _, in global::Sia.EntityRef target)");
         source.Indent++;
