@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 namespace Sia;
 
 public class WorldCommandBuffer<TCommand>
-    where TCommand : ICommand
+    where TCommand : IParallelCommand
 {
     public delegate void Handler<TData>(World world, in TData data);
     public delegate void SimpleHandler<TData>(World world, TData data);
@@ -86,7 +86,7 @@ public class WorldCommandBuffer<TCommand>
     public void Modify<UCommand>(in EntityRef target, in UCommand command)
         where UCommand : TCommand
     {
-        command.Execute(World, target);
+        command.ExecuteOnParallel(target);
         _executors.Value!.Add(new Sender<UCommand>(target, command));
     }
 
@@ -106,15 +106,23 @@ public class WorldCommandBuffer<TCommand>
     public void Submit()
     {
         foreach (var senders in _executors.Values) {
-            foreach (var sender in CollectionsMarshal.AsSpan(senders)) {
-                sender.Execute(World);
+            int count = 0;
+            try {
+                foreach (var sender in CollectionsMarshal.AsSpan(senders)) {
+                    ++count;
+                    sender.Execute(World);
+                }
+            }
+            catch {
+                senders.RemoveRange(0, count);
+                throw;
             }
             senders.Clear();
         }
     }
 }
 
-public class WorldCommandBuffer : WorldCommandBuffer<ICommand>
+public class WorldCommandBuffer : WorldCommandBuffer<IParallelCommand>
 {
     internal WorldCommandBuffer(World world)
         : base(world)
