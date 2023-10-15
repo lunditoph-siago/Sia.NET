@@ -14,8 +14,11 @@ public record struct Node(EntityRef? Parent) : IEnumerable<EntityRef>
 
     internal EntityRef? PreviousParent { get; private set; }
 
-    public readonly record struct SetParent(EntityRef? Value) : IParallelCommand
+    public readonly record struct SetParent(EntityRef? Value) : IParallelCommand, IReconstructableCommand<SetParent>
     {
+        public static SetParent ReconstructFromCurrentState(in EntityRef entity)
+            => new(entity.Get<Node>().Parent);
+
         public void Execute(World world, in EntityRef target)
             => ExecuteOnParallel(target);
 

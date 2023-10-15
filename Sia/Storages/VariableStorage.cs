@@ -111,7 +111,7 @@ namespace Internal
             }
         }
 
-        public record struct IterationData<TData>(
+        public readonly record struct IterationData<TData>(
             TData Data, StoragePointerHandler<TData> Handler, int Index);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
