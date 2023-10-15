@@ -16,8 +16,10 @@ public class SystemLibrary : IAddon
 
     private class Collector : IEntityQuery
     {
-        public int Count => _collectingSet.Count;
+        public int Count => _collectedSet.Count;
         public bool IsExecuting { get; private set; }
+
+        internal int CollectingSetCount => _collectingSet.Count;
 
         private Dictionary<EntityRef, int> _collectingSet = new();
         private Dictionary<EntityRef, int> _collectedSet = new();
@@ -299,7 +301,7 @@ public class SystemLibrary : IAddon
             var collector = new Collector();
 
             taskFunc = () => {
-                var count = collector.Count;
+                var count = collector.CollectingSetCount;
                 if (count == 0) {
                     return false;
                 }
