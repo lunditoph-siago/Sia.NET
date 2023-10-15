@@ -3,8 +3,7 @@ using System.Runtime.InteropServices;
 
 namespace Sia;
 
-public class WorldCommandBuffer<TCommand>
-    where TCommand : IParallelCommand
+public class WorldCommandBuffer
 {
     public delegate void Handler<TData>(World world, in TData data);
     public delegate void SimpleHandler<TData>(World world, TData data);
@@ -14,13 +13,22 @@ public class WorldCommandBuffer<TCommand>
         void Execute(World world, in EntityRef entity);
     }
 
-    private class PureEventSender<UCommand> : IExecutor
-        where UCommand : TCommand
+    private class PureEventSender<TEvent> : IExecutor
+        where TEvent : IEvent
     {
-        public static readonly PureEventSender<UCommand> Instance = new();
+        public static readonly PureEventSender<TEvent> Instance = new();
 
         public void Execute(World world, in EntityRef entity)
-            => world.Send(entity, PureEvent<UCommand>.Instance);
+            => world.Send(entity, PureEvent<TEvent>.Instance);
+    }
+
+    private class SingletonEventSender<TEvent> : IExecutor
+        where TEvent : SingletonEvent<TEvent>, new()
+    {
+        public static readonly SingletonEventSender<TEvent> Instance = new();
+
+        public void Execute(World world, in EntityRef entity)
+            => world.Send(entity, SingletonEvent<TEvent>.Instance);
     }
 
     private class CustomAction : IExecutor
@@ -74,14 +82,19 @@ public class WorldCommandBuffer<TCommand>
     {
         World = world;
     }
-    
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Modify<UCommand>(in EntityRef target, in UCommand command)
-        where UCommand : TCommand
+    public void Modify<TCommand>(in EntityRef target, in TCommand command)
+        where TCommand : IParallelCommand
     {
         command.ExecuteOnParallel(target);
-        _executors.Value!.Add((PureEventSender<UCommand>.Instance, target));
+        _executors.Value!.Add((PureEventSender<TCommand>.Instance, target));
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Send<TEvent>(in EntityRef target, in TEvent e)
+        where TEvent : SingletonEvent<TEvent>, new()
+        => _executors.Value!.Add((SingletonEventSender<TEvent>.Instance, target));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Do(Action<World> handler)
@@ -112,13 +125,5 @@ public class WorldCommandBuffer<TCommand>
             }
             senders.Clear();
         }
-    }
-}
-
-public class WorldCommandBuffer : WorldCommandBuffer<IParallelCommand>
-{
-    internal WorldCommandBuffer(World world)
-        : base(world)
-    {
     }
 }
