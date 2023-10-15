@@ -77,10 +77,7 @@ public static partial class Example3_MoveRotator
 
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
-            Console.WriteLine("Start PositionPrintSystem");
-            query.ForEach(static entity => {
-                Console.WriteLine("\t" + entity.Get<Position>().Value);
-            });
+            Console.WriteLine("PositionChangePrintSystem query count: " + query.Count);
         }
     }
 
@@ -110,7 +107,6 @@ public static partial class Example3_MoveRotator
                 var newPos = pos.Value + Vector3.Transform(Vector3.UnitZ, rot.Value) * mover.Speed * sys._frame.Delta;
                 sys._buffer.Modify(entity, new Position.SetValue(newPos));
             });
-
             _buffer.Submit();
         }
     }
@@ -141,7 +137,6 @@ public static partial class Example3_MoveRotator
                 var newRot = rot.Value.ToEulerAngles() + rotator.AngularSpeed * sys._frame.Delta;
                 sys._buffer.Modify(entity, new Rotation.SetValue(newRot.ToQuaternion()));
             });
-
             _buffer.Submit();
         }
     }
@@ -195,9 +190,10 @@ public static partial class Example3_MoveRotator
             .Add<MoverUpdateSystem>()
             .Add<RotatorUpdateSystem>()
             .Add<MoverRandomDestroySystem>()
+            .Add<PositionChangePrintSystem>()
             .RegisterTo(world, scheduler);
 
-        for (int i = 0; i != 500000; ++i) {
+        for (int i = 0; i != 100000; ++i) {
             TestObject.Create(world,
                 new Vector3(
                     Random.Shared.NextSingle() * 100 - 50, 0,
@@ -207,12 +203,13 @@ public static partial class Example3_MoveRotator
         var frame = world.AcquireAddon<Frame>();
         frame.Delta = 0.5f;
 
+        scheduler.Tick();
+
         var sw = new Stopwatch();
         sw.Start();
-        scheduler.Tick();
-        scheduler.Tick();
-        scheduler.Tick();
-        scheduler.Tick();
+        for (int i = 0; i < 120; ++i) {
+            scheduler.Tick();
+        }
         sw.Stop();
         Console.WriteLine(sw.Elapsed);
     }
