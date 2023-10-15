@@ -390,10 +390,6 @@ public sealed class World : IEntityQuery, IEventSender
     public WorldCommandBuffer CreateCommandBuffer()
         => new(this);
 
-    public WorldCommandBuffer<TCommand> CreateCommandBuffer<TCommand>()
-        where TCommand : IParallelCommand
-        => new(this);
-
     public TAddon AcquireAddon<TAddon>()
         where TAddon : IAddon, new()
     {
