@@ -132,7 +132,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         source.Write(valueType);
         source.Write(" Value) : global::Sia.IReconstructableCommand<");
         source.Write(commandName);
-        source.WriteLine(">, IParallelCommand");
+        source.WriteLine(">, global::Sia.IParallelCommand");
         source.WriteLine("{");
         source.Indent++;
 
