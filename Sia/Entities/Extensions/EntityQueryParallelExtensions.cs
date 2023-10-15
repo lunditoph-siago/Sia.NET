@@ -6,7 +6,7 @@ using CommunityToolkit.HighPerformance.Buffers;
 
 public static class EntityQueryParallelExtensions
 {
-    public readonly struct ForEachParallelAction
+    private readonly struct ForEachParallelAction
     {
         private readonly EntityRef[] _array;
         private readonly EntityHandler _handler;
@@ -25,7 +25,7 @@ public static class EntityQueryParallelExtensions
         }
     }
 
-    public readonly struct ForEachParallelAction<TData>
+    private readonly struct ForEachParallelAction<TData>
     {
         private readonly EntityRef[] _array;
         private readonly TData _data;
@@ -46,7 +46,7 @@ public static class EntityQueryParallelExtensions
         }
     }
 
-    public unsafe struct ForEachParallelData
+    private unsafe struct ForEachParallelData
     {
         public int* Index;
         public EntityRef[] Array;
