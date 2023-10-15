@@ -312,8 +312,8 @@ public class SystemLibrary : IAddon
             };
 
             if (trigger != null && filter != null) {
-                var triggerTypes = new HashSet<Type>(trigger.Types);
-                var filterTypes = new HashSet<Type>(filter.Types);
+                var triggerTypes = new HashSet<Type>(trigger.EventTypesWithPureEvents);
+                var filterTypes = new HashSet<Type>(filter.EventTypesWithPureEvents);
 
                 foreach (var filterType in filterTypes) {
                     triggerTypes.Remove(filterType);
@@ -344,7 +344,7 @@ public class SystemLibrary : IAddon
                 }
             }
             else if (trigger != null) {
-                var triggerTypes = new HashSet<Type>(trigger.Types);
+                var triggerTypes = new HashSet<Type>(trigger.EventTypesWithPureEvents);
 
                 if (matcher == Matchers.Any) {
                     var listener = new MatchAnyEventListener<TSystem>(
