@@ -59,7 +59,6 @@ public record EntityDescriptor
     public bool TryGetOffset<TComponent>(out IntPtr offset)
         => UnsafeTryGetOffset(typeof(TComponent), TypeIndexer<TComponent>.Index, out offset);
 
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool UnsafeTryGetOffset(Type type, int componentTypeIndex, out IntPtr offset)
     {
