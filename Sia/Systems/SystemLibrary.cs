@@ -124,9 +124,7 @@ public class SystemLibrary : IAddon
                 Collector.Remove(target);
             }
             else if (TriggerTypes.Contains(e.GetType())) {
-                if (System.OnTriggerEvent(World, Scheduler, target, e)) {
-                    Collector.Add(target);
-                }
+                Collector.Add(target);
             }
             return false;
         }
@@ -145,14 +143,10 @@ public class SystemLibrary : IAddon
                 Collector.Remove(target);
             }
             else if (TriggerTypes.Contains(type)) {
-                if (System.OnTriggerEvent(World, Scheduler, target, e)) {
-                    Collector.Add(target);
-                }
+                Collector.Add(target);
             }
             else if (FilterTypes.Contains(type)) {
-                if (System.OnFilterEvent(World, Scheduler, target, e)) {
-                    Collector.Remove(target);
-                }
+                Collector.Remove(target);
             }
             return false;
         }
@@ -172,9 +166,7 @@ public class SystemLibrary : IAddon
                 Collector.Remove(target);
             }
             else if (TriggerTypes.Contains(e.GetType())) {
-                if (System.OnTriggerEvent(World, Scheduler, target, e)) {
-                    Collector.Add(target);
-                }
+                Collector.Add(target);
             }
             return false;
         }
@@ -194,14 +186,10 @@ public class SystemLibrary : IAddon
                 Collector.Remove(target);
             }
             else if (TriggerTypes.Contains(type)) {
-                if (System.OnTriggerEvent(World, Scheduler, target, e)) {
-                    Collector.Add(target);
-                }
+                Collector.Add(target);
             }
             else if (FilterTypes.Contains(type)) {
-                if (System.OnFilterEvent(World, Scheduler, target, e)) {
-                    Collector.Remove(target);
-                }
+                Collector.Remove(target);
             }
             return false;
         }
