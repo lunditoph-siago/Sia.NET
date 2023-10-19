@@ -33,7 +33,7 @@ public static partial class Example5_ComponentBundle
     }
     
     public record struct ObjectBundle(
-        Id<ObjectId> Id, Name Name, TransformBundle TransformBundle) : IComponentBundle
+        Sid<ObjectId> Id, Name Name, TransformBundle TransformBundle) : IComponentBundle
     {
         public ObjectBundle()
             : this(

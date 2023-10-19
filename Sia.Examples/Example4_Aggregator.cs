@@ -51,38 +51,38 @@ public static partial class Example4_Aggregator
             .RegisterTo(world, scheduler);
         
         world.CreateInHashHost(Tuple.Create(
-            new Id<ObjectId>(0)
+            new Sid<ObjectId>(0)
         ));
 
         Console.WriteLine("Tick!");
         scheduler.Tick();
 
         world.CreateInHashHost(Tuple.Create(
-            new Id<ObjectId>(0)
+            new Sid<ObjectId>(0)
         ));
 
         Console.WriteLine("Tick!");
         scheduler.Tick();
 
         world.CreateInHashHost(Tuple.Create(
-            new Id<ObjectId>(0)
+            new Sid<ObjectId>(0)
         ));
         var e1 = world.CreateInHashHost(Tuple.Create(
-            new Id<ObjectId>(1)
+            new Sid<ObjectId>(1)
         ));
         var e2 = world.CreateInHashHost(Tuple.Create(
-            new Id<ObjectId>(1)
+            new Sid<ObjectId>(1)
         ));
 
         Console.WriteLine("Tick!");
         scheduler.Tick();
 
-        world.Modify(e2, new Id<ObjectId>.SetValue(2));
+        world.Modify(e2, new Sid<ObjectId>.SetValue(2));
 
         Console.WriteLine("Tick!");
         scheduler.Tick();
 
-        world.Modify(e1, new Id<ObjectId>.SetValue(2));
+        world.Modify(e1, new Sid<ObjectId>.SetValue(2));
         scheduler.Tick();
 
         aggregator.TryGet(0, out var aggr);
