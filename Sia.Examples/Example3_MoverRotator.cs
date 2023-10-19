@@ -207,7 +207,7 @@ public static partial class Example3_MoveRotator
 
         var sw = new Stopwatch();
         sw.Start();
-        for (int i = 0; i < 120; ++i) {
+        for (int i = 0; i < 4; ++i) {
             scheduler.Tick();
         }
         sw.Stop();

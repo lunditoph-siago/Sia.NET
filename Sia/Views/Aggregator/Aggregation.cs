@@ -11,27 +11,27 @@ public static class Aggregation
 public readonly record struct Aggregation<TId> : IEnumerable<EntityRef>, IDisposable
     where TId : IEquatable<TId>
 {
-    public EntityRef Entity { get; }
     public TId Id { get; }
-    public IReadOnlySet<EntityRef> Group => _group;
-
-    internal readonly HashSet<EntityRef> _group;
+    public IReadOnlySet<EntityRef> Group => RawGroup;
+    
+    internal EntityRef Entity { get; }
+    internal HashSet<EntityRef> RawGroup { get; }
 
     internal Aggregation(in EntityRef entity, in TId id, HashSet<EntityRef> group)
     {
         Entity = entity;
         Id = id;
-        _group = group;
+        RawGroup = group;
     }
 
     public HashSet<EntityRef>.Enumerator GetEnumerator()
-        => _group.GetEnumerator();
+        => RawGroup.GetEnumerator();
 
     IEnumerator<EntityRef> IEnumerable<EntityRef>.GetEnumerator()
-        => _group.GetEnumerator();
+        => RawGroup.GetEnumerator();
 
     IEnumerator IEnumerable.GetEnumerator()
-        => _group.GetEnumerator();
+        => RawGroup.GetEnumerator();
 
     public void Dispose()
     {

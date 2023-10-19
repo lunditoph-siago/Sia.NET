@@ -4,7 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-public class Aggregator<TAggregationEntity, TId> : ViewBase<TypeUnion<Id<TId>>>
+public class Aggregator<TAggregationEntity, TId> : ViewBase<TypeUnion<Sid<TId>>>
     where TAggregationEntity : IAggregationEntity<TId>
     where TId : IEquatable<TId>
 {
@@ -13,9 +13,7 @@ public class Aggregator<TAggregationEntity, TId> : ViewBase<TypeUnion<Id<TId>>>
     private readonly Dictionary<TId, Aggregation<TId>> _aggrs = new();
     private readonly Stack<HashSet<EntityRef>> _groupPool = new();
 
-    public Aggregation<TId> this[in TId component] {
-        get => _aggrs[component];
-    }
+    public Aggregation<TId> this[in TId component] => _aggrs[component];
 
     public Aggregator()
     {
@@ -27,7 +25,7 @@ public class Aggregator<TAggregationEntity, TId> : ViewBase<TypeUnion<Id<TId>>>
         _aggregationQuery = world.Query<TypeUnion<Aggregation<TId>>>();
         _aggregationQuery.OnEntityHostAdded += host => host.OnEntityReleased += OnAggregationReleased;
 
-        world.Dispatcher.Listen<Id<TId>.SetValue>(OnEntityIdChanged);
+        world.Dispatcher.Listen<Sid<TId>.SetValue>(OnEntityIdChanged);
         base.OnInitialize(world);
     }
 
@@ -42,7 +40,7 @@ public class Aggregator<TAggregationEntity, TId> : ViewBase<TypeUnion<Id<TId>>>
         _aggregationQuery.Dispose();
         _aggregationQuery = null;
 
-        world.Dispatcher.Unlisten<Id<TId>.SetValue>(OnEntityIdChanged);
+        world.Dispatcher.Unlisten<Sid<TId>.SetValue>(OnEntityIdChanged);
     }
 
     private void OnAggregationReleased(in EntityRef target)
@@ -51,7 +49,7 @@ public class Aggregator<TAggregationEntity, TId> : ViewBase<TypeUnion<Id<TId>>>
         if (!_aggrs.Remove(aggr.Id)) {
             return;
         }
-        var group = aggr._group;
+        var group = aggr.RawGroup;
         foreach (var entity in group) {
             entity.Dispose();
         }
@@ -59,9 +57,9 @@ public class Aggregator<TAggregationEntity, TId> : ViewBase<TypeUnion<Id<TId>>>
         _groupPool.Push(group);
     }
 
-    private bool OnEntityIdChanged(in EntityRef entity, in Id<TId>.SetValue e)
+    private bool OnEntityIdChanged(in EntityRef entity, in Sid<TId>.SetValue e)
     {
-        ref var id = ref entity.Get<Id<TId>>();
+        ref var id = ref entity.Get<Sid<TId>>();
         RemoveFromAggregation(entity, id.Previous);
         AddToAggregation(entity, id.Value);
         return false;
@@ -72,13 +70,13 @@ public class Aggregator<TAggregationEntity, TId> : ViewBase<TypeUnion<Id<TId>>>
     
     protected override void OnEntityAdded(in EntityRef entity)
     {
-        var id = entity.Get<Id<TId>>().Value;
+        var id = entity.Get<Sid<TId>>().Value;
         AddToAggregation(entity, id);
     }
 
     protected override void OnEntityRemoved(in EntityRef entity)
     {
-        var id = entity.Get<Id<TId>>().Value;
+        var id = entity.Get<Sid<TId>>().Value;
         RemoveFromAggregation(entity, id);
     }
 
@@ -93,7 +91,7 @@ public class Aggregator<TAggregationEntity, TId> : ViewBase<TypeUnion<Id<TId>>>
             aggrEntity.Get<Aggregation<TId>>() = aggr;
         }
 
-        aggr._group.Add(entity);
+        aggr.RawGroup.Add(entity);
         World.Send(aggr.Entity, new Aggregation.EntityAdded(entity));
     }
 
@@ -105,7 +103,7 @@ public class Aggregator<TAggregationEntity, TId> : ViewBase<TypeUnion<Id<TId>>>
             return;
         }
 
-        var group = aggr._group;
+        var group = aggr.RawGroup;
         if (!group.Remove(entity)) {
             throw new InvalidOperationException("Internal: failed to remove entity from aggregation");
         }
