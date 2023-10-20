@@ -2,7 +2,7 @@ namespace Sia;
 
 using System.Collections;
 
-public record struct Node(EntityRef? Parent) : IEnumerable<EntityRef>
+public record struct Node<TTag>(EntityRef? Parent) : IEnumerable<EntityRef>
 {
     public readonly record struct ChildAdded(EntityRef Entity) : IEvent;
     public readonly record struct ChildRemoved(EntityRef Entity) : IEvent;
@@ -17,7 +17,7 @@ public record struct Node(EntityRef? Parent) : IEnumerable<EntityRef>
     public readonly record struct SetParent(EntityRef? Value) : IParallelCommand, IReconstructableCommand<SetParent>
     {
         public static SetParent ReconstructFromCurrentState(in EntityRef entity)
-            => new(entity.Get<Node>().Parent);
+            => new(entity.Get<Node<TTag>>().Parent);
 
         public void Execute(World world, in EntityRef target)
             => ExecuteOnParallel(target);
@@ -25,9 +25,9 @@ public record struct Node(EntityRef? Parent) : IEnumerable<EntityRef>
         public void ExecuteOnParallel(in EntityRef target)
         {
             if (Value != null) {
-                EntityUtility.CheckComponent<Node>(Value.Value);
+                EntityUtility.CheckComponent<Node<TTag>>(Value.Value);
             }
-            ref var node = ref target.Get<Node>();
+            ref var node = ref target.Get<Node<TTag>>();
             node.PreviousParent = node.Parent;
             node.Parent = Value;
         }

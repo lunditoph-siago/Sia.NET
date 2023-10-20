@@ -4,7 +4,8 @@ public static partial class Example6_Hierarchy
 {
     public readonly record struct Name(string Value);
 
-    public record struct TestNode(Node Node, Name Name) : INodeEntity
+    public sealed class TestTag {}
+    public record struct TestNode(Node<TestTag> Node, Name Name)
     {
         public static EntityRef Create(World world, string name, EntityRef? parent = null)
             => world.CreateInHashHost(new TestNode {
@@ -23,14 +24,14 @@ public static partial class Example6_Hierarchy
         var e3 = TestNode.Create(world, "test3", e1);
         var e4 = TestNode.Create(world, "test4", e3);
 
-        foreach (var child in e1.Get<Node>()) {
+        foreach (var child in e1.Get<Node<TestTag>>()) {
             Console.WriteLine(child.Get<Name>().Value);
         }
 
         Console.WriteLine("===");
-        world.Modify(e4, new Node.SetParent(e1));
+        world.Modify(e4, new Node<TestTag>.SetParent(e1));
 
-        foreach (var child in e1.Get<Node>()) {
+        foreach (var child in e1.Get<Node<TestTag>>()) {
             Console.WriteLine(child.Get<Name>().Value);
         }
 
