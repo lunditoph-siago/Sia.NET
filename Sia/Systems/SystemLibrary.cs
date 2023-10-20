@@ -21,6 +21,8 @@ public class SystemLibrary : IAddon
 
         internal int CollectingSetCount => _collectingSet.Count;
 
+        private int _maxCollectedCount = 0;
+
         private Dictionary<EntityRef, int> _collectingSet = new();
         private Dictionary<EntityRef, int> _collectedSet = new();
 
@@ -32,18 +34,15 @@ public class SystemLibrary : IAddon
             IsExecuting = true;
             (_collectedSet, _collectingSet) = (_collectingSet, _collectedSet);
 
-            var count = _collectedSet.Count;
             var memLenght = _mem.Length;
-            if (memLenght < count) {
-                do {
-                    memLenght *= 2;
-                } while (memLenght < count);
-
+            if (memLenght < _maxCollectedCount || memLenght > _maxCollectedCount * 2) {
                 _mem.Dispose();
-                _mem = MemoryOwner<EntityRef?>.Allocate(memLenght);
+                _mem = MemoryOwner<EntityRef?>.Allocate(_maxCollectedCount);
             }
+            _maxCollectedCount = 0;
 
             var span = _mem.Span;
+            span.Clear();
             foreach (var (entity, index) in _collectedSet) {
                 span[index] = entity;
             }
@@ -58,7 +57,7 @@ public class SystemLibrary : IAddon
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Add(in EntityRef entity)
-            => _collectingSet.TryAdd(entity, _collectingSet.Count);
+            => _collectingSet.TryAdd(entity, _maxCollectedCount++);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Remove(in EntityRef entity)
