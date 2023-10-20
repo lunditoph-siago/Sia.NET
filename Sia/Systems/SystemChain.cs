@@ -45,8 +45,8 @@ public record SystemChain(
         var newEntries = Entries.Add(
             typeof(TSystem), new(
                 (sysLib, scheduler, taskGraphNodes) => sysLib.Register<TSystem>(scheduler, taskGraphNodes),
-                GetAttributedSystemTypes<TSystem>(typeof(BeforeSystemAttribute<>)),
-                GetAttributedSystemTypes<TSystem>(typeof(AfterSystemAttribute<>))
+                GetAttributedSystemTypes<TSystem>(typeof(AfterSystemAttribute<>)),
+                GetAttributedSystemTypes<TSystem>(typeof(BeforeSystemAttribute<>))
             ));
         if (newEntries == Entries) {
             return this;
