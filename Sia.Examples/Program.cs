@@ -15,3 +15,4 @@ Invoke(Example4_Aggregator.Run);
 Invoke(Example5_ComponentBundle.Run);
 Invoke(Example6_Hierarchy.Run);
 Invoke(Example7_Mapper.Run);
+Invoke(Example8_SIMD.Run);
