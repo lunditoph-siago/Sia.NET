@@ -2,31 +2,25 @@ namespace Sia;
 
 using System.Runtime.CompilerServices;
 
-public class Hierarchy<TNodeEntity> : ViewBase<TypeUnion<Node>>
-    where TNodeEntity : INodeEntity
+public class Hierarchy<TTag> : ViewBase<TypeUnion<Node<TTag>>>
 {
     private readonly Stack<HashSet<EntityRef>> _childrenPool = new();
-
-    public Hierarchy()
-    {
-        EntityUtility.CheckComponent<TNodeEntity, Node>();
-    }
 
     public override void OnInitialize(World world)
     {
         base.OnInitialize(world);
-        world.Dispatcher.Listen<Node.SetParent>(OnNodeParentChanged);
+        world.Dispatcher.Listen<Node<TTag>.SetParent>(OnNodeParentChanged);
     }
 
     public override void OnUninitialize(World world)
     {
-        world.Dispatcher.Unlisten<Node.SetParent>(OnNodeParentChanged);
+        world.Dispatcher.Unlisten<Node<TTag>.SetParent>(OnNodeParentChanged);
         base.OnUninitialize(world);
     }
 
     protected override void OnEntityAdded(in EntityRef entity)
     {
-        ref var node = ref entity.Get<Node>();
+        ref var node = ref entity.Get<Node<TTag>>();
         var parent = node.Parent;
         if (parent != null) {
             AddToParent(entity, parent.Value);
@@ -35,7 +29,7 @@ public class Hierarchy<TNodeEntity> : ViewBase<TypeUnion<Node>>
 
     protected override void OnEntityRemoved(in EntityRef entity)
     {
-        ref var node = ref entity.Get<Node>();
+        ref var node = ref entity.Get<Node<TTag>>();
 
         var parent = node.Parent;
         if (parent != null) {
@@ -52,9 +46,9 @@ public class Hierarchy<TNodeEntity> : ViewBase<TypeUnion<Node>>
         }
     }
 
-    private bool OnNodeParentChanged(in EntityRef entity, in Node.SetParent e)
+    private bool OnNodeParentChanged(in EntityRef entity, in Node<TTag>.SetParent e)
     {
-        ref var node = ref entity.Get<Node>();
+        ref var node = ref entity.Get<Node<TTag>>();
 
         var previousParent = node.PreviousParent;
         if (previousParent != null) {
@@ -72,7 +66,7 @@ public class Hierarchy<TNodeEntity> : ViewBase<TypeUnion<Node>>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void AddToParent(in EntityRef entity, in EntityRef parent)
     {
-        ref var parentNode = ref parent.Get<Node>();
+        ref var parentNode = ref parent.Get<Node<TTag>>();
         ref var children = ref parentNode._children;
         children ??= _childrenPool.TryPop(out var pooled) ? pooled : new();
         children.Add(entity);
@@ -81,7 +75,7 @@ public class Hierarchy<TNodeEntity> : ViewBase<TypeUnion<Node>>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void RemoveFromParent(in EntityRef entity, in EntityRef parent)
     {
-        ref var parentNode = ref parent.Get<Node>();
+        ref var parentNode = ref parent.Get<Node<TTag>>();
         ref var children = ref parentNode._children;
         children!.Remove(entity);
 
