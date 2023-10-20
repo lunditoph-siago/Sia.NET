@@ -8,10 +8,10 @@ public static class EntityQueryParallelExtensions
 {
     private readonly struct ForEachParallelAction
     {
-        private readonly EntityRef[] _array;
+        private readonly ArraySegment<EntityRef> _array;
         private readonly EntityHandler _handler;
 
-        public ForEachParallelAction(EntityRef[] array, EntityHandler handler)
+        public ForEachParallelAction(ArraySegment<EntityRef> array, EntityHandler handler)
         {
             _array = array;
             _handler = handler;
@@ -27,11 +27,11 @@ public static class EntityQueryParallelExtensions
 
     private readonly struct ForEachParallelAction<TData>
     {
-        private readonly EntityRef[] _array;
+        private readonly ArraySegment<EntityRef> _array;
         private readonly TData _data;
         private readonly EntityHandler<TData> _handler;
 
-        public ForEachParallelAction(EntityRef[] array, in TData data, EntityHandler<TData> handler)
+        public ForEachParallelAction(ArraySegment<EntityRef> array, in TData data, EntityHandler<TData> handler)
         {
             _array = array;
             _data = data;
@@ -49,9 +49,9 @@ public static class EntityQueryParallelExtensions
     private unsafe struct ForEachParallelData
     {
         public int* Index;
-        public EntityRef[] Array;
+        public ArraySegment<EntityRef> Array;
         
-        public ForEachParallelData(int* index, EntityRef[] array)
+        public ForEachParallelData(int* index, ArraySegment<EntityRef> array)
         {
             Index = index;
             Array = array;
@@ -59,7 +59,7 @@ public static class EntityQueryParallelExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private unsafe static void RecordEntities(IEntityQuery query, EntityRef[] array)
+    private unsafe static void DoRecord(IEntityQuery query, ArraySegment<EntityRef> array)
     {
         int index = 0;
         var indexPtr = (int*)Unsafe.AsPointer(ref index);
@@ -72,14 +72,25 @@ public static class EntityQueryParallelExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static unsafe SpanOwner<EntityRef> Record(this IEntityQuery query)
+    {
+        var count = query.Count;
+        if (count == 0) { return default; }
+
+        var spanOwner = SpanOwner<EntityRef>.Allocate(count);
+        DoRecord(query, spanOwner.DangerousGetArray());
+        return spanOwner;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void ForEachParallel(this IEntityQuery query, EntityHandler handler)
     {
         var count = query.Count;
         if (count == 0) { return; }
 
-        using var spanOwner = SpanOwner<EntityRef>.Allocate(count);
-        var array = spanOwner.DangerousGetArray().Array!;
-        RecordEntities(query, array);
+        var spanOwner = SpanOwner<EntityRef>.Allocate(count);
+        var array = spanOwner.DangerousGetArray();
+        DoRecord(query, array);
 
         var action = new ForEachParallelAction(array, handler);
         Partitioner.Create(0, count)
@@ -93,9 +104,9 @@ public static class EntityQueryParallelExtensions
         var count = query.Count;
         if (count == 0) { return; }
 
-        using var spanOwner = SpanOwner<EntityRef>.Allocate(count);
-        var array = spanOwner.DangerousGetArray().Array!;
-        RecordEntities(query, array);
+        var spanOwner = SpanOwner<EntityRef>.Allocate(count);
+        var array = spanOwner.DangerousGetArray();
+        DoRecord(query, array);
 
         var action = new ForEachParallelAction<TData>(array, data, handler);
         Partitioner.Create(0, count)
