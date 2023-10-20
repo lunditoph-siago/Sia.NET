@@ -117,3 +117,8 @@ public class Aggregator<TAggregationEntity, TId> : ViewBase<TypeUnion<Sid<TId>>>
         }
     }
 }
+
+public class Aggregator<TId> : Aggregator<AggregationGroup<TId>, TId>
+    where TId : IEquatable<TId>
+{
+}
