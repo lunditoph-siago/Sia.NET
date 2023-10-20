@@ -17,7 +17,7 @@ public static partial class Example6_Hierarchy
     public static void Run()
     {
         var world = new World();
-        world.AcquireAddon<Hierarchy<TestNode>>();
+        world.AcquireAddon<Hierarchy<TestTag>>();
 
         var e1 = TestNode.Create(world, "test1");
         var e2 = TestNode.Create(world, "test2", e1);
