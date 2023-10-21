@@ -1,7 +1,5 @@
 namespace Sia;
 
-using System.Collections;
-
 public record struct Node<TTag>(EntityRef? Parent)
 {
     public readonly record struct ChildAdded(EntityRef Entity) : IEvent;
