@@ -24,14 +24,14 @@ public static partial class Example6_Hierarchy
         var e3 = TestNode.Create(world, "test3", e1);
         var e4 = TestNode.Create(world, "test4", e3);
 
-        foreach (var child in e1.Get<Node<TestTag>>()) {
+        foreach (var child in e1.Get<Node<TestTag>>().Children) {
             Console.WriteLine(child.Get<Name>().Value);
         }
 
         Console.WriteLine("===");
         world.Modify(e4, new Node<TestTag>.SetParent(e1));
 
-        foreach (var child in e1.Get<Node<TestTag>>()) {
+        foreach (var child in e1.Get<Node<TestTag>>().Children) {
             Console.WriteLine(child.Get<Name>().Value);
         }
 
