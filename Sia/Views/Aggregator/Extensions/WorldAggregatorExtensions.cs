@@ -4,7 +4,7 @@ public static class WorldAggregatorExtensions
 {
     public static bool TryGetAggregation<TEntity, TKey>(this World world, in TKey key, out Aggregation<TKey> aggregation)
         where TEntity : IAggregationEntity<TKey>
-        where TKey : IEquatable<TKey>
+        where TKey : notnull
     {
         if (!world.TryGetAddon<Aggregator<TEntity, TKey>>(out var aggregator)) {
             aggregation = default;

@@ -1,7 +1,7 @@
 namespace Sia;
 
 public record struct AggregationGroup<TId> : IAggregationEntity<TId>
-    where TId : IEquatable<TId>
+    where TId : notnull
 {
     public Aggregation<TId> Aggregation { get; set; }
 

@@ -2,7 +2,7 @@ namespace Sia;
 
 // SID: Sia Identifier
 public record struct Sid<TId>(TId Value)
-    where TId : IEquatable<TId>
+    where TId : notnull
 {
     public TId Previous { get; private set; }
 
@@ -25,6 +25,6 @@ public record struct Sid<TId>(TId Value)
 public static class Sid
 {
     public static Sid<TId> From<TId>(in TId id)
-        where TId : IEquatable<TId>
+        where TId : notnull
         => new(id);
 }

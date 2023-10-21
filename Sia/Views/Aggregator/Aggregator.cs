@@ -6,7 +6,7 @@ using System.Runtime.InteropServices;
 
 public class Aggregator<TAggregationEntity, TId> : ViewBase<TypeUnion<Sid<TId>>>
     where TAggregationEntity : IAggregationEntity<TId>
-    where TId : IEquatable<TId>
+    where TId : notnull
 {
     [AllowNull]
     private World.EntityQuery _aggregationQuery;
@@ -119,6 +119,6 @@ public class Aggregator<TAggregationEntity, TId> : ViewBase<TypeUnion<Sid<TId>>>
 }
 
 public class Aggregator<TId> : Aggregator<AggregationGroup<TId>, TId>
-    where TId : IEquatable<TId>
+    where TId : notnull
 {
 }
