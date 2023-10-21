@@ -2,17 +2,17 @@ namespace Sia;
 
 using System.Collections;
 
-public record struct Node<TTag>(EntityRef? Parent) : IEnumerable<EntityRef>
+public record struct Node<TTag>(EntityRef? Parent)
 {
     public readonly record struct ChildAdded(EntityRef Entity) : IEvent;
     public readonly record struct ChildRemoved(EntityRef Entity) : IEvent;
 
-    public readonly IEnumerable<EntityRef> Children =>
-        _children ?? Enumerable.Empty<EntityRef>();
+    public readonly IReadOnlySet<EntityRef> Children => _children ?? s_emptySet;
 
-    internal HashSet<EntityRef>? _children;
-
+    internal HashSet<EntityRef> _children;
     internal EntityRef? PreviousParent { get; private set; }
+
+    private static readonly HashSet<EntityRef> s_emptySet = new();
 
     public readonly record struct SetParent(EntityRef? Value) : IParallelCommand, IReconstructableCommand<SetParent>
     {
@@ -32,10 +32,4 @@ public record struct Node<TTag>(EntityRef? Parent) : IEnumerable<EntityRef>
             node.Parent = Value;
         }
     }
-
-    public readonly IEnumerator<EntityRef> GetEnumerator()
-        => Children.GetEnumerator();
-
-    readonly IEnumerator IEnumerable.GetEnumerator()
-        => Children.GetEnumerator();
 }
