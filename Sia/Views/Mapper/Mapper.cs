@@ -5,7 +5,7 @@ using System.Runtime.CompilerServices;
 namespace Sia;
 
 public class Mapper<TId> : ViewBase<TypeUnion<Sid<TId>>>, IReadOnlyDictionary<TId, EntityRef>
-    where TId : IEquatable<TId>
+    where TId : notnull
 {
     public IEnumerable<TId> Keys => _maps.Keys;
     public IEnumerable<EntityRef> Values => _maps.Values;

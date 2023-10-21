@@ -9,7 +9,7 @@ public static class Aggregation
 }
 
 public readonly record struct Aggregation<TId> : IEnumerable<EntityRef>, IDisposable
-    where TId : IEquatable<TId>
+    where TId : notnull
 {
     public TId Id { get; }
     public IReadOnlySet<EntityRef> Group => RawGroup;

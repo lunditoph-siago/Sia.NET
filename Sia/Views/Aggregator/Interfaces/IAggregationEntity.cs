@@ -1,7 +1,7 @@
 namespace Sia;
 
 public interface IAggregationEntity<TId>
-    where TId : IEquatable<TId>
+    where TId : notnull
 {
     static abstract EntityRef Create(World world);
 
