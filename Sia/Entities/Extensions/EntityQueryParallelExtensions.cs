@@ -22,8 +22,9 @@ public static class EntityQueryParallelExtensions
 
         public void Invoke(System.Tuple<int, int> range)
         {
+            var span = _array.AsSpan();
             for (int i = range.Item1; i != range.Item2; ++i) {
-                _handler(_array[i]);
+                _handler(span[i]);
             }
         }
     }
@@ -43,8 +44,9 @@ public static class EntityQueryParallelExtensions
 
         public void Invoke(System.Tuple<int, int> range)
         {
+            var span = _array.AsSpan();
             for (int i = range.Item1; i != range.Item2; ++i) {
-                _handler(_data, _array[i]);
+                _handler(_data, span[i]);
             }
         }
     }
