@@ -137,7 +137,7 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
                     index++;
                 }
 
-                source.Write(") : IConstructable<");
+                source.Write(") : global::Sia.IConstructable<");
                 source.Write(templateType.Identifier.ToString());
                 WriteTypeParameters(source, templateType);
                 source.WriteLine(">");
