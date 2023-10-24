@@ -46,7 +46,7 @@ public static class Example2_HealthRecover
         public DamageDisplaySystem()
         {
             Matcher = Matchers.Of<HP, Name>();
-            Trigger = new EventUnion<HP.Damage>();
+            Trigger = EventUnion.Of<HP.Damage>();
         }
 
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)

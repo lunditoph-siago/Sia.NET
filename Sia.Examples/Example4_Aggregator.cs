@@ -25,7 +25,7 @@ public static partial class Example4_Aggregator
         public ComponentCountSystem()
         {
             Matcher = Matchers.Of<ComponentCount, Aggregation<ObjectId>>();
-            Trigger = new EventUnion<Aggregation.EntityAdded, Aggregation.EntityRemoved>();
+            Trigger = EventUnion.Of<Aggregation.EntityAdded, Aggregation.EntityRemoved>();
         }
 
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)

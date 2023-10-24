@@ -216,8 +216,8 @@ public unsafe static class Tests
     {
         public PositionChangeListenSystem()
         {
-            Matcher = new TypeUnion<Position>().ToMatcher();
-            Trigger = new EventUnion<Position.Set>();
+            Matcher = Matchers.Of<Position>();
+            Trigger = EventUnion.Of<Position.Set>();
         }
         
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
