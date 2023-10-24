@@ -72,7 +72,7 @@ public static partial class Example3_MoveRotator
         public PositionChangePrintSystem()
         {
             Matcher = Matchers.Of<Position>();
-            Trigger = new EventUnion<Position.SetValue>();
+            Trigger = EventUnion.Of<Position.SetValue>();
         }
 
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)

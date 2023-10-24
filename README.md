@@ -105,7 +105,7 @@ public static partial class Example1_HealthDamage
         public LocationDamageSystem()
         {
             Matcher = Matchers.Of<Transform, Health>();
-            Trigger = new EventUnion<WorldEvents.Add, Transform.SetPosition>();
+            Trigger = EventUnion.Of<WorldEvents.Add, Transform.SetPosition>();
         }
 
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
