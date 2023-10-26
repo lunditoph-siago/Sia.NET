@@ -13,6 +13,43 @@ using Microsoft.CodeAnalysis.CSharp;
 
 internal static class Common
 {
+    public record PropertyInfo(
+        string Name, ITypeSymbol Type, string DisplayType,
+        ImmutableArray<string> TypeArguments, ImmutableDictionary<string, TypedConstant> Arguments)
+    {
+        public bool IsImmutableDictionary =>
+            DisplayType.StartsWith("global::System.Collections.Immutable.ImmutableDictionary<");
+        public bool IsImmutableList =>
+            DisplayType.StartsWith("global::System.Collections.Immutable.ImmutableList<");
+        public bool IsImmutableArray =>
+            DisplayType.StartsWith("global::System.Collections.Immutable.ImmutableArray<");
+        public bool IsImmutableHashSet =>
+            DisplayType.StartsWith("global::System.Collections.Immutable.ImmutableHashSet<");
+        public bool IsImmutableQueue =>
+            DisplayType.StartsWith("global::System.Collections.Immutable.ImmutableQueue<");
+        public bool IsImmutableStack =>
+            DisplayType.StartsWith("global::System.Collections.Immutable.ImmutableStack<");
+
+        public PropertyInfo(string name, ITypeSymbol symbol, IEnumerable<AttributeData> attributes)
+            : this(name, symbol, symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                symbol is INamedTypeSymbol namedSymbol
+                    ? namedSymbol.TypeArguments.Select(a => a.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))
+                        .ToImmutableArray()
+                    : ImmutableArray<string>.Empty,
+                (attributes
+                    .FirstOrDefault(data =>
+                        data!.AttributeClass!.ToDisplayString() == "Sia.SiaPropertyAttribute", null)
+                    ?.NamedArguments.ToImmutableDictionary())
+                        ?? ImmutableDictionary<string, TypedConstant>.Empty)
+        {
+        }
+
+        public T GetArgument<T>(string name, in T defaultValue)
+            => Arguments.TryGetValue(name, out var value)
+                ? (T)value.Value! : defaultValue;
+    }
+
+
     public static readonly AssemblyName AssemblyName = typeof(Common).Assembly.GetName();
     public static readonly string GeneratedCodeAttribute =
         $@"global::System.CodeDom.Compiler.GeneratedCodeAttribute(""{AssemblyName.Name}"", ""{AssemblyName.Version}"")";
@@ -52,13 +89,13 @@ internal static class Common
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static string GetFullType(SemanticModel model, SyntaxNode typeNode, CancellationToken token)
-        => model.GetTypeInfo(typeNode, token).Type!.ToDisplayString(SymbolDisplayFormats.TypeParameter);
+    public static ITypeSymbol GetNodeType(SemanticModel model, SyntaxNode typeNode, CancellationToken token)
+        => model.GetTypeInfo(typeNode, token).Type!;
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static string GetVariableType(SemanticModel model, VariableDeclaratorSyntax syntax, CancellationToken token) {
+    public static ITypeSymbol GetVariableType(SemanticModel model, VariableDeclaratorSyntax syntax, CancellationToken token) {
         var parentDecl = (VariableDeclarationSyntax)syntax.Parent!;
-        return GetFullType(model, parentDecl.Type, token);
+        return GetNodeType(model, parentDecl.Type, token);
     }
 
     public static IndentedTextWriter CreateSource(out StringBuilder builder)
@@ -179,13 +216,5 @@ internal static class Common
             }
         }
         source.Write('>');
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static IEnumerable<T> RepeatInfinitely<T>(T value)
-    {
-        while (true) {
-            yield return value;
-        }
     }
 }
