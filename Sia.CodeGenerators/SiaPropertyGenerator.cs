@@ -18,9 +18,9 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         INamespaceSymbol Namespace,
         TypeDeclarationSyntax ComponentType,
         ImmutableArray<TypeDeclarationSyntax> ParentTypes,
-        ImmutableDictionary<string, TypedConstant> Arguments,
-        string ValueName,
-        string ValueType);
+        PropertyInfo Property)
+    {
+    }
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -44,23 +44,21 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
                 static typeDecl => typeDecl.Modifiers.Any(SyntaxKind.PartialKeyword)))
             .Select(static (t, token) => {
                 var (syntax, containtingType, parentTypes) = t;
-                var arguments = syntax.Attributes[0].NamedArguments.ToImmutableDictionary();
 
                 return new CodeGenerationInfo(
                     Namespace: syntax.TargetSymbol.ContainingNamespace,
                     ComponentType: containtingType,
                     ParentTypes: parentTypes,
-                    Arguments: arguments,
-                    ValueName: syntax.TargetSymbol.Name,
-                    ValueType: syntax.TargetNode switch {
-                        PropertyDeclarationSyntax propSyntax =>
-                            GetFullType(syntax.SemanticModel, propSyntax.Type, token),
-                        VariableDeclaratorSyntax varSyntax =>
-                            GetVariableType(syntax.SemanticModel, varSyntax, token),
-                        ParameterSyntax paramSyntax =>
-                            GetFullType(syntax.SemanticModel, paramSyntax.Type!, token),
-                        _ => throw new InvalidDataException("Invalid syntax")
-                    }
+                    Property: new(syntax.TargetSymbol.Name,
+                        syntax.TargetNode switch {
+                            PropertyDeclarationSyntax propSyntax =>
+                                GetNodeType(syntax.SemanticModel, propSyntax.Type, token),
+                            VariableDeclaratorSyntax varSyntax =>
+                                GetVariableType(syntax.SemanticModel, varSyntax, token),
+                            ParameterSyntax paramSyntax =>
+                                GetNodeType(syntax.SemanticModel, paramSyntax.Type!, token),
+                            _ => throw new InvalidDataException("Invalid syntax")
+                        }, syntax.Attributes)
                 );
             });
         
@@ -97,39 +95,117 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         }
         builder.Append(info.ComponentType.Identifier.ToString());
         builder.Append('.');
-        builder.Append(info.ValueName);
+        builder.Append(info.Property.Name);
         builder.Append(".g.cs");
         return builder.ToString();
     }
 
     private static void GenerateSource(CodeGenerationInfo info, IndentedTextWriter source)
     {
-        var commandName = info.Arguments.TryGetValue("SetCommand", out var setCmdName)
-            ? setCmdName.Value!.ToString()! : $"Set{info.ValueName}";
         var componentType = info.ComponentType;
 
         using (GenerateInNamespace(source, info.Namespace)) {
             using (GenerateInPartialTypes(source, info.ParentTypes.Append(componentType))) {
-                GenerateSetCommand(source,
-                    commandName: commandName,
-                    componentName: componentType.Identifier.ToString(),
-                    componentTypeParams: componentType.TypeParameterList,
-                    valueName: info.ValueName,
-                    valueType: info.ValueType);
+                var compTypeStr = componentType.Identifier.ToString();
+                var compTypeParams = componentType.TypeParameterList;
+                GeneratePropertyCommands(source, info.Property, compTypeStr, compTypeParams);
             }
         }
 
         Debug.Assert(source.Indent == 0);
     }
 
+    public static void GeneratePropertyCommands(
+        IndentedTextWriter source, in PropertyInfo property,
+        string componentType, TypeParameterListSyntax? componentTypeParams = null)
+    {
+        if (property.GetArgument("GenerateSetCommand", true)) {
+            GenerateSetCommand(source, property, componentType, componentTypeParams);
+        }
+        
+        if (property.IsImmutableDictionary) {
+            var itemName = property.GetArgument("Item", "");
+            if (itemName != "") {
+                var keyType = property.TypeArguments[0];
+                var valueType = property.TypeArguments[1];
+
+                if (property.GetArgument("GenerateAddItemCommand", true)) {
+                    source.WriteLine();
+                    GenerateImmutableContainerCommand(
+                        source, property, componentType, componentTypeParams,
+                        "Add" + itemName, $"{keyType} Key, {valueType} Value", ".Add(Key, Value);");
+                }
+                if (property.GetArgument("GenerateSetItemCommand", true)) {
+                    source.WriteLine();
+                    GenerateImmutableContainerCommand(
+                        source, property, componentType, componentTypeParams,
+                        "Set" + itemName, $"{keyType} Key, {valueType} Value", ".SetItem(Key, Value);");
+                }
+                if (property.GetArgument("GenerateRemoveItemCommand", true)) {
+                    source.WriteLine();
+                    GenerateImmutableContainerCommand(
+                        source, property, componentType, componentTypeParams,
+                        "Remove" + itemName, $"{keyType} Key", ".Remove(Key);");
+                }
+            }
+        }
+        else if (property.IsImmutableHashSet || property.IsImmutableList || property.IsImmutableArray) {
+            var itemName = property.GetArgument("Item", "");
+            if (itemName != "") {
+                var valueType = property.TypeArguments[0];
+
+                if (property.GetArgument("GenerateAddItemCommand", true)) {
+                    source.WriteLine();
+                    GenerateImmutableContainerCommand(
+                        source, property, componentType, componentTypeParams,
+                        "Add" + itemName, $"{valueType} Value", ".Add(Value);");
+                }
+                if (property.GetArgument("GenerateRemoveItemCommand", true)) {
+                    source.WriteLine();
+                    GenerateImmutableContainerCommand(
+                        source, property, componentType, componentTypeParams,
+                        "Remove" + itemName, $"{valueType} Value", ".Remove(Value);");
+                }
+            }
+        }
+        else if (property.IsImmutableQueue) {
+            var itemName = property.GetArgument("Item", "");
+            if (itemName != "") {
+                var valueType = property.TypeArguments[0];
+
+                if (property.GetArgument("GenerateAddItemCommand", true)) {
+                    source.WriteLine();
+                    GenerateImmutableContainerCommand(
+                        source, property, componentType, componentTypeParams,
+                        "Enqueue" + itemName, $"{valueType} Value", ".Enqueue(Value);");
+                }
+            }
+        }
+        else if (property.IsImmutableStack) {
+            var itemName = property.GetArgument("Item", "");
+            if (itemName != "") {
+                var valueType = property.TypeArguments[0];
+
+                if (property.GetArgument("GenerateAddItemCommand", true)) {
+                    source.WriteLine();
+                    GenerateImmutableContainerCommand(
+                        source, property, componentType, componentTypeParams,
+                        "Push" + itemName, $"{valueType} Value", ".Push(Value);");
+                }
+            }
+        }
+    }
+
     public static void GenerateSetCommand(
-        IndentedTextWriter source, string commandName, string componentName, string valueName, string valueType,
+        IndentedTextWriter source, in PropertyInfo property, string componentType,
         TypeParameterListSyntax? componentTypeParams = null)
     {
+        var commandName = "Set" + property.Name;
+
         source.Write("public readonly record struct ");
         source.Write(commandName);
         source.Write("(");
-        source.Write(valueType);
+        source.Write(property.DisplayType);
         source.Write(" Value) : global::Sia.IReconstructableCommand<");
         source.Write(commandName);
         source.WriteLine(">, global::Sia.IParallelCommand");
@@ -141,12 +217,12 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         source.WriteLine(" ReconstructFromCurrentState(in global::Sia.EntityRef entity)");
         source.Indent++;
         source.Write("=> new(entity.Get<");
-        source.Write(componentName);
+        source.Write(componentType);
         if (componentTypeParams != null) {
             WriteTypeParameters(source, componentTypeParams);
         }
         source.Write(">().");
-        source.Write(valueName);
+        source.Write(property.Name);
         source.WriteLine(");");
         source.Indent--;
 
@@ -158,14 +234,52 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         source.WriteLine("public void ExecuteOnParallel(in global::Sia.EntityRef target)");
         source.Indent++;
         source.Write("=> target.Get<");
-        source.Write(componentName);
+        source.Write(componentType);
         if (componentTypeParams != null) {
             WriteTypeParameters(source, componentTypeParams);
         }
         source.Write(">().");
-        source.Write(valueName);
+        source.Write(property.Name);
         source.WriteLine(" = Value;");
         source.Indent--;
+
+        source.Indent--;
+        source.WriteLine("}");
+    }
+
+    public static void GenerateImmutableContainerCommand(
+        IndentedTextWriter source, in PropertyInfo property, string componentType,
+        TypeParameterListSyntax? componentTypeParams,
+        string commandName, string arguments, string call)
+    {
+        source.Write("public readonly record struct ");
+        source.Write(commandName);
+
+        source.Write("(");
+        source.Write(arguments);
+        source.WriteLine(") : global::Sia.ICommand");
+        source.WriteLine("{");
+        source.Indent++;
+
+        source.WriteLine("public void Execute(global::Sia.World _, in global::Sia.EntityRef target)");
+        source.WriteLine("{");
+        source.Indent++;
+
+        source.Write("ref var comp = ref target.Get<");
+        source.Write(componentType);
+        if (componentTypeParams != null) {
+            WriteTypeParameters(source, componentTypeParams);
+        }
+        source.WriteLine(">();");
+
+        source.Write("comp.");
+        source.Write(property.Name);
+        source.Write(" = comp.");
+        source.Write(property.Name);
+        source.WriteLine(call);
+
+        source.Indent--;
+        source.WriteLine("}");
 
         source.Indent--;
         source.WriteLine("}");

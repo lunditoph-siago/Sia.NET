@@ -1,11 +1,22 @@
 namespace Sia.Examples;
 
+using System.Collections.Immutable;
 using System.Numerics;
 
 using Sia;
 
 public static partial class Example1_HealthDamage
 {
+    [SiaTemplate(nameof(TestObject))]
+    public record TestTemplate
+    {
+        [SiaProperty(Item = "TestItem")]
+        public ImmutableDictionary<Vector2, string> Test = ImmutableDictionary<Vector2, string>.Empty;
+
+        [SiaProperty(Item = "TestItem2")]
+        public ImmutableArray<Vector2> Test2 = ImmutableArray<Vector2>.Empty;
+    }
+
     public class Game : IAddon
     {
         public float DeltaTime { get; private set; }
