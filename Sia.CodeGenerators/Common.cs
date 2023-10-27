@@ -17,18 +17,13 @@ internal static class Common
         string Name, ITypeSymbol Type, string DisplayType,
         ImmutableArray<string> TypeArguments, ImmutableDictionary<string, TypedConstant> Arguments)
     {
-        public bool IsImmutableDictionary =>
-            DisplayType.StartsWith("global::System.Collections.Immutable.ImmutableDictionary<");
-        public bool IsImmutableList =>
-            DisplayType.StartsWith("global::System.Collections.Immutable.ImmutableList<");
-        public bool IsImmutableArray =>
-            DisplayType.StartsWith("global::System.Collections.Immutable.ImmutableArray<");
-        public bool IsImmutableHashSet =>
-            DisplayType.StartsWith("global::System.Collections.Immutable.ImmutableHashSet<");
-        public bool IsImmutableQueue =>
-            DisplayType.StartsWith("global::System.Collections.Immutable.ImmutableQueue<");
-        public bool IsImmutableStack =>
-            DisplayType.StartsWith("global::System.Collections.Immutable.ImmutableStack<");
+        public string? ImmutableContainerType =>
+            DisplayType.StartsWith(ImmutableContainerHead)
+                ? DisplayType[ImmutableContainerHead.Length
+                    ..DisplayType.IndexOf('<', ImmutableContainerHead.Length)]
+                : null;
+
+        private const string ImmutableContainerHead = "global::System.Collections.Immutable.Immutable";
 
         public PropertyInfo(string name, ITypeSymbol symbol, IEnumerable<AttributeData> attributes)
             : this(name, symbol, symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
@@ -48,7 +43,6 @@ internal static class Common
             => Arguments.TryGetValue(name, out var value)
                 ? (T)value.Value! : defaultValue;
     }
-
 
     public static readonly AssemblyName AssemblyName = typeof(Common).Assembly.GetName();
     public static readonly string GeneratedCodeAttribute =
