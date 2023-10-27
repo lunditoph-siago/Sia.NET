@@ -122,77 +122,86 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         if (property.GetArgument("GenerateSetCommand", true)) {
             GenerateSetCommand(source, property, componentType, componentTypeParams);
         }
+
+        var immutableType = property.ImmutableContainerType;
+        if (immutableType == null) { return; }
+
+        var itemName = property.GetArgument("Item", "");
+        if (itemName == "") { return; }
+
+        string? keyType, valueType;
+
+        switch (immutableType) {
+        case "Dictionary":
+            keyType = property.TypeArguments[0];
+            valueType = property.TypeArguments[1];
+
+            if (property.GetArgument("GenerateAddItemCommand", true)) {
+                source.WriteLine();
+                GenerateImmutableContainerCommand(
+                    source, property, componentType, componentTypeParams,
+                    "Add" + itemName, $"{keyType} Key, {valueType} Value", ".Add(Key, Value);");
+            }
+            if (property.GetArgument("GenerateSetItemCommand", true)) {
+                source.WriteLine();
+                GenerateImmutableContainerCommand(
+                    source, property, componentType, componentTypeParams,
+                    "Set" + itemName, $"{keyType} Key, {valueType} Value", ".SetItem(Key, Value);");
+            }
+            if (property.GetArgument("GenerateRemoveItemCommand", true)) {
+                source.WriteLine();
+                GenerateImmutableContainerCommand(
+                    source, property, componentType, componentTypeParams,
+                    "Remove" + itemName, $"{keyType} Key", ".Remove(Key);");
+            }
+            break;
+
+        case "Queue":
+            valueType = property.TypeArguments[0];
+
+            if (property.GetArgument("GenerateAddItemCommand", true)) {
+                source.WriteLine();
+                GenerateImmutableContainerCommand(
+                    source, property, componentType, componentTypeParams,
+                    "Enqueue" + itemName, $"{valueType} Value", ".Enqueue(Value);");
+            }
+            break;
+
+        case "Stack":
+            valueType = property.TypeArguments[0];
+
+            if (property.GetArgument("GenerateAddItemCommand", true)) {
+                source.WriteLine();
+                GenerateImmutableContainerCommand(
+                    source, property, componentType, componentTypeParams,
+                    "Push" + itemName, $"{valueType} Value", ".Push(Value);");
+            }
+            break;
         
-        if (property.IsImmutableDictionary) {
-            var itemName = property.GetArgument("Item", "");
-            if (itemName != "") {
-                var keyType = property.TypeArguments[0];
-                var valueType = property.TypeArguments[1];
+        case "HashSet":
+        case "List":
+        case "Array":
+            valueType = property.TypeArguments[0];
 
-                if (property.GetArgument("GenerateAddItemCommand", true)) {
-                    source.WriteLine();
-                    GenerateImmutableContainerCommand(
-                        source, property, componentType, componentTypeParams,
-                        "Add" + itemName, $"{keyType} Key, {valueType} Value", ".Add(Key, Value);");
-                }
-                if (property.GetArgument("GenerateSetItemCommand", true)) {
-                    source.WriteLine();
-                    GenerateImmutableContainerCommand(
-                        source, property, componentType, componentTypeParams,
-                        "Set" + itemName, $"{keyType} Key, {valueType} Value", ".SetItem(Key, Value);");
-                }
-                if (property.GetArgument("GenerateRemoveItemCommand", true)) {
-                    source.WriteLine();
-                    GenerateImmutableContainerCommand(
-                        source, property, componentType, componentTypeParams,
-                        "Remove" + itemName, $"{keyType} Key", ".Remove(Key);");
-                }
+            if (property.GetArgument("GenerateAddItemCommand", true)) {
+                source.WriteLine();
+                GenerateImmutableContainerCommand(
+                    source, property, componentType, componentTypeParams,
+                    "Add" + itemName, $"{valueType} Value", ".Add(Value);");
             }
-        }
-        else if (property.IsImmutableHashSet || property.IsImmutableList || property.IsImmutableArray) {
-            var itemName = property.GetArgument("Item", "");
-            if (itemName != "") {
-                var valueType = property.TypeArguments[0];
-
-                if (property.GetArgument("GenerateAddItemCommand", true)) {
-                    source.WriteLine();
-                    GenerateImmutableContainerCommand(
-                        source, property, componentType, componentTypeParams,
-                        "Add" + itemName, $"{valueType} Value", ".Add(Value);");
-                }
-                if (property.GetArgument("GenerateRemoveItemCommand", true)) {
-                    source.WriteLine();
-                    GenerateImmutableContainerCommand(
-                        source, property, componentType, componentTypeParams,
-                        "Remove" + itemName, $"{valueType} Value", ".Remove(Value);");
-                }
+            if (immutableType != "HashSet" && property.GetArgument("GenerateSetItemCommand", true)) {
+                source.WriteLine();
+                GenerateImmutableContainerCommand(
+                    source, property, componentType, componentTypeParams,
+                    "Set" + itemName, $"int Index, {valueType} Value", ".SetItem(Index, Value);");
             }
-        }
-        else if (property.IsImmutableQueue) {
-            var itemName = property.GetArgument("Item", "");
-            if (itemName != "") {
-                var valueType = property.TypeArguments[0];
-
-                if (property.GetArgument("GenerateAddItemCommand", true)) {
-                    source.WriteLine();
-                    GenerateImmutableContainerCommand(
-                        source, property, componentType, componentTypeParams,
-                        "Enqueue" + itemName, $"{valueType} Value", ".Enqueue(Value);");
-                }
+            if (property.GetArgument("GenerateRemoveItemCommand", true)) {
+                source.WriteLine();
+                GenerateImmutableContainerCommand(
+                    source, property, componentType, componentTypeParams,
+                    "Remove" + itemName, $"{valueType} Value", ".Remove(Value);");
             }
-        }
-        else if (property.IsImmutableStack) {
-            var itemName = property.GetArgument("Item", "");
-            if (itemName != "") {
-                var valueType = property.TypeArguments[0];
-
-                if (property.GetArgument("GenerateAddItemCommand", true)) {
-                    source.WriteLine();
-                    GenerateImmutableContainerCommand(
-                        source, property, componentType, componentTypeParams,
-                        "Push" + itemName, $"{valueType} Value", ".Push(Value);");
-                }
-            }
+            break;
         }
     }
 
