@@ -26,7 +26,9 @@ internal static class Common
         private const string ImmutableContainerHead = "global::System.Collections.Immutable.Immutable";
 
         public PropertyInfo(string name, ITypeSymbol symbol, IEnumerable<AttributeData> attributes)
-            : this(name, symbol, symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+            : this(name, symbol,
+                symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+                    + (symbol.NullableAnnotation == NullableAnnotation.Annotated ? "?" : ""),
                 symbol is INamedTypeSymbol namedSymbol
                     ? namedSymbol.TypeArguments.Select(a => a.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))
                         .ToImmutableArray()
