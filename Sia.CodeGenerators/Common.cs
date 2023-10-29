@@ -26,9 +26,7 @@ internal static class Common
         private const string ImmutableContainerHead = "global::System.Collections.Immutable.Immutable";
 
         public PropertyInfo(string name, ITypeSymbol symbol, IEnumerable<AttributeData> attributes)
-            : this(name, symbol,
-                symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
-                    + (symbol.NullableAnnotation == NullableAnnotation.Annotated ? "?" : ""),
+            : this(name, symbol, GetDisplayName(symbol),
                 symbol is INamedTypeSymbol namedSymbol
                     ? namedSymbol.TypeArguments.Select(a => a.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))
                         .ToImmutableArray()
@@ -39,6 +37,13 @@ internal static class Common
                     ?.NamedArguments.ToImmutableDictionary())
                         ?? ImmutableDictionary<string, TypedConstant>.Empty)
         {
+        }
+
+        private static string GetDisplayName(ITypeSymbol symbol)
+        {
+            var displayName = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            return symbol.NullableAnnotation == NullableAnnotation.Annotated && displayName[^1] != '?'
+                ? displayName + '?' : displayName;
         }
 
         public T GetArgument<T>(string name, in T defaultValue)
