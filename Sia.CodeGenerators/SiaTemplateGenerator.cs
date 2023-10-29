@@ -20,7 +20,8 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
         ImmutableArray<TypeDeclarationSyntax> ParentTypes,
         TypeDeclarationSyntax TemplateType, string? TypeConstraints,
         string ComponentName,
-        ImmutableArray<PropertyInfo> Properties);
+        ImmutableArray<PropertyInfo> Properties,
+        bool Immutable);
     
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -63,6 +64,8 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
                 }
 
                 var targetSymbol = model.GetDeclaredSymbol(targetType, token)!;
+                var templateAttr = syntax.Attributes[0];
+
                 return new CodeGenerationInfo(
                     Namespace: syntax.TargetSymbol.ContainingNamespace,
                     ParentTypes: parentTypes,
@@ -70,9 +73,11 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
                     TypeConstraints: 
                         targetType.TypeParameterList != null
                             ? GetTypeConstraints(targetSymbol) : null,
-                    ComponentName: syntax.Attributes[0].ConstructorArguments[0].Value as string
+                    ComponentName: templateAttr.ConstructorArguments[0].Value as string
                         ?? throw new InvalidDataException("Invalid attribute"),
-                    Properties: GetProperties(targetSymbol).ToImmutableArray()
+                    Properties: GetProperties(targetSymbol).ToImmutableArray(),
+                    Immutable: templateAttr.NamedArguments.Any(
+                        p => p.Key == "Immutable" && (bool)p.Value.Value! == true)
                 );
             });
         
@@ -116,10 +121,13 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
         var templateType = info.TemplateType;
         var compName = info.ComponentName;
         var properties = info.Properties;
+        var immutable = info.Immutable;
 
         using (GenerateInNamespace(source, info.Namespace)) {
             using (GenerateInPartialTypes(source, info.ParentTypes)) {
-                source.Write("public partial record struct ");
+                source.Write(immutable
+                    ? "public readonly partial record struct "
+                    : "public partial record struct ");
                 source.Write(info.ComponentName);
                 WriteTypeParameters(source, templateType);
                 source.WriteLine("(");
@@ -139,12 +147,17 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
                     index++;
                 }
 
-                source.Write(") : global::Sia.IConstructable<");
-                source.Write(templateType.Identifier.ToString());
-                WriteTypeParameters(source, templateType);
-                source.WriteLine(">");
-                if (info.TypeConstraints != null) {
-                    source.WriteLine(info.TypeConstraints);
+                if (immutable) {
+                    source.WriteLine(')');
+                }
+                else {
+                    source.Write(") : global::Sia.IConstructable<");
+                    source.Write(templateType.Identifier.ToString());
+                    WriteTypeParameters(source, templateType);
+                    source.WriteLine(">");
+                    if (info.TypeConstraints != null) {
+                        source.WriteLine(info.TypeConstraints);
+                    }
                 }
                 source.Indent--;
 
@@ -153,19 +166,21 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
 
                 GenerateConstructor(source, templateType, compName, properties);
 
-                source.WriteLine();
-                GenerateConstructMethod(source, templateType, properties);
+                if (!immutable) {
+                    source.WriteLine();
+                    GenerateConstructMethod(source, templateType, properties);
 
-                source.WriteLine();
-                GenerateResetCommand(source,
-                    templateType: templateType,
-                    componentName: compName,
-                    properties: properties);
+                    source.WriteLine();
+                    GenerateResetCommand(source,
+                        templateType: templateType,
+                        componentName: compName,
+                        properties: properties);
 
-                source.WriteLine();
-                foreach (var prop in properties) {
-                    SiaPropertyGenerator.GeneratePropertyCommands(
-                        source, prop, compName, templateType.TypeParameterList);
+                    source.WriteLine();
+                    foreach (var prop in properties) {
+                        SiaPropertyGenerator.GeneratePropertyCommands(
+                            source, prop, compName, templateType.TypeParameterList);
+                    }
                 }
 
                 source.Indent--;
