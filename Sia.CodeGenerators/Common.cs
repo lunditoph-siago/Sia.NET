@@ -55,6 +55,14 @@ internal static class Common
     public static readonly string GeneratedCodeAttribute =
         $@"global::System.CodeDom.Compiler.GeneratedCodeAttribute(""{AssemblyName.Name}"", ""{AssemblyName.Version}"")";
 
+    public static readonly SymbolDisplayFormat QualifiedTypeNameWithTypeConstraints = new SymbolDisplayFormat(
+            globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
+            typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
+            genericsOptions: SymbolDisplayGenericsOptions.IncludeTypeParameters
+                | SymbolDisplayGenericsOptions.IncludeTypeConstraints,
+            miscellaneousOptions: SymbolDisplayMiscellaneousOptions.EscapeKeywordIdentifiers
+                | SymbolDisplayMiscellaneousOptions.UseSpecialTypes);
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool FindParentNode<TNode>(
         SyntaxNode node, [MaybeNullWhen(false)] out TNode result)
