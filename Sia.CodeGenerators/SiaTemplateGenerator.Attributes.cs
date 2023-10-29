@@ -16,6 +16,7 @@ internal partial class SiaTemplateGenerator
         internal sealed class SiaTemplateAttribute : global::System.Attribute
         {
             public string ComponentName { get; }
+            public bool Immutable { get; set; }
 
             public SiaTemplateAttribute(string componentName)
             {
