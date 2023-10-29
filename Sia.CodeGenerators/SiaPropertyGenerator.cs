@@ -103,7 +103,6 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
     private static void GenerateSource(CodeGenerationInfo info, IndentedTextWriter source)
     {
         var componentType = info.ComponentType;
-
         using (GenerateInNamespace(source, info.Namespace)) {
             using (GenerateInPartialTypes(source, info.ParentTypes.Append(componentType))) {
                 var compTypeStr = componentType.Identifier.ToString();
@@ -119,6 +118,9 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         IndentedTextWriter source, in PropertyInfo property,
         string componentType, TypeParameterListSyntax? componentTypeParams = null)
     {
+        if (property.GetArgument("NoCommands", false)) {
+            return;
+        }
         if (property.GetArgument("GenerateSetCommand", true)) {
             GenerateSetCommand(source, property, componentType, componentTypeParams);
         }
