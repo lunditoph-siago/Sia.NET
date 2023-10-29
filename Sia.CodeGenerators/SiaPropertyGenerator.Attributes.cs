@@ -15,6 +15,7 @@ internal partial class SiaPropertyGenerator
             Inherited = false, AllowMultiple = false)]
         internal sealed class SiaPropertyAttribute : global::System.Attribute
         {
+            public bool NoCommands { get; set; }
             public bool GenerateSetCommand { get; set; } = true;
             public bool GenerateAddItemCommand { get; set; } = true;
             public bool GenerateSetItemCommand { get; set; } = true;
