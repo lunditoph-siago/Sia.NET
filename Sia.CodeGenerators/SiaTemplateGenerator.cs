@@ -130,8 +130,8 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
         using (GenerateInNamespace(source, info.Namespace)) {
             using (GenerateInPartialTypes(source, info.ParentTypes)) {
                 source.Write(immutable
-                    ? "public readonly partial record struct "
-                    : "public partial record struct ");
+                    ? "readonly partial record struct "
+                    : "partial record struct ");
                 source.Write(info.ComponentName);
                 WriteTypeParameters(source, templateType);
                 source.WriteLine("(");
