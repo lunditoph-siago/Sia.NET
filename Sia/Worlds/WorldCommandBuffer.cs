@@ -92,6 +92,14 @@ public class WorldCommandBuffer
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Modify<TComponent, TCommand>(in EntityRef target, ref TComponent component, in TCommand command)
+        where TCommand : IParallelCommand<TComponent>
+    {
+        command.ExecuteOnParallel(ref component);
+        _executors.Value!.Add((PureEventSender<TCommand>.Instance, target));
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Send<TEvent>(in EntityRef target, in TEvent e)
         where TEvent : SingletonEvent<TEvent>, new()
         => _executors.Value!.Add((SingletonEventSender<TEvent>.Instance, target));

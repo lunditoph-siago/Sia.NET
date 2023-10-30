@@ -110,7 +110,6 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
                 GeneratePropertyCommands(source, info.Property, compTypeStr, compTypeParams);
             }
         }
-
         Debug.Assert(source.Indent == 0);
     }
 
@@ -211,16 +210,26 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         IndentedTextWriter source, in PropertyInfo property, string componentType,
         TypeParameterListSyntax? componentTypeParams = null)
     {
+        void WriteComponentType()
+        {
+            source.Write(componentType);
+            if (componentTypeParams != null) {
+                WriteTypeParameters(source, componentTypeParams);
+            }
+        }
+
         var commandName = "Set" + property.Name;
 
         source.Write("public readonly record struct ");
         source.Write(commandName);
-        source.Write("(");
+        source.Write('(');
         source.Write(property.DisplayType);
         source.Write(" Value) : global::Sia.IReconstructableCommand<");
         source.Write(commandName);
-        source.WriteLine(">, global::Sia.IParallelCommand");
-        source.WriteLine("{");
+        source.Write(">, global::Sia.IParallelCommand, global::Sia.IParallelCommand<");
+        WriteComponentType();
+        source.WriteLine('>');
+        source.WriteLine('{');
         source.Indent++;
 
         source.Write("public static ");
@@ -228,10 +237,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         source.WriteLine(" ReconstructFromCurrentState(in global::Sia.EntityRef entity)");
         source.Indent++;
         source.Write("=> new(entity.Get<");
-        source.Write(componentType);
-        if (componentTypeParams != null) {
-            WriteTypeParameters(source, componentTypeParams);
-        }
+        WriteComponentType();
         source.Write(">().");
         source.Write(property.Name);
         source.WriteLine(");");
@@ -242,14 +248,27 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         source.WriteLine("=> ExecuteOnParallel(target);");
         source.Indent--;
 
+        source.Write("public void Execute(global::Sia.World _, ref ");
+        WriteComponentType();
+        source.WriteLine(" component)");
+        source.Indent++;
+        source.WriteLine("=> ExecuteOnParallel(ref component);");
+        source.Indent--;
+
         source.WriteLine("public void ExecuteOnParallel(in global::Sia.EntityRef target)");
         source.Indent++;
         source.Write("=> target.Get<");
-        source.Write(componentType);
-        if (componentTypeParams != null) {
-            WriteTypeParameters(source, componentTypeParams);
-        }
+        WriteComponentType();
         source.Write(">().");
+        source.Write(property.Name);
+        source.WriteLine(" = Value;");
+        source.Indent--;
+
+        source.Write("public void ExecuteOnParallel(ref ");
+        WriteComponentType();
+        source.WriteLine(" component)");
+        source.Indent++;
+        source.Write("=> component.");
         source.Write(property.Name);
         source.WriteLine(" = Value;");
         source.Indent--;
@@ -263,29 +282,53 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         TypeParameterListSyntax? componentTypeParams,
         string commandName, string arguments, string call)
     {
+        void WriteComponentType()
+        {
+            source.Write(componentType);
+            if (componentTypeParams != null) {
+                WriteTypeParameters(source, componentTypeParams);
+            }
+        }
+
         source.Write("public readonly record struct ");
         source.Write(commandName);
 
-        source.Write("(");
+        source.Write('(');
         source.Write(arguments);
-        source.WriteLine(") : global::Sia.ICommand");
-        source.WriteLine("{");
+        source.Write(") : global::Sia.ICommand, global::Sia.ICommand<");
+        WriteComponentType();
+        source.WriteLine('>');
+        source.WriteLine('{');
         source.Indent++;
 
         source.WriteLine("public void Execute(global::Sia.World _, in global::Sia.EntityRef target)");
-        source.WriteLine("{");
+        source.WriteLine('{');
         source.Indent++;
 
-        source.Write("ref var comp = ref target.Get<");
-        source.Write(componentType);
-        if (componentTypeParams != null) {
-            WriteTypeParameters(source, componentTypeParams);
-        }
+        source.Write("ref var component = ref target.Get<");
+        WriteComponentType();
         source.WriteLine(">();");
 
-        source.Write("comp.");
+        source.Write("component.");
         source.Write(property.Name);
-        source.Write(" = comp.");
+        source.Write(" = component.");
+        source.Write(property.Name);
+        source.WriteLine(call);
+
+        source.Indent--;
+        source.WriteLine("}");
+
+        source.WriteLine();
+
+        source.Write("public void Execute(global::Sia.World _, ref ");
+        WriteComponentType();
+        source.WriteLine(" component)");
+        source.WriteLine('{');
+        source.Indent++;
+
+        source.Write("component.");
+        source.Write(property.Name);
+        source.Write(" = component.");
         source.Write(property.Name);
         source.WriteLine(call);
 

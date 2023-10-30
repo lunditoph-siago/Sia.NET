@@ -387,6 +387,14 @@ public sealed class World : IEntityQuery, IEventSender
         Dispatcher.Send(target, command);
     }
 
+    public void Modify<TComponent, TCommand>(
+        in EntityRef target, ref TComponent component, in TCommand command)
+        where TCommand : ICommand<TComponent>
+    {
+        command.Execute(this, ref component);
+        Dispatcher.Send(target, command);
+    }
+
     public WorldCommandBuffer CreateCommandBuffer()
         => new(this);
 
