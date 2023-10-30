@@ -178,8 +178,8 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
                         componentName: compName,
                         properties: properties);
 
-                    source.WriteLine();
                     foreach (var prop in properties) {
+                        source.WriteLine();
                         SiaPropertyGenerator.GeneratePropertyCommands(
                             source, prop, compName, templateType.TypeParameterList);
                     }
