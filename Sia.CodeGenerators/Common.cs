@@ -55,7 +55,7 @@ internal static class Common
     public static readonly string GeneratedCodeAttribute =
         $@"global::System.CodeDom.Compiler.GeneratedCodeAttribute(""{AssemblyName.Name}"", ""{AssemblyName.Version}"")";
 
-    public static readonly SymbolDisplayFormat QualifiedTypeNameWithTypeConstraints = new SymbolDisplayFormat(
+    public static readonly SymbolDisplayFormat QualifiedTypeNameWithTypeConstraints = new(
             globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
             typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
             genericsOptions: SymbolDisplayGenericsOptions.IncludeTypeParameters
