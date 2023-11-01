@@ -1,8 +1,8 @@
+namespace Sia;
+
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
-
-namespace Sia;
 
 public class Mapper<TId> : ViewBase<TypeUnion<Sid<TId>>>, IReadOnlyDictionary<TId, EntityRef>
     where TId : notnull
