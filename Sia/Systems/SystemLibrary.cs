@@ -414,11 +414,11 @@ public class SystemLibrary : IAddon
                 => listener.OnEvent(target, WorldEvents.Add.Instance);
 
             query.OnEntityHostAdded += host => host.OnEntityCreated += OnEntityCreated;
-            query.OnEntityHostRemoved += host => host.OnEntityReleased -= OnEntityCreated;
+            query.OnEntityHostRemoved += host => host.OnEntityCreated -= OnEntityCreated;
 
             return () => {
                 foreach (var host in query.Hosts) {
-                    host.OnEntityReleased -= OnEntityCreated;
+                    host.OnEntityCreated -= OnEntityCreated;
                 }
                 query.Dispose();
             };
@@ -428,14 +428,14 @@ public class SystemLibrary : IAddon
                 => dispatcher.Listen(target, listener);
 
             query.OnEntityHostAdded += host => host.OnEntityCreated += OnEntityCreated;
-            query.OnEntityHostRemoved += host => host.OnEntityReleased -= OnEntityCreated;
+            query.OnEntityHostRemoved += host => host.OnEntityCreated -= OnEntityCreated;
 
             return () => {
                 query.ForEach((in EntityRef entity) => {
                     dispatcher.Unlisten(entity, listener);
                 });
                 foreach (var host in query.Hosts) {
-                    host.OnEntityReleased -= OnEntityCreated;
+                    host.OnEntityCreated -= OnEntityCreated;
                 }
                 query.Dispose();
             };
