@@ -149,8 +149,7 @@ internal static class Common
 
     public static IDisposable GenerateInNamespace(IndentedTextWriter source, INamespaceSymbol ns)
     {
-        var hasNamespace = !ns.IsGlobalNamespace;
-        if (hasNamespace) {
+        if (!ns.IsGlobalNamespace) {
             source.Write("namespace ");
             source.WriteLine(ns.ToDisplayString());
             source.WriteLine("{");
