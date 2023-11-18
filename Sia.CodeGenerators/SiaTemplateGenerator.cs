@@ -231,9 +231,9 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
         source.Write(" template, out ");
         source.Write(compName);
         WriteTypeParameters(source, templateType);
-        source.WriteLine(" result)");
+        source.WriteLine(" component)");
         source.Indent++;
-        source.WriteLine("=> result = new(template);");
+        source.WriteLine("=> component = new(template);");
         source.Indent--;
     }
 
