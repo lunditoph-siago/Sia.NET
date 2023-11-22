@@ -53,6 +53,21 @@ public record SystemChain(
         }
         return new(Sequence.Add(typeof(TSystem)), newEntries);
     }
+
+    public SystemChain Add<TSystem>(Func<TSystem> creator)
+        where TSystem : ISystem
+    {
+        var newEntries = Entries.Add(
+            typeof(TSystem), new(
+                (sysLib, scheduler, taskGraphNodes) => sysLib.Register(scheduler, creator, taskGraphNodes),
+                GetAttributedSystemTypes<TSystem>(typeof(AfterSystemAttribute<>)),
+                GetAttributedSystemTypes<TSystem>(typeof(BeforeSystemAttribute<>))
+            ));
+        if (newEntries == Entries) {
+            return this;
+        }
+        return new(Sequence.Add(typeof(TSystem)), newEntries);
+    }
     
     public SystemChain Remove<TSystem>()
         where TSystem : ISystem, new()
