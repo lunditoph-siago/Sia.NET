@@ -225,8 +225,12 @@ public class SystemLibrary : IAddon
 
     public SystemHandle Register<TSystem>(Scheduler scheduler, IEnumerable<Scheduler.TaskGraphNode>? dependedTasks = null)
         where TSystem : ISystem, new()
+        => Register<TSystem>(scheduler, () => new(), dependedTasks);
+
+    public SystemHandle Register<TSystem>(Scheduler scheduler, Func<TSystem> creator, IEnumerable<Scheduler.TaskGraphNode>? dependedTasks = null)
+        where TSystem : ISystem
     {
-        var system = new TSystem();
+        var system = creator();
         var sysEntry = Acquire(system.GetType());
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
