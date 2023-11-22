@@ -1,9 +1,13 @@
 namespace Sia;
 
+using System.Collections;
 using System.Runtime.CompilerServices;
 
-public class Hierarchy<TTag> : ViewBase<TypeUnion<Node<TTag>>>
+public class Hierarchy<TTag> : ViewBase<TypeUnion<Node<TTag>>>, IEnumerable<EntityRef>
 {
+    public IReadOnlySet<EntityRef> Root => _root;
+
+    private readonly HashSet<EntityRef> _root = new();
     private readonly Stack<HashSet<EntityRef>> _childrenPool = new();
 
     public override void OnInitialize(World world)
@@ -25,6 +29,9 @@ public class Hierarchy<TTag> : ViewBase<TypeUnion<Node<TTag>>>
         if (parent != null) {
             AddToParent(entity, parent.Value);
         }
+        else {
+            _root.Add(entity);
+        }
     }
 
     protected override void OnEntityRemoved(in EntityRef entity)
@@ -34,6 +41,9 @@ public class Hierarchy<TTag> : ViewBase<TypeUnion<Node<TTag>>>
         var parent = node.Parent;
         if (parent != null) {
             RemoveFromParent(entity, parent.Value);
+        }
+        else {
+            _root.Remove(entity);
         }
 
         var children = node._children;
@@ -50,13 +60,21 @@ public class Hierarchy<TTag> : ViewBase<TypeUnion<Node<TTag>>>
     {
         ref var node = ref entity.Get<Node<TTag>>();
 
+        var parent = node.Parent;
         var previousParent = node.PreviousParent;
+
         if (previousParent != null) {
             RemoveFromParent(entity, previousParent.Value);
-        }
 
-        var parent = node.Parent;
-        if (parent != null) {
+            if (parent == null) {
+                _root.Add(entity);
+            }
+            else {
+                AddToParent(entity, parent.Value);
+            }
+        }
+        else if (parent != null) {
+            _root.Remove(entity);
             AddToParent(entity, parent.Value);
         }
 
@@ -84,4 +102,10 @@ public class Hierarchy<TTag> : ViewBase<TypeUnion<Node<TTag>>>
             children = null;
         }
     }
+
+    public IEnumerator<EntityRef> GetEnumerator()
+        => _root.GetEnumerator();
+
+    IEnumerator IEnumerable.GetEnumerator()
+        => GetEnumerator();
 }
