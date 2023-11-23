@@ -7,7 +7,7 @@ using CommunityToolkit.HighPerformance.Buffers;
 public static class EntityQueryParallelExtensions
 {
     public delegate void RecordFunc<TResult>(in EntityRef entity, ref TResult result);
-    public delegate void RecordFunc<TResult, TData>(in TData data, in EntityRef entity, ref TResult result);
+    public delegate void RecordFunc<TData, TResult>(in TData data, in EntityRef entity, ref TResult result);
 
     private readonly struct ForEachParallelAction
     {
@@ -77,14 +77,14 @@ public static class EntityQueryParallelExtensions
         }
     }
 
-    private readonly unsafe struct RecordData<TResult, TData>
+    private readonly unsafe struct RecordData<TData, TResult>
     {
         public readonly int* Index;
         public readonly TData Data;
         public readonly ArraySegment<TResult> Array;
-        public readonly RecordFunc<TResult, TData> RecordFunc;
+        public readonly RecordFunc<TData, TResult> RecordFunc;
         
-        public RecordData(int* index, in TData data, ArraySegment<TResult> array, RecordFunc<TResult, TData> recordFunc)
+        public RecordData(int* index, in TData data, ArraySegment<TResult> array, RecordFunc<TData, TResult> recordFunc)
         {
             Index = index;
             Data = data;
@@ -101,7 +101,7 @@ public static class EntityQueryParallelExtensions
 
         var spanOwner = SpanOwner<EntityRef>.Allocate(count);
         var array = spanOwner.DangerousGetArray();
-        RecordEntities(query, array);
+        Record(query, array);
 
         var action = new ForEachParallelAction(array, handler);
         Partitioner.Create(0, count)
@@ -117,7 +117,7 @@ public static class EntityQueryParallelExtensions
 
         var spanOwner = SpanOwner<EntityRef>.Allocate(count);
         var array = spanOwner.DangerousGetArray();
-        RecordEntities(query, array);
+        Record(query, array);
 
         var action = new ForEachParallelAction<TData>(array, data, handler);
         Partitioner.Create(0, count)
@@ -142,7 +142,7 @@ public static class EntityQueryParallelExtensions
         if (count == 0) { return default; }
 
         var spanOwner = SpanOwner<EntityRef>.Allocate(count);
-        RecordEntities(query, spanOwner.DangerousGetArray());
+        Record(query, spanOwner.DangerousGetArray());
         return spanOwner;
     }
 
@@ -154,8 +154,53 @@ public static class EntityQueryParallelExtensions
         if (count == 0) { return default; }
 
         var spanOwner = SpanOwner<TResult>.Allocate(count);
-        var array = spanOwner.DangerousGetArray();
+        Record(query, spanOwner.DangerousGetArray(), recordFunc);
+        return spanOwner;
+    }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static unsafe SpanOwner<TResult> Record<TData, TResult>(
+        this IEntityQuery query, in TData data, RecordFunc<TData, TResult> recordFunc)
+    {
+        var count = query.Count;
+        if (count == 0) { return default; }
+
+        var spanOwner = SpanOwner<TResult>.Allocate(count);
+        Record(query, data, spanOwner.DangerousGetArray(), recordFunc);
+        return spanOwner;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void Record(IEntityQuery query, MemoryOwner<EntityRef> memory)
+        => Record(query, memory.DangerousGetArray());
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void Record<TResult>(
+        IEntityQuery query, MemoryOwner<TResult> memory, RecordFunc<TResult> recordFunc)
+        => Record(query, memory.DangerousGetArray(), recordFunc);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void Record<TData, TResult>(
+        IEntityQuery query, in TData data, MemoryOwner<TResult> memory, RecordFunc<TData, TResult> recordFunc)
+        => Record(query, data, memory.DangerousGetArray(), recordFunc);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void Record(IEntityQuery query, ArraySegment<EntityRef> array)
+    {
+        int index = 0;
+        var indexPtr = (int*)Unsafe.AsPointer(ref index);
+
+        query.ForEach(new(indexPtr, array), static (in RecordData data, in EntityRef entity) => {
+            ref int index = ref *data.Index;
+            data.Array[index] = entity;
+            ++index;
+        });
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void Record<TResult>(
+        IEntityQuery query, ArraySegment<TResult> array, RecordFunc<TResult> recordFunc)
+    {
         int index = 0;
         var indexPtr = (int*)Unsafe.AsPointer(ref index);
 
@@ -164,41 +209,18 @@ public static class EntityQueryParallelExtensions
             data.RecordFunc(entity, ref data.Array.AsSpan()[index]);
             ++index;
         });
-
-        return spanOwner;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe SpanOwner<TResult> Record<TResult, TData>(
-        this IEntityQuery query, in TData data, RecordFunc<TResult, TData> recordFunc)
+    public unsafe static void Record<TData, TResult>(
+        IEntityQuery query, in TData data, ArraySegment<TResult> array, RecordFunc<TData, TResult> recordFunc)
     {
-        var count = query.Count;
-        if (count == 0) { return default; }
-
-        var spanOwner = SpanOwner<TResult>.Allocate(count);
-        var array = spanOwner.DangerousGetArray();
-
         int index = 0;
         var indexPtr = (int*)Unsafe.AsPointer(ref index);
 
-        query.ForEach(new(indexPtr, data, array, recordFunc), static (in RecordData<TResult, TData> data, in EntityRef entity) => {
+        query.ForEach(new(indexPtr, data, array, recordFunc), static (in RecordData<TData, TResult> data, in EntityRef entity) => {
             ref int index = ref *data.Index;
             data.RecordFunc(data.Data, entity, ref data.Array.AsSpan()[index]);
-            ++index;
-        });
-
-        return spanOwner;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private unsafe static void RecordEntities(IEntityQuery query, ArraySegment<EntityRef> array)
-    {
-        int index = 0;
-        var indexPtr = (int*)Unsafe.AsPointer(ref index);
-
-        query.ForEach(new(indexPtr, array), static (in RecordData data, in EntityRef entity) => {
-            ref int index = ref *data.Index;
-            data.Array[index] = entity;
             ++index;
         });
     }
