@@ -7,5 +7,5 @@ public interface ICommand : IEvent
 
 public interface ICommand<T> : IEvent
 {
-    void Execute(World world, in EntityRef entity, ref T component);
+    void Execute(World world, in EntityRef target, ref T component);
 }
