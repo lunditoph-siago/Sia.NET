@@ -98,6 +98,10 @@ namespace Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void IterateAllocated<TData>(in TData data, StoragePointerHandler<TData> handler)
             => Storage.IterateAllocated(data, handler);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public object Box(long pointer)
+            => Storage.UnsafeGetRef(pointer);
     }
 }
 

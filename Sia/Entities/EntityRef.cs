@@ -2,6 +2,8 @@ namespace Sia;
 
 public readonly record struct EntityRef(long Pointer, IEntityHost Host) : IDisposable
 {
+    public object Boxed => Host.Box(Pointer);
+    
     public bool Contains<TComponent>()
         => Host.Contains<TComponent>(Pointer);
 

@@ -18,6 +18,8 @@ public interface IEntityHost
 
     void IterateAllocated(StoragePointerHandler handler);
     void IterateAllocated<TData>(in TData data, StoragePointerHandler<TData> handler);
+
+    object Box(long pointer);
 }
 
 public interface IReactiveEntityHost : IEntityHost
