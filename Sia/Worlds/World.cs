@@ -391,7 +391,7 @@ public sealed class World : IEntityQuery, IEventSender
         in EntityRef target, ref TComponent component, in TCommand command)
         where TCommand : ICommand<TComponent>
     {
-        command.Execute(this, ref component);
+        command.Execute(this, target, ref component);
         Dispatcher.Send(target, command);
     }
 
