@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -125,6 +126,23 @@ namespace Internal
                         data.Handler(data.Data, pointer << 32 | (uint)data.Index));
             }
         }
+
+        public IEnumerator<long> GetEnumerator()
+        {
+            var count = _storages.Count;
+            for (int i = 0; i != count; ++i) {
+                var storage = _storages[count];
+                if (storage == null) {
+                    continue;
+                }
+                foreach (var pointer in storage) {
+                    yield return pointer;
+                }
+            }
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+            => GetEnumerator();
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ref T UnsafeGetRef(long rawPointer)

@@ -1,7 +1,8 @@
 
-using System.Runtime.CompilerServices;
-
 namespace Sia;
+
+using System.Collections;
+using System.Runtime.CompilerServices;
 
 public record WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>, IReactiveEntityHost
     where T : struct
@@ -94,6 +95,14 @@ public record WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>, IReactive
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void IterateAllocated<TData>(in TData data, StoragePointerHandler<TData> handler)
         => _host.IterateAllocated(data, handler);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public IEnumerator<EntityRef> GetEnumerator()
+        => _host.GetEnumerator();
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    IEnumerator IEnumerable.GetEnumerator()
+        => _host.GetEnumerator();
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public object Box(long pointer)

@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Runtime.CompilerServices;
 
 namespace Sia
@@ -376,6 +377,16 @@ namespace Internal
         public void IterateAllocated<TData>(in TData data, StoragePointerHandler<TData> handler)
             => _buffer.IterateAllocated(new(data, handler),
                 (in IterationData<TData> data, int index) => data.Handler(data.Data, index));
+
+        public IEnumerator<long> GetEnumerator()
+        {
+            foreach (var index in _buffer) {
+                yield return index;
+            }
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+            => GetEnumerator();
         
         public void Dispose()
         {

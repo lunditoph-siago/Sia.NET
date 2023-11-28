@@ -1,6 +1,8 @@
 namespace Sia;
 
 using System.Buffers;
+using System.Collections;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
 public sealed class FixedArrayStorage<T> : IStorage<T>
@@ -102,6 +104,22 @@ public sealed class FixedArrayStorage<T> : IStorage<T>
             }
         }
     }
+
+    public IEnumerator<long> GetEnumerator()
+    {
+        if (Count == 0) {
+            yield break;
+        }
+        var count = _arr.Length;
+        for (int i = 0; i != count; ++i) {
+            if (_arr[i].IsAllocated) {
+                yield return i;
+            }
+        }
+    }
+
+    IEnumerator IEnumerable.GetEnumerator()
+        => GetEnumerator();
     
     public void Dispose()
     {
