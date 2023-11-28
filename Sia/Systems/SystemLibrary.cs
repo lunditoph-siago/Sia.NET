@@ -23,6 +23,7 @@ public class SystemLibrary : IAddon
         internal int CollectingSetCount => _collectingSet.Count;
 
         private int _maxCollectedCount = 0;
+        private int _prevMaxCollectedCount = 0;
 
         private Dictionary<EntityRef, int> _collectingSet = new();
         private Dictionary<EntityRef, int> _collectedSet = new();
@@ -40,6 +41,7 @@ public class SystemLibrary : IAddon
                 _mem.Dispose();
                 _mem = MemoryOwner<EntityRef?>.Allocate(_maxCollectedCount);
             }
+            _prevMaxCollectedCount = _maxCollectedCount;
             _maxCollectedCount = 0;
 
             var span = _mem.Span;
@@ -74,7 +76,7 @@ public class SystemLibrary : IAddon
 
         public void ForEach(EntityHandler handler)
         {
-            foreach (ref var entity in _mem.Span[0.._collectedSet.Count]) {
+            foreach (ref var entity in _mem.Span[0.._prevMaxCollectedCount]) {
                 if (entity.HasValue) {
                     handler(entity.Value);
                 }
@@ -83,7 +85,7 @@ public class SystemLibrary : IAddon
 
         public void ForEach(SimpleEntityHandler handler)
         {
-            foreach (ref var entity in _mem.Span[0.._collectedSet.Count]) {
+            foreach (ref var entity in _mem.Span[0.._prevMaxCollectedCount]) {
                 if (entity.HasValue) {
                     handler(entity.Value);
                 }
@@ -92,7 +94,7 @@ public class SystemLibrary : IAddon
 
         public void ForEach<TData>(in TData data, EntityHandler<TData> handler)
         {
-            foreach (ref var entity in _mem.Span[0.._collectedSet.Count]) {
+            foreach (ref var entity in _mem.Span[0.._prevMaxCollectedCount]) {
                 if (entity.HasValue) {
                     handler(data, entity.Value);
                 }
@@ -101,7 +103,7 @@ public class SystemLibrary : IAddon
 
         public void ForEach<TData>(in TData data, SimpleEntityHandler<TData> handler)
         {
-            foreach (ref var entity in _mem.Span[0.._collectedSet.Count]) {
+            foreach (ref var entity in _mem.Span[0.._prevMaxCollectedCount]) {
                 if (entity.HasValue) {
                     handler(data, entity.Value);
                 }
