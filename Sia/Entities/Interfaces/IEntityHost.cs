@@ -1,6 +1,6 @@
 namespace Sia;
 
-public interface IEntityHost
+public interface IEntityHost : IEnumerable<EntityRef>
 {
     EntityDescriptor Descriptor { get; }
 

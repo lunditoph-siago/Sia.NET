@@ -4,6 +4,8 @@ namespace Sia;
 
 using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
+using System.Collections.Generic;
+using System.Collections;
 
 public sealed class UnmanagedHeapStorage<T> : IStorage<T>
     where T : struct
@@ -15,7 +17,7 @@ public sealed class UnmanagedHeapStorage<T> : IStorage<T>
     public int PointerValidBits => 64;
     public bool IsManaged => false;
 
-    private HashSet<nint> _allocated = new();
+    private HashSet<long> _allocated = new();
 
     private static readonly int ElementSize = Unsafe.SizeOf<T>();
 
@@ -65,11 +67,17 @@ public sealed class UnmanagedHeapStorage<T> : IStorage<T>
             handler(data, pointer);
         }
     }
+
+    public IEnumerator<long> GetEnumerator()
+        => _allocated.GetEnumerator();
+
+    IEnumerator IEnumerable.GetEnumerator()
+        => GetEnumerator();
     
     public void Dispose()
     {
         foreach (var ptr in _allocated) {
-            Marshal.FreeHGlobal(ptr);
+            Marshal.FreeHGlobal((nint)ptr);
         }
         _allocated = null!;
     }

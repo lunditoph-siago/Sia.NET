@@ -1,5 +1,7 @@
 namespace Sia;
 
+using System.Collections;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
@@ -53,6 +55,14 @@ public readonly struct WrappedBuffer<T, TBuffer> : IBuffer<T>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void IterateAllocated<TData>(in TData data, BufferIndexHandler<TData> handler)
         => _buffer.IterateAllocated(data, handler);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public IEnumerator<int> GetEnumerator()
+        => _buffer.GetEnumerator();
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    IEnumerator IEnumerable.GetEnumerator()
+        => _buffer.GetEnumerator();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Dispose()

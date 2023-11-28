@@ -2,7 +2,7 @@ namespace Sia;
 
 using System.Diagnostics.CodeAnalysis;
 
-public interface IBuffer<T> : IDisposable
+public interface IBuffer<T> : IEnumerable<int>, IDisposable
 {
     int Capacity { get; }
     int Count { get; }

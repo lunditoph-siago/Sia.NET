@@ -1,5 +1,7 @@
 namespace Sia;
 
+using System.Collections;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -46,6 +48,12 @@ public sealed class HashBuffer<T> : IBuffer<T>
             handler(data, index);
         }
     }
+
+    public IEnumerator<int> GetEnumerator()
+        => _dict.Keys.GetEnumerator();
+
+    IEnumerator IEnumerable.GetEnumerator()
+        => GetEnumerator();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Dispose()

@@ -3,6 +3,7 @@ namespace Sia;
 using System.Runtime.CompilerServices;
 using CommunityToolkit.HighPerformance.Buffers;
 using System.Diagnostics.CodeAnalysis;
+using System.Collections;
 
 public class SystemLibrary : IAddon
 {
@@ -106,6 +107,12 @@ public class SystemLibrary : IAddon
                 }
             }
         }
+
+        public IEnumerator<EntityRef> GetEnumerator()
+            => _collectedSet.Keys.GetEnumerator();
+
+        IEnumerator IEnumerable.GetEnumerator()
+            => GetEnumerator();
 
         public void Dispose()
         {

@@ -1,5 +1,6 @@
 namespace Sia;
 
+using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -64,10 +65,26 @@ public sealed class World : IEntityQuery, IEventSender
             }
         }
 
+        public IEnumerator<EntityRef> GetEnumerator()
+        {
+            for (int i = 0; i < _hosts.Count; ++i) {
+                var host = _hosts[i];
+                if (host.Count != 0) {
+                    foreach (var entity in host) {
+                        yield return entity;
+                    }
+                }
+            }
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+            => GetEnumerator();
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void ForEach(EntityHandler handler)
         {
-            foreach (var host in _hosts) {
+            for (int i = 0; i < _hosts.Count; ++i) {
+                var host = _hosts[i];
                 if (host.Count != 0) {
                     IterateHost(host, handler);
                 }
@@ -77,7 +94,8 @@ public sealed class World : IEntityQuery, IEventSender
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void ForEach(SimpleEntityHandler handler)
         {
-            foreach (var host in _hosts) {
+            for (int i = 0; i < _hosts.Count; ++i) {
+                var host = _hosts[i];
                 if (host.Count != 0) {
                     IterateHost(host, handler);
                 }
@@ -87,7 +105,8 @@ public sealed class World : IEntityQuery, IEventSender
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void ForEach<TData>(in TData data, EntityHandler<TData> handler)
         {
-            foreach (var host in _hosts) {
+            for (int i = 0; i < _hosts.Count; ++i) {
+                var host = _hosts[i];
                 if (host.Count != 0) {
                     IterateHost(host, data, handler);
                 }
@@ -97,7 +116,8 @@ public sealed class World : IEntityQuery, IEventSender
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void ForEach<TData>(in TData data, SimpleEntityHandler<TData> handler)
         {
-            foreach (var host in _hosts) {
+            for (int i = 0; i < _hosts.Count; ++i) {
+                var host = _hosts[i];
                 if (host.Count != 0) {
                     IterateHost(host, data, handler);
                 }
@@ -201,7 +221,7 @@ public sealed class World : IEntityQuery, IEventSender
     public void ForEach(EntityHandler handler)
     {
         var hosts = _hosts.UnsafeRawValues;
-        for (int i = 0; i != hosts.Count; ++i) {
+        for (int i = 0; i < hosts.Count; ++i) {
             var host = hosts[i];
             if (host.Count != 0) {
                 IterateHost(host, handler);
@@ -212,7 +232,7 @@ public sealed class World : IEntityQuery, IEventSender
     public void ForEach(SimpleEntityHandler handler)
     {
         var hosts = _hosts.UnsafeRawValues;
-        for (int i = 0; i != hosts.Count; ++i) {
+        for (int i = 0; i < hosts.Count; ++i) {
             var host = hosts[i];
             if (host.Count != 0) {
                 IterateHost(host, handler);
@@ -223,7 +243,7 @@ public sealed class World : IEntityQuery, IEventSender
     public void ForEach<TData>(in TData data, EntityHandler<TData> handler)
     {
         var hosts = _hosts.UnsafeRawValues;
-        for (int i = 0; i != hosts.Count; ++i) {
+        for (int i = 0; i < hosts.Count; ++i) {
             var host = hosts[i];
             if (host.Count != 0) {
                 IterateHost(host, data, handler);
@@ -234,13 +254,29 @@ public sealed class World : IEntityQuery, IEventSender
     public void ForEach<TData>(in TData data, SimpleEntityHandler<TData> handler)
     {
         var hosts = _hosts.UnsafeRawValues;
-        for (int i = 0; i != hosts.Count; ++i) {
+        for (int i = 0; i < hosts.Count; ++i) {
             var host = hosts[i];
             if (host.Count != 0) {
                 IterateHost(host, data, handler);
             }
         }
     }
+
+    public IEnumerator<EntityRef> GetEnumerator()
+    {
+        var hosts = _hosts.UnsafeRawValues;
+        for (int i = 0; i < hosts.Count; ++i) {
+            var host = hosts[i];
+            if (host.Count != 0) {
+                foreach (var entity in host) {
+                    yield return entity;
+                }
+            }
+        }
+    }
+
+    IEnumerator IEnumerable.GetEnumerator()
+        => GetEnumerator();
 
     public void Query<TTypeUnion>(EntityHandler handler)
         where TTypeUnion : ITypeUnion, new()

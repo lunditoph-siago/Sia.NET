@@ -1,5 +1,7 @@
 namespace Sia;
 
+using System.Collections;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
@@ -73,6 +75,14 @@ public readonly struct WrappedStorage<T, TStorage> : IStorage<T>, IEquatable<Wra
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void IterateAllocated<TData>(in TData data, StoragePointerHandler<TData> handler)
         => _storage.IterateAllocated(data, handler);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public IEnumerator<long> GetEnumerator()
+        => _storage.GetEnumerator();
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    IEnumerator IEnumerable.GetEnumerator()
+        => _storage.GetEnumerator();
 
     public override bool Equals([AllowNull] object obj)
         => obj is WrappedStorage<T, TStorage> wrapper

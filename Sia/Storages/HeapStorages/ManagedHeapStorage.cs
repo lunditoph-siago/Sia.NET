@@ -3,6 +3,8 @@ namespace Sia;
 using System.Runtime.Serialization;
 using System.Runtime.CompilerServices;
 using CommunityToolkit.HighPerformance;
+using System.Collections.Generic;
+using System.Collections;
 
 public sealed class ManagedHeapStorage<T> : IStorage<T>
     where T : struct
@@ -58,6 +60,12 @@ public sealed class ManagedHeapStorage<T> : IStorage<T>
             handler(data, key);
         }
     }
+
+    public IEnumerator<long> GetEnumerator()
+        => _objects.Keys.GetEnumerator();
+
+    IEnumerator IEnumerable.GetEnumerator()
+        => GetEnumerator();
 
     public void Dispose()
     {

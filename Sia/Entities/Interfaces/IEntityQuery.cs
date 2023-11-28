@@ -1,6 +1,6 @@
 namespace Sia;
 
-public interface IEntityQuery : IDisposable
+public interface IEntityQuery : IEnumerable<EntityRef>, IDisposable
 {
     int Count { get; }
     

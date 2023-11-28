@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Runtime.CompilerServices;
 
 namespace Sia
@@ -102,6 +103,18 @@ namespace Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public object Box(long pointer)
             => Storage.UnsafeGetRef(pointer);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public IEnumerator<EntityRef> GetEnumerator()
+        {
+            foreach (var pointer in Storage) {
+                yield return new EntityRef(pointer, this);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        IEnumerator IEnumerable.GetEnumerator()
+            => GetEnumerator();
     }
 }
 

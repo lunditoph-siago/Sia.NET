@@ -1,5 +1,7 @@
 namespace Sia;
 
+using System.Collections;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
@@ -56,6 +58,12 @@ public sealed class SparseBuffer<T> : IBuffer<T>
             handler(data, key);
         }
     }
+
+    public IEnumerator<int> GetEnumerator()
+        => _sparseSet.Keys.GetEnumerator();
+
+    IEnumerator IEnumerable.GetEnumerator()
+        => GetEnumerator();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Dispose()

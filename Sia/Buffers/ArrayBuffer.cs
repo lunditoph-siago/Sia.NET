@@ -1,5 +1,7 @@
 namespace Sia;
 
+using System.Collections;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
@@ -106,7 +108,27 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
             }
         }
     }
-    
+
+    public IEnumerator<int> GetEnumerator()
+    {
+        int capacity = Capacity;
+        int count = Count;
+        int accum = 0;
+
+        for (int i = 0; i != capacity; ++i) {
+            if (!_allocatedTags[i]) {
+                continue;
+            }
+            yield return i;
+            accum++;
+            if (accum == count) {
+                yield break;
+            }
+        }
+    }
+
+    IEnumerator IEnumerable.GetEnumerator()
+        => GetEnumerator();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Dispose()
