@@ -13,13 +13,30 @@ public class Hierarchy<TTag> : ViewBase<TypeUnion<Node<TTag>>>, IEnumerable<Enti
     public override void OnInitialize(World world)
     {
         base.OnInitialize(world);
-        world.Dispatcher.Listen<Node<TTag>.SetParent>(OnNodeParentChanged);
-    }
+        
+        Listen((in EntityRef entity, in Node<TTag>.SetParent cmd) => {
+            ref var node = ref entity.Get<Node<TTag>>();
 
-    public override void OnUninitialize(World world)
-    {
-        world.Dispatcher.Unlisten<Node<TTag>.SetParent>(OnNodeParentChanged);
-        base.OnUninitialize(world);
+            var parent = node.Parent;
+            var previousParent = node.PreviousParent;
+
+            if (previousParent != null) {
+                RemoveFromParent(entity, previousParent.Value);
+
+                if (parent == null) {
+                    _root.Add(entity);
+                }
+                else {
+                    AddToParent(entity, parent.Value);
+                }
+            }
+            else if (parent != null) {
+                _root.Remove(entity);
+                AddToParent(entity, parent.Value);
+            }
+
+            return false;
+        });
     }
 
     protected override void OnEntityAdded(in EntityRef entity)
@@ -54,31 +71,6 @@ public class Hierarchy<TTag> : ViewBase<TypeUnion<Node<TTag>>>, IEnumerable<Enti
             children.Clear();
             _childrenPool.Push(children);
         }
-    }
-
-    private bool OnNodeParentChanged(in EntityRef entity, in Node<TTag>.SetParent e)
-    {
-        ref var node = ref entity.Get<Node<TTag>>();
-
-        var parent = node.Parent;
-        var previousParent = node.PreviousParent;
-
-        if (previousParent != null) {
-            RemoveFromParent(entity, previousParent.Value);
-
-            if (parent == null) {
-                _root.Add(entity);
-            }
-            else {
-                AddToParent(entity, parent.Value);
-            }
-        }
-        else if (parent != null) {
-            _root.Remove(entity);
-            AddToParent(entity, parent.Value);
-        }
-
-        return false;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
