@@ -12,7 +12,7 @@ public record struct Node<TTag>(EntityRef? Parent)
 
     private static readonly HashSet<EntityRef> s_emptySet = new();
 
-    public readonly record struct SetParent(EntityRef? Value) : IParallelCommand, IReconstructableCommand<SetParent>
+    public readonly record struct SetParent(EntityRef? Value) : IParallelCommand<Node<TTag>>, IReconstructableCommand<SetParent>
     {
         public static SetParent ReconstructFromCurrentState(in EntityRef entity)
             => new(entity.Get<Node<TTag>>().Parent);
@@ -20,12 +20,17 @@ public record struct Node<TTag>(EntityRef? Parent)
         public void Execute(World world, in EntityRef target)
             => ExecuteOnParallel(target);
 
+        public void Execute(World world, in EntityRef target, ref Node<TTag> component)
+            => ExecuteOnParallel(ref component);
+
         public void ExecuteOnParallel(in EntityRef target)
+            => ExecuteOnParallel(ref target.Get<Node<TTag>>());
+
+        public void ExecuteOnParallel(ref Node<TTag> node)
         {
             if (Value != null) {
                 EntityUtility.CheckComponent<Node<TTag>>(Value.Value);
             }
-            ref var node = ref target.Get<Node<TTag>>();
             node.PreviousParent = node.Parent;
             node.Parent = Value;
         }
