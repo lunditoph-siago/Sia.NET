@@ -8,7 +8,7 @@ public record struct Node<TTag>(EntityRef? Parent)
     public readonly IReadOnlySet<EntityRef> Children => _children ?? s_emptySet;
 
     internal HashSet<EntityRef> _children;
-    internal EntityRef? PreviousParent { get; private set; }
+    internal EntityRef? _prevParent;
 
     private static readonly HashSet<EntityRef> s_emptySet = new();
 
@@ -31,7 +31,7 @@ public record struct Node<TTag>(EntityRef? Parent)
             if (Value != null) {
                 EntityUtility.CheckComponent<Node<TTag>>(Value.Value);
             }
-            node.PreviousParent = node.Parent;
+            node._prevParent = node.Parent;
             node.Parent = Value;
         }
     }
