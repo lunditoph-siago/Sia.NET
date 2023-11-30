@@ -16,3 +16,4 @@ Invoke(Example5_ComponentBundle.Run);
 Invoke(Example6_Hierarchy.Run);
 Invoke(Example7_Mapper.Run);
 Invoke(Example8_SIMD.Run);
+Invoke(Example10_DuplicateSystem.Run);
