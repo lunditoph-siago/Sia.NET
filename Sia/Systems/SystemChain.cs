@@ -3,14 +3,17 @@ namespace Sia;
 using System.Collections.Immutable;
 using System.Runtime.InteropServices;
 
-public record SystemChain(
-    ImmutableList<Type> Sequence, ImmutableDictionary<Type, SystemChain.Entry> Entries)
+using SystemRegisterer = Func<SystemLibrary, Scheduler, IEnumerable<Scheduler.TaskGraphNode>?, SystemHandle>;
+
+public record SystemChain(ImmutableList<SystemChain.Entry> Entries)
 {
-    public readonly record struct Entry(
-        Func<SystemLibrary, Scheduler, IEnumerable<Scheduler.TaskGraphNode>?, SystemHandle> Registerer,
+    public readonly record struct Dependencies(
         ImmutableArray<Type> PreceedingSystemTypes,
         ImmutableArray<Type> FollowingSystemTypes);
     
+    public readonly record struct Entry(
+        Type Type, SystemRegisterer Registerer, Func<Dependencies> DependenciesGetter);
+
     public sealed class Handle : IDisposable
     {
         public IReadOnlyList<SystemHandle> Handles => _handles;
@@ -35,72 +38,70 @@ public record SystemChain(
         }
     }
     
-    public static readonly SystemChain Empty = new();
-
-    private SystemChain() : this(ImmutableList<Type>.Empty, ImmutableDictionary<Type, Entry>.Empty) {}
+    public static readonly SystemChain Empty = new(ImmutableList<Entry>.Empty);
 
     public SystemChain Add<TSystem>()
         where TSystem : ISystem, new()
-    {
-        var newEntries = Entries.Add(
-            typeof(TSystem), new(
-                (sysLib, scheduler, taskGraphNodes) => sysLib.Register<TSystem>(scheduler, taskGraphNodes),
+        => new(Entries.Add(new(
+            typeof(TSystem),
+            static (sysLib, scheduler, taskGraphNodes) => sysLib.Register<TSystem>(scheduler, taskGraphNodes),
+            static () => new(
                 GetAttributedSystemTypes<TSystem>(typeof(AfterSystemAttribute<>)),
-                GetAttributedSystemTypes<TSystem>(typeof(BeforeSystemAttribute<>))
-            ));
-        if (newEntries == Entries) {
-            return this;
-        }
-        return new(Sequence.Add(typeof(TSystem)), newEntries);
-    }
+                GetAttributedSystemTypes<TSystem>(typeof(BeforeSystemAttribute<>)))
+        )));
 
     public SystemChain Add<TSystem>(Func<TSystem> creator)
         where TSystem : ISystem
-    {
-        var newEntries = Entries.Add(
-            typeof(TSystem), new(
-                (sysLib, scheduler, taskGraphNodes) => sysLib.Register(scheduler, creator, taskGraphNodes),
+        => new(Entries.Add(new(
+            typeof(TSystem),
+            (sysLib, scheduler, taskGraphNodes) => sysLib.Register(scheduler, creator, taskGraphNodes),
+            static () => new(
                 GetAttributedSystemTypes<TSystem>(typeof(AfterSystemAttribute<>)),
-                GetAttributedSystemTypes<TSystem>(typeof(BeforeSystemAttribute<>))
-            ));
-        if (newEntries == Entries) {
-            return this;
-        }
-        return new(Sequence.Add(typeof(TSystem)), newEntries);
-    }
+                GetAttributedSystemTypes<TSystem>(typeof(BeforeSystemAttribute<>)))
+        )));
     
     public SystemChain Remove<TSystem>()
-        where TSystem : ISystem, new()
+        where TSystem : ISystem
     {
-        var newEntries = Entries.Remove(typeof(TSystem));
-        if (newEntries == Entries) {
-            return this;
-        }
-        return new(Sequence.Remove(typeof(TSystem)), newEntries);
+        var index = Entries.FindIndex(entry => entry.Type == typeof(TSystem));
+        return index == -1 ? this : new(Entries.RemoveAt(index));
+    }
+
+    public SystemChain RemoveAll<TSystem>()
+        where TSystem : ISystem
+    {
+        var entries = Entries.RemoveAll(entry => entry.Type == typeof(TSystem));
+        return entries == Entries ? this : new(entries);
     }
     
-    public Handle RegisterTo(World world, Scheduler scheduler, IEnumerable<Scheduler.TaskGraphNode>? dependedTasks = null)
+    public Handle RegisterTo(
+        World world, Scheduler scheduler, IEnumerable<Scheduler.TaskGraphNode>? dependedTasks = null)
     {
+        var sysDepGetterDict = Entries.ToDictionary(e => e.Type, e => e.DependenciesGetter);
+
         var sysLib = world.AcquireAddon<SystemLibrary>();
         var depSysTypesDict = new Dictionary<Type, HashSet<Type>?>();
-        var sysHandles = new Dictionary<Type, SystemHandle?>();
+        var sysHandlesDict = new Dictionary<Type, List<SystemHandle>?>();
         var sysHandleList = new List<SystemHandle>(Entries.Count);
         
-        ref HashSet<Type>? AcquireDependedSystemTypes(Type type, in Entry entry)
+        ref HashSet<Type>? AcquireDependedSystemTypes(Type type, Func<Dependencies> dependenciesGetter)
         {
-            ref var depSysTypes = ref CollectionsMarshal.GetValueRefOrAddDefault(depSysTypesDict, type, out bool exists);
+            ref var depSysTypes = ref CollectionsMarshal.GetValueRefOrAddDefault(
+                depSysTypesDict, type, out bool exists);
             if (exists) {
                 return ref depSysTypes;
             }
 
-            var preSysTypes = entry.PreceedingSystemTypes;
+            var deps = dependenciesGetter();
+
+            var preSysTypes = deps.PreceedingSystemTypes;
             if (preSysTypes.Length != 0) {
                 foreach (var preSysType in preSysTypes) {
                     if (preSysType == type) {
                         throw new InvalidSystemDependencyException(
                             $"System {preSysType} cannot preceed itself.");
                     }
-                    if (!Entries.ContainsKey(preSysType)) {
+                    if (!sysDepGetterDict.ContainsKey(preSysType)) {
                         throw new InvalidSystemDependencyException(
                             $"Proceeding system {preSysType} for system {type} is not found in the system chain.");
                     }
@@ -109,54 +110,70 @@ public record SystemChain(
                 depSysTypes.UnionWith(preSysTypes);
             }
 
-            var flwSysTypes = entry.FollowingSystemTypes;
+            var flwSysTypes = deps.FollowingSystemTypes;
             if (flwSysTypes.Length != 0) {
                 foreach (var flwSysType in flwSysTypes) {
                     if (flwSysType == type) {
                         throw new InvalidSystemDependencyException(
                             $"System {flwSysType} cannot follow itself.");
                     }
-                    if (!Entries.TryGetValue(flwSysType, out var flwSysEntry)) {
+                    if (!sysDepGetterDict.TryGetValue(flwSysType, out var flwSysDepGetter)) {
                         throw new InvalidSystemDependencyException(
                             $"Following system {flwSysType} for system {type} is not found in the system chain.");
                     }
-                    (AcquireDependedSystemTypes(flwSysType, flwSysEntry) ??= new()).Add(type);
+
+                    (AcquireDependedSystemTypes(flwSysType, flwSysDepGetter) ??= new()).Add(type);
                 }
             }
 
             return ref depSysTypes;
         }
 
-        SystemHandle DoRegister(Type type)
+        List<SystemHandle> DoRegister(Type type)
         {
-            ref var sysHandle = ref CollectionsMarshal.GetValueRefOrAddDefault(sysHandles, type, out bool exists);
+            ref var sysHandles = ref CollectionsMarshal.GetValueRefOrAddDefault(
+                sysHandlesDict, type, out bool exists);
             if (exists) {
-                if (sysHandle == null) {
-                    foreach (var handle in sysHandles.Values) {
-                        handle?.Dispose();
+                if (sysHandles == null) {
+                    foreach (var handles in sysHandlesDict.Values) {
+                        if (handles == null) {
+                            continue;
+                        }
+                        foreach (var handle in handles) {
+                            handle.Dispose();
+                        }
                     }
                     throw new InvalidSystemDependencyException($"Circular dependency found for system {type}.");
                 }
-                return sysHandle;
+                return sysHandles;
             }
 
             var depSysTypes = depSysTypesDict[type];
-            var depSysHandles = depSysTypes?.Select(depSysType => DoRegister(depSysType).TaskGraphNode);
+            var depSysHandles = depSysTypes?.SelectMany(
+                depSysType => DoRegister(depSysType).Select(handle => handle.TaskGraphNode));
 
             depSysHandles = depSysHandles != null
                 ? dependedTasks?.Concat(depSysHandles.ToArray()) ?? depSysHandles.ToArray()
                 : dependedTasks;
 
-            sysHandle = Entries[type].Registerer(sysLib, scheduler, depSysHandles);
-            sysHandleList.Add(sysHandle);
-            return sysHandle;
+            sysHandles = new();
+            
+            foreach (var entry in Entries) {
+                if (entry.Type == type) {
+                    var sysHandle = entry.Registerer(sysLib, scheduler, depSysHandles);
+                    sysHandles.Add(sysHandle);
+                    sysHandleList.Add(sysHandle);
+                }
+            }
+
+            return sysHandles;
         }
 
-        foreach (var (type, entry) in Entries) {
-            AcquireDependedSystemTypes(type, entry);
+        foreach (var (type, _, depGetter) in Entries) {
+            AcquireDependedSystemTypes(type, depGetter);
         }
-        foreach (var type in Sequence) {
-            DoRegister(type);
+        foreach (var entry in Entries) {
+            DoRegister(entry.Type);
         }
         return new Handle(sysHandleList);
     }
