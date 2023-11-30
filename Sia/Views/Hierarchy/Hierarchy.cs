@@ -18,7 +18,7 @@ public class Hierarchy<TTag> : ViewBase<TypeUnion<Node<TTag>>>, IEnumerable<Enti
             ref var node = ref entity.Get<Node<TTag>>();
 
             var parent = node.Parent;
-            var previousParent = node.PreviousParent;
+            var previousParent = node._prevParent;
 
             if (previousParent != null) {
                 RemoveFromParent(entity, previousParent.Value);
