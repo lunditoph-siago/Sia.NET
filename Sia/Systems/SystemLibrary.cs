@@ -9,10 +9,8 @@ public class SystemLibrary : IAddon
 {
     public class Entry
     {
-        public IReadOnlyDictionary<Scheduler, Scheduler.TaskGraphNode> TaskGraphNodes => TaskGraphNodesRaw;
-
-        internal Dictionary<Scheduler, Scheduler.TaskGraphNode> TaskGraphNodesRaw { get; } = new();
-        internal HashSet<Type> RequiredPreceedingSystemTypes { get; } = new();
+        public IReadOnlySet<Scheduler.TaskGraphNode> TaskGraphNodes => _taskGraphNodes;
+        internal readonly HashSet<Scheduler.TaskGraphNode> _taskGraphNodes = new();
     }
 
     private class Collector : IEntityQuery
@@ -209,25 +207,26 @@ public class SystemLibrary : IAddon
         SystemLibrary lib, Scheduler scheduler, Scheduler.TaskGraphNode[]? dependedTasks = null);
 
     [AllowNull] private World _world;
-    private readonly Dictionary<Type, Entry> _systemEntries = new();
+    private readonly Dictionary<(Scheduler, Type), Entry> _systemEntries = new();
 
     public void OnInitialize(World world)
     {
         _world = world;
     }
 
-    public Entry Get<TSystem>() where TSystem : ISystem
-        => Get(typeof(TSystem));
+    public Entry Get<TSystem>(Scheduler scheduler) where TSystem : ISystem
+        => Get(scheduler, typeof(TSystem));
 
-    public Entry Get(Type systemType)
-        => _systemEntries[systemType];
+    public Entry Get(Scheduler scheduler, Type systemType)
+        => _systemEntries[(scheduler, systemType)];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal Entry Acquire(Type systemType)
+    internal Entry Acquire(Scheduler scheduler, Type systemType)
     {
-        if (!_systemEntries.TryGetValue(systemType, out var instance)) {
+        var key = (scheduler, systemType);
+        if (!_systemEntries.TryGetValue(key, out var instance)) {
             instance = new();
-            _systemEntries.Add(systemType, instance);
+            _systemEntries.Add(key, instance);
         }
         return instance;
     }
@@ -240,23 +239,20 @@ public class SystemLibrary : IAddon
         where TSystem : ISystem
     {
         var system = creator();
-        var sysEntry = Acquire(system.GetType());
+        var sysEntry = Acquire(scheduler, system.GetType());
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         void DoRegisterSystem(Entry sysEntry, Scheduler.TaskGraphNode task)
         {
-            sysEntry.TaskGraphNodesRaw.Add(scheduler, task);
+            sysEntry._taskGraphNodes.Add(task);
             system.Initialize(_world, scheduler);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         void DoUnregisterSystem(Entry sysEntry, Scheduler.TaskGraphNode task)
         {
-            if (!sysEntry.TaskGraphNodesRaw.Remove(scheduler, out var removedTask)) {
-                throw new ObjectDisposedException("System has been disposed");
-            }
-            if (removedTask != task) {
-                throw new InvalidOperationException("Internal error: removed task is not the task to be disposed");
+            if (!sysEntry._taskGraphNodes.Remove(task)) {
+                throw new ObjectDisposedException("Failed to unregister system: system not found");
             }
             system.Uninitialize(_world, scheduler);
         }
