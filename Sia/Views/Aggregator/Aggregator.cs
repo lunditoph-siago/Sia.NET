@@ -6,7 +6,7 @@ using System.Runtime.InteropServices;
 
 public class Aggregator<TAggregationEntity, TId> : ViewBase<TypeUnion<Sid<TId>>>
     where TAggregationEntity : IAggregationEntity<TId>
-    where TId : notnull
+    where TId : notnull, IEquatable<TId>
 {
     [AllowNull]
     private World.EntityQuery _aggregationQuery;
@@ -65,8 +65,8 @@ public class Aggregator<TAggregationEntity, TId> : ViewBase<TypeUnion<Sid<TId>>>
         return false;
     }
 
-    public bool TryGet(in TId id, out Aggregation<TId> aggregation)
-        => _aggrs.TryGetValue(id, out aggregation);
+    public Aggregation<TId>? Find(in TId id)
+        => _aggrs.TryGetValue(id, out var aggregation) ? aggregation : null;
     
     protected override void OnEntityAdded(in EntityRef entity)
     {
@@ -83,6 +83,9 @@ public class Aggregator<TAggregationEntity, TId> : ViewBase<TypeUnion<Sid<TId>>>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void AddToAggregation(in EntityRef entity, in TId id)
     {
+        if (id.Equals(default)) {
+            return;
+        }
         ref var aggr = ref CollectionsMarshal.GetValueRefOrAddDefault(_aggrs, id, out bool exists);
 
         if (!exists) {
@@ -119,6 +122,6 @@ public class Aggregator<TAggregationEntity, TId> : ViewBase<TypeUnion<Sid<TId>>>
 }
 
 public class Aggregator<TId> : Aggregator<AggregationGroup<TId>, TId>
-    where TId : notnull
+    where TId : notnull, IEquatable<TId>
 {
 }
