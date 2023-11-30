@@ -58,14 +58,14 @@ public static partial class Example4_Aggregator
         scheduler.Tick();
 
         world.CreateInHashHost(Tuple.Create(
-            new Sid<ObjectId>(0)
+            new Sid<ObjectId>(1)
         ));
 
         Console.WriteLine("Tick!");
         scheduler.Tick();
 
         world.CreateInHashHost(Tuple.Create(
-            new Sid<ObjectId>(0)
+            new Sid<ObjectId>(1)
         ));
         var e1 = world.CreateInHashHost(Tuple.Create(
             new Sid<ObjectId>(1)
@@ -85,8 +85,8 @@ public static partial class Example4_Aggregator
         world.Modify(e1, new Sid<ObjectId>.SetValue(2));
         scheduler.Tick();
 
-        aggregator.TryGet(0, out var aggr);
-        aggr.Dispose();
+        var aggr = aggregator.Find(1);
+        aggr!.Value.Dispose();
 
         Console.WriteLine(world.Count);
     }

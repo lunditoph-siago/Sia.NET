@@ -5,7 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 public class Mapper<TId> : ViewBase<TypeUnion<Sid<TId>>>, IReadOnlyDictionary<TId, EntityRef>
-    where TId : notnull
+    where TId : notnull, IEquatable<TId>
 {
     public IEnumerable<TId> Keys => _maps.Keys;
     public IEnumerable<EntityRef> Values => _maps.Values;
@@ -51,6 +51,9 @@ public class Mapper<TId> : ViewBase<TypeUnion<Sid<TId>>>, IReadOnlyDictionary<TI
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void AddMap(in EntityRef entity, in TId id)
     {
+        if (id.Equals(default)) {
+            return;
+        }
         _maps[id] = entity;
     }
 
