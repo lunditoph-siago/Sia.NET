@@ -500,6 +500,12 @@ public sealed class World : IEntityQuery, IEventSender
     {
         if (IsDisposed) { return; }
         IsDisposed = true;
+
+        foreach (var addon in _addons.Values) {
+            addon.OnUninitialize(this);
+        }
+        _addons.Clear();
+
         OnDisposed?.Invoke(this);
     }
 
