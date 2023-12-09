@@ -8,10 +8,8 @@ public static partial class Example7_Mapper
             => new(Guid.NewGuid());
     }
 
-    public static void Run()
+    public static void Run(World world)
     {
-        var world = new World();
-
         var mapper = world.AcquireAddon<Mapper<ObjectId>>();
 
         var id1 = ObjectId.Create();

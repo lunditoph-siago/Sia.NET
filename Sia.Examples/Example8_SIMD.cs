@@ -76,9 +76,8 @@ public static class Example8_SIMD
         }
     }
 
-    public static void Run()
+    public static void Run(World world)
     {
-        var world = new World();
         var scheduler = new Scheduler();
 
         SystemChain.Empty
