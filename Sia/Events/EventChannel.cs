@@ -33,11 +33,11 @@ public class EventChannel<TTarget, TEvent> : IEventSender<TTarget, TEvent>
 
     public int Count => (_swapTag == 0 ? _events1 : _events2).Count;
 
-    private readonly List<EventEntry> _events1 = new();
-    private readonly List<EventEntry> _events2 = new();
+    private readonly List<EventEntry> _events1 = [];
+    private readonly List<EventEntry> _events2 = [];
 
-    private readonly List<DeferredEventEntry> _deferrableEventsToAdd1 = new();
-    private readonly List<DeferredEventEntry> _deferrableEventsToAdd2 = new();
+    private readonly List<DeferredEventEntry> _deferrableEventsToAdd1 = [];
+    private readonly List<DeferredEventEntry> _deferrableEventsToAdd2 = [];
 
     private readonly LinkedList<DeferredEventEntry> _deferredEvents = new();
 

@@ -39,8 +39,8 @@ public sealed class SparseSet<T> : IDictionary<int, T>, IReadOnlyDictionary<int,
 
     public bool IsReadOnly => false;
 
-    private readonly List<T> _dense = new();
-    private readonly List<int> _reverse = new();
+    private readonly List<T> _dense = [];
+    private readonly List<int> _reverse = [];
     private readonly Page[] _pages;
 
     private struct Page

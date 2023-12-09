@@ -10,7 +10,7 @@ public class Aggregator<TAggregationEntity, TId> : ViewBase<TypeUnion<Sid<TId>>>
 {
     [AllowNull]
     private World.EntityQuery _aggregationQuery;
-    private readonly Dictionary<TId, Aggregation<TId>> _aggrs = new();
+    private readonly Dictionary<TId, Aggregation<TId>> _aggrs = [];
     private readonly Stack<HashSet<EntityRef>> _groupPool = new();
 
     public Aggregation<TId> this[in TId component] => _aggrs[component];

@@ -14,7 +14,7 @@ public class Mapper<TId> : ViewBase<TypeUnion<Sid<TId>>>, IReadOnlyDictionary<TI
 
     public EntityRef this[TId key] => _maps[key];
 
-    private readonly Dictionary<TId, EntityRef> _maps = new();
+    private readonly Dictionary<TId, EntityRef> _maps = [];
 
     public override void OnInitialize(World world)
     {

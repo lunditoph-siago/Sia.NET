@@ -76,7 +76,7 @@ public class WorldCommandBuffer
 
     public World World { get; }
 
-    private readonly ThreadLocal<List<(IExecutor, EntityRef)>> _executors = new(() => new(), true);
+    private readonly ThreadLocal<List<(IExecutor, EntityRef)>> _executors = new(() => [], true);
 
     internal WorldCommandBuffer(World world)
     {

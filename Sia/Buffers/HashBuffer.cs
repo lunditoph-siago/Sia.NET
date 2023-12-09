@@ -11,7 +11,7 @@ public sealed class HashBuffer<T> : IBuffer<T>
     public int Capacity => int.MaxValue;
     public int Count => _dict.Count;
 
-    private readonly Dictionary<int, T> _dict = new();
+    private readonly Dictionary<int, T> _dict = [];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Contains(int index)

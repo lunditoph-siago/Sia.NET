@@ -11,9 +11,9 @@ public class Dispatcher<TTarget, TEvent> : IEventSender<TTarget, TEvent>
 
     private bool _sending = false;
 
-    private readonly List<IEventListener<TTarget>> _globalListeners = new();
-    private readonly Dictionary<Type, object> _eventListeners = new();
-    private readonly Dictionary<TTarget, List<IEventListener<TTarget>>> _targetListeners = new();
+    private readonly List<IEventListener<TTarget>> _globalListeners = [];
+    private readonly Dictionary<Type, object> _eventListeners = [];
+    private readonly Dictionary<TTarget, List<IEventListener<TTarget>>> _targetListeners = [];
 
     private readonly Stack<List<IEventListener<TTarget>>> _targetListenersPool = new();
 

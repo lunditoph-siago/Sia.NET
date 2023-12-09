@@ -159,7 +159,7 @@ public record SystemChain(ImmutableList<SystemChain.Entry> Entries)
                 ? dependedTasks?.Concat(depSysHandles.ToArray()) ?? depSysHandles.ToArray()
                 : dependedTasks;
 
-            sysHandles = new();
+            sysHandles = [];
             
             foreach (var entry in Entries) {
                 if (entry.Type == type) {

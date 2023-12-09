@@ -2,7 +2,7 @@ namespace Sia;
 
 public abstract class AddonSystemBase : SystemBase
 {
-    private readonly Dictionary<Type, Action<World>> _addonRemovers = new();
+    private readonly Dictionary<Type, Action<World>> _addonRemovers = [];
 
     protected TAddon AddAddon<TAddon>(World world)
         where TAddon : IAddon, new()
