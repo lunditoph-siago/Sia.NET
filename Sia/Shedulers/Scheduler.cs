@@ -34,10 +34,10 @@ public class Scheduler
     public IReadOnlyList<TaskGraphNode> OrphanTaskSequence => _orphanTaskSeq;
     public IReadOnlyList<TaskGraphNode> DependedTaskSequnce => _dependedTaskSeq;
 
-    private readonly HashSet<TaskGraphNode> _tasks = new();
-    private readonly List<TaskGraphNode> _orphanTaskSeq = new();
-    private readonly List<TaskGraphNode> _dependedTaskSeq = new();
-    private readonly List<TaskGraphNode> _tasksToRemove = new();
+    private readonly HashSet<TaskGraphNode> _tasks = [];
+    private readonly List<TaskGraphNode> _orphanTaskSeq = [];
+    private readonly List<TaskGraphNode> _dependedTaskSeq = [];
+    private readonly List<TaskGraphNode> _tasksToRemove = [];
 
     private bool _dependedTaskSeqDirty = false;
     private bool _ticking = false;
@@ -79,10 +79,10 @@ public class Scheduler
                 throw new InvalidTaskDependencyException("Failed to create task: invalid dependency: " + dependedTask);
             }
 
-            dependedTask._dependingTasks ??= new();
+            dependedTask._dependingTasks ??= [];
             dependedTask._dependingTasks.Add(task);
 
-            task._dependedTasks ??= new();
+            task._dependedTasks ??= [];
             task._dependedTasks.Add(dependedTask);
             count++;
         }
@@ -115,9 +115,9 @@ public class Scheduler
         return task;
     }
 
-    private void RawRemoveTask(TaskGraphNode task)
+    private void RawRemoveTask(TaskGraphNode task, bool force)
     {
-        if (task.DependingTasks != null && task.DependingTasks.Count != 0) {
+        if (!force && task.DependingTasks != null && task.DependingTasks.Count != 0) {
             throw new TaskDependedException("Failed to remove task: there are other tasks depending on it");
         }
         if (task.OrphanSeqIndex is int index) {
@@ -139,7 +139,7 @@ public class Scheduler
         task.Status = Status.Removed;
     }
 
-    public void RemoveTask(TaskGraphNode task)
+    public void RemoveTask(TaskGraphNode task, bool force = false)
     {
         if (task.Status == Status.Removed || !_tasks.Remove(task)) {
             throw new ArgumentException("Failed to remove task: invalid task");
@@ -148,7 +148,7 @@ public class Scheduler
             _tasksToRemove.Add(task);
             return;
         }
-        RawRemoveTask(task);
+        RawRemoveTask(task, force);
     }
 
     private void AddDepededTaskToSeq(TaskGraphNode task)
@@ -213,7 +213,7 @@ public class Scheduler
                 try {
                     foreach (var task in CollectionsMarshal.AsSpan(_tasksToRemove)) {
                         if (task.Status != Status.Removed) {
-                            RawRemoveTask(task);
+                            RawRemoveTask(task, false);
                         }
                     }
                 }
