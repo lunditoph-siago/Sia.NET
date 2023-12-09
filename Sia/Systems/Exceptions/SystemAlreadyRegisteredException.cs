@@ -6,7 +6,4 @@ public class SystemAlreadyRegisteredException : Exception
     public SystemAlreadyRegisteredException() { }
     public SystemAlreadyRegisteredException(string message) : base(message) { }
     public SystemAlreadyRegisteredException(string message, Exception inner) : base(message, inner) { }
-    protected SystemAlreadyRegisteredException(
-        System.Runtime.Serialization.SerializationInfo info,
-        System.Runtime.Serialization.StreamingContext context) : base(info, context) { }
 }
