@@ -218,6 +218,11 @@ public sealed class World : IEntityQuery, IEventSender
         Dispose(false);
     }
 
+    public void Start(Action action)
+    {
+        Context<World>.With(this, action);
+    }
+
     public void ForEach(EntityHandler handler)
     {
         var hosts = _hosts.UnsafeRawValues;
