@@ -1,11 +1,12 @@
 namespace Sia;
 
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
-public sealed class WorldEntityHost<T, TStorage>
-    : Internal.EntityHost<T, WrappedStorage<T, TStorage>>, IReactiveEntityHost
+public sealed class WorldEntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T, TStorage>
+    : EntityHost<T, TStorage>, IReactiveEntityHost
     where T : struct
-    where TStorage : class, IStorage<T>
+    where TStorage : IStorage<T>
 {
     public event EntityHandler? OnEntityCreated;
     public event EntityHandler? OnEntityReleased;
@@ -13,7 +14,7 @@ public sealed class WorldEntityHost<T, TStorage>
     public World World { get; }
 
     public WorldEntityHost(World world, TStorage storage)
-        : base(new(storage))
+        : base(storage)
     {
         World = world;
     }

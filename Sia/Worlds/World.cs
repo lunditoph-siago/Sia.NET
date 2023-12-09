@@ -345,12 +345,12 @@ public sealed class World : IEntityQuery, IEventSender
         return query;
     }
 
-    public WorldEntityHost<TEntity, TStorage> GetHost<TEntity, TStorage>()
+    public WorldEntityHost<TEntity, TStorage> GetHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity, TStorage>()
         where TEntity : struct
         where TStorage : class, IStorage<TEntity>, new()
         => GetHost<TEntity, TStorage>(static () => new());
 
-    public WorldEntityHost<TEntity, TStorage> GetHost<TEntity, TStorage>(Func<TStorage> creator)
+    public WorldEntityHost<TEntity, TStorage> GetHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity, TStorage>(Func<TStorage> creator)
         where TEntity : struct
         where TStorage : class, IStorage<TEntity>
     {
@@ -363,12 +363,12 @@ public sealed class World : IEntityQuery, IEventSender
         return (WorldEntityHost<TEntity, TStorage>)host;
     }
 
-    public WrappedWorldEntityHost<TEntity, THost> GetCustomHost<TEntity, THost>()
+    public WrappedWorldEntityHost<TEntity, THost> GetCustomHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity, THost>()
         where TEntity : struct
         where THost : IEntityHost<TEntity>, new()
         => GetCustomHost<TEntity, THost>(static () => new());
 
-    public WrappedWorldEntityHost<TEntity, THost> GetCustomHost<TEntity, THost>(Func<THost> creator)
+    public WrappedWorldEntityHost<TEntity, THost> GetCustomHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity, THost>(Func<THost> creator)
         where TEntity : struct
         where THost : IEntityHost<TEntity>
     {

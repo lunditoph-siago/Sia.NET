@@ -343,7 +343,6 @@ public unsafe static class Tests
         DoTest(new SparseBufferStorage<TestEntity>(512));
         DoTest(new HashBufferStorage<TestEntity>());
         DoTest(ManagedHeapStorage<TestEntity>.Instance);
-        DoTest(new VariableStorage<TestEntity, SparseBufferStorage<TestEntity>>(() => new(1)));
         //DoTest(UnmanagedHeapStorage<TestEntity>.Instance);
     }
 
