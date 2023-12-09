@@ -1,33 +1,24 @@
 ﻿namespace Sia;
 
+using System.Collections.Frozen;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
-public record EntityDescriptor
+internal static class EntityDescriptor<TEntity>
 {
-    private static class Indexer<TEntity>
-    {
-        public static EntityDescriptor Descriptor = new(typeof(TEntity));
-    }
-
-    public static EntityDescriptor Get<TEntity>()
-        => Indexer<TEntity>.Descriptor;
-
-    public Type Type { get; }
-
-    private readonly Dictionary<Type, IntPtr> _rawCompOffsets = new();
-    private readonly ThreadLocal<Dictionary<int, IntPtr>> _compOffsets = new(() => new());
+    public static FrozenDictionary<Type, IntPtr> FieldOffsets;
 
     private const BindingFlags s_bindingFlags =
         BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
 
-    private EntityDescriptor(Type type)
+    static EntityDescriptor()
     {
-        Type = type;
-        RegisterFields(type);
+        var dict = new Dictionary<Type, IntPtr>();
+        RegisterFields(dict, typeof(TEntity));
+        FieldOffsets = dict.ToFrozenDictionary();
     }
 
-    private void RegisterFields(Type type, int baseOffset = 0)
+    private static void RegisterFields(Dictionary<Type, IntPtr> dict, Type type, int baseOffset = 0)
     {
         foreach (var member in type.GetMembers(s_bindingFlags)) {
             if (member.MemberType != MemberTypes.Field) {
@@ -39,38 +30,12 @@ public record EntityDescriptor
 
             var fieldType = fieldInfo.FieldType;
             if (fieldType.IsAssignableTo(typeof(IComponentBundle))) {
-                RegisterFields(fieldType, baseOffset + offset);
+                RegisterFields(dict, fieldType, baseOffset + offset);
             }
-            else if (!_rawCompOffsets.TryAdd(fieldType, baseOffset + offset)) {
+            else if (!dict.TryAdd(fieldType, baseOffset + offset)) {
                 throw new InvalidDataException("Entity cannot have multiple components of the same type");
             }
         }
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool Contains(Type type)
-        => _rawCompOffsets.ContainsKey(type);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool Contains<TComponent>()
-        => _rawCompOffsets.ContainsKey(typeof(TComponent));
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryGetOffset<TComponent>(out IntPtr offset)
-        => UnsafeTryGetOffset(typeof(TComponent), TypeIndexer<TComponent>.Index, out offset);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool UnsafeTryGetOffset(Type type, int componentTypeIndex, out IntPtr offset)
-    {
-        var compOffsets = _compOffsets.Value!;
-        if (compOffsets.TryGetValue(componentTypeIndex, out offset)) {
-            return true;
-        }
-        if (!_rawCompOffsets.TryGetValue(type, out offset)) {
-            return false;
-        }
-        compOffsets.Add(componentTypeIndex, offset);
-        return true;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -82,4 +47,72 @@ public record EntityDescriptor
         byte chunkSize = *(byte*)(ptr + 2);
         return length + (chunkSize << 16);
     }
+}
+
+internal static class EntityIndexer<TEntity, TComponent>
+{
+    public static IntPtr? Offset { get; }
+
+    static EntityIndexer()
+    {
+        if (EntityDescriptor<TEntity>.FieldOffsets.TryGetValue(typeof(TComponent), out var result)) {
+            Offset = result;
+        }
+    }
+}
+
+public record EntityDescriptor
+{
+    private interface IProxy
+    {
+        bool Contains(Type type);
+        bool Contains<TComponent>();
+        bool TryGetOffset<TComponent>(out IntPtr offset);
+    }
+
+    private class Proxy<TEntity> : IProxy
+    {
+        public static EntityDescriptor Descriptor = new(typeof(TEntity), new Proxy<TEntity>());
+
+        public bool Contains(Type type)
+            => EntityDescriptor<TEntity>.FieldOffsets.ContainsKey(type);
+
+        public bool Contains<TComponent>()
+            => EntityIndexer<TEntity, TComponent>.Offset.HasValue;
+
+        public bool TryGetOffset<TComponent>(out nint offset)
+        {
+            if (EntityIndexer<TEntity, TComponent>.Offset is IntPtr raw) {
+                offset = raw;
+                return true;
+            }
+            offset = default;
+            return false;
+        }
+    }
+
+    public static EntityDescriptor Get<TEntity>()
+        => Proxy<TEntity>.Descriptor;
+
+    public Type Type { get; }
+
+    private readonly IProxy _proxy;
+
+    private EntityDescriptor(Type type, IProxy proxy)
+    {
+        Type = type;
+        _proxy = proxy;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool Contains(Type type)
+        => _proxy.Contains(type);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool Contains<TComponent>()
+        => _proxy.Contains<TComponent>();
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryGetOffset<TComponent>(out IntPtr offset)
+        => _proxy.TryGetOffset<TComponent>(out offset);
 }
