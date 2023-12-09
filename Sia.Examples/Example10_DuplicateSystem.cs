@@ -18,9 +18,8 @@ public static class Example10_DuplicateSystem
         }
     }
 
-    public static void Run()
+    public static void Run(World world)
     {
-        var world = new World();
         var scheduler = new Scheduler();
 
         SystemChain.Empty

@@ -39,13 +39,12 @@ public static partial class Example1_HealthDamage
         public readonly record struct Damage(float Value) : ICommand
         {
             public void Execute(World world, in EntityRef target)
-                => world.Modify(target, new SetValue(target.Get<Health>().Value - Value));
+                => target.Modify(new SetValue(target.Get<Health>().Value - Value));
         }
     }
 
     public class HealthUpdateSystem : SystemBase
     {
-        private World? _world;
         private Game? _game;
 
         public HealthUpdateSystem()
@@ -55,7 +54,6 @@ public static partial class Example1_HealthDamage
 
         public override void Initialize(World world, Scheduler scheduler)
         {
-            _world = world;
             _game = world.GetAddon<Game>();
         }
 
@@ -64,7 +62,7 @@ public static partial class Example1_HealthDamage
             query.ForEach(this, static (sys, entity) => {
                 ref var health = ref entity.Get<Health>();
                 if (health.Debuff != 0) {
-                    sys._world!.Modify(entity, new Health.Damage(health.Debuff * sys._game!.DeltaTime));
+                    entity.Modify(new Health.Damage(health.Debuff * sys._game!.DeltaTime));
                     Console.WriteLine($"Damage: HP {entity.Get<Health>().Value}");
                 }
             });
@@ -110,14 +108,14 @@ public static partial class Example1_HealthDamage
 
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
-            query.ForEach(world, static (world, entity) => {
+            query.ForEach(static entity => {
                 var pos = entity.Get<Transform>().Position;
                 if (pos.X == 1 && pos.Y == 1) {
-                    world.Modify(entity, new Health.Damage(10));
+                    entity.Modify(new Health.Damage(10));
                     Console.WriteLine($"Damage: HP {entity.Get<Health>().Value}");
                 }
                 if (pos.X == 1 && pos.Y == 2) {
-                    world.Modify(entity, new Health.SetDebuff(100));
+                    entity.Modify(new Health.SetDebuff(100));
                     Console.WriteLine("Debuff!");
                 }
             });
@@ -161,24 +159,26 @@ public static partial class Example1_HealthDamage
             .Add<GameplaySystems>()
             .RegisterTo(world, game.Scheduler);
         
-        var playerRef = Player.Create(world, new(1, 1));
-        game.Update(0.5f);
+        world.Start(() => {
+            var player = Player.Create(world, new(1, 1));
+            game.Update(0.5f);
 
-        world.Modify(playerRef, new Transform.SetPosition(new(1, 2)));
-        game.Update(0.5f);
+            player.Modify(new Transform.SetPosition(new(1, 2)));
+            game.Update(0.5f);
 
-        game.Scheduler.CreateTask(() => {
-            Console.WriteLine("Callback invoked after health and gameplay systems");
-            return true; // remove task
-        }, handle.TaskGraphNodes);
-    
-        world.Modify(playerRef, new Transform.SetPosition(new(1, 3)));
-        game.Update(0.5f);
-        game.Update(0.5f);
-        game.Update(0.5f);
-        game.Update(0.5f); // player dead
+            game.Scheduler.CreateTask(() => {
+                Console.WriteLine("Callback invoked after health and gameplay systems");
+                return true; // remove task
+            }, handle.TaskGraphNodes);
+        
+            player.Modify(new Transform.SetPosition(new(1, 3)));
+            game.Update(0.5f);
+            game.Update(0.5f);
+            game.Update(0.5f);
+            game.Update(0.5f); // player dead
 
-        handle.Dispose();
+            handle.Dispose();
+        });
     }
 }
 ```

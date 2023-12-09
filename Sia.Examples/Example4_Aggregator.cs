@@ -33,15 +33,14 @@ public static partial class Example4_Aggregator
             query.ForEach(world, static (world, entity) => {
                 ref var aggr = ref entity.Get<Aggregation<ObjectId>>();
                 int count = aggr.Group.Count;
-                world.Modify(entity, new ComponentCount.SetValue(count));
+                entity.Modify(new ComponentCount.SetValue(count));
                 Console.WriteLine($"[{aggr.Id}] Count: " + count);
             });
         }
     }
 
-    public static void Run()
+    public static void Run(World world)
     {
-        var world = new World();
         var scheduler = new Scheduler();
 
         var aggregator = world.AcquireAddon<Aggregator<TestEntity, ObjectId>>();

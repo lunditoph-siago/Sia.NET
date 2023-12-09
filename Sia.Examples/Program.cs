@@ -1,9 +1,11 @@
+using Sia;
 using Sia.Examples;
 
-void Invoke(Action action)
+void Invoke(Action<World> action)
 {
     Console.WriteLine("== " + action.Method.DeclaringType + " ==");
-    action();
+    var world = new World();
+    world.Start(() => action(world));
     Console.WriteLine();
 }
 

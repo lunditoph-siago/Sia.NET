@@ -55,10 +55,8 @@ public static partial class Example5_ComponentBundle
             ));
     }
 
-    public static void Run()
+    public static void Run(World world)
     {
-        var world = new World();
-
         var entity = TestObject.Create(world);
         Console.WriteLine(entity.Get<Name>().Value);
         Console.WriteLine(entity.Get<HP>().Value);

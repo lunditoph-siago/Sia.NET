@@ -181,9 +181,8 @@ public static partial class Example3_MoveRotator
         }
     }
 
-    public static void Run()
+    public static void Run(World world)
     {
-        var world = new World();
         var scheduler = new Scheduler();
 
         SystemChain.Empty
