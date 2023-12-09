@@ -1,11 +1,16 @@
 ﻿namespace Sia;
 
 using System.Collections.Frozen;
+using System.Diagnostics.CodeAnalysis;
+using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
-internal static class EntityDescriptor<TEntity>
+internal static class EntityDescriptor<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>
 {
+    private delegate int GetOffsetDelegate(in TEntity entity);
+
     public static FrozenDictionary<Type, IntPtr> FieldOffsets;
 
     private const BindingFlags s_bindingFlags =
@@ -18,7 +23,7 @@ internal static class EntityDescriptor<TEntity>
         FieldOffsets = dict.ToFrozenDictionary();
     }
 
-    private static void RegisterFields(Dictionary<Type, IntPtr> dict, Type type, int baseOffset = 0)
+    private static void RegisterFields(Dictionary<Type, IntPtr> dict, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] Type type, int baseOffset = 0)
     {
         foreach (var member in type.GetMembers(s_bindingFlags)) {
             if (member.MemberType != MemberTypes.Field) {
@@ -49,7 +54,7 @@ internal static class EntityDescriptor<TEntity>
     }
 }
 
-internal static class EntityIndexer<TEntity, TComponent>
+internal static class EntityIndexer<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity, TComponent>
 {
     public static IntPtr? Offset { get; }
 
@@ -70,7 +75,7 @@ public record EntityDescriptor
         bool TryGetOffset<TComponent>(out IntPtr offset);
     }
 
-    private class Proxy<TEntity> : IProxy
+    private class Proxy<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity> : IProxy
     {
         public static EntityDescriptor Descriptor = new(typeof(TEntity), new Proxy<TEntity>());
 
@@ -91,7 +96,7 @@ public record EntityDescriptor
         }
     }
 
-    public static EntityDescriptor Get<TEntity>()
+    public static EntityDescriptor Get<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>()
         => Proxy<TEntity>.Descriptor;
 
     public Type Type { get; }
