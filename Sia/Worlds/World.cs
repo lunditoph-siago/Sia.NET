@@ -27,7 +27,7 @@ public sealed class World : IEntityQuery, IEventSender
 
         public IReadOnlyList<IReactiveEntityHost> Hosts => _hosts;
 
-        private readonly List<IReactiveEntityHost> _hosts = new();
+        private readonly List<IReactiveEntityHost> _hosts = [];
 
         internal EntityQuery(World world, IEntityMatcher matcher)
         {
@@ -166,9 +166,9 @@ public sealed class World : IEntityQuery, IEventSender
     public IEnumerable<IEntityHost> EntityHosts => _hosts.Values;
     public IEnumerable<IAddon> Addons => _addons.Values;
 
-    private readonly Dictionary<IEntityMatcher, EntityQuery> _queries = new();
+    private readonly Dictionary<IEntityMatcher, EntityQuery> _queries = [];
     private readonly SparseSet<IReactiveEntityHost> _hosts = new(256, 256);
-    private readonly Dictionary<int, IAddon> _addons = new();
+    private readonly Dictionary<int, IAddon> _addons = [];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void IterateHost(IEntityHost host, EntityHandler handler)

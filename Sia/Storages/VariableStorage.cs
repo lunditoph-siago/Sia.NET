@@ -46,7 +46,7 @@ namespace Internal
             get => _storages[0]!.IsManaged;
         }
 
-        private List<TStorage?> _storages = new();
+        private List<TStorage?> _storages = [];
         private Stack<int> _availableStorageIndices = new();
 
         internal VariableStorage()

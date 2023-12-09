@@ -16,7 +16,7 @@ public sealed class ManagedHeapStorage<T> : IStorage<T>
     public int PointerValidBits => 32;
     public bool IsManaged => true;
 
-    private Dictionary<long, Box<T>> _objects = new();
+    private Dictionary<long, Box<T>> _objects = [];
     private ObjectIDGenerator _idGenerator = new();
 
     private ManagedHeapStorage() {}

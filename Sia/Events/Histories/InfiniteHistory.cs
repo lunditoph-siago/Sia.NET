@@ -12,7 +12,7 @@ public class InfiniteHistory<TTarget, TEvent> : IHistory<TTarget, TEvent>
     public EventPair<TTarget, TEvent> this[int index] => _list[index];
     public int Count => _list.Count;
 
-    private readonly List<EventPair<TTarget, TEvent>> _list = new();
+    private readonly List<EventPair<TTarget, TEvent>> _list = [];
     private readonly Dispatcher<TTarget, TEvent>.Listener<TEvent> _listener;
 
     private bool _disposed;
