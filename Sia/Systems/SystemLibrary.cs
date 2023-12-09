@@ -23,8 +23,8 @@ public class SystemLibrary : IAddon
         private int _maxCollectedCount = 0;
         private int _prevMaxCollectedCount = 0;
 
-        private Dictionary<EntityRef, int> _collectingSet = new();
-        private Dictionary<EntityRef, int> _collectedSet = new();
+        private Dictionary<EntityRef, int> _collectingSet = [];
+        private Dictionary<EntityRef, int> _collectedSet = [];
 
         private MemoryOwner<EntityRef?> _mem = MemoryOwner<EntityRef?>.Allocate(6);
 
@@ -207,7 +207,7 @@ public class SystemLibrary : IAddon
         SystemLibrary lib, Scheduler scheduler, Scheduler.TaskGraphNode[]? dependedTasks = null);
 
     [AllowNull] private World _world;
-    private readonly Dictionary<(Scheduler, Type), Entry> _systemEntries = new();
+    private readonly Dictionary<(Scheduler, Type), Entry> _systemEntries = [];
 
     public void OnInitialize(World world)
     {
@@ -403,7 +403,7 @@ public class SystemLibrary : IAddon
                 DoUnregisterSystem(sysEntry, task);
                 disposeFunc();
                 childrenDisposable?.Dispose();
-                scheduler.RemoveTask(handle.TaskGraphNode);
+                scheduler.RemoveTask(handle.TaskGraphNode, force: true);
             });
 
         return handle;
