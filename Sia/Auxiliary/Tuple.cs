@@ -1,24 +1,24 @@
 namespace Sia;
 
-public struct Tuple<T1>
+public struct Tuple<T1> : IComponentBundle
 {
     public T1 Item1;
 }
 
-public struct Tuple<T1, T2>
+public struct Tuple<T1, T2> : IComponentBundle
 {
     public T1 Item1;
     public T2 Item2;
 }
 
-public struct Tuple<T1, T2, T3>
+public struct Tuple<T1, T2, T3> : IComponentBundle
 {
     public T1 Item1;
     public T2 Item2;
     public T3 Item3;
 }
 
-public struct Tuple<T1, T2, T3, T4>
+public struct Tuple<T1, T2, T3, T4> : IComponentBundle
 {
     public T1 Item1;
     public T2 Item2;
@@ -26,7 +26,7 @@ public struct Tuple<T1, T2, T3, T4>
     public T4 Item4;
 }
 
-public struct Tuple<T1, T2, T3, T4, T5>
+public struct Tuple<T1, T2, T3, T4, T5> : IComponentBundle
 {
     public T1 Item1;
     public T2 Item2;
@@ -35,7 +35,7 @@ public struct Tuple<T1, T2, T3, T4, T5>
     public T5 Item5;
 }
 
-public struct Tuple<T1, T2, T3, T4, T5, T6>
+public struct Tuple<T1, T2, T3, T4, T5, T6> : IComponentBundle
 {
     public T1 Item1;
     public T2 Item2;
@@ -45,7 +45,7 @@ public struct Tuple<T1, T2, T3, T4, T5, T6>
     public T6 Item6;
 }
 
-public struct Tuple<T1, T2, T3, T4, T5, T6, T7>
+public struct Tuple<T1, T2, T3, T4, T5, T6, T7> : IComponentBundle
 {
     public T1 Item1;
     public T2 Item2;
@@ -56,7 +56,7 @@ public struct Tuple<T1, T2, T3, T4, T5, T6, T7>
     public T7 Item7;
 }
 
-public struct Tuple<T1, T2, T3, T4, T5, T6, T7, T8>
+public struct Tuple<T1, T2, T3, T4, T5, T6, T7, T8> : IComponentBundle
 {
     public T1 Item1;
     public T2 Item2;
@@ -68,7 +68,7 @@ public struct Tuple<T1, T2, T3, T4, T5, T6, T7, T8>
     public T8 Item8;
 }
 
-public struct Tuple<T1, T2, T3, T4, T5, T6, T7, T8, T9>
+public struct Tuple<T1, T2, T3, T4, T5, T6, T7, T8, T9> : IComponentBundle
 {
     public T1 Item1;
     public T2 Item2;
@@ -81,7 +81,7 @@ public struct Tuple<T1, T2, T3, T4, T5, T6, T7, T8, T9>
     public T9 Item9;
 }
 
-public struct Tuple<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>
+public struct Tuple<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10> : IComponentBundle
 {
     public T1 Item1;
     public T2 Item2;
@@ -95,7 +95,7 @@ public struct Tuple<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>
     public T10 Item10;
 }
 
-public struct Tuple<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>
+public struct Tuple<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11> : IComponentBundle
 {
     public T1 Item1;
     public T2 Item2;
@@ -110,7 +110,7 @@ public struct Tuple<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>
     public T11 Item11;
 }
 
-public struct Tuple<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>
+public struct Tuple<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12> : IComponentBundle
 {
     public T1 Item1;
     public T2 Item2;
@@ -126,7 +126,7 @@ public struct Tuple<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>
     public T12 Item12;
 }
 
-public struct Tuple<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>
+public struct Tuple<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13> : IComponentBundle
 {
     public T1 Item1;
     public T2 Item2;
@@ -143,7 +143,7 @@ public struct Tuple<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>
     public T13 Item13;
 }
 
-public struct Tuple<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14>
+public struct Tuple<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14> : IComponentBundle
 {
     public T1 Item1;
     public T2 Item2;
@@ -161,7 +161,7 @@ public struct Tuple<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14>
     public T14 Item14;
 }
 
-public struct Tuple<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15>
+public struct Tuple<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15> : IComponentBundle
 {
     public T1 Item1;
     public T2 Item2;
@@ -180,7 +180,7 @@ public struct Tuple<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14,
     public T15 Item15;
 }
 
-public struct Tuple<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16>
+public struct Tuple<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16> : IComponentBundle
 {
     public T1 Item1;
     public T2 Item2;
