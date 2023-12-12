@@ -8,7 +8,7 @@ public static partial class Example6_Hierarchy
     public record struct TestNode(Node<TestTag> Node, Name Name)
     {
         public static EntityRef Create(World world, string name, EntityRef? parent = null)
-            => world.CreateInHashHost(new TestNode {
+            => world.CreateInBucketHost(new TestNode {
                 Node = new(parent),
                 Name = new(name)
             });

@@ -60,7 +60,7 @@ public static class Example2_HealthRecover
     public static class Player
     {
         public static EntityRef CreateResilient(World world, string name)
-            => world.CreateInHashHost(Tuple.Create(
+            => world.CreateInBucketHost(Tuple.Create(
                 new Name(name),
                 new HP {
                     AutoRecoverRate = 10

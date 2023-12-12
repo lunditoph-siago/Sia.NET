@@ -15,7 +15,7 @@ public static partial class Example4_Aggregator
         ComponentCount ComponentCount) : IAggregationEntity<ObjectId>
     {
         public static EntityRef Create(World world)
-            => world.CreateInHashHost(new TestEntity {
+            => world.CreateInBucketHost(new TestEntity {
                 ComponentCount = new(0)
             });
     }
@@ -49,27 +49,27 @@ public static partial class Example4_Aggregator
             .Add<ComponentCountSystem>()
             .RegisterTo(world, scheduler);
         
-        world.CreateInHashHost(Tuple.Create(
+        world.CreateInBucketHost(Tuple.Create(
             new Sid<ObjectId>(0)
         ));
 
         Console.WriteLine("Tick!");
         scheduler.Tick();
 
-        world.CreateInHashHost(Tuple.Create(
+        world.CreateInBucketHost(Tuple.Create(
             new Sid<ObjectId>(1)
         ));
 
         Console.WriteLine("Tick!");
         scheduler.Tick();
 
-        world.CreateInHashHost(Tuple.Create(
+        world.CreateInBucketHost(Tuple.Create(
             new Sid<ObjectId>(1)
         ));
-        var e1 = world.CreateInHashHost(Tuple.Create(
+        var e1 = world.CreateInBucketHost(Tuple.Create(
             new Sid<ObjectId>(1)
         ));
-        var e2 = world.CreateInHashHost(Tuple.Create(
+        var e2 = world.CreateInBucketHost(Tuple.Create(
             new Sid<ObjectId>(1)
         ));
 
