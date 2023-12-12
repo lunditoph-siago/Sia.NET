@@ -40,9 +40,9 @@ public sealed class WorldEntityHost<[DynamicallyAccessedMembers(DynamicallyAcces
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public override void Release(long pointer)
+    public override void Release(nint pointer, int version)
     {
-        var entity = new EntityRef(pointer, this);
+        var entity = new EntityRef(pointer, version, this);
 
         var dispatcher = World.Dispatcher;
         World.Count--;
@@ -50,6 +50,6 @@ public sealed class WorldEntityHost<[DynamicallyAccessedMembers(DynamicallyAcces
         dispatcher.UnlistenAll(entity);
 
         OnEntityReleased?.Invoke(entity);
-        base.Release(pointer);
+        base.Release(pointer, version);
     }
 }

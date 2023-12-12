@@ -4,6 +4,14 @@ namespace Sia;
 
 public static class WorldCommonHostExtensions
 {
+    public static WorldEntityHost<TEntity, BucketBufferStorage<TEntity>> GetBucketHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>(this World world, int bucketCapacity = 256)
+        where TEntity : struct
+        => world.GetHost<TEntity, BucketBufferStorage<TEntity>>(() => new(bucketCapacity));
+
+    public static EntityRef CreateInBucketHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>(this World world, in TEntity initial, int bucketCapacity = 256)
+        where TEntity : struct
+        => world.GetBucketHost<TEntity>(bucketCapacity).Create(initial);
+
     public static WorldEntityHost<TEntity, HashBufferStorage<TEntity>> GetHashHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>(this World world)
         where TEntity : struct
         => world.GetHost<TEntity, HashBufferStorage<TEntity>>();

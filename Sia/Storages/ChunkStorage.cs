@@ -7,6 +7,7 @@ namespace Sia
 public struct ChunkStorageEntry<T>
 {
     public int Index;
+    public int Version;
     public T Value;
 }
 
@@ -36,15 +37,9 @@ public class ChunkStorage<T, TBuffer> : IStorage<T>
         get => _buffer.Capacity;
     }
 
-    public int Count {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _buffer.Count;
-    }
+    public int Count { get; private set; }
 
-    public int PointerValidBits => 32;
     public bool IsManaged => true;
-
-    public int PageSize { get; }
 
     private readonly TBuffer _buffer;
     private Chunk _headChunk;
@@ -66,31 +61,30 @@ public class ChunkStorage<T, TBuffer> : IStorage<T>
         _firstFreeChunk = _headChunk;
     }
 
-    ~ChunkStorage()
-    {
-        _buffer.Dispose();
-    }
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public long UnsafeAllocate()
+    public nint UnsafeAllocate(out int version)
     {
         var chunk = _firstFreeChunk
             ?? throw new IndexOutOfRangeException("Storage is full");
         int index = chunk.Index;
         _firstFreeChunk = AllocateFromFreeChunk(chunk).Next;
 
-        ref var entry = ref _buffer.GetOrAddValueRef(index, out bool _);
+        ref var entry = ref _buffer.GetRef(index);
         entry.Index = index;
+
+        version = -entry.Version + 1;
+        entry.Version = version;
+        Count++;
         return index;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void UnsafeRelease(long rawPointer)
+    public void UnsafeRelease(nint rawPointer, int version)
     {
         int index = (int)rawPointer;
 
-        ref var entry = ref _buffer.GetValueRefOrNullRef(index);
-        if (Unsafe.IsNullRef(ref entry)) {
+        ref var entry = ref _buffer.GetRef(index);
+        if (entry.Version != version) {
             throw new ArgumentException("Invalid pointer");
         }
 
@@ -113,7 +107,9 @@ public class ChunkStorage<T, TBuffer> : IStorage<T>
             _firstFreeChunk = chunk;
         }
 
-        _buffer.Remove(index);
+        entry.Version = -version;
+        entry.Value = default;
+        Count--;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -349,25 +345,64 @@ public class ChunkStorage<T, TBuffer> : IStorage<T>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref T UnsafeGetRef(long rawPointer)
-        => ref _buffer.GetValueRefOrNullRef((int)rawPointer).Value;
+    public ref T UnsafeGetRef(nint rawPointer, int version)
+    {
+        ref var entry = ref _buffer.GetRef((int)rawPointer);
+        if (entry.Version != version) {
+            throw new ArgumentException("Invalid pointer");
+        }
+        return ref entry.Value;
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void IterateAllocated(StoragePointerHandler handler)
-        => _buffer.IterateAllocated(handler,
-            (in StoragePointerHandler handler, int index) => handler(index));
+    {
+        if (Count == 0) { return; }
+
+        int count = 0;
+        for (int i = 0; i < _buffer.Capacity; ++i) {
+            int version = _buffer.GetRef(i).Version;
+            if (version > 0) {
+                handler(i, version);
+                if (++count >= Count) {
+                    break;
+                }
+            }
+        }
+    }
     
     private readonly record struct IterationData<TData>(TData Data, StoragePointerHandler<TData> Handler);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void IterateAllocated<TData>(in TData data, StoragePointerHandler<TData> handler)
-        => _buffer.IterateAllocated(new(data, handler),
-            (in IterationData<TData> data, int index) => data.Handler(data.Data, index));
-
-    public IEnumerator<long> GetEnumerator()
     {
-        foreach (var index in _buffer) {
-            yield return index;
+        if (Count == 0) { return; }
+
+        int count = 0;
+        for (int i = 0; i < _buffer.Capacity; ++i) {
+            int version = _buffer.GetRef(i).Version;
+            if (version > 0) {
+                handler(data, i, version);
+                if (++count >= Count) {
+                    break;
+                }
+            }
+        }
+    }
+
+    public IEnumerator<(nint, int)> GetEnumerator()
+    {
+        if (Count == 0) { yield break; }
+
+        int count = 0;
+        for (int i = 0; i < _buffer.Capacity; ++i) {
+            int version = _buffer.GetRef(i).Version;
+            if (version > 0) {
+                yield return (i, version);
+                if (++count == Count) {
+                    break;
+                }
+            }
         }
     }
 

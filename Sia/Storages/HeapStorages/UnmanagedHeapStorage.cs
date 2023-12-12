@@ -13,50 +13,52 @@ public sealed class UnmanagedHeapStorage<T> : IStorage<T>
     public static UnmanagedHeapStorage<T> Instance { get; } = new();
 
     public int Capacity { get; } = int.MaxValue;
-    public int Count { get; private set; }
-    public int PointerValidBits => 64;
+    public int Count => _allocated.Count;
     public bool IsManaged => false;
 
-    private HashSet<long> _allocated = new();
+    private HashSet<nint> _allocated = [];
 
     private static readonly int ElementSize = Unsafe.SizeOf<T>();
 
     private UnmanagedHeapStorage() {}
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public long UnsafeAllocate()
-        => UnsafeAllocate(default);
+    public nint UnsafeAllocate(out int version)
+        => UnsafeAllocate(default, out version);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe long UnsafeAllocate(in T initial)
+    public unsafe nint UnsafeAllocate(in T initial, out int version)
     {
         var ptr = Marshal.AllocHGlobal(ElementSize);
         _allocated.Add(ptr);
         *(T*)ptr = initial;
-        Count++;
+        version = 1;
         return ptr;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void UnsafeRelease(long rawPointer)
+    public void UnsafeRelease(nint rawPointer, int version)
     {
-        var ptr = (nint)rawPointer;
-        if (!_allocated.Remove(ptr)) {
+        if (version != 1 || !_allocated.Remove(rawPointer)) {
             throw new ArgumentException("Invalid pointer");
         }
-        Marshal.FreeHGlobal(ptr);
-        Count--;
+        Marshal.FreeHGlobal(rawPointer);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe ref T UnsafeGetRef(long rawPointer)
-        => ref *(T*)rawPointer;
+    public unsafe ref T UnsafeGetRef(nint rawPointer, int version)
+    {
+        if (version != 1) {
+            throw new ArgumentException("Invalid pointer");
+        }
+        return ref *(T*)rawPointer;
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void IterateAllocated(StoragePointerHandler handler)
     {
         foreach (var pointer in _allocated) {
-            handler(pointer);
+            handler(pointer, 1);
         }
     }
 
@@ -64,12 +66,16 @@ public sealed class UnmanagedHeapStorage<T> : IStorage<T>
     public void IterateAllocated<TData>(in TData data, StoragePointerHandler<TData> handler)
     {
         foreach (var pointer in _allocated) {
-            handler(data, pointer);
+            handler(data, pointer, 1);
         }
     }
 
-    public IEnumerator<long> GetEnumerator()
-        => _allocated.GetEnumerator();
+    public IEnumerator<(nint, int)> GetEnumerator()
+    {
+        foreach (var pointer in _allocated) {
+            yield return (pointer, 1);
+        }
+    }
 
     IEnumerator IEnumerable.GetEnumerator()
         => GetEnumerator();

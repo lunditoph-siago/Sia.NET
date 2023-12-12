@@ -73,8 +73,8 @@ public abstract class ViewBase<TTypeUnion> : ViewBase
         host.OnEntityReleased += OnEntityRemoved;
 
         host.IterateAllocated((this, host),
-            static (in (ViewBase<TTypeUnion> View, IReactiveEntityHost Host) data, long pointer) =>
-                data.View.OnEntityAdded(new(pointer, data.Host)));
+            static (in (ViewBase<TTypeUnion> View, IReactiveEntityHost Host) data, nint pointer, int version) =>
+                data.View.OnEntityAdded(new(pointer, version, data.Host)));
     }
 
     public override void OnUninitialize(World world)

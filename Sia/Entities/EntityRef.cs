@@ -1,21 +1,21 @@
 namespace Sia;
 
-public readonly record struct EntityRef(long Pointer, IEntityHost Host) : IDisposable
+public readonly record struct EntityRef(nint Pointer, int Version, IEntityHost Host) : IDisposable
 {
-    public object Boxed => Host.Box(Pointer);
+    public object Boxed => Host.Box(Pointer, Version);
     
     public bool Contains<TComponent>()
-        => Host.Contains<TComponent>(Pointer);
+        => Host.Contains<TComponent>(Pointer, Version);
 
     public bool Contains(Type componentType)
-        => Host.Contains(Pointer, componentType);
+        => Host.Contains(Pointer, Version, componentType);
 
     public ref TComponent Get<TComponent>()
-        => ref Host.Get<TComponent>(Pointer);
+        => ref Host.Get<TComponent>(Pointer, Version);
     
     public ref TComponent GetOrNullRef<TComponent>()
-        => ref Host.GetOrNullRef<TComponent>(Pointer);
+        => ref Host.GetOrNullRef<TComponent>(Pointer, Version);
 
     public readonly void Dispose()
-        => Host.Release(Pointer);
+        => Host.Release(Pointer, Version);
 }

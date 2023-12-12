@@ -12,64 +12,76 @@ public sealed class ManagedHeapStorage<T> : IStorage<T>
     public static ManagedHeapStorage<T> Instance { get; } = new();
 
     public int Capacity { get; } = int.MaxValue;
-    public int Count => _objects.Count;
-    public int PointerValidBits => 32;
+    public int Count => _entries.Count;
     public bool IsManaged => true;
 
-    private Dictionary<long, Box<T>> _objects = [];
+    private Dictionary<nint, Box<BufferStorageEntry<T>>> _entries = [];
     private ObjectIDGenerator _idGenerator = new();
 
     private ManagedHeapStorage() {}
 
-    public long UnsafeAllocate()
-        => UnsafeAllocate(default);
+    public nint UnsafeAllocate(out int version)
+        => UnsafeAllocate(default, out version);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public long UnsafeAllocate(in T initial)
+    public nint UnsafeAllocate(in T initial, out int version)
     {
-        Box<T> obj = initial;
-        long id = _idGenerator.GetId(obj, out bool _);
-        _objects[id] = obj;
+        Box<BufferStorageEntry<T>> entry = new BufferStorageEntry<T> {
+            Version = 1,
+            Value = initial
+        };
+        nint id = (nint)_idGenerator.GetId(entry, out bool _);
+        _entries[id] = entry;
+        version = 1;
         return id;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void UnsafeRelease(long rawPointer)
+    public void UnsafeRelease(nint rawPointer, int version)
     {
-        if (!_objects.Remove(rawPointer)) {
+        if (version != 1 || !_entries.Remove(rawPointer)) {
             throw new ArgumentException("Invalid pointer");
         }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref T UnsafeGetRef(long rawPointer)
-        => ref _objects[rawPointer].GetReference();
+    public ref T UnsafeGetRef(nint rawPointer, int version)
+    {
+        if (version != 1 || !_entries.TryGetValue(rawPointer, out var entry)) {
+            throw new ArgumentException("Invalid pointer");
+        }
+        return ref entry.GetReference().Value;
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void IterateAllocated(StoragePointerHandler handler)
     {
-        foreach (var key in _objects.Keys) {
-            handler(key);
+        foreach (var key in _entries.Keys) {
+            handler(key, 1);
         }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void IterateAllocated<TData>(in TData data, StoragePointerHandler<TData> handler)
     {
-        foreach (var key in _objects.Keys) {
-            handler(data, key);
+        foreach (var key in _entries.Keys) {
+            handler(data, key, 1);
         }
     }
 
-    public IEnumerator<long> GetEnumerator()
-        => _objects.Keys.GetEnumerator();
+    public IEnumerator<(nint, int)> GetEnumerator()
+    {
+        foreach (var key in _entries.Keys) {
+            yield return (key, 1);
+        }
+    }
 
     IEnumerator IEnumerable.GetEnumerator()
         => GetEnumerator();
 
     public void Dispose()
     {
-        _objects = null!;
+        _entries = null!;
         _idGenerator = null!;
     }
 }
