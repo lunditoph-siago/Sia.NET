@@ -36,32 +36,32 @@ public class EntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTyp
     public virtual EntityRef Create()
     {
         var ptr = Storage.Allocate();
-        return new(ptr.Raw, this);
+        return new(ptr.Raw, ptr.Version, this);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public virtual EntityRef Create(in T initial)
     {
-        var ptr = Storage.UnsafeAllocate(initial);
-        return new(ptr, this);
+        var ptr = Storage.UnsafeAllocate(initial, out int version);
+        return new(ptr, version, this);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public virtual void Release(long pointer)
-        => Storage.UnsafeRelease(pointer);
+    public virtual void Release(nint pointer, int version)
+        => Storage.UnsafeRelease(pointer, version);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool Contains<TComponent>(long pointer)
+    public bool Contains<TComponent>(nint pointer, int version)
         => Descriptor.Contains<TComponent>();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool Contains(long pointer, Type type)
+    public bool Contains(nint pointer, int version, Type type)
         => Descriptor.Contains(type);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe ref TComponent Get<TComponent>(long pointer)
+    public unsafe ref TComponent Get<TComponent>(nint pointer, int version)
     {
-        ref var entity = ref Storage.UnsafeGetRef(pointer);
+        ref var entity = ref Storage.UnsafeGetRef(pointer, version);
         if (!Descriptor.TryGetOffset<TComponent>(out var offset)) {
             throw new ComponentNotFoundException("Component not found: " + typeof(TComponent));
         }
@@ -70,9 +70,9 @@ public class EntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTyp
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe ref TComponent GetOrNullRef<TComponent>(long pointer)
+    public unsafe ref TComponent GetOrNullRef<TComponent>(nint pointer, int version)
     {
-        ref var entity = ref Storage.UnsafeGetRef(pointer);
+        ref var entity = ref Storage.UnsafeGetRef(pointer, version);
         if (!Descriptor.TryGetOffset<TComponent>(out var offset)) {
             return ref Unsafe.NullRef<TComponent>();
         }
@@ -89,14 +89,14 @@ public class EntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTyp
         => Storage.IterateAllocated(data, handler);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public object Box(long pointer)
-        => Storage.UnsafeGetRef(pointer);
+    public object Box(nint pointer, int version)
+        => Storage.UnsafeGetRef(pointer, version);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public IEnumerator<EntityRef> GetEnumerator()
     {
-        foreach (var pointer in Storage) {
-            yield return new EntityRef(pointer, this);
+        foreach (var (pointer, version) in Storage) {
+            yield return new EntityRef(pointer, version, this);
         }
     }
 

@@ -59,9 +59,10 @@ public record WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>, IReactive
 
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Release(long pointer)
+    public void Release(nint pointer, int version)
     {
-        var entity = new EntityRef(pointer, this);
+        _host.Release(pointer, version);
+        var entity = new EntityRef(pointer, version, this);
 
         var dispatcher = World.Dispatcher;
         World.Count--;
@@ -69,24 +70,23 @@ public record WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>, IReactive
         dispatcher.UnlistenAll(entity);
 
         OnEntityReleased?.Invoke(entity);
-        _host.Release(pointer);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool Contains<TComponent>(long pointer)
-        => _host.Contains<TComponent>(pointer);
+    public bool Contains<TComponent>(nint pointer, int version)
+        => _host.Contains<TComponent>(pointer, version);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool Contains(long pointer, Type type)
-        => _host.Contains(pointer, type);
+    public bool Contains(nint pointer, int version, Type type)
+        => _host.Contains(pointer, version, type);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref TComponent Get<TComponent>(long pointer)
-        => ref _host.Get<TComponent>(pointer);
+    public ref TComponent Get<TComponent>(nint pointer, int version)
+        => ref _host.Get<TComponent>(pointer, version);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref TComponent GetOrNullRef<TComponent>(long pointer)
-        => ref _host.GetOrNullRef<TComponent>(pointer);
+    public ref TComponent GetOrNullRef<TComponent>(nint pointer, int version)
+        => ref _host.GetOrNullRef<TComponent>(pointer, version);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void IterateAllocated(StoragePointerHandler handler)
@@ -105,6 +105,6 @@ public record WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>, IReactive
         => _host.GetEnumerator();
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public object Box(long pointer)
-        => _host.Box(pointer);
+    public object Box(nint pointer, int version)
+        => _host.Box(pointer, version);
 }

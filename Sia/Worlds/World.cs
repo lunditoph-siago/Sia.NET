@@ -175,8 +175,8 @@ public sealed class World : IEntityQuery, IEventSender
     {
         host.IterateAllocated(
             new IterationData(host, handler),
-            static (in IterationData data, long pointer) =>
-                data.Handler(new(pointer, data.Host)));
+            static (in IterationData data, nint pointer, int version) =>
+                data.Handler(new(pointer, version, data.Host)));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -184,8 +184,8 @@ public sealed class World : IEntityQuery, IEventSender
     {
         host.IterateAllocated(
             new SimpleIterationData(host, handler),
-            static (in SimpleIterationData data, long pointer) =>
-                data.Handler(new(pointer, data.Host)));
+            static (in SimpleIterationData data, nint pointer, int version) =>
+                data.Handler(new(pointer, version, data.Host)));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -194,8 +194,8 @@ public sealed class World : IEntityQuery, IEventSender
     {
         host.IterateAllocated(
             new IterationData<TData>(host, data, handler),
-            static (in IterationData<TData> data, long pointer) =>
-                data.Handler(data.Data, new(pointer, data.Host)));
+            static (in IterationData<TData> data, nint pointer, int version) =>
+                data.Handler(data.Data, new(pointer, version, data.Host)));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -204,8 +204,8 @@ public sealed class World : IEntityQuery, IEventSender
     {
         host.IterateAllocated(
             new SimpleIterationData<TData>(host, data, handler),
-            static (in SimpleIterationData<TData> data, long pointer) =>
-                data.Handler(data.Data, new(pointer, data.Host)));
+            static (in SimpleIterationData<TData> data, nint pointer, int version) =>
+                data.Handler(data.Data, new(pointer, version, data.Host)));
     }
 
     public World()

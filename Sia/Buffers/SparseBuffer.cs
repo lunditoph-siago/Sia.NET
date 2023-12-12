@@ -1,14 +1,10 @@
 namespace Sia;
 
-using System.Collections;
-using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 public sealed class SparseBuffer<T> : IBuffer<T>
 {
     public int Capacity => _sparseSet.Capacity;
-    public int Count  => _sparseSet.Count;
 
     private readonly SparseSet<T> _sparseSet;
 
@@ -24,46 +20,8 @@ public sealed class SparseBuffer<T> : IBuffer<T>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool Contains(int index)
-        => _sparseSet.ContainsKey(index);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref T GetOrAddValueRef(int index, out bool exists)
-        => ref _sparseSet.GetOrAddValueRef(index, out exists);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref T GetValueRefOrNullRef(int index)
-        => ref _sparseSet.GetValueRefOrNullRef(index);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool Remove(int index)
-        => _sparseSet.Remove(index);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool Remove(int index, [MaybeNullWhen(false)] out T value)
-        => _sparseSet.Remove(index, out value);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void IterateAllocated(BufferIndexHandler handler)
-    {
-        foreach (int key in _sparseSet.AsKeySpan()) {
-            handler(key);
-        }
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void IterateAllocated<TData>(in TData data, BufferIndexHandler<TData> handler)
-    {
-        foreach (int key in _sparseSet.AsKeySpan()) {
-            handler(data, key);
-        }
-    }
-
-    public IEnumerator<int> GetEnumerator()
-        => _sparseSet.Keys.GetEnumerator();
-
-    IEnumerator IEnumerable.GetEnumerator()
-        => GetEnumerator();
+    public ref T GetRef(int index)
+        => ref _sparseSet.GetOrAddValueRef(index, out bool _);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Dispose()

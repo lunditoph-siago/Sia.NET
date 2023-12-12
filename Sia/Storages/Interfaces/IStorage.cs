@@ -7,32 +7,31 @@ public interface IStorage : IEnumerable, IDisposable
 {
     int Capacity { get; }
     int Count { get; }
-    int PointerValidBits { get; }
     bool IsManaged { get; }
 
-    long UnsafeAllocate();
-    void UnsafeRelease(long rawPointer);
+    nint UnsafeAllocate(out int version);
+    void UnsafeRelease(nint rawPointer, int version);
 
     void IterateAllocated(StoragePointerHandler handler);
     void IterateAllocated<TData>(in TData data, StoragePointerHandler<TData> handler);
 }
 
-public interface IStorage<T> : IStorage, IEnumerable<long>
+public interface IStorage<T> : IStorage, IEnumerable<(nint Pointer, int Version)>
     where T : struct
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    long UnsafeAllocate(in T initial)
+    nint UnsafeAllocate(in T initial, out int version)
     {
-        long pointer = UnsafeAllocate();
-        UnsafeGetRef(pointer) = initial;
+        nint pointer = UnsafeAllocate(out version);
+        UnsafeGetRef(pointer, version) = initial;
         return pointer;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    Pointer<T> Allocate() => new(UnsafeAllocate(), this);
+    Pointer<T> Allocate() => new(UnsafeAllocate(out int version), version, this);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    Pointer<T> Allocate(in T initial) => new(UnsafeAllocate(initial), this);
+    Pointer<T> Allocate(in T initial) => new(UnsafeAllocate(initial, out int version), version, this);
 
-    ref T UnsafeGetRef(long rawPointer);
+    ref T UnsafeGetRef(nint rawPointer, int version);
 }

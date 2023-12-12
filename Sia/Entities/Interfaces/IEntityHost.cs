@@ -8,18 +8,18 @@ public interface IEntityHost : IEnumerable<EntityRef>
     int Count { get; }
 
     EntityRef Create();
-    void Release(long pointer);
+    void Release(nint pointer, int version);
 
-    bool Contains<TComponent>(long pointer);
-    bool Contains(long pointer, Type type);
+    bool Contains<TComponent>(nint pointer, int version);
+    bool Contains(nint pointer, int version, Type type);
 
-    ref TComponent Get<TComponent>(long pointer);
-    ref TComponent GetOrNullRef<TComponent>(long pointer);
+    ref TComponent Get<TComponent>(nint pointer, int version);
+    ref TComponent GetOrNullRef<TComponent>(nint pointer, int version);
 
     void IterateAllocated(StoragePointerHandler handler);
     void IterateAllocated<TData>(in TData data, StoragePointerHandler<TData> handler);
 
-    object Box(long pointer);
+    object Box(nint pointer, int version);
 }
 
 public interface IReactiveEntityHost : IEntityHost

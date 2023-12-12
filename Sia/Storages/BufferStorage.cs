@@ -4,32 +4,31 @@ using System.Runtime.CompilerServices;
 namespace Sia
 {
 
+public struct BufferStorageEntry<T>
+{
+    public int Version;
+    public T Value;
+}
+
 public sealed class BufferStorage<T>
     where T : struct
 {
     public static BufferStorage<T, TBuffer> Create<TBuffer>(TBuffer buffer)
-        where TBuffer : IBuffer<T>
+        where TBuffer : IBuffer<BufferStorageEntry<T>>
         => new(buffer);
 }
 
 public class BufferStorage<T, TBuffer> : IStorage<T>
     where T : struct
-    where TBuffer : IBuffer<T>
+    where TBuffer : IBuffer<BufferStorageEntry<T>>
 {
     public int Capacity {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => _buffer.Capacity;
     }
 
-    public int Count {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _buffer.Count;
-    }
-
-    public int PointerValidBits => 32;
+    public int Count { get; private set; }
     public bool IsManaged => true;
-
-    public int PageSize { get; }
 
     private int _firstFreeIndex;
     private readonly TBuffer _buffer;
@@ -37,69 +36,108 @@ public class BufferStorage<T, TBuffer> : IStorage<T>
     public BufferStorage(TBuffer buffer)
     {
         if (buffer.Capacity <= 0) {
-            throw new ArgumentException("Invalid capacity");
+            throw new ArgumentException("Buffer capacity must be greator than 0");
         }
         _buffer = buffer;
     }
 
-    ~BufferStorage()
-    {
-        _buffer.Dispose();
-    }
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public long UnsafeAllocate()
+    public nint UnsafeAllocate(out int version)
     {
+        var index = _firstFreeIndex;
         int capacity = _buffer.Capacity;
-        if (_buffer.Count == capacity) {
+
+        if (index >= capacity) {
             throw new IndexOutOfRangeException("Storage is full");
         }
 
-        var index = _firstFreeIndex;
-        while (++_firstFreeIndex < capacity && _buffer.Contains(_firstFreeIndex)) {}
+        while (++_firstFreeIndex < capacity && _buffer.GetRef(_firstFreeIndex).Version > 0) {}
 
-        _buffer.GetOrAddValueRef(index, out bool _);
+        ref var entry = ref _buffer.GetRef(index);
+        version = -entry.Version + 1;
+        entry.Version = version;
+        Count++;
         return index;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void UnsafeRelease(long rawPointer)
+    public void UnsafeRelease(nint rawPointer, int version)
     {
         int index = (int)rawPointer;
-        if (!_buffer.Remove(index)) {
+        ref var entry = ref _buffer.GetRef(index);
+
+        if (entry.Version != version) {
             throw new ArgumentException("Invalid pointer");
         }
+
+        entry.Version = -version;
+        entry.Value = default;
+        Count--;
+
         if (index < _firstFreeIndex) {
             _firstFreeIndex = index;
         }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref T UnsafeGetRef(long rawPointer)
+    public ref T UnsafeGetRef(nint rawPointer, int version)
     {
-        ref var value = ref _buffer.GetValueRefOrNullRef((int)rawPointer);
-        if (Unsafe.IsNullRef(ref value)) {
+        ref var entry = ref _buffer.GetRef((int)rawPointer);
+        if (entry.Version != version) {
             throw new ArgumentException("Invalid pointer");
         }
-        return ref value;
+        return ref entry.Value;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void IterateAllocated(StoragePointerHandler handler)
-        => _buffer.IterateAllocated(handler,
-            (in StoragePointerHandler handler, int index) => handler(index));
+    {
+        if (Count == 0) { return; }
+
+        int count = 0;
+        for (int i = 0; i < _buffer.Capacity; ++i) {
+            int version = _buffer.GetRef(i).Version;
+            if (version > 0) {
+                handler(i, version);
+                if (++count >= Count) {
+                    break;
+                }
+            }
+        }
+    }
     
     private readonly record struct IterationData<TData>(TData Data, StoragePointerHandler<TData> Handler);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void IterateAllocated<TData>(in TData data, StoragePointerHandler<TData> handler)
-        => _buffer.IterateAllocated(new(data, handler),
-            (in IterationData<TData> data, int index) => data.Handler(data.Data, index));
-
-    public IEnumerator<long> GetEnumerator()
     {
-        foreach (var index in _buffer) {
-            yield return index;
+        if (Count == 0) { return; }
+
+        int count = 0;
+        for (int i = 0; i < _buffer.Capacity; ++i) {
+            int version = _buffer.GetRef(i).Version;
+            if (version > 0) {
+                handler(data, i, version);
+                if (++count >= Count) {
+                    break;
+                }
+            }
+        }
+    }
+
+    public IEnumerator<(nint, int)> GetEnumerator()
+    {
+        if (Count == 0) { yield break; }
+
+        int count = 0;
+        for (int i = 0; i < _buffer.Capacity; ++i) {
+            int version = _buffer.GetRef(i).Version;
+            if (version > 0) {
+                yield return (i, version);
+                if (++count >= Count) {
+                    yield break;
+                }
+            }
         }
     }
 
