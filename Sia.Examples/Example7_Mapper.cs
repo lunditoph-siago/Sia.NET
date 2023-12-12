@@ -15,10 +15,10 @@ public static partial class Example7_Mapper
         var id1 = ObjectId.Create();
         var id2 = ObjectId.Create();
 
-        var e1 = world.CreateInHashHost(Tuple.Create(
+        var e1 = world.CreateInBucketHost(Tuple.Create(
             Sid.From(id1)
         ));
-        var e2 = world.CreateInHashHost(Tuple.Create(
+        var e2 = world.CreateInBucketHost(Tuple.Create(
             Sid.From(id2)
         ));
 

@@ -49,7 +49,7 @@ public static partial class Example5_ComponentBundle
     public static class TestObject
     {
         public static EntityRef Create(World world)
-            => world.CreateInHashHost(Tuple.Create(
+            => world.CreateInBucketHost(Tuple.Create(
                 new ObjectBundle { Name = "TestObject" },
                 new HP(100)
             ));

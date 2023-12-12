@@ -135,13 +135,13 @@ public static partial class Example1_HealthDamage
     public static class Player
     {
         public static EntityRef Create(World world)
-            => world.CreateInHashHost(Tuple.Create(
+            => world.CreateInBucketHost(Tuple.Create(
                 new Transform(),
                 new Health()
             ));
 
         public static EntityRef Create(World world, Vector2 position)
-            => world.CreateInHashHost(Tuple.Create(
+            => world.CreateInBucketHost(Tuple.Create(
                 new Transform {
                     Position = position
                 },
