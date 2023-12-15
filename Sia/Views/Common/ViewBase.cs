@@ -36,6 +36,12 @@ public abstract class ViewBase : IAddon
         World.Dispatcher.Listen<UEvent>(Listener);
         OnUnlisten += () => World.Dispatcher.Unlisten<UEvent>(Listener);
     }
+
+    protected void Listen(EntityRef target, IEventListener<EntityRef> listener)
+    {
+        World.Dispatcher.Listen(target, listener);
+        OnUnlisten += () => World.Dispatcher.Unlisten(target, listener);
+    }
     
     public virtual void OnInitialize(World world)
     {
