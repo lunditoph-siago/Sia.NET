@@ -9,16 +9,11 @@ public static class EntityQueryParallelExtensions
     public delegate void RecordFunc<TResult>(in EntityRef entity, ref TResult result);
     public delegate void RecordFunc<TData, TResult>(in TData data, in EntityRef entity, ref TResult result);
 
-    private readonly struct ForEachParallelAction
+    private readonly struct ForEachParallelAction(
+        ArraySegment<EntityRef> array, EntityHandler handler)
     {
-        private readonly ArraySegment<EntityRef> _array;
-        private readonly EntityHandler _handler;
-
-        public ForEachParallelAction(ArraySegment<EntityRef> array, EntityHandler handler)
-        {
-            _array = array;
-            _handler = handler;
-        }
+        private readonly ArraySegment<EntityRef> _array = array;
+        private readonly EntityHandler _handler = handler;
 
         public void Invoke(System.Tuple<int, int> range)
         {
@@ -29,18 +24,12 @@ public static class EntityQueryParallelExtensions
         }
     }
 
-    private readonly struct ForEachParallelAction<TData>
+    private readonly struct ForEachParallelAction<TData>(
+        ArraySegment<EntityRef> array, in TData data, EntityHandler<TData> handler)
     {
-        private readonly ArraySegment<EntityRef> _array;
-        private readonly TData _data;
-        private readonly EntityHandler<TData> _handler;
-
-        public ForEachParallelAction(ArraySegment<EntityRef> array, in TData data, EntityHandler<TData> handler)
-        {
-            _array = array;
-            _data = data;
-            _handler = handler;
-        }
+        private readonly ArraySegment<EntityRef> _array = array;
+        private readonly TData _data = data;
+        private readonly EntityHandler<TData> _handler = handler;
 
         public void Invoke(System.Tuple<int, int> range)
         {
@@ -51,46 +40,25 @@ public static class EntityQueryParallelExtensions
         }
     }
 
-    private readonly unsafe struct RecordData
+    private readonly unsafe struct RecordData(int* index, ArraySegment<EntityRef> array)
     {
-        public readonly int* Index;
-        public readonly ArraySegment<EntityRef> Array;
-        
-        public RecordData(int* index, ArraySegment<EntityRef> array)
-        {
-            Index = index;
-            Array = array;
-        }
+        public readonly int* Index = index;
+        public readonly ArraySegment<EntityRef> Array = array;
     }
 
-    private readonly unsafe struct RecordData<T>
+    private readonly unsafe struct RecordData<T>(int* index, ArraySegment<T> array, RecordFunc<T> recordFunc)
     {
-        public readonly int* Index;
-        public readonly ArraySegment<T> Array;
-        public readonly RecordFunc<T> RecordFunc;
-        
-        public RecordData(int* index, ArraySegment<T> array, RecordFunc<T> recordFunc)
-        {
-            Index = index;
-            Array = array;
-            RecordFunc = recordFunc;
-        }
+        public readonly int* Index = index;
+        public readonly ArraySegment<T> Array = array;
+        public readonly RecordFunc<T> RecordFunc = recordFunc;
     }
 
-    private readonly unsafe struct RecordData<TData, TResult>
+    private readonly unsafe struct RecordData<TData, TResult>(int* index, in TData data, ArraySegment<TResult> array, EntityQueryParallelExtensions.RecordFunc<TData, TResult> recordFunc)
     {
-        public readonly int* Index;
-        public readonly TData Data;
-        public readonly ArraySegment<TResult> Array;
-        public readonly RecordFunc<TData, TResult> RecordFunc;
-        
-        public RecordData(int* index, in TData data, ArraySegment<TResult> array, RecordFunc<TData, TResult> recordFunc)
-        {
-            Index = index;
-            Data = data;
-            Array = array;
-            RecordFunc = recordFunc;
-        }
+        public readonly int* Index = index;
+        public readonly TData Data = data;
+        public readonly ArraySegment<TResult> Array = array;
+        public readonly RecordFunc<TData, TResult> RecordFunc = recordFunc;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
