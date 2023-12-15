@@ -7,11 +7,12 @@ using System.Diagnostics.CodeAnalysis;
 
 using CommunityToolkit.HighPerformance.Buffers;
 
-public sealed class SparseSet<T> : IDictionary<int, T>, IReadOnlyDictionary<int, T>
+public sealed class SparseSet<T>(int pageCount, int pageSize)
+    : IDictionary<int, T>, IReadOnlyDictionary<int, T>
 {
-    public int PageCount { get; init; }
-    public int PageSize { get; init; }
-    public int Capacity { get; init; }
+    public int PageCount { get; init; } = pageCount;
+    public int PageSize { get; init; } = pageSize;
+    public int Capacity { get; init; } = pageCount * pageSize;
     public int Count => _dense.Count;
 
     public T this[int index] {
@@ -41,7 +42,7 @@ public sealed class SparseSet<T> : IDictionary<int, T>, IReadOnlyDictionary<int,
 
     private readonly List<T> _dense = [];
     private readonly List<int> _reverse = [];
-    private readonly Page[] _pages;
+    private readonly Page[] _pages = new Page[pageCount];
 
     private struct Page
     {
@@ -67,15 +68,6 @@ public sealed class SparseSet<T> : IDictionary<int, T>, IReadOnlyDictionary<int,
             }
         }
 
-    }
-
-    public SparseSet(int pageCount, int pageSize)
-    {
-        PageCount = pageCount;
-        PageSize = pageSize;
-        Capacity = pageCount * pageSize;
-
-        _pages = new Page[pageCount];
     }
 
     public ReadOnlySpan<int> AsKeySpan() => CollectionsMarshal.AsSpan(_reverse);

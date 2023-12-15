@@ -31,44 +31,27 @@ public class WorldCommandBuffer
             => world.Send(entity, SingletonEvent<TEvent>.Instance);
     }
 
-    private class CustomAction : IExecutor
+    private class CustomAction(Action<World> handler) : IExecutor
     {
-        private readonly Action<World> _handler;
-
-        public CustomAction(Action<World> handler)
-        {
-            _handler = handler;
-        }
+        private readonly Action<World> _handler = handler;
 
         public void Execute(World world, in EntityRef entity)
             => _handler(world);
     }
 
-    private class CustomAction<TData> : IExecutor
+    private class CustomAction<TData>(in TData data, Handler<TData> action) : IExecutor
     {
-        private readonly TData _data;
-        private readonly Handler<TData> _action;
-
-        public CustomAction(in TData data, Handler<TData> action)
-        {
-            _data = data;
-            _action = action;
-        }
+        private readonly TData _data = data;
+        private readonly Handler<TData> _action = action;
 
         public void Execute(World world, in EntityRef entity)
             => _action(world, _data);
     }
 
-    private class SimpleCustomAction<TData> : IExecutor
+    private class SimpleCustomAction<TData>(in TData data, SimpleHandler<TData> action) : IExecutor
     {
-        private readonly TData _data;
-        private readonly SimpleHandler<TData> _action;
-
-        public SimpleCustomAction(in TData data, SimpleHandler<TData> action)
-        {
-            _data = data;
-            _action = action;
-        }
+        private readonly TData _data = data;
+        private readonly SimpleHandler<TData> _action = action;
 
         public void Execute(World world, in EntityRef entity)
             => _action(world, _data);

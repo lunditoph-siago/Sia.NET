@@ -27,21 +27,15 @@ public class EventChannel : EventChannel<EntityRef, IEvent>, IEventSender
 {
 }
 
-public class EventQueue<TEvent> : EventQueue<EntityRef, TEvent>, IEventSender<TEvent>
+public class EventQueue<TEvent>(IEventSender<EntityRef, TEvent> receiver)
+    : EventQueue<EntityRef, TEvent>(receiver), IEventSender<TEvent>
     where TEvent : IEvent
 {
-    public EventQueue(IEventSender<EntityRef, TEvent> receiver)
-        : base(receiver)
-    {
-    }
 }
 
-public class EventQueue : EventQueue<EntityRef, IEvent>, IEventSender
+public class EventQueue(IEventSender<EntityRef, IEvent> receiver)
+    : EventQueue<EntityRef, IEvent>(receiver), IEventSender
 {
-    public EventQueue(IEventSender<EntityRef, IEvent> receiver)
-        : base(receiver)
-    {
-    }
 }
 
 public interface IHistory<TEvent> : IHistory<EntityRef, TEvent>
@@ -49,18 +43,14 @@ public interface IHistory<TEvent> : IHistory<EntityRef, TEvent>
 {
 }
 
-public class InfiniteHistory<TEvent> : InfiniteHistory<EntityRef, TEvent>, IHistory<TEvent>
+public class InfiniteHistory<TEvent>(Dispatcher<EntityRef, TEvent> dispatcher)
+    : InfiniteHistory<EntityRef, TEvent>(dispatcher), IHistory<TEvent>
     where TEvent : IEvent
 {
-    public InfiniteHistory(Dispatcher<EntityRef, TEvent> dispatcher) : base(dispatcher)
-    {
-    }
 }
 
-public class SizedHistory<TEvent> : SizedHistory<EntityRef, TEvent>, IHistory<TEvent>
+public class SizedHistory<TEvent>(Dispatcher<EntityRef, TEvent> dispatcher, int capacity)
+    : SizedHistory<EntityRef, TEvent>(dispatcher, capacity), IHistory<TEvent>
     where TEvent : IEvent
 {
-    public SizedHistory(Dispatcher<EntityRef, TEvent> dispatcher, int capacity) : base(dispatcher, capacity)
-    {
-    }
 }

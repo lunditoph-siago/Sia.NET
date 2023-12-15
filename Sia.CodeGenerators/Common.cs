@@ -127,16 +127,10 @@ internal static class Common
         public void Dispose() {}
     }
 
-    private class EnclosingDisposable : IDisposable
+    private class EnclosingDisposable(IndentedTextWriter source, int count) : IDisposable
     {
-        private readonly IndentedTextWriter _source;
-        private readonly int _count;
-
-        public EnclosingDisposable(IndentedTextWriter source, int count)
-        {
-            _source = source;
-            _count = count;
-        }
+        private readonly IndentedTextWriter _source = source;
+        private readonly int _count = count;
 
         public void Dispose()
         {

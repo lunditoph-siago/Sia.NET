@@ -3,21 +3,15 @@ namespace Sia;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
-public sealed class WorldEntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T, TStorage>
-    : EntityHost<T, TStorage>, IReactiveEntityHost
+public sealed class WorldEntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T, TStorage>(World world, TStorage storage)
+    : EntityHost<T, TStorage>(storage), IReactiveEntityHost
     where T : struct
     where TStorage : IStorage<T>
 {
     public event EntityHandler? OnEntityCreated;
     public event EntityHandler? OnEntityReleased;
 
-    public World World { get; }
-
-    public WorldEntityHost(World world, TStorage storage)
-        : base(storage)
-    {
-        World = world;
-    }
+    public World World { get; } = world;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public override EntityRef Create()

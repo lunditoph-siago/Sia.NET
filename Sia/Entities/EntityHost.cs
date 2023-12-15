@@ -13,7 +13,7 @@ public class EntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTyp
         => new(storage);
 }
 
-public class EntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T, TStorage> : IEntityHost<T>
+public class EntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T, TStorage>(TStorage managedStorage) : IEntityHost<T>
     where T : struct
     where TStorage : IStorage<T>
 {
@@ -25,12 +25,7 @@ public class EntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTyp
     public static EntityDescriptor Descriptor { get; }
         = EntityDescriptor.Get<T>();
 
-    public TStorage Storage { get; }
-
-    public EntityHost(TStorage managedStorage)
-    {
-        Storage = managedStorage;
-    }
+    public TStorage Storage { get; } = managedStorage;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public virtual EntityRef Create()
