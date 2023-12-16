@@ -103,7 +103,7 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
         if (startIndex >= fullTemplateTypeString.Length) {
             return null;
         }
-        return fullTemplateTypeString[startIndex..];
+        return fullTemplateTypeString.Substring(startIndex);
     }
 
     private static string GenerateFileName(CodeGenerationInfo info)
