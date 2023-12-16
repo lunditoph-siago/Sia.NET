@@ -76,7 +76,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
                     && propSyntax.AccessorList!.Accessors.Any(a => a.IsKind(SyntaxKind.SetAccessorDeclaration)),
             VariableDeclaratorSyntax varSyntax =>
                 FindParentNode<FieldDeclarationSyntax>(varSyntax, out var fieldDecl)
-                    && !fieldDecl.Modifiers.Any(m =>
+                    && !fieldDecl!.Modifiers.Any(m =>
                         m.IsKind(SyntaxKind.StaticKeyword) || m.IsKind(SyntaxKind.ReadOnlyKeyword)),
             ParameterSyntax paramSyntax =>
                 paramSyntax.Parent!.Parent is RecordDeclarationSyntax recordDecl

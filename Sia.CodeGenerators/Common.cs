@@ -19,8 +19,9 @@ internal static class Common
     {
         public string? ImmutableContainerType =>
             DisplayType.StartsWith(ImmutableContainerHead)
-                ? DisplayType[ImmutableContainerHead.Length
-                    ..DisplayType.IndexOf('<', ImmutableContainerHead.Length)]
+                ? DisplayType.Substring(
+                    ImmutableContainerHead.Length,
+                    DisplayType.IndexOf('<', ImmutableContainerHead.Length) - ImmutableContainerHead.Length)
                 : null;
 
         private const string ImmutableContainerHead = "global::System.Collections.Immutable.Immutable";
@@ -33,7 +34,7 @@ internal static class Common
                     : ImmutableArray<string>.Empty,
                 (attributes
                     .FirstOrDefault(data =>
-                        data!.AttributeClass!.ToDisplayString() == "Sia.SiaPropertyAttribute", null)
+                        data!.AttributeClass!.ToDisplayString() == "Sia.SiaPropertyAttribute")
                     ?.NamedArguments.ToImmutableDictionary())
                         ?? ImmutableDictionary<string, TypedConstant>.Empty)
         {
@@ -42,7 +43,7 @@ internal static class Common
         private static string GetDisplayName(ITypeSymbol symbol)
         {
             var displayName = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-            return symbol.NullableAnnotation == NullableAnnotation.Annotated && displayName[^1] != '?'
+            return symbol.NullableAnnotation == NullableAnnotation.Annotated && displayName[displayName.Length - 1] != '?'
                 ? displayName + '?' : displayName;
         }
 
@@ -65,7 +66,7 @@ internal static class Common
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool FindParentNode<TNode>(
-        SyntaxNode node, [MaybeNullWhen(false)] out TNode result)
+        SyntaxNode node, out TNode? result)
         where TNode : SyntaxNode
     {
         SyntaxNode? currNode = node;
