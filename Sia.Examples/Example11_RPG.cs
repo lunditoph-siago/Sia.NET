@@ -1,6 +1,5 @@
 namespace Sia.Examples;
 
-using System.Runtime.InteropServices;
 using Sia;
 
 public static partial class Example11_RPG
