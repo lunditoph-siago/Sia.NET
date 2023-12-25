@@ -1,5 +1,6 @@
 namespace Sia;
 
+using System.Runtime.CompilerServices;
 using CommunityToolkit.HighPerformance;
 
 public sealed class BucketBuffer<T>(int bucketCapacity) : IBuffer<T>
@@ -23,6 +24,13 @@ public sealed class BucketBuffer<T>(int bucketCapacity) : IBuffer<T>
         ref var bucket = ref _buckets.AsSpan()[bucketIndex];
         bucket ??= new T[BucketCapacity];
         return ref bucket[index % BucketCapacity];
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool IsAllocated(int index)
+    {
+        int bucketIndex = index / BucketCapacity;
+        return bucketIndex < _buckets.Count && _buckets[bucketIndex] != null;
     }
 
     public void Dispose()

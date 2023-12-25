@@ -10,6 +10,8 @@ public interface IEntityHost : IEnumerable<EntityRef>
     EntityRef Create();
     void Release(nint pointer, int version);
 
+    bool IsValid(nint pointer, int version);
+
     bool Contains<TComponent>(nint pointer, int version);
     bool Contains(nint pointer, int version, Type type);
 

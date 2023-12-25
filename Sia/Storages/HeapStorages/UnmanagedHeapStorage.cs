@@ -46,6 +46,10 @@ public sealed class UnmanagedHeapStorage<T> : IStorage<T>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool IsValid(nint rawPointer, int version)
+        => version == 1 && _allocated.Contains(rawPointer);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe ref T UnsafeGetRef(nint rawPointer, int version)
     {
         if (version != 1) {

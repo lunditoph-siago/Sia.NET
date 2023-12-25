@@ -4,23 +4,23 @@ using System.Runtime.CompilerServices;
 namespace Sia
 {
 
-public struct ChunkStorageEntry<T>
+public struct ChunkBufferStorageEntry<T>
 {
     public int Index;
     public int Version;
     public T Value;
 }
 
-public sealed class ChunkStorage<T>
+public sealed class ChunkBufferStorage<T>
     where T : struct
 {
-    public static ChunkStorage<T, TBuffer> Create<TBuffer>(TBuffer buffer)
-        where TBuffer : IBuffer<ChunkStorageEntry<T>>
+    public static ChunkBufferStorage<T, TBuffer> Create<TBuffer>(TBuffer buffer)
+        where TBuffer : IBuffer<ChunkBufferStorageEntry<T>>
         => new(buffer);
 }
-public class ChunkStorage<T, TBuffer> : IStorage<T>
+public class ChunkBufferStorage<T, TBuffer> : IStorage<T>
     where T : struct
-    where TBuffer : IBuffer<ChunkStorageEntry<T>>
+    where TBuffer : IBuffer<ChunkBufferStorageEntry<T>>
 {
     private class Chunk
     {
@@ -47,7 +47,7 @@ public class ChunkStorage<T, TBuffer> : IStorage<T>
 
     private readonly Stack<Chunk> _chunkPool = new();
 
-    public ChunkStorage(TBuffer buffer)
+    public ChunkBufferStorage(TBuffer buffer)
     {
         if (buffer.Capacity <= 0) {
             throw new ArgumentException("Invalid capacity");
@@ -110,6 +110,16 @@ public class ChunkStorage<T, TBuffer> : IStorage<T>
         entry.Version = -version;
         entry.Value = default;
         Count--;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool IsValid(nint rawPointer, int version)
+    {
+        int index = (int)rawPointer;
+        if (index >= _buffer.Capacity || !_buffer.IsAllocated(index)) {
+            return false;
+        }
+        return _buffer.GetRef(index).Version == version;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

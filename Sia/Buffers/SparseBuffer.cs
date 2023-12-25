@@ -24,6 +24,10 @@ public sealed class SparseBuffer<T> : IBuffer<T>
         => ref _sparseSet.GetOrAddValueRef(index, out bool _);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool IsAllocated(int index)
+        => _sparseSet.ContainsKey(index);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Dispose()
     {
     }

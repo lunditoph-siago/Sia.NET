@@ -46,6 +46,10 @@ public class EntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTyp
         => Storage.UnsafeRelease(pointer, version);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool IsValid(nint pointer, int version)
+        => Storage.IsValid(pointer, version);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Contains<TComponent>(nint pointer, int version)
         => Descriptor.Contains<TComponent>();
 
