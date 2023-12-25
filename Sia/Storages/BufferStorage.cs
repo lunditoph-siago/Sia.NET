@@ -80,6 +80,16 @@ public class BufferStorage<T, TBuffer> : IStorage<T>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool IsValid(nint rawPointer, int version)
+    {
+        int index = (int)rawPointer;
+        if (index >= _buffer.Capacity || !_buffer.IsAllocated(index)) {
+            return false;
+        }
+        return _buffer.GetRef(index).Version == version;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T UnsafeGetRef(nint rawPointer, int version)
     {
         ref var entry = ref _buffer.GetRef((int)rawPointer);

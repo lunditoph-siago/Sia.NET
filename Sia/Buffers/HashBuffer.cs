@@ -15,6 +15,10 @@ public sealed class HashBuffer<T> : IBuffer<T>
         => ref CollectionsMarshal.GetValueRefOrAddDefault(_dict, index, out bool _)!;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool IsAllocated(int index)
+        => _dict.ContainsKey(index);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Dispose()
     {
     }

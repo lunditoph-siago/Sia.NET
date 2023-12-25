@@ -45,6 +45,10 @@ public sealed class ManagedHeapStorage<T> : IStorage<T>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool IsValid(nint rawPointer, int version)
+        => version == 1 && _entries.ContainsKey(rawPointer);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T UnsafeGetRef(nint rawPointer, int version)
     {
         if (version != 1 || !_entries.TryGetValue(rawPointer, out var entry)) {

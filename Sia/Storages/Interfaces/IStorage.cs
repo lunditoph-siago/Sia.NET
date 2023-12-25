@@ -12,6 +12,8 @@ public interface IStorage : IEnumerable, IDisposable
     nint UnsafeAllocate(out int version);
     void UnsafeRelease(nint rawPointer, int version);
 
+    bool IsValid(nint rawPointer, int version);
+
     void IterateAllocated(StoragePointerHandler handler);
     void IterateAllocated<TData>(in TData data, StoragePointerHandler<TData> handler);
 }

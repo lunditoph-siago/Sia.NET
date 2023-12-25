@@ -13,6 +13,10 @@ public sealed class ArrayBuffer<T>(int capacity) : IBuffer<T>
         => ref _values[index];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool IsAllocated(int index)
+        => true;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Dispose()
     {
     }

@@ -73,6 +73,10 @@ public record WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>, IReactive
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool IsValid(nint pointer, int version)
+        => _host.IsValid(pointer, version);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Contains<TComponent>(nint pointer, int version)
         => _host.Contains<TComponent>(pointer, version);
 
