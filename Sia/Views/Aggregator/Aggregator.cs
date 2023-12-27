@@ -86,11 +86,14 @@ public class Aggregator<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTyp
         if (id.Equals(default)) {
             return;
         }
+
         ref var aggr = ref CollectionsMarshal.GetValueRefOrAddDefault(_aggrs, id, out bool exists);
 
         if (!exists) {
             var aggrEntity = TAggregationEntity.Create(World);
-            aggr = new(aggrEntity, id, _groupPool.TryPop(out var pooled) ? pooled : new());
+            aggr = new(aggrEntity, id, _groupPool.TryPop(out var pooled) ? pooled : []) {
+                First = entity
+            };
             aggrEntity.Get<Aggregation<TId>>() = aggr;
         }
 
@@ -117,6 +120,9 @@ public class Aggregator<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTyp
             _aggrs.Remove(id);
             _groupPool.Push(group);
             aggrEntity.Dispose();
+        }
+        else if (aggr.First == entity) {
+            aggr.First = group.First();
         }
     }
 }
