@@ -13,7 +13,7 @@ public record struct Aggregation<TId> : IEnumerable<EntityRef>, IDisposable
 {
     public TId Id { get; }
     public EntityRef First { get; internal set; }
-    public IReadOnlySet<EntityRef> Group => RawGroup;
+    public readonly IReadOnlySet<EntityRef> Group => RawGroup;
     
     internal EntityRef Entity { get; }
     internal HashSet<EntityRef> RawGroup { get; }
