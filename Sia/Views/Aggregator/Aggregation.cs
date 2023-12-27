@@ -8,10 +8,11 @@ public static class Aggregation
     public readonly record struct EntityRemoved(EntityRef Entity) : IEvent;
 }
 
-public readonly record struct Aggregation<TId> : IEnumerable<EntityRef>, IDisposable
+public record struct Aggregation<TId> : IEnumerable<EntityRef>, IDisposable
     where TId : notnull
 {
     public TId Id { get; }
+    public EntityRef First { get; internal set; }
     public IReadOnlySet<EntityRef> Group => RawGroup;
     
     internal EntityRef Entity { get; }
