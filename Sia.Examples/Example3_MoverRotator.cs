@@ -83,7 +83,6 @@ public static partial class Example3_MoveRotator
 
     public sealed class MoverUpdateSystem : SystemBase
     {
-        [AllowNull] private Frame _frame;
         [AllowNull] private WorldCommandBuffer _buffer;
 
         public MoverUpdateSystem()
@@ -93,19 +92,20 @@ public static partial class Example3_MoveRotator
 
         public override void Initialize(World world, Scheduler scheduler)
         {
-            _frame = world.AcquireAddon<Frame>();
             _buffer = world.CreateCommandBuffer();
         }
 
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
-            query.ForEachParallel(this, static (sys, entity) => {
+            var frame = world.GetAddon<Frame>();
+            
+            query.ForEachParallel((_buffer, frame), static (d, entity) => {
                 ref var mover = ref entity.Get<Mover>();
                 ref var pos = ref entity.Get<Position>();
                 ref var rot = ref entity.Get<Rotation>();
 
-                var newPos = pos.Value + Vector3.Transform(Vector3.UnitZ, rot.Value) * mover.Speed * sys._frame.Delta;
-                sys._buffer.Modify(entity, new Position.SetValue(newPos));
+                var newPos = pos.Value + Vector3.Transform(Vector3.UnitZ, rot.Value) * mover.Speed * d.frame.Delta;
+                d._buffer.Modify(entity, new Position.SetValue(newPos));
             });
             _buffer.Submit();
         }
@@ -114,7 +114,6 @@ public static partial class Example3_MoveRotator
     [AfterSystem<MoverUpdateSystem>]
     public sealed class RotatorUpdateSystem : SystemBase
     {
-        [AllowNull] private Frame _frame;
         [AllowNull] private WorldCommandBuffer _buffer;
 
         public RotatorUpdateSystem()
@@ -124,18 +123,19 @@ public static partial class Example3_MoveRotator
 
         public override void Initialize(World world, Scheduler scheduler)
         {
-            _frame = world.AcquireAddon<Frame>();
             _buffer = world.CreateCommandBuffer();
         }
 
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
-            query.ForEachParallel(this, static (sys, entity) => {
+            var frame = world.GetAddon<Frame>();
+
+            query.ForEachParallel((_buffer, frame), static (d, entity) => {
                 ref var rotator = ref entity.Get<Rotator>();
                 ref var rot = ref entity.Get<Rotation>();
 
-                var newRot = rot.Value.ToEulerAngles() + rotator.AngularSpeed * sys._frame.Delta;
-                sys._buffer.Modify(entity, new Rotation.SetValue(newRot.ToQuaternion()));
+                var newRot = rot.Value.ToEulerAngles() + rotator.AngularSpeed * d.frame.Delta;
+                d._buffer.Modify(entity, new Rotation.SetValue(newRot.ToQuaternion()));
             });
             _buffer.Submit();
         }
