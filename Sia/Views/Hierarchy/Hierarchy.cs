@@ -7,7 +7,7 @@ public class Hierarchy<TTag> : ViewBase<TypeUnion<Node<TTag>>>, IEnumerable<Enti
 {
     public IReadOnlySet<EntityRef> Root => _root;
 
-    private readonly HashSet<EntityRef> _root = new();
+    private readonly HashSet<EntityRef> _root = [];
     private readonly Stack<HashSet<EntityRef>> _childrenPool = new();
 
     public override void OnInitialize(World world)
@@ -78,7 +78,7 @@ public class Hierarchy<TTag> : ViewBase<TypeUnion<Node<TTag>>>, IEnumerable<Enti
     {
         ref var parentNode = ref parent.Get<Node<TTag>>();
         ref var children = ref parentNode._children;
-        children ??= _childrenPool.TryPop(out var pooled) ? pooled : new();
+        children ??= _childrenPool.TryPop(out var pooled) ? pooled : [];
         children.Add(entity);
     }
 
