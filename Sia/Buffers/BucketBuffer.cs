@@ -3,13 +3,14 @@ namespace Sia;
 using System.Runtime.CompilerServices;
 using CommunityToolkit.HighPerformance;
 
-public sealed class BucketBuffer<T>(int bucketCapacity) : IBuffer<T>
+public sealed class BucketBuffer<T>(int bucketCapacity = 256) : IBuffer<T>
 {
     public int Capacity => int.MaxValue;
     public int BucketCapacity { get; } = bucketCapacity;
 
     private readonly List<T[]?> _buckets = [];
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetRef(int index)
     {
         int bucketIndex = index / BucketCapacity;
