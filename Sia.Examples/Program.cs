@@ -6,6 +6,7 @@ void Invoke(Action<World> action)
     Console.WriteLine("== " + action.Method.DeclaringType + " ==");
     var world = new World();
     world.Start(() => action(world));
+    world.Dispose();
     Console.WriteLine();
 }
 
