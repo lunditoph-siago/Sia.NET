@@ -10,7 +10,7 @@ public class SystemLibrary : IAddon
     public class Entry
     {
         public IReadOnlySet<Scheduler.TaskGraphNode> TaskGraphNodes => _taskGraphNodes;
-        internal readonly HashSet<Scheduler.TaskGraphNode> _taskGraphNodes = new();
+        internal readonly HashSet<Scheduler.TaskGraphNode> _taskGraphNodes = [];
     }
 
     private class Collector : IEntityQuery

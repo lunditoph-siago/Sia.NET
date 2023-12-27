@@ -10,7 +10,7 @@ public record struct Node<TTag>(EntityRef? Parent)
     internal HashSet<EntityRef> _children;
     internal EntityRef? _prevParent;
 
-    private static readonly HashSet<EntityRef> s_emptySet = new();
+    private static readonly HashSet<EntityRef> s_emptySet = [];
 
     public readonly record struct SetParent(EntityRef? Value) : IParallelCommand<Node<TTag>>, IReconstructableCommand<SetParent>
     {

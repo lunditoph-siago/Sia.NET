@@ -31,7 +31,7 @@ public class Dispatcher<TTarget, TEvent> : IEventSender<TTarget, TEvent>
             listeners = (List<Listener<UEvent>>)rawListeners!;
         }
         else {
-            listeners = new();
+            listeners = [];
             _eventListeners.Add(typeof(UEvent), listeners);
         }
         
@@ -41,7 +41,7 @@ public class Dispatcher<TTarget, TEvent> : IEventSender<TTarget, TEvent>
     public void Listen(in TTarget target, IEventListener<TTarget> listener)
     {
         if (!_targetListeners.TryGetValue(target, out var listeners)) {
-            listeners = _targetListenersPool.TryPop(out var result) ? result : new();
+            listeners = _targetListenersPool.TryPop(out var result) ? result : [];
             _targetListeners.Add(target, listeners);
         }
         listeners.Add(listener);

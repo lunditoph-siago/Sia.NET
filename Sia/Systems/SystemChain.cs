@@ -109,7 +109,7 @@ public record SystemChain(ImmutableList<SystemChain.Entry> Entries)
                             $"Proceeding system {preSysType} for system {type} is not found in the system chain.");
                     }
                 }
-                depSysTypes ??= new();
+                depSysTypes ??= [];
                 depSysTypes.UnionWith(preSysTypes);
             }
 
@@ -125,7 +125,7 @@ public record SystemChain(ImmutableList<SystemChain.Entry> Entries)
                             $"Following system {flwSysType} for system {type} is not found in the system chain.");
                     }
 
-                    (AcquireDependedSystemTypes(flwSysType, flwSysDepGetter) ??= new()).Add(type);
+                    (AcquireDependedSystemTypes(flwSysType, flwSysDepGetter) ??= []).Add(type);
                 }
             }
 
