@@ -295,7 +295,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
 
         source.Write('(');
         source.Write(arguments);
-        source.Write(") : global::Sia.ICommand, global::Sia.ICommand<");
+        source.Write(") : global::Sia.ICommand<");
         WriteComponentType();
         source.WriteLine('>');
         source.WriteLine('{');
