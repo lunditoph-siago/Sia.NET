@@ -226,11 +226,18 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         source.Write(property.DisplayType);
         source.Write(" Value) : global::Sia.IReconstructableCommand<");
         source.Write(commandName);
-        source.Write(">, global::Sia.IParallelCommand, global::Sia.IParallelCommand<");
+        source.Write(">, global::Sia.IParallelCommand<");
         WriteComponentType();
+        source.Write(">, global::Sia.IPropertyCommand<");
+        source.Write(property.DisplayType);
         source.WriteLine('>');
         source.WriteLine('{');
         source.Indent++;
+
+
+        source.Write("public static string PropertyName => \"");
+        source.Write(property.Name);
+        source.WriteLine("\";");
 
         source.Write("public static ");
         source.Write(commandName);
