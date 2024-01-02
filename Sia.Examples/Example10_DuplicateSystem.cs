@@ -2,15 +2,11 @@ namespace Sia.Examples;
 
 public static class Example10_DuplicateSystem
 {
-    public class PrintSystem : SystemBase
+    public class PrintSystem(string text)
+        : SystemBase(
+            matcher: Matchers.Any)
     {
-        private readonly string _text;
-
-        public PrintSystem(string text)
-        {
-            _text = text;
-            Matcher = Matchers.Any;
-        }
+        private readonly string _text = text;
 
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
