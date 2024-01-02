@@ -71,10 +71,12 @@ public class EntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTyp
     public unsafe ref TComponent GetOrNullRef<TComponent>(nint pointer, int version)
     {
         ref var entity = ref Storage.UnsafeGetRef(pointer, version);
-        var offset = EntityIndexer<T, TComponent>.Offset
-            ?? throw new ComponentNotFoundException("Component not found: " + typeof(TComponent));
+        var offset = EntityIndexer<T, TComponent>.Offset;
+        if (!offset.HasValue) {
+            return ref Unsafe.NullRef<TComponent>();
+        }
         return ref Unsafe.AsRef<TComponent>(
-            (void*)((IntPtr)Unsafe.AsPointer(ref entity) + offset));
+            (void*)((IntPtr)Unsafe.AsPointer(ref entity) + offset.Value));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
