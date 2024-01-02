@@ -38,13 +38,10 @@ public static partial class Example1_HealthDamage
         }
     }
 
-    public class HealthUpdateSystem : SystemBase
+    public class HealthUpdateSystem()
+        : SystemBase(
+            matcher: Matchers.Of<Health>())
     {
-        public HealthUpdateSystem()
-        {
-            Matcher = Matchers.Of<Health>();
-        }
-
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
             var game = world.GetAddon<Game>();
@@ -60,13 +57,10 @@ public static partial class Example1_HealthDamage
     }
 
     [AfterSystem<HealthUpdateSystem>]
-    public class DeathSystem : SystemBase
+    public class DeathSystem()
+        : SystemBase(
+            matcher: Matchers.Of<Health>())
     {
-        public DeathSystem()
-        {
-            Matcher = Matchers.Of<Health>();
-        }
-
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
             query.ForEach(static entity => {
@@ -78,24 +72,17 @@ public static partial class Example1_HealthDamage
         }
     }
 
-    public class HealthSystems : SystemBase
-    {
-        public HealthSystems()
-        {
-            Children = SystemChain.Empty
+    public class HealthSystems()
+        : SystemBase(
+            children: SystemChain.Empty
                 .Add<HealthUpdateSystem>()
-                .Add<DeathSystem>();
-        }
-    }
+                .Add<DeathSystem>());
 
-    public class LocationDamageSystem : SystemBase
+    public class LocationDamageSystem()
+        : SystemBase(
+            matcher: Matchers.Of<Transform, Health>(),
+            trigger: EventUnion.Of<WorldEvents.Add, Transform.SetPosition>())
     {
-        public LocationDamageSystem()
-        {
-            Matcher = Matchers.Of<Transform, Health>();
-            Trigger = EventUnion.Of<WorldEvents.Add, Transform.SetPosition>();
-        }
-
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
             query.ForEach(static entity => {
@@ -113,14 +100,10 @@ public static partial class Example1_HealthDamage
     }
 
     [BeforeSystem<HealthSystems>]
-    public class GameplaySystems : SystemBase
-    {
-        public GameplaySystems()
-        {
-            Children = SystemChain.Empty
-                .Add<LocationDamageSystem>();
-        }
-    }
+    public class GameplaySystems()
+        : SystemBase(
+            children: SystemChain.Empty
+                .Add<LocationDamageSystem>());
 
     public static class Player
     {

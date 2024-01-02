@@ -11,13 +11,10 @@ public static class Example8_SIMD
         public float Value;
     }
 
-    public class SumSystem : SystemBase
+    public class SumSystem()
+        : SystemBase(
+            matcher: Matchers.Of<Number>())
     {
-        public SumSystem()
-        {
-            Matcher = Matchers.Of<Number>();
-        }
-
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
             var watch = new Stopwatch();
@@ -40,13 +37,10 @@ public static class Example8_SIMD
         }
     }
 
-    public class VectorizedSumSystem : SystemBase
+    public class VectorizedSumSystem()
+        : SystemBase(
+            matcher: Matchers.Of<Number>())
     {
-        public VectorizedSumSystem()
-        {
-            Matcher = Matchers.Of<Number>();
-        }
-
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
             var watch = new Stopwatch();

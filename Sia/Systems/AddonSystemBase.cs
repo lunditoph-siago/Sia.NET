@@ -4,6 +4,17 @@ public abstract class AddonSystemBase : SystemBase
 {
     private readonly Dictionary<Type, Action<World>> _addonRemovers = [];
 
+    public AddonSystemBase() {}
+    public AddonSystemBase(
+        SystemChain? children = null, IEntityMatcher? matcher = null,
+        IEventUnion? trigger = null, IEventUnion? filter = null)
+    {
+        Children = children;
+        Matcher = matcher;
+        Trigger = trigger;
+        Filter = filter;
+    }
+
     protected TAddon AddAddon<TAddon>(World world)
         where TAddon : IAddon, new()
     {

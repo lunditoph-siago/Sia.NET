@@ -120,14 +120,11 @@ public static partial class Example11_RPG
         }
     }
 
-    public class DeadCharacterDestroySystem : SystemBase
+    public class DeadCharacterDestroySystem()
+        : SystemBase(
+            matcher: Matchers.Of<Character>(),
+            trigger: EventUnion.Of<Character.SetHP>())
     {
-        public DeadCharacterDestroySystem()
-        {
-            Matcher = Matchers.Of<Character>();
-            Trigger = EventUnion.Of<Character.SetHP>();
-        }
-
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
             query.ForEach(static entity => {
