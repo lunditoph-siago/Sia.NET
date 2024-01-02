@@ -1,6 +1,7 @@
 namespace Sia;
 
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using CommunityToolkit.HighPerformance;
 
 public sealed class BucketBuffer<T>(int bucketCapacity = 256) : IBuffer<T>
@@ -14,12 +15,8 @@ public sealed class BucketBuffer<T>(int bucketCapacity = 256) : IBuffer<T>
     public ref T GetRef(int index)
     {
         int bucketIndex = index / BucketCapacity;
-
         if (bucketIndex >= _buckets.Count) {
-            _buckets.EnsureCapacity(bucketIndex + 1);
-            while (bucketIndex >= _buckets.Count) {
-                _buckets.Add(null);
-            }
+            CollectionsMarshal.SetCount(_buckets, bucketIndex + 1);
         }
 
         ref var bucket = ref _buckets.AsSpan()[bucketIndex];
