@@ -20,14 +20,11 @@ public static partial class Example4_Aggregator
             });
     }
 
-    public sealed class ComponentCountSystem : SystemBase
+    public sealed class ComponentCountSystem()
+        : SystemBase(
+            matcher: Matchers.Of<ComponentCount, Aggregation<ObjectId>>(),
+            trigger: EventUnion.Of<Aggregation.EntityAdded, Aggregation.EntityRemoved>())
     {
-        public ComponentCountSystem()
-        {
-            Matcher = Matchers.Of<ComponentCount, Aggregation<ObjectId>>();
-            Trigger = EventUnion.Of<Aggregation.EntityAdded, Aggregation.EntityRemoved>();
-        }
-
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
             query.ForEach(world, static (world, entity) => {

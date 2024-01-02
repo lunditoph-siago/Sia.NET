@@ -18,13 +18,10 @@ public static class Example2_HealthRecover
         public HP() : this(100, 100, 0) {}
     }
 
-    public class HPAutoRecoverSystem : SystemBase
+    public class HPAutoRecoverSystem()
+        : SystemBase(
+            matcher: Matchers.Of<HP>())
     {
-        public HPAutoRecoverSystem()
-        {
-            Matcher = Matchers.Of<HP>();
-        }
-
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
             query.ForEach(static entity => {
@@ -41,14 +38,11 @@ public static class Example2_HealthRecover
         }
     }
 
-    public class DamageDisplaySystem : SystemBase
+    public class DamageDisplaySystem()
+        : SystemBase(
+            matcher: Matchers.Of<HP, Name>(),
+            trigger: EventUnion.Of<HP.Damage>())
     {
-        public DamageDisplaySystem()
-        {
-            Matcher = Matchers.Of<HP, Name>();
-            Trigger = EventUnion.Of<HP.Damage>();
-        }
-
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
             query.ForEach(static entity => {

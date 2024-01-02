@@ -67,28 +67,22 @@ public static partial class Example3_MoveRotator
     }
 
     [AfterSystem<MoverUpdateSystem>]
-    public sealed class PositionChangePrintSystem : SystemBase
+    public sealed class PositionChangePrintSystem()
+        : SystemBase(
+            matcher: Matchers.Of<Position>(),
+            trigger: EventUnion.Of<Position.SetValue>())
     {
-        public PositionChangePrintSystem()
-        {
-            Matcher = Matchers.Of<Position>();
-            Trigger = EventUnion.Of<Position.SetValue>();
-        }
-
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
             Console.WriteLine("PositionChangePrintSystem query count: " + query.Count);
         }
     }
 
-    public sealed class MoverUpdateSystem : SystemBase
+    public sealed class MoverUpdateSystem()
+        : SystemBase(
+            matcher: Matchers.Of<Mover, Position, Rotation>())
     {
         [AllowNull] private WorldCommandBuffer _buffer;
-
-        public MoverUpdateSystem()
-        {
-            Matcher = Matchers.Of<Mover, Position, Rotation>();
-        }
 
         public override void Initialize(World world, Scheduler scheduler)
         {
@@ -112,14 +106,11 @@ public static partial class Example3_MoveRotator
     }
 
     [AfterSystem<MoverUpdateSystem>]
-    public sealed class RotatorUpdateSystem : SystemBase
+    public sealed class RotatorUpdateSystem()
+        : SystemBase(
+            matcher: Matchers.Of<Rotator, Rotation>())
     {
         [AllowNull] private WorldCommandBuffer _buffer;
-
-        public RotatorUpdateSystem()
-        {
-            Matcher = Matchers.Of<Rotator, Rotation>();
-        }
 
         public override void Initialize(World world, Scheduler scheduler)
         {
@@ -141,14 +132,11 @@ public static partial class Example3_MoveRotator
         }
     }
 
-    public sealed class MoverRandomDestroySystem : SystemBase
+    public sealed class MoverRandomDestroySystem()
+        : SystemBase(
+            matcher: Matchers.Of<Mover, Position>())
     {
         [AllowNull] private WorldCommandBuffer _buffer;
-
-        public MoverRandomDestroySystem()
-        {
-            Matcher = Matchers.Of<Mover, Position>();
-        }
 
         public override void Initialize(World world, Scheduler scheduler)
         {

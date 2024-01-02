@@ -27,9 +27,7 @@ public static partial class Example5_ComponentBundle
             : this(
                 Position: new(),
                 Rotation: new(Quaternion.Identity),
-                Scale: new(Vector3.One))
-        {
-        }
+                Scale: new(Vector3.One)) {}
     }
     
     public record struct ObjectBundle(
@@ -39,9 +37,7 @@ public static partial class Example5_ComponentBundle
             : this(
                 Id: new(),
                 Name: new(),
-                TransformBundle: new())
-        {
-        }
+                TransformBundle: new()) {}
     }
     
     public record struct HP([SiaProperty] int Value);
