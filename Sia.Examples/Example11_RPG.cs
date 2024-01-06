@@ -172,8 +172,8 @@ public static partial class Example11_RPG
         var enemy = Human.Create(world, "Enemy");
 
         var magicSword = MagicSword.Create(world, MagicType.Fire);
-        player.Modify(new Character.SetLevel(100));
-        player.Modify(new Character.SetWeapon(magicSword));
+        player.Character_SetLevel(100);
+        player.Character_SetWeapon(magicSword);
 
         enemy.Modify(new Character.Damage(player));
         scheduler.Tick();

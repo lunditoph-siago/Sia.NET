@@ -39,7 +39,7 @@ public static partial class Example1_HealthDamage
         public readonly record struct Damage(float Value) : ICommand
         {
             public void Execute(World world, in EntityRef target)
-                => target.Modify(new SetValue(target.Get<Health>().Value - Value));
+                => target.Health_SetValue(target.Get<Health>().Value - Value);
         }
     }
 

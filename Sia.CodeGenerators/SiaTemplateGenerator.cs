@@ -51,12 +51,12 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
                         IFieldSymbol fieldSymbol =>
                             IsValidTemplateMember(fieldSymbol)
                                 ? ImmutableArray.Create(
-                                    new PropertyInfo(fieldSymbol.Name, fieldSymbol.Type, member.GetAttributes()))
+                                    new PropertyInfo(fieldSymbol.Name, fieldSymbol.Type, symbol, member.GetAttributes()))
                                 : Enumerable.Empty<PropertyInfo>(),
                         IPropertySymbol propSymbol =>
                             IsValidTemplateMember(propSymbol)
                                 ? ImmutableArray.Create(
-                                    new PropertyInfo(propSymbol.Name, propSymbol.Type, member.GetAttributes()))
+                                    new PropertyInfo(propSymbol.Name, propSymbol.Type, symbol, member.GetAttributes()))
                                 : Enumerable.Empty<PropertyInfo>(),
                         _ => Enumerable.Empty<PropertyInfo>()
                     });
@@ -82,8 +82,18 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
             });
         
         context.RegisterSourceOutput(codeGenInfos , static (context, info) => {
-            using var source = CreateSource(out var builder);
-            GenerateSource(source, info);
+            using var source = CreateFileSource(out var builder);
+            using var topLevelSource = CreateSource(out var topLevelBuilder);
+            topLevelSource.Indent++;
+
+            using (GenerateInNamespace(source, info.Namespace)) {
+                using (GenerateInPartialTypes(source, info.ParentTypes)) {
+                    GenerateComponent(source, topLevelSource, info);
+                }
+                source.WriteLine(topLevelBuilder.ToString());
+            }
+
+            Debug.Assert(source.Indent == 0);
             context.AddSource(GenerateFileName(info), builder.ToString());
         });
     }
@@ -93,19 +103,6 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
         => !symbol.IsStatic && symbol.DeclaredAccessibility == Accessibility.Public
             && !symbol.GetAttributes().Any(attr =>
                 attr.AttributeClass?.ToDisplayString() == SiaIgnoreAttributeName);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static string? GetTypeConstraints(INamedTypeSymbol targetSymbol)
-    {
-        var fullTemplateTypeString = 
-            targetSymbol.ToDisplayString(QualifiedTypeNameWithTypeConstraints);
-        var startIndex = fullTemplateTypeString.IndexOf('>') + 2;
-        if (startIndex >= fullTemplateTypeString.Length) {
-            return null;
-        }
-        return fullTemplateTypeString.Substring(startIndex);
-    }
-
     private static string GenerateFileName(CodeGenerationInfo info)
     {
         var builder = new StringBuilder();
@@ -120,77 +117,74 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
         return builder.ToString();
     }
 
-    private static void GenerateSource(IndentedTextWriter source, CodeGenerationInfo info)
+    private static void GenerateComponent(
+        IndentedTextWriter source, IndentedTextWriter topLevelSource, CodeGenerationInfo info)
     {
         var templateType = info.TemplateType;
         var compName = info.ComponentName;
         var properties = info.Properties;
         var immutable = info.Immutable;
 
-        using (GenerateInNamespace(source, info.Namespace)) {
-            using (GenerateInPartialTypes(source, info.ParentTypes)) {
-                source.Write(immutable
-                    ? "public readonly partial record struct "
-                    : "public partial record struct ");
-                source.Write(info.ComponentName);
-                WriteTypeParameters(source, templateType);
-                source.WriteLine("(");
-                source.Indent++;
+        source.Write(immutable
+            ? "public readonly partial record struct "
+            : "public partial record struct ");
+        source.Write(info.ComponentName);
+        WriteTypeParameters(source, templateType);
+        source.WriteLine("(");
+        source.Indent++;
 
-                int index = 0;
-                int lastIndex = properties.Length - 1;
+        int index = 0;
+        int lastIndex = properties.Length - 1;
 
-                foreach (var prop in properties) {
-                    source.Write(prop.DisplayType);
-                    source.Write(" ");
-                    source.Write(prop.Name);
+        foreach (var prop in properties) {
+            source.Write(prop.DisplayType);
+            source.Write(" ");
+            source.Write(prop.Name);
 
-                    if (index != lastIndex) {
-                        source.WriteLine(", ");
-                    }
-                    index++;
-                }
+            if (index != lastIndex) {
+                source.WriteLine(", ");
+            }
+            index++;
+        }
 
-                source.Write(") : global::Sia.IConstructable<");
-                source.Write(info.ComponentName);
-                WriteTypeParameters(source, templateType);
-                source.Write(", ");
-                source.Write(templateType.Identifier.ToString());
-                WriteTypeParameters(source, templateType);
-                source.WriteLine(">");
-                if (info.TypeConstraints != null) {
-                    source.WriteLine(info.TypeConstraints);
-                }
-                source.Indent--;
+        source.Write(") : global::Sia.IConstructable<");
+        source.Write(info.ComponentName);
+        WriteTypeParameters(source, templateType);
+        source.Write(", ");
+        source.Write(templateType.Identifier.ToString());
+        WriteTypeParameters(source, templateType);
+        source.WriteLine(">");
+        if (info.TypeConstraints != null) {
+            source.WriteLine(info.TypeConstraints);
+        }
+        source.Indent--;
 
-                source.WriteLine("{");
-                source.Indent++;
+        source.WriteLine("{");
+        source.Indent++;
 
-                GenerateConstructor(source, templateType, compName, properties);
+        GenerateConstructor(source, templateType, compName, properties);
 
+        source.WriteLine();
+        GenerateConstructMethod(source, templateType, compName, properties);
+
+        if (!immutable) {
+            source.WriteLine();
+            GenerateResetCommand(source,
+                templateType: templateType,
+                componentName: compName,
+                properties: properties);
+            
+            var parentType = string.Join(".", info.ParentTypes.Select(t => t.Identifier));
+
+            foreach (var prop in properties) {
                 source.WriteLine();
-                GenerateConstructMethod(source, templateType, compName, properties);
-
-                if (!immutable) {
-                    source.WriteLine();
-                    GenerateResetCommand(source,
-                        templateType: templateType,
-                        componentName: compName,
-                        properties: properties);
-
-                    foreach (var prop in properties) {
-                        source.WriteLine();
-                        SiaPropertyGenerator.GeneratePropertyCommands(
-                            source, prop, compName, templateType.TypeParameterList);
-                    }
-                }
-
-                source.Indent--;
-                source.WriteLine("}");
+                SiaPropertyGenerator.GeneratePropertyCommands(
+                    source, topLevelSource, parentType, prop, compName, templateType.TypeParameterList);
             }
         }
 
-        Debug.Assert(source.Indent == 0);
+        source.Indent--;
+        source.WriteLine("}");
     }
 
     public static void GenerateConstructor(

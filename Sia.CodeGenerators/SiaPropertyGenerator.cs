@@ -38,12 +38,15 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
                     && CheckWritable(syntaxNode),
             static (syntax, token) => {
                 FindParentNode<TypeDeclarationSyntax>(syntax.TargetNode, out var componentType);
-                return (syntax, componentType!, ParentTypes: GetParentTypes(componentType!));
+                return (syntax, componentType!, parentTypes: GetParentTypes(componentType!));
             })
-            .Where(static t => t.ParentTypes.All(
+            .Where(static t => t.parentTypes.All(
                 static typeDecl => typeDecl.Modifiers.Any(SyntaxKind.PartialKeyword)))
             .Select(static (t, token) => {
                 var (syntax, containtingType, parentTypes) = t;
+
+                var model = syntax.SemanticModel;
+                var targetSymbol = model.GetDeclaredSymbol(containtingType, token)!;
 
                 return new CodeGenerationInfo(
                     Namespace: syntax.TargetSymbol.ContainingNamespace,
@@ -58,13 +61,29 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
                             ParameterSyntax paramSyntax =>
                                 GetNodeType(syntax.SemanticModel, paramSyntax.Type!, token),
                             _ => throw new InvalidDataException("Invalid syntax")
-                        }, syntax.Attributes)
+                        },
+                        targetSymbol, syntax.Attributes)
                 );
             });
         
         context.RegisterSourceOutput(codeGenInfos, static (context, info) => {
-            using var source = CreateSource(out var builder);
-            GenerateSource(info, source);
+            using var source = CreateFileSource(out var builder);
+            using var topLevelSource = CreateSource(out var topLevelBuilder);
+            topLevelSource.Indent++;
+
+            var componentType = info.ComponentType;
+            using (GenerateInNamespace(source, info.Namespace)) {
+                using (GenerateInPartialTypes(source, info.ParentTypes.Append(componentType))) {
+                    var compTypeStr = componentType.Identifier.ToString();
+                    var compTypeParams = componentType.TypeParameterList;
+                    GeneratePropertyCommands(
+                        source, topLevelSource, string.Join(".", info.ParentTypes.Select(t => t.Identifier)),
+                        info.Property, compTypeStr, compTypeParams);
+                }
+                source.WriteLine(topLevelBuilder.ToString());
+            }
+
+            Debug.Assert(source.Indent == 0);
             context.AddSource(GenerateFileName(info), builder.ToString());
         });
     }
@@ -100,28 +119,18 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         return builder.ToString();
     }
 
-    private static void GenerateSource(CodeGenerationInfo info, IndentedTextWriter source)
-    {
-        var componentType = info.ComponentType;
-        using (GenerateInNamespace(source, info.Namespace)) {
-            using (GenerateInPartialTypes(source, info.ParentTypes.Append(componentType))) {
-                var compTypeStr = componentType.Identifier.ToString();
-                var compTypeParams = componentType.TypeParameterList;
-                GeneratePropertyCommands(source, info.Property, compTypeStr, compTypeParams);
-            }
-        }
-        Debug.Assert(source.Indent == 0);
-    }
-
     public static void GeneratePropertyCommands(
-        IndentedTextWriter source, in PropertyInfo property,
-        string componentType, TypeParameterListSyntax? componentTypeParams = null)
+        IndentedTextWriter source, IndentedTextWriter topLevelSource, string parentTypes,
+        in PropertyInfo property, string componentType,
+        TypeParameterListSyntax? componentTypeParams = null)
     {
         if (property.GetArgument("NoCommands", false)) {
             return;
         }
         if (property.GetArgument("GenerateSetCommand", true)) {
-            GenerateSetCommand(source, property, componentType, componentTypeParams);
+            GenerateSetCommand(
+                source, topLevelSource, parentTypes,
+                property, componentType, componentTypeParams);
         }
 
         var immutableType = property.ImmutableContainerType;
@@ -140,20 +149,32 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
             if (property.GetArgument("GenerateAddItemCommand", true)) {
                 source.WriteLine();
                 GenerateImmutableContainerCommand(
-                    source, property, componentType, componentTypeParams,
-                    "Add" + itemName, $"{keyType} Key, {valueType} Value", ".Add(Key, Value);");
+                    source, topLevelSource, parentTypes,
+                    property, componentType, componentTypeParams,
+                    "Add" + itemName,
+                    $"{keyType} Key, {valueType} Value",
+                    "Key, Value",
+                    ".Add(Key, Value);");
             }
             if (property.GetArgument("GenerateSetItemCommand", true)) {
                 source.WriteLine();
                 GenerateImmutableContainerCommand(
-                    source, property, componentType, componentTypeParams,
-                    "Set" + itemName, $"{keyType} Key, {valueType} Value", ".SetItem(Key, Value);");
+                    source, topLevelSource, parentTypes,
+                    property, componentType, componentTypeParams,
+                    "Set" + itemName,
+                    $"{keyType} Key, {valueType} Value",
+                    "Key, Value",
+                    ".SetItem(Key, Value);");
             }
             if (property.GetArgument("GenerateRemoveItemCommand", true)) {
                 source.WriteLine();
                 GenerateImmutableContainerCommand(
-                    source, property, componentType, componentTypeParams,
-                    "Remove" + itemName, $"{keyType} Key", ".Remove(Key);");
+                    source, topLevelSource, parentTypes,
+                    property, componentType, componentTypeParams,
+                    "Remove" + itemName,
+                    $"{keyType} Key",
+                    "Key",
+                    ".Remove(Key);");
             }
             break;
 
@@ -163,8 +184,12 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
             if (property.GetArgument("GenerateAddItemCommand", true)) {
                 source.WriteLine();
                 GenerateImmutableContainerCommand(
-                    source, property, componentType, componentTypeParams,
-                    "Enqueue" + itemName, $"{valueType} Value", ".Enqueue(Value);");
+                    source, topLevelSource, parentTypes,
+                    property, componentType, componentTypeParams,
+                    "Enqueue" + itemName,
+                    $"{valueType} Value",
+                    "Value",
+                    ".Enqueue(Value);");
             }
             break;
 
@@ -174,8 +199,12 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
             if (property.GetArgument("GenerateAddItemCommand", true)) {
                 source.WriteLine();
                 GenerateImmutableContainerCommand(
-                    source, property, componentType, componentTypeParams,
-                    "Push" + itemName, $"{valueType} Value", ".Push(Value);");
+                    source, topLevelSource, parentTypes,
+                    property, componentType, componentTypeParams,
+                    "Push" + itemName,
+                    $"{valueType} Value",
+                    "Value",
+                    ".Push(Value);");
             }
             break;
         
@@ -187,27 +216,40 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
             if (property.GetArgument("GenerateAddItemCommand", true)) {
                 source.WriteLine();
                 GenerateImmutableContainerCommand(
-                    source, property, componentType, componentTypeParams,
-                    "Add" + itemName, $"{valueType} Value", ".Add(Value);");
+                    source, topLevelSource, parentTypes,
+                    property, componentType, componentTypeParams,
+                    "Add" + itemName,
+                    $"{valueType} Value",
+                    "Value",
+                    ".Add(Value);");
             }
             if (immutableType != "HashSet" && property.GetArgument("GenerateSetItemCommand", true)) {
                 source.WriteLine();
                 GenerateImmutableContainerCommand(
-                    source, property, componentType, componentTypeParams,
-                    "Set" + itemName, $"int Index, {valueType} Value", ".SetItem(Index, Value);");
+                    source, topLevelSource, parentTypes,
+                    property, componentType, componentTypeParams,
+                    "Set" + itemName,
+                    $"int Index, {valueType} Value",
+                    "Index, Value",
+                    ".SetItem(Index, Value);");
             }
             if (property.GetArgument("GenerateRemoveItemCommand", true)) {
                 source.WriteLine();
                 GenerateImmutableContainerCommand(
-                    source, property, componentType, componentTypeParams,
-                    "Remove" + itemName, $"{valueType} Value", ".Remove(Value);");
+                    source, topLevelSource, parentTypes,
+                    property, componentType, componentTypeParams,
+                    "Remove" + itemName,
+                    $"{valueType} Value",
+                    "Value",
+                    ".Remove(Value);");
             }
             break;
         }
     }
 
     public static void GenerateSetCommand(
-        IndentedTextWriter source, in PropertyInfo property, string componentType,
+        IndentedTextWriter source, IndentedTextWriter topLevelSource, string parentTypes,
+        in PropertyInfo property, string componentType,
         TypeParameterListSyntax? componentTypeParams = null)
     {
         void WriteComponentType()
@@ -282,12 +324,16 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
 
         source.Indent--;
         source.WriteLine("}");
+
+        GenerateEntityCommandExtensions(
+            topLevelSource, parentTypes, property,
+            componentType, componentTypeParams, commandName, property.DisplayType + " Value", "Value");
     }
 
     public static void GenerateImmutableContainerCommand(
-        IndentedTextWriter source, in PropertyInfo property, string componentType,
-        TypeParameterListSyntax? componentTypeParams,
-        string commandName, string arguments, string call)
+        IndentedTextWriter source, IndentedTextWriter topLevelSource, string parentTypes,
+        in PropertyInfo property, string componentType, TypeParameterListSyntax? componentTypeParams,
+        string commandName, string arguments, string parameters, string call)
     {
         void WriteComponentType()
         {
@@ -341,6 +387,57 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
 
         source.Indent--;
         source.WriteLine("}");
+
+        source.Indent--;
+        source.WriteLine("}");
+
+        GenerateEntityCommandExtensions(
+            topLevelSource, parentTypes, property,
+            componentType, componentTypeParams, commandName, arguments, parameters);
+    }
+
+    public static void GenerateEntityCommandExtensions(
+        IndentedTextWriter source, string parentTypes, PropertyInfo property,
+        string componentType, TypeParameterListSyntax? componentTypeParams,
+        string commandName, string arguments, string parameters)
+    {
+        source.Write("public static class ");
+        source.Write(componentType);
+        source.Write(commandName);
+        source.WriteLine("Extensions");
+
+        source.WriteLine('{');
+        source.Indent++;
+
+        // EntityRef
+
+        source.Write("public static void ");
+        source.Write(componentType);
+        source.Write('_');
+        source.Write(commandName);
+        if (componentTypeParams != null) {
+            WriteTypeParameters(source, componentTypeParams);
+        }
+        source.Write("(this global::Sia.EntityRef entity, ");
+        source.Write(arguments);
+        source.WriteLine(")");
+        source.Indent++;
+        if (componentTypeParams != null) {
+            source.WriteLine(GetTypeConstraints(property.ComponentSymbol));
+        }
+        source.Write("=> entity.Modify(new ");
+        source.Write(parentTypes);
+        source.Write('.');
+        source.Write(componentType);
+        if (componentTypeParams != null) {
+            WriteTypeParameters(source, componentTypeParams);
+        }
+        source.Write('.');
+        source.Write(commandName);
+        source.Write("(");
+        source.Write(parameters);
+        source.WriteLine("));");
+        source.Indent--;
 
         source.Indent--;
         source.WriteLine("}");

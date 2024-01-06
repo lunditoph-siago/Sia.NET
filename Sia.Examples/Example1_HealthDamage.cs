@@ -1,7 +1,6 @@
 namespace Sia.Examples;
 
 using System.Numerics;
-
 using Sia;
 
 public static partial class Example1_HealthDamage
@@ -34,7 +33,7 @@ public static partial class Example1_HealthDamage
         public readonly record struct Damage(float Value) : ICommand
         {
             public void Execute(World world, in EntityRef target)
-                => target.Modify(new SetValue(target.Get<Health>().Value - Value));
+                => target.Health_SetValue(target.Get<Health>().Value - Value);
         }
     }
 
@@ -92,7 +91,7 @@ public static partial class Example1_HealthDamage
                     Console.WriteLine($"Damage: HP {entity.Get<Health>().Value}");
                 }
                 if (pos.X == 1 && pos.Y == 2) {
-                    entity.Modify(new Health.SetDebuff(100));
+                    entity.Health_SetDebuff(100);
                     Console.WriteLine("Debuff!");
                 }
             });
@@ -134,7 +133,7 @@ public static partial class Example1_HealthDamage
         var player = Player.Create(world, new(1, 1));
         game.Update(0.5f);
 
-        player.Modify(new Transform.SetPosition(new(1, 2)));
+        player.Transform_SetPosition(new(1, 2));
         game.Update(0.5f);
 
         game.Scheduler.CreateTask(() => {
