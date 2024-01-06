@@ -26,7 +26,7 @@ public static partial class Example7_Mapper
         Console.WriteLine(mapper[id2] == e2);
 
         var id3 = ObjectId.Create();
-        world.Modify(e2, new Sid<ObjectId>.SetValue(id3));
+        e2.SetSid(id3);
 
         Console.WriteLine(mapper[id3] == e2);
     }

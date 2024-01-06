@@ -30,7 +30,7 @@ public static partial class Example4_Aggregator
             query.ForEach(world, static (world, entity) => {
                 ref var aggr = ref entity.Get<Aggregation<ObjectId>>();
                 int count = aggr.Group.Count;
-                entity.Modify(new ComponentCount.SetValue(count));
+                entity.ComponentCount_SetValue(count);
                 Console.WriteLine($"[{aggr.Id}] Count: " + count);
             });
         }
@@ -73,12 +73,12 @@ public static partial class Example4_Aggregator
         Console.WriteLine("Tick!");
         scheduler.Tick();
 
-        world.Modify(e2, new Sid<ObjectId>.SetValue(2));
+        e2.SetSid<ObjectId>(2);
 
         Console.WriteLine("Tick!");
         scheduler.Tick();
 
-        world.Modify(e1, new Sid<ObjectId>.SetValue(2));
+        e1.SetSid<ObjectId>(2);
         scheduler.Tick();
 
         var aggr = aggregator.Find(1);
