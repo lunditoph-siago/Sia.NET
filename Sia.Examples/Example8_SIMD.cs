@@ -1,8 +1,9 @@
-namespace Sia.Examples;
+namespace Sia_Examples;
 
 using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using Sia;
 
 public static class Example8_SIMD
 {

@@ -1,7 +1,8 @@
-namespace Sia.Examples;
+namespace Sia_Examples;
 
 using System.Collections.Immutable;
 using System.Numerics;
+using Sia;
 
 public static partial class Example9_Templates
 {

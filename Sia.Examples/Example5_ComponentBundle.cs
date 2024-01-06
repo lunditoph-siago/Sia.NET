@@ -1,6 +1,7 @@
-namespace Sia.Examples;
+namespace Sia_Examples;
 
 using System.Numerics;
+using Sia;
 
 public static partial class Example5_ComponentBundle
 {

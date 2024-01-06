@@ -1,4 +1,6 @@
-namespace Sia.Examples;
+namespace Sia_Examples;
+
+using Sia;
 
 public static partial class Example4_Aggregator
 {

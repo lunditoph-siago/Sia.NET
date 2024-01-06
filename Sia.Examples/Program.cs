@@ -1,5 +1,5 @@
 using Sia;
-using Sia.Examples;
+using Sia_Examples;
 
 void Invoke(Action<World> action)
 {

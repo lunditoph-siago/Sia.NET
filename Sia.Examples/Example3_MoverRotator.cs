@@ -1,4 +1,4 @@
-namespace Sia.Examples;
+namespace Sia_Examples;
 
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
