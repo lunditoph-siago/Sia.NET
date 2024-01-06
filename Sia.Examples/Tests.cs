@@ -1,6 +1,7 @@
-﻿namespace Sia.Examples;
+﻿namespace Sia_Examples;
 
 using System.Runtime.CompilerServices;
+using Sia;
 
 public record struct Position
 {

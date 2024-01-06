@@ -1,4 +1,4 @@
-namespace Sia.Examples;
+namespace Sia_Examples;
 
 using System.Numerics;
 using Sia;
@@ -141,7 +141,7 @@ public static partial class Example1_HealthDamage
             return true; // remove task
         }, handle.TaskGraphNodes);
     
-        player.Modify(new Transform.SetPosition(new(1, 3)));
+        player.Transform_SetPosition(new(1, 3));
         game.Update(0.5f);
         game.Update(0.5f);
         game.Update(0.5f);
