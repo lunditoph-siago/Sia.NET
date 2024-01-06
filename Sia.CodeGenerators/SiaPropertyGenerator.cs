@@ -426,8 +426,10 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
             source.WriteLine(GetTypeConstraints(property.ComponentSymbol));
         }
         source.Write("=> global::Sia.Context<global::Sia.World>.Current!.Modify(entity, new ");
-        source.Write(parentTypes);
-        source.Write('.');
+        if (parentTypes != "") {
+            source.Write(parentTypes);
+            source.Write('.');
+        }
         source.Write(componentType);
         if (componentTypeParams != null) {
             WriteTypeParameters(source, componentTypeParams);
