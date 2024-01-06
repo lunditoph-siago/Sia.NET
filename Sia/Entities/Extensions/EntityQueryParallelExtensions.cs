@@ -8,34 +8,29 @@ public static class EntityQueryParallelExtensions
 {
     public delegate void RecordFunc<TResult>(in EntityRef entity, ref TResult result);
     public delegate void RecordFunc<TData, TResult>(in TData data, in EntityRef entity, ref TResult result);
+    public delegate bool CondRecordFunc<TResult>(in EntityRef entity, ref TResult result);
+    public delegate bool CondRecordFunc<TData, TResult>(in TData data, in EntityRef entity, ref TResult result);
 
-    private readonly struct ForEachParallelAction(
-        ArraySegment<EntityRef> array, EntityHandler handler)
+    private readonly record struct ForEachParallelAction(
+        ArraySegment<EntityRef> Array, EntityHandler Handler)
     {
-        private readonly ArraySegment<EntityRef> _array = array;
-        private readonly EntityHandler _handler = handler;
-
         public void Invoke(System.Tuple<int, int> range)
         {
-            var span = _array.AsSpan();
+            var span = Array.AsSpan();
             for (int i = range.Item1; i != range.Item2; ++i) {
-                _handler(span[i]);
+                Handler(span[i]);
             }
         }
     }
 
-    private readonly struct ForEachParallelAction<TData>(
-        ArraySegment<EntityRef> array, in TData data, EntityHandler<TData> handler)
+    private readonly record struct ForEachParallelAction<TData>(
+        ArraySegment<EntityRef> Array, in TData Data, EntityHandler<TData> Handler)
     {
-        private readonly ArraySegment<EntityRef> _array = array;
-        private readonly TData _data = data;
-        private readonly EntityHandler<TData> _handler = handler;
-
         public void Invoke(System.Tuple<int, int> range)
         {
-            var span = _array.AsSpan();
+            var span = Array.AsSpan();
             for (int i = range.Item1; i != range.Item2; ++i) {
-                _handler(_data, span[i]);
+                Handler(Data, span[i]);
             }
         }
     }
@@ -59,6 +54,21 @@ public static class EntityQueryParallelExtensions
         public readonly TData Data = data;
         public readonly ArraySegment<TResult> Array = array;
         public readonly RecordFunc<TData, TResult> RecordFunc = recordFunc;
+    }
+
+    private readonly unsafe struct CondRecordData<T>(int* index, ArraySegment<T> array, CondRecordFunc<T> recordFunc)
+    {
+        public readonly int* Index = index;
+        public readonly ArraySegment<T> Array = array;
+        public readonly CondRecordFunc<T> RecordFunc = recordFunc;
+    }
+
+    private readonly unsafe struct CondRecordData<TData, TResult>(int* index, in TData data, ArraySegment<TResult> array, CondRecordFunc<TData, TResult> recordFunc)
+    {
+        public readonly int* Index = index;
+        public readonly TData Data = data;
+        public readonly ArraySegment<TResult> Array = array;
+        public readonly CondRecordFunc<TData, TResult> RecordFunc = recordFunc;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -139,12 +149,48 @@ public static class EntityQueryParallelExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static unsafe SpanOwner<TResult> Record<TResult>(
+        this IEntityQuery query, CondRecordFunc<TResult> recordFunc, out int count)
+    {
+        var queryCount = query.Count;
+        if (queryCount == 0) {
+            count = 0;
+            return default;
+        }
+
+        var spanOwner = SpanOwner<TResult>.Allocate(queryCount);
+        count = Record(query, spanOwner.DangerousGetArray(), recordFunc);
+        return spanOwner;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static unsafe SpanOwner<TResult> Record<TData, TResult>(
+        this IEntityQuery query, in TData data, CondRecordFunc<TData, TResult> recordFunc, out int count)
+    {
+        var queryCount = query.Count;
+        if (queryCount == 0) {
+            count = 0;
+            return default;
+        }
+
+        var spanOwner = SpanOwner<TResult>.Allocate(queryCount);
+        count = Record(query, data, spanOwner.DangerousGetArray(), recordFunc);
+        return spanOwner;
+    }
+
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void Record(this IEntityQuery query, MemoryOwner<EntityRef> memory)
         => Record(query, memory.DangerousGetArray());
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void Record<TResult>(
         this IEntityQuery query, MemoryOwner<TResult> memory, RecordFunc<TResult> recordFunc)
+        => Record(query, memory.DangerousGetArray(), recordFunc);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static int Record<TResult>(
+        this IEntityQuery query, MemoryOwner<TResult> memory, CondRecordFunc<TResult> recordFunc)
         => Record(query, memory.DangerousGetArray(), recordFunc);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -158,11 +204,12 @@ public static class EntityQueryParallelExtensions
         int index = 0;
         var indexPtr = (int*)Unsafe.AsPointer(ref index);
 
-        query.ForEach(new(indexPtr, array), static (in RecordData data, in EntityRef entity) => {
-            ref int index = ref *data.Index;
-            data.Array[index] = entity;
-            ++index;
-        });
+        query.ForEach(new(indexPtr, array),
+            static (in RecordData data, in EntityRef entity) => {
+                ref int index = ref *data.Index;
+                data.Array[index] = entity;
+                index++;
+            });
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -172,11 +219,12 @@ public static class EntityQueryParallelExtensions
         int index = 0;
         var indexPtr = (int*)Unsafe.AsPointer(ref index);
 
-        query.ForEach(new(indexPtr, array, recordFunc), static (in RecordData<TResult> data, in EntityRef entity) => {
-            ref int index = ref *data.Index;
-            data.RecordFunc(entity, ref data.Array.AsSpan()[index]);
-            ++index;
-        });
+        query.ForEach(new(indexPtr, array, recordFunc),
+            static (in RecordData<TResult> data, in EntityRef entity) => {
+                ref int index = ref *data.Index;
+                data.RecordFunc(entity, ref data.Array.AsSpan()[index]);
+                index++;
+            });
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -186,10 +234,47 @@ public static class EntityQueryParallelExtensions
         int index = 0;
         var indexPtr = (int*)Unsafe.AsPointer(ref index);
 
-        query.ForEach(new(indexPtr, data, array, recordFunc), static (in RecordData<TData, TResult> data, in EntityRef entity) => {
-            ref int index = ref *data.Index;
-            data.RecordFunc(data.Data, entity, ref data.Array.AsSpan()[index]);
-            ++index;
-        });
+        query.ForEach(new(indexPtr, data, array, recordFunc),
+            static (in RecordData<TData, TResult> data, in EntityRef entity) => {
+                ref int index = ref *data.Index;
+                data.RecordFunc(data.Data, entity, ref data.Array.AsSpan()[index]);
+                index++;
+            });
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static int Record<TResult>(
+        this IEntityQuery query, ArraySegment<TResult> array, CondRecordFunc<TResult> recordFunc)
+    {
+        int index = 0;
+        var indexPtr = (int*)Unsafe.AsPointer(ref index);
+
+        query.ForEach(new(indexPtr, array, recordFunc),
+            static (in CondRecordData<TResult> data, in EntityRef entity) => {
+                ref int index = ref *data.Index;
+                if (data.RecordFunc(entity, ref data.Array.AsSpan()[index])) {
+                    index++;
+                }
+            });
+
+        return index;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static int Record<TData, TResult>(
+        this IEntityQuery query, in TData data, ArraySegment<TResult> array, CondRecordFunc<TData, TResult> recordFunc)
+    {
+        int index = 0;
+        var indexPtr = (int*)Unsafe.AsPointer(ref index);
+
+        query.ForEach(new(indexPtr, data, array, recordFunc),
+            static (in CondRecordData<TData, TResult> data, in EntityRef entity) => {
+                ref int index = ref *data.Index;
+                if (data.RecordFunc(data.Data, entity, ref data.Array.AsSpan()[index])) {
+                    index++;
+                }
+            });
+        
+        return index;
     }
 }
