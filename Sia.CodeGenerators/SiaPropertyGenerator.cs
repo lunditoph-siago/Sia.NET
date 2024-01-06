@@ -425,7 +425,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         if (componentTypeParams != null) {
             source.WriteLine(GetTypeConstraints(property.ComponentSymbol));
         }
-        source.Write("=> entity.Modify(new ");
+        source.Write("=> global::Sia.Context<global::Sia.World>.Current!.Modify(entity, new ");
         source.Write(parentTypes);
         source.Write('.');
         source.Write(componentType);
