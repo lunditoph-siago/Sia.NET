@@ -132,10 +132,26 @@ public record SystemChain(ImmutableList<SystemChain.Entry> Entries)
             return ref depSysTypes;
         }
 
-        List<SystemHandle> DoRegister(Type type)
+#pragma warning disable CS8602 // Dereference of a possibly null reference.
+#pragma warning disable CS8604 // Possible null reference argument.
+        List<SystemHandle> DoRegisterAll(Type type)
         {
+            foreach (var entry in Entries) {
+                if (entry.Type == type) {
+                    DoRegister(entry);
+                }
+            }
+            return sysHandlesDict[type]!;
+        }
+
+        List<SystemHandle> DoRegister(Entry entry)
+        {
+            var type = entry.Type;
             ref var sysHandles = ref CollectionsMarshal.GetValueRefOrAddDefault(
                 sysHandlesDict, type, out bool exists);
+
+            SystemHandle? sysHandle;
+
             if (exists) {
                 if (sysHandles == null) {
                     foreach (var handles in sysHandlesDict.Values) {
@@ -148,12 +164,15 @@ public record SystemChain(ImmutableList<SystemChain.Entry> Entries)
                     }
                     throw new InvalidSystemDependencyException($"Circular dependency found for system {type}.");
                 }
+                sysHandle = entry.Registerer(sysLib, scheduler, null);
+                sysHandles.Add(sysHandle);
+                sysHandleList.Add(sysHandle);
                 return sysHandles;
             }
 
             var depSysTypes = depSysTypesDict[type];
             var depSysHandles = depSysTypes?.SelectMany(
-                depSysType => DoRegister(depSysType).Select(handle => handle.TaskGraphNode));
+                depSysType => DoRegisterAll(depSysType).Select(handle => handle.TaskGraphNode));
 
             depSysHandles = depSysHandles != null
                 ? dependedTasks?.Concat(depSysHandles.ToArray()) ?? depSysHandles.ToArray()
@@ -161,22 +180,19 @@ public record SystemChain(ImmutableList<SystemChain.Entry> Entries)
 
             sysHandles = [];
             
-            foreach (var entry in Entries) {
-                if (entry.Type == type) {
-                    var sysHandle = entry.Registerer(sysLib, scheduler, depSysHandles);
-                    sysHandles.Add(sysHandle);
-                    sysHandleList.Add(sysHandle);
-                }
-            }
-
+            sysHandle = entry.Registerer(sysLib, scheduler, depSysHandles);
+            sysHandles.Add(sysHandle);
+            sysHandleList.Add(sysHandle);
             return sysHandles;
         }
+#pragma warning restore CS8602 // Dereference of a possibly null reference.
+#pragma warning restore CS8604 // Possible null reference argument.
 
         foreach (var (type, _, depGetter) in Entries) {
             AcquireDependedSystemTypes(type, depGetter);
         }
         foreach (var entry in Entries) {
-            DoRegister(entry.Type);
+            DoRegister(entry);
         }
         return new Handle(sysHandleList);
     }
