@@ -134,6 +134,7 @@ public record SystemChain(ImmutableList<SystemChain.Entry> Entries)
 
 #pragma warning disable CS8602 // Dereference of a possibly null reference.
 #pragma warning disable CS8604 // Possible null reference argument.
+
         List<SystemHandle> DoRegisterAll(Type type)
         {
             foreach (var entry in Entries) {
@@ -185,6 +186,7 @@ public record SystemChain(ImmutableList<SystemChain.Entry> Entries)
             sysHandleList.Add(sysHandle);
             return sysHandles;
         }
+
 #pragma warning restore CS8602 // Dereference of a possibly null reference.
 #pragma warning restore CS8604 // Possible null reference argument.
 
