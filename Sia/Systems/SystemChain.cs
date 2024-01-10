@@ -86,6 +86,7 @@ public record SystemChain(ImmutableList<SystemChain.Entry> Entries)
         var depSysTypesDict = new Dictionary<Type, HashSet<Type>?>();
         var sysHandlesDict = new Dictionary<Type, List<SystemHandle>?>();
         var sysHandleList = new List<SystemHandle>(Entries.Count);
+        var registeredEntries = new HashSet<Entry>();
         
         ref HashSet<Type>? AcquireDependedSystemTypes(Type type, Func<Dependencies> dependenciesGetter)
         {
@@ -165,9 +166,11 @@ public record SystemChain(ImmutableList<SystemChain.Entry> Entries)
                     }
                     throw new InvalidSystemDependencyException($"Circular dependency found for system {type}.");
                 }
-                sysHandle = entry.Registerer(sysLib, scheduler, null);
-                sysHandles.Add(sysHandle);
-                sysHandleList.Add(sysHandle);
+                if (registeredEntries.Add(entry)) {
+                    sysHandle = entry.Registerer(sysLib, scheduler, null);
+                    sysHandles.Add(sysHandle);
+                    sysHandleList.Add(sysHandle);
+                }
                 return sysHandles;
             }
 
@@ -184,6 +187,8 @@ public record SystemChain(ImmutableList<SystemChain.Entry> Entries)
             sysHandle = entry.Registerer(sysLib, scheduler, depSysHandles);
             sysHandles.Add(sysHandle);
             sysHandleList.Add(sysHandle);
+
+            registeredEntries.Add(entry);
             return sysHandles;
         }
 
