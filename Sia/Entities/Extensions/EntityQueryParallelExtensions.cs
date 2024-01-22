@@ -117,7 +117,7 @@ public static class EntityQueryParallelExtensions
     public static unsafe SpanOwner<EntityRef> Record(this IEntityQuery query)
     {
         var count = query.Count;
-        if (count == 0) { return default; }
+        if (count == 0) { return SpanOwner<EntityRef>.Empty; }
 
         var spanOwner = SpanOwner<EntityRef>.Allocate(count);
         Record(query, spanOwner.DangerousGetArray());
@@ -129,7 +129,7 @@ public static class EntityQueryParallelExtensions
         this IEntityQuery query, RecordFunc<TResult> recordFunc)
     {
         var count = query.Count;
-        if (count == 0) { return default; }
+        if (count == 0) { return SpanOwner<TResult>.Empty; }
 
         var spanOwner = SpanOwner<TResult>.Allocate(count);
         Record(query, spanOwner.DangerousGetArray(), recordFunc);
@@ -141,7 +141,7 @@ public static class EntityQueryParallelExtensions
         this IEntityQuery query, in TData data, RecordFunc<TData, TResult> recordFunc)
     {
         var count = query.Count;
-        if (count == 0) { return default; }
+        if (count == 0) { return SpanOwner<TResult>.Empty; }
 
         var spanOwner = SpanOwner<TResult>.Allocate(count);
         Record(query, data, spanOwner.DangerousGetArray(), recordFunc);
@@ -155,7 +155,7 @@ public static class EntityQueryParallelExtensions
         var queryCount = query.Count;
         if (queryCount == 0) {
             count = 0;
-            return default;
+            return SpanOwner<TResult>.Empty;
         }
 
         var spanOwner = SpanOwner<TResult>.Allocate(queryCount);
@@ -170,7 +170,7 @@ public static class EntityQueryParallelExtensions
         var queryCount = query.Count;
         if (queryCount == 0) {
             count = 0;
-            return default;
+            return SpanOwner<TResult>.Empty;
         }
 
         var spanOwner = SpanOwner<TResult>.Allocate(queryCount);
