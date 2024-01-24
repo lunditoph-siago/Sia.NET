@@ -270,7 +270,7 @@ public class SystemLibrary : IAddon
             task.UserData = system;
 
             DoRegisterSystem(sysEntry, task);
-            childrenDisposable = children?.RegisterTo(_world, scheduler, new[] { task });
+            childrenDisposable = children?.RegisterTo(_world, scheduler, [task]);
 
             return new SystemHandle(
                 system, task,
@@ -388,7 +388,7 @@ public class SystemLibrary : IAddon
         task.UserData = system;
 
         DoRegisterSystem(sysEntry, task);
-        childrenDisposable = children?.RegisterTo(_world, scheduler, new[] { task });
+        childrenDisposable = children?.RegisterTo(_world, scheduler, [task]);
 
         SystemHandle? handle = null;
 
