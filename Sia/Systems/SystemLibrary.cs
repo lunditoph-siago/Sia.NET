@@ -258,7 +258,7 @@ public class SystemLibrary : IAddon
         }
 
         Scheduler.TaskGraphNode? task;
-        IDisposable? childrenDisposable;
+        SystemChain.Handle? childrenDisposable;
 
         var matcher = system.Matcher;
         var children = system.Children;
