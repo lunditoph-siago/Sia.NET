@@ -133,9 +133,6 @@ public record SystemChain(ImmutableList<SystemChain.Entry> Entries)
             return ref depSysTypes;
         }
 
-#pragma warning disable CS8602 // Dereference of a possibly null reference.
-#pragma warning disable CS8604 // Possible null reference argument.
-
         List<SystemHandle> DoRegisterAll(Type type)
         {
             foreach (var entry in Entries) {
@@ -191,9 +188,6 @@ public record SystemChain(ImmutableList<SystemChain.Entry> Entries)
             registeredEntries.Add(entry);
             return sysHandles;
         }
-
-#pragma warning restore CS8602 // Dereference of a possibly null reference.
-#pragma warning restore CS8604 // Possible null reference argument.
 
         foreach (var (type, _, depGetter) in Entries) {
             AcquireDependedSystemTypes(type, depGetter);
