@@ -133,6 +133,9 @@ public record SystemChain(ImmutableList<SystemChain.Entry> Entries)
             return ref depSysTypes;
         }
 
+#pragma warning disable CS8602
+#pragma warning disable CS8604
+
         List<SystemHandle> DoRegisterAll(Type type)
         {
             foreach (var entry in Entries) {
@@ -172,22 +175,24 @@ public record SystemChain(ImmutableList<SystemChain.Entry> Entries)
             }
 
             var depSysTypes = depSysTypesDict[type];
-            var depSysHandles = depSysTypes?.SelectMany(
-                depSysType => DoRegisterAll(depSysType).Select(handle => handle.TaskGraphNode));
-
-            depSysHandles = depSysHandles != null
-                ? dependedTasks?.Concat(depSysHandles.ToArray()) ?? depSysHandles.ToArray()
-                : dependedTasks;
+            if (depSysTypes != null) {
+                foreach (var depSysType in depSysTypes) {
+                    DoRegisterAll(depSysType);
+                }
+            }
 
             sysHandles = [];
             
-            sysHandle = entry.Registerer(sysLib, scheduler, depSysHandles);
+            sysHandle = entry.Registerer(sysLib, scheduler, dependedTasks);
             sysHandles.Add(sysHandle);
             sysHandleList.Add(sysHandle);
 
             registeredEntries.Add(entry);
             return sysHandles;
         }
+
+#pragma warning restore CS8602
+#pragma warning restore CS8604
 
         foreach (var (type, _, depGetter) in Entries) {
             AcquireDependedSystemTypes(type, depGetter);
