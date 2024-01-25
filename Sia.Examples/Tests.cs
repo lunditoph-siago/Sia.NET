@@ -101,19 +101,19 @@ public unsafe static class Tests
         Scheduler.TaskGraphNode? task2 = null;
         task2 = sched.CreateTask(() => {
             Console.WriteLine("Call once 1");
-            sched.RemoveTask(task2!);
+            task2!.Dispose();
             return false;
         });
 
         var task3 = sched.CreateTask(() => {
             Console.WriteLine("Call once 2");
             return true;
-        }, new[] {task1});
+        }, [task1]);
 
         var task4 = sched.CreateTask(() => {
             Console.WriteLine("Infinite 2");
             return false;
-        }, new[] {task1});
+        }, [task1]);
 
         sched.Tick();
         sched.Tick();

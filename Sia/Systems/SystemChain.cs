@@ -16,13 +16,15 @@ public record SystemChain(ImmutableList<SystemChain.Entry> Entries)
 
     public sealed class Handle : IDisposable
     {
-        public IReadOnlyList<SystemHandle> Handles => _handles;
-        public IEnumerable<Scheduler.TaskGraphNode> TaskGraphNodes => _handles.Select(h => h.TaskGraphNode);
+        public Scheduler.TaskGraphNode ChainTaskNode { get; }
+        public IReadOnlyList<SystemHandle> SystemHandles => _handles;
+        public IEnumerable<Scheduler.TaskGraphNode> SystemTaskNodes => _handles.Select(h => h.TaskGraphNode);
 
         private List<SystemHandle> _handles;
 
-        internal Handle(List<SystemHandle> handles)
+        internal Handle(Scheduler.TaskGraphNode chainTaskNode, List<SystemHandle> handles)
         {
+            ChainTaskNode = chainTaskNode;
             _handles = handles;
         }
 
@@ -31,6 +33,7 @@ public record SystemChain(ImmutableList<SystemChain.Entry> Entries)
             if (_handles == null) {
                 return;
             }
+            ChainTaskNode.Dispose();
             for (int i = _handles.Count - 1; i >= 0; --i) {
                 _handles[i].Dispose();
             }
@@ -200,7 +203,8 @@ public record SystemChain(ImmutableList<SystemChain.Entry> Entries)
         foreach (var entry in Entries) {
             DoRegister(entry);
         }
-        return new Handle(sysHandleList);
+        var chainTaskNode = scheduler.CreateTask(sysHandleList.Select(h => h.TaskGraphNode));
+        return new Handle(chainTaskNode, sysHandleList);
     }
     
     private static ImmutableArray<Type> GetAttributedSystemTypes<TSystem>(Type genericAttrType)

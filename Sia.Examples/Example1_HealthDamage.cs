@@ -139,7 +139,7 @@ public static partial class Example1_HealthDamage
         game.Scheduler.CreateTask(() => {
             Console.WriteLine("Callback invoked after health and gameplay systems");
             return true; // remove task
-        }, handle.TaskGraphNodes);
+        }, handle.SystemTaskNodes);
     
         player.Transform_SetPosition(new(1, 3));
         game.Update(0.5f);

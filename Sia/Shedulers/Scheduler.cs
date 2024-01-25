@@ -12,9 +12,11 @@ public class Scheduler
         Removed
     }
 
-    public class TaskGraphNode
+    public class TaskGraphNode : IDisposable
     {
+        public required Scheduler Scheduler { get; init; }
         public required Func<bool>? Callback { get; init; }
+
         public IReadOnlySet<TaskGraphNode>? DependedTasks => _dependedTasks;
         public IReadOnlySet<TaskGraphNode>? DependingTasks => _dependingTasks;
         public Status Status { get; internal set; } = Status.Added;
@@ -25,7 +27,28 @@ public class Scheduler
         internal HashSet<TaskGraphNode>? _dependedTasks;
         internal HashSet<TaskGraphNode>? _dependingTasks;
 
-        internal TaskGraphNode() {}
+        internal TaskGraphNode() { }
+
+        public void Terminate()
+            => DoStop(force: true);
+
+        public void Dispose()
+        {
+            DoStop(force: false);
+            GC.SuppressFinalize(this);
+        }
+
+        private void DoStop(bool force)
+        {
+            if (Status == Status.Removed || !Scheduler._tasks.Remove(this)) {
+                throw new ArgumentException("Failed to remove task: invalid task");
+            }
+            if (Scheduler._ticking) {
+                Scheduler._tasksToRemove.Add(this);
+                return;
+            }
+            Scheduler.RawRemoveTask(this, force);
+        }
     }
 
     public int TaskCount => _tasks.Count;
@@ -45,6 +68,7 @@ public class Scheduler
     public TaskGraphNode CreateTask(Func<bool> callback)
     {
         var task = new TaskGraphNode {
+            Scheduler = this,
             Callback = callback,
             OrphanSeqIndex = _orphanTaskSeq.Count
         };
@@ -56,6 +80,7 @@ public class Scheduler
     public TaskGraphNode CreateTask()
     {
         var task = new TaskGraphNode {
+            Scheduler = this,
             Callback = null
         };
         _tasks.Add(task);
@@ -92,6 +117,7 @@ public class Scheduler
     public TaskGraphNode CreateTask(Func<bool> callback, IEnumerable<TaskGraphNode> dependencies)
     {
         var task = new TaskGraphNode {
+            Scheduler = this,
             Callback = callback
         };
         if (AddDependenciesToTask(task, dependencies) == 0) {
@@ -108,6 +134,7 @@ public class Scheduler
     public TaskGraphNode CreateTask(IEnumerable<TaskGraphNode> dependencies)
     {
         var task = new TaskGraphNode {
+            Scheduler = this,
             Callback = null
         };
         AddDependenciesToTask(task, dependencies);
@@ -137,18 +164,6 @@ public class Scheduler
         }
         _tasks.Remove(task);
         task.Status = Status.Removed;
-    }
-
-    public void RemoveTask(TaskGraphNode task, bool force = false)
-    {
-        if (task.Status == Status.Removed || !_tasks.Remove(task)) {
-            throw new ArgumentException("Failed to remove task: invalid task");
-        }
-        if (_ticking) {
-            _tasksToRemove.Add(task);
-            return;
-        }
-        RawRemoveTask(task, force);
     }
 
     private void AddDepededTaskToSeq(TaskGraphNode task)
