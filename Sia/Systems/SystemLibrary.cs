@@ -277,7 +277,7 @@ public class SystemLibrary : IAddon
                 handle => {
                     UninitializeSystem(sysEntry, task);
                     childrenDisposable?.Dispose();
-                    scheduler.RemoveTask(handle.TaskGraphNode);
+                    handle.TaskGraphNode.Dispose();
                 });
         }
 
@@ -403,7 +403,7 @@ public class SystemLibrary : IAddon
                 UninitializeSystem(sysEntry, task);
                 disposeFunc();
                 childrenDisposable?.Dispose();
-                scheduler.RemoveTask(handle.TaskGraphNode, force: true);
+                handle.TaskGraphNode.Terminate();
             });
 
         return handle;
