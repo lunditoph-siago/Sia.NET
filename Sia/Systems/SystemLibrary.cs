@@ -1,7 +1,6 @@
 namespace Sia;
 
 using System.Runtime.CompilerServices;
-using CommunityToolkit.HighPerformance.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using System.Collections;
 
@@ -18,7 +17,7 @@ public class SystemLibrary : IAddon
         public int Count => _collectedSet.Count;
         public bool IsExecuting { get; private set; }
 
-        internal HashSet<EntityRef> CollectingSet => _collectedSet;
+        internal HashSet<EntityRef> CollectingSet => _collectingSet;
 
         private HashSet<EntityRef> _collectingSet = [];
         private HashSet<EntityRef> _collectedSet = [];
