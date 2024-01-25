@@ -242,14 +242,14 @@ public class SystemLibrary : IAddon
         var sysEntry = Acquire(scheduler, system.GetType());
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void DoRegisterSystem(Entry sysEntry, Scheduler.TaskGraphNode task)
+        void InitializeSystem(Entry sysEntry, Scheduler.TaskGraphNode task)
         {
             sysEntry._taskGraphNodes.Add(task);
             system.Initialize(_world, scheduler);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void DoUnregisterSystem(Entry sysEntry, Scheduler.TaskGraphNode task)
+        void UninitializeSystem(Entry sysEntry, Scheduler.TaskGraphNode task)
         {
             if (!sysEntry._taskGraphNodes.Remove(task)) {
                 throw new ObjectDisposedException("Failed to unregister system: system not found");
@@ -269,13 +269,13 @@ public class SystemLibrary : IAddon
                 : scheduler.CreateTask();
             task.UserData = system;
 
-            DoRegisterSystem(sysEntry, task);
+            InitializeSystem(sysEntry, task);
             childrenDisposable = children?.RegisterTo(_world, scheduler, [task]);
 
             return new SystemHandle(
                 system, task,
                 handle => {
-                    DoUnregisterSystem(sysEntry, task);
+                    UninitializeSystem(sysEntry, task);
                     childrenDisposable?.Dispose();
                     scheduler.RemoveTask(handle.TaskGraphNode);
                 });
@@ -387,7 +387,7 @@ public class SystemLibrary : IAddon
             : scheduler.CreateTask(taskFunc);
         task.UserData = system;
 
-        DoRegisterSystem(sysEntry, task);
+        InitializeSystem(sysEntry, task);
         childrenDisposable = children?.RegisterTo(_world, scheduler, [task]);
 
         SystemHandle? handle = null;
@@ -400,7 +400,7 @@ public class SystemLibrary : IAddon
             handle => {
                 _world.OnDisposed -= OnWorldDisposed;
 
-                DoUnregisterSystem(sysEntry, task);
+                UninitializeSystem(sysEntry, task);
                 disposeFunc();
                 childrenDisposable?.Dispose();
                 scheduler.RemoveTask(handle.TaskGraphNode, force: true);
