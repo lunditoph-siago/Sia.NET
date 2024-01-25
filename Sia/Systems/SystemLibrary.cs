@@ -18,35 +18,16 @@ public class SystemLibrary : IAddon
         public int Count => _collectedSet.Count;
         public bool IsExecuting { get; private set; }
 
-        internal int CollectingSetCount => _collectingSet.Count;
+        internal HashSet<EntityRef> CollectingSet => _collectedSet;
 
-        private int _maxCollectedCount = 0;
-        private int _prevMaxCollectedCount = 0;
-
-        private Dictionary<EntityRef, int> _collectingSet = [];
-        private Dictionary<EntityRef, int> _collectedSet = [];
-
-        private MemoryOwner<EntityRef?> _mem = MemoryOwner<EntityRef?>.Allocate(6);
+        private HashSet<EntityRef> _collectingSet = [];
+        private HashSet<EntityRef> _collectedSet = [];
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void BeginExecution()
         {
             IsExecuting = true;
             (_collectedSet, _collectingSet) = (_collectingSet, _collectedSet);
-
-            var memLenght = _mem.Length;
-            if (memLenght < _maxCollectedCount || memLenght > _maxCollectedCount * 2) {
-                _mem.Dispose();
-                _mem = MemoryOwner<EntityRef?>.Allocate(_maxCollectedCount);
-            }
-            _prevMaxCollectedCount = _maxCollectedCount;
-            _maxCollectedCount = 0;
-
-            var span = _mem.Span;
-            span.Clear();
-            foreach (var (entity, index) in _collectedSet) {
-                span[index] = entity;
-            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -58,7 +39,7 @@ public class SystemLibrary : IAddon
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Add(in EntityRef entity)
-            => _collectingSet.TryAdd(entity, _maxCollectedCount++);
+            => _collectingSet.Add(entity);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Remove(in EntityRef entity)
@@ -66,50 +47,40 @@ public class SystemLibrary : IAddon
             if (!IsExecuting) {
                 return _collectingSet.Remove(entity);
             }
-            if (_collectedSet.Remove(entity, out int index)) {
-                _mem.Span[index] = null;
-            }
+            _collectedSet.Remove(entity);
             return true;
         }
 
         public void ForEach(EntityHandler handler)
         {
-            foreach (ref var entity in _mem.Span[0.._prevMaxCollectedCount]) {
-                if (entity.HasValue) {
-                    handler(entity.Value);
-                }
+            foreach (var entity in _collectedSet) {
+                handler(entity);
             }
         }
 
         public void ForEach(SimpleEntityHandler handler)
         {
-            foreach (ref var entity in _mem.Span[0.._prevMaxCollectedCount]) {
-                if (entity.HasValue) {
-                    handler(entity.Value);
-                }
+            foreach (var entity in _collectedSet) {
+                handler(entity);
             }
         }
 
         public void ForEach<TData>(in TData data, EntityHandler<TData> handler)
         {
-            foreach (ref var entity in _mem.Span[0.._prevMaxCollectedCount]) {
-                if (entity.HasValue) {
-                    handler(data, entity.Value);
-                }
+            foreach (var entity in _collectedSet) {
+                handler(data, entity);
             }
         }
 
         public void ForEach<TData>(in TData data, SimpleEntityHandler<TData> handler)
         {
-            foreach (ref var entity in _mem.Span[0.._prevMaxCollectedCount]) {
-                if (entity.HasValue) {
-                    handler(data, entity.Value);
-                }
+            foreach (var entity in _collectedSet) {
+                handler(data, entity);
             }
         }
 
         public IEnumerator<EntityRef> GetEnumerator()
-            => _collectedSet.Keys.GetEnumerator();
+            => _collectedSet.GetEnumerator();
 
         IEnumerator IEnumerable.GetEnumerator()
             => GetEnumerator();
@@ -309,7 +280,7 @@ public class SystemLibrary : IAddon
             var collector = new Collector();
 
             taskFunc = () => {
-                var count = collector.CollectingSetCount;
+                var count = collector.CollectingSet.Count;
                 if (count == 0) {
                     return false;
                 }
