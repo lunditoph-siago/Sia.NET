@@ -1,6 +1,7 @@
 namespace Sia;
 
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 using SystemRegisterer = Func<SystemLibrary, Scheduler, IEnumerable<Scheduler.TaskGraphNode>?, SystemHandle>;
@@ -214,4 +215,26 @@ public record SystemChain(ImmutableList<SystemChain.Entry> Entries)
             .Where(attr => attr.GetType().GetGenericTypeDefinition() == genericAttrType)
             .Select(attr => attr.SystemType)
             .ToImmutableArray();
+}
+
+public record SystemChain<TSystem>() : SystemChain(ImmutableList<Entry>.Empty)
+    where TSystem : ISystem
+{
+    public new static readonly SystemChain<TSystem> Empty = new();
+
+    public new SystemChain<TSystem> Add<USystem>()
+        where USystem : TSystem, new()
+        => Unsafe.As<SystemChain<TSystem>>(base.Add<USystem>());
+    
+    public new SystemChain<TSystem> Add<USystem>(Func<USystem> creator)
+        where USystem : TSystem
+        => Unsafe.As<SystemChain<TSystem>>(base.Add(creator));
+
+    public new SystemChain<TSystem> Remove<USystem>()
+        where USystem : TSystem
+        => Unsafe.As<SystemChain<TSystem>>(base.Remove<USystem>());
+
+    public new SystemChain<TSystem> RemoveAll<USystem>()
+        where USystem : TSystem
+        => Unsafe.As<SystemChain<TSystem>>(base.RemoveAll<USystem>());
 }
