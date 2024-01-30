@@ -48,27 +48,27 @@ public static partial class Example4_Aggregator
             .Add<ComponentCountSystem>()
             .RegisterTo(world, scheduler);
         
-        world.CreateInBucketHost(Tuple.Create(
+        world.CreateInBucketHost(Bundle.Create(
             new Sid<ObjectId>(0)
         ));
 
         Console.WriteLine("Tick!");
         scheduler.Tick();
 
-        world.CreateInBucketHost(Tuple.Create(
+        world.CreateInBucketHost(Bundle.Create(
             new Sid<ObjectId>(1)
         ));
 
         Console.WriteLine("Tick!");
         scheduler.Tick();
 
-        world.CreateInBucketHost(Tuple.Create(
+        world.CreateInBucketHost(Bundle.Create(
             new Sid<ObjectId>(1)
         ));
-        var e1 = world.CreateInBucketHost(Tuple.Create(
+        var e1 = world.CreateInBucketHost(Bundle.Create(
             new Sid<ObjectId>(1)
         ));
-        var e2 = world.CreateInBucketHost(Tuple.Create(
+        var e2 = world.CreateInBucketHost(Bundle.Create(
             new Sid<ObjectId>(1)
         ));
 

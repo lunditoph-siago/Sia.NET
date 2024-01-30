@@ -1,5 +1,6 @@
 namespace Sia_Examples;
 
+using System.Collections.Immutable;
 using Sia;
 
 public static partial class Example11_RPG
@@ -52,7 +53,7 @@ public static partial class Example11_RPG
             DamageProvider: DamageProvider.Instance);
 
         public static EntityRef Create(World world, MagicType magicType)
-            => world.CreateInBucketHost(Tuple.Create(
+            => world.CreateInBucketHost(Bundle.Create(
                 Metadata,
                 new Data(magicType)
             ));
@@ -151,7 +152,7 @@ public static partial class Example11_RPG
             DefenseGrowthRate: 4f);
 
         public static EntityRef Create(World world, string name)
-            => world.CreateInBucketHost(Tuple.Create(
+            => world.CreateInBucketHost(Bundle.Create(
                 Metadata,
                 new Character(
                     Name: name,

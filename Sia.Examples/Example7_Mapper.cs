@@ -17,10 +17,10 @@ public static partial class Example7_Mapper
         var id1 = ObjectId.Create();
         var id2 = ObjectId.Create();
 
-        var e1 = world.CreateInBucketHost(Tuple.Create(
+        var e1 = world.CreateInBucketHost(Bundle.Create(
             Sid.From(id1)
         ));
-        var e2 = world.CreateInBucketHost(Tuple.Create(
+        var e2 = world.CreateInBucketHost(Bundle.Create(
             Sid.From(id2)
         ));
 
