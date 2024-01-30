@@ -46,7 +46,7 @@ public static partial class Example5_ComponentBundle
     public static class TestObject
     {
         public static EntityRef Create(World world)
-            => world.CreateInBucketHost(Tuple.Create(
+            => world.CreateInBucketHost(Bundle.Create(
                 new ObjectBundle { Name = "TestObject" },
                 new HP(100)
             ));

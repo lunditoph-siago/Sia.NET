@@ -14,7 +14,7 @@ public static class EntityQueryParallelExtensions
     private readonly record struct ForEachParallelAction(
         ArraySegment<EntityRef> Array, EntityHandler Handler)
     {
-        public void Invoke(System.Tuple<int, int> range)
+        public void Invoke(Tuple<int, int> range)
         {
             var span = Array.AsSpan();
             for (int i = range.Item1; i != range.Item2; ++i) {
@@ -26,7 +26,7 @@ public static class EntityQueryParallelExtensions
     private readonly record struct ForEachParallelAction<TData>(
         ArraySegment<EntityRef> Array, in TData Data, EntityHandler<TData> Handler)
     {
-        public void Invoke(System.Tuple<int, int> range)
+        public void Invoke(Tuple<int, int> range)
         {
             var span = Array.AsSpan();
             for (int i = range.Item1; i != range.Item2; ++i) {

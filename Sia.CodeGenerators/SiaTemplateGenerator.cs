@@ -44,8 +44,7 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
                 var model = syntax.SemanticModel;
                 var targetType = (TypeDeclarationSyntax)syntax.TargetNode;
 
-                static IEnumerable<PropertyInfo> GetProperties(
-                    INamedTypeSymbol symbol)
+                static IEnumerable<PropertyInfo> GetProperties(INamedTypeSymbol symbol)
                 {
                     var result = symbol.GetMembers().SelectMany(member => member switch {
                         IFieldSymbol fieldSymbol =>
@@ -58,7 +57,7 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
                                 ? ImmutableArray.Create(
                                     new PropertyInfo(propSymbol.Name, propSymbol.Type, symbol, member.GetAttributes()))
                                 : Enumerable.Empty<PropertyInfo>(),
-                        _ => Enumerable.Empty<PropertyInfo>()
+                        _ => []
                     });
                     return symbol.BaseType != null ? result.Concat(GetProperties(symbol.BaseType)) : result;
                 }

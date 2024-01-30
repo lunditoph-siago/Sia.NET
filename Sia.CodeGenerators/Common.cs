@@ -2,7 +2,6 @@ namespace Sia.CodeGenerators;
 
 using System.Reflection;
 using System.Collections.Immutable;
-using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -10,7 +9,6 @@ using System.Text;
 using System.Globalization;
 using System.CodeDom.Compiler;
 using Microsoft.CodeAnalysis.CSharp;
-using System.ComponentModel;
 
 internal static class Common
 {

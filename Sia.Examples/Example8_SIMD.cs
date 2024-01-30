@@ -81,7 +81,7 @@ public static class Example8_SIMD
             .RegisterTo(world, scheduler);
         
         for (int i = 0; i != 1000000; ++i) {
-            world.CreateInBucketHost(Tuple.Create(
+            world.CreateInBucketHost(Bundle.Create(
                 new Number { Value = 1 }
             ));
         }
