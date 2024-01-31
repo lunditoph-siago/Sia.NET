@@ -42,39 +42,41 @@ public class SystemLibrary : IAddon
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Remove(in EntityRef entity)
-        {
-            if (!IsExecuting) {
-                return _collectingSet.Remove(entity);
-            }
-            _collectedSet.Remove(entity);
-            return true;
-        }
+            => _collectingSet.Remove(entity);
 
         public void ForEach(EntityHandler handler)
         {
             foreach (var entity in _collectedSet) {
-                handler(entity);
+                if (entity.Valid) {
+                    handler(entity);
+                }
             }
         }
 
         public void ForEach(SimpleEntityHandler handler)
         {
             foreach (var entity in _collectedSet) {
-                handler(entity);
+                if (entity.Valid) {
+                    handler(entity);
+                }
             }
         }
 
         public void ForEach<TData>(in TData data, EntityHandler<TData> handler)
         {
             foreach (var entity in _collectedSet) {
-                handler(data, entity);
+                if (entity.Valid) {
+                    handler(data, entity);
+                }
             }
         }
 
         public void ForEach<TData>(in TData data, SimpleEntityHandler<TData> handler)
         {
             foreach (var entity in _collectedSet) {
-                handler(data, entity);
+                if (entity.Valid) {
+                    handler(data, entity);
+                }
             }
         }
 
