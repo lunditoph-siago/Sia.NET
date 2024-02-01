@@ -1,26 +1,20 @@
 using System.Collections;
 using System.Runtime.CompilerServices;
+using CommunityToolkit.HighPerformance;
 
 namespace Sia
 {
-
-public struct ChunkBufferStorageEntry<T>
-{
-    public int Index;
-    public int Version;
-    public T Value;
-}
 
 public sealed class ChunkBufferStorage<T>
     where T : struct
 {
     public static ChunkBufferStorage<T, TBuffer> Create<TBuffer>(TBuffer buffer)
-        where TBuffer : IBuffer<ChunkBufferStorageEntry<T>>
+        where TBuffer : IBuffer<T>
         => new(buffer);
 }
 public class ChunkBufferStorage<T, TBuffer> : IStorage<T>
     where T : struct
-    where TBuffer : IBuffer<ChunkBufferStorageEntry<T>>
+    where TBuffer : IBuffer<T>
 {
     private class Chunk
     {
@@ -42,6 +36,8 @@ public class ChunkBufferStorage<T, TBuffer> : IStorage<T>
     public bool IsManaged => true;
 
     private readonly TBuffer _buffer;
+    private readonly List<int> _versions = [];
+
     private Chunk _headChunk;
     private Chunk? _firstFreeChunk;
 
@@ -69,11 +65,19 @@ public class ChunkBufferStorage<T, TBuffer> : IStorage<T>
         int index = chunk.Index;
         _firstFreeChunk = AllocateFromFreeChunk(chunk).Next;
 
-        ref var entry = ref _buffer.GetRef(index);
-        entry.Index = index;
+        ref var entry = ref _buffer.CreateRef(index);
 
-        version = -entry.Version + 1;
-        entry.Version = version;
+        var versionCount = _versions.Count;
+        if (index == versionCount) {
+            _versions.Add(1);
+            version = 1;
+        }
+        else {
+            ref var versionRef = ref _versions.AsSpan()[index];
+            versionRef = -versionRef + 1;
+            version = versionRef;
+        }
+
         Count++;
         return index;
     }
@@ -82,15 +86,17 @@ public class ChunkBufferStorage<T, TBuffer> : IStorage<T>
     public void UnsafeRelease(nint rawPointer, int version)
     {
         int index = (int)rawPointer;
+        ref var versionRef = ref _versions.AsSpan()[index];
 
-        ref var entry = ref _buffer.GetRef(index);
-        if (entry.Version != version) {
+        if (versionRef != version) {
             throw new ArgumentException("Invalid pointer");
         }
 
-        var chunk = FindChunkNodeByIndex(entry.Index);
+        _buffer.Release(index);
 
-        var offset = entry.Index - chunk.Index;
+        var chunk = FindChunkNodeByIndex(versionRef);
+        var offset = index - chunk.Index;
+
         if (offset == 0) {
             chunk = FreeFirstChunkEntry(chunk);
         }
@@ -107,8 +113,6 @@ public class ChunkBufferStorage<T, TBuffer> : IStorage<T>
             _firstFreeChunk = chunk;
         }
 
-        entry.Version = -version;
-        entry.Value = default;
         Count--;
     }
 
@@ -116,10 +120,7 @@ public class ChunkBufferStorage<T, TBuffer> : IStorage<T>
     public bool IsValid(nint rawPointer, int version)
     {
         int index = (int)rawPointer;
-        if (index >= _buffer.Capacity || !_buffer.IsAllocated(index)) {
-            return false;
-        }
-        return _buffer.GetRef(index).Version == version;
+        return index < _versions.Count && _versions[index] == version;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -357,11 +358,11 @@ public class ChunkBufferStorage<T, TBuffer> : IStorage<T>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T UnsafeGetRef(nint rawPointer, int version)
     {
-        ref var entry = ref _buffer.GetRef((int)rawPointer);
-        if (entry.Version != version) {
+        int index = (int)rawPointer;
+        if (_versions[index] != version) {
             throw new ArgumentException("Invalid pointer");
         }
-        return ref entry.Value;
+        return ref _buffer.GetRef(index);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -370,8 +371,8 @@ public class ChunkBufferStorage<T, TBuffer> : IStorage<T>
         if (Count == 0) { return; }
 
         int count = 0;
-        for (int i = 0; i < _buffer.Capacity; ++i) {
-            int version = _buffer.GetRef(i).Version;
+        for (int i = 0; i < _versions.Count; ++i) {
+            int version = _versions[i];
             if (version > 0) {
                 handler(i, version);
                 if (++count >= Count) {
@@ -389,8 +390,8 @@ public class ChunkBufferStorage<T, TBuffer> : IStorage<T>
         if (Count == 0) { return; }
 
         int count = 0;
-        for (int i = 0; i < _buffer.Capacity; ++i) {
-            int version = _buffer.GetRef(i).Version;
+        for (int i = 0; i < _versions.Count; ++i) {
+            int version = _versions[i];
             if (version > 0) {
                 handler(data, i, version);
                 if (++count >= Count) {
@@ -405,8 +406,8 @@ public class ChunkBufferStorage<T, TBuffer> : IStorage<T>
         if (Count == 0) { yield break; }
 
         int count = 0;
-        for (int i = 0; i < _buffer.Capacity; ++i) {
-            int version = _buffer.GetRef(i).Version;
+        for (int i = 0; i < _versions.Count; ++i) {
+            int version = _versions[i];
             if (version > 0) {
                 yield return (i, version);
                 if (++count == Count) {

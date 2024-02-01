@@ -1,26 +1,21 @@
 using System.Collections;
 using System.Runtime.CompilerServices;
+using CommunityToolkit.HighPerformance;
 
 namespace Sia
 {
-
-public struct BufferStorageEntry<T>
-{
-    public int Version;
-    public T Value;
-}
 
 public sealed class BufferStorage<T>
     where T : struct
 {
     public static BufferStorage<T, TBuffer> Create<TBuffer>(TBuffer buffer)
-        where TBuffer : IBuffer<BufferStorageEntry<T>>
+        where TBuffer : IBuffer<T>
         => new(buffer);
 }
 
-public class BufferStorage<T, TBuffer> : IStorage<T>
+public class BufferStorage<T, TBuffer>(TBuffer buffer) : IStorage<T>
     where T : struct
-    where TBuffer : IBuffer<BufferStorageEntry<T>>
+    where TBuffer : IBuffer<T>
 {
     public int Capacity {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -31,15 +26,8 @@ public class BufferStorage<T, TBuffer> : IStorage<T>
     public bool IsManaged => true;
 
     private int _firstFreeIndex;
-    private readonly TBuffer _buffer;
-
-    public BufferStorage(TBuffer buffer)
-    {
-        if (buffer.Capacity <= 0) {
-            throw new ArgumentException("Buffer capacity must be greator than 0");
-        }
-        _buffer = buffer;
-    }
+    private readonly TBuffer _buffer = buffer;
+    private readonly List<int> _versions = [];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public nint UnsafeAllocate(out int version)
@@ -51,11 +39,21 @@ public class BufferStorage<T, TBuffer> : IStorage<T>
             throw new IndexOutOfRangeException("Storage is full");
         }
 
-        while (++_firstFreeIndex < capacity && _buffer.GetRef(_firstFreeIndex).Version > 0) {}
+        _buffer.CreateRef(index);
 
-        ref var entry = ref _buffer.GetRef(index);
-        version = -entry.Version + 1;
-        entry.Version = version;
+        var versionCount = _versions.Count;
+        if (index == versionCount) {
+            _versions.Add(1);
+            version = 1;
+            _firstFreeIndex++;
+        }
+        else {
+            ref var versionRef = ref _versions.AsSpan()[index];
+            versionRef = -versionRef + 1;
+            version = versionRef;
+            while (++_firstFreeIndex < versionCount && _versions[_firstFreeIndex] > 0) {}
+        }
+
         Count++;
         return index;
     }
@@ -64,14 +62,15 @@ public class BufferStorage<T, TBuffer> : IStorage<T>
     public void UnsafeRelease(nint rawPointer, int version)
     {
         int index = (int)rawPointer;
-        ref var entry = ref _buffer.GetRef(index);
+        ref var versionRef = ref _versions.AsSpan()[index];
 
-        if (entry.Version != version) {
+        if (versionRef != version) {
             throw new ArgumentException("Invalid pointer");
         }
 
-        entry.Version = -version;
-        entry.Value = default;
+        _buffer.Release(index);
+        versionRef = -versionRef;
+
         Count--;
 
         if (index < _firstFreeIndex) {
@@ -83,20 +82,17 @@ public class BufferStorage<T, TBuffer> : IStorage<T>
     public bool IsValid(nint rawPointer, int version)
     {
         int index = (int)rawPointer;
-        if (index >= _buffer.Capacity || !_buffer.IsAllocated(index)) {
-            return false;
-        }
-        return _buffer.GetRef(index).Version == version;
+        return index < _versions.Count && _versions[index] == version;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T UnsafeGetRef(nint rawPointer, int version)
     {
-        ref var entry = ref _buffer.GetRef((int)rawPointer);
-        if (entry.Version != version) {
+        var index = (int)rawPointer;
+        if (_versions[index] != version) {
             throw new ArgumentException("Invalid pointer");
         }
-        return ref entry.Value;
+        return ref _buffer.GetRef(index);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -105,13 +101,13 @@ public class BufferStorage<T, TBuffer> : IStorage<T>
         if (Count == 0) { return; }
 
         int count = 0;
-        for (int i = 0; i < _buffer.Capacity; ++i) {
-            int version = _buffer.GetRef(i).Version;
+        for (int i = 0; i < _versions.Count; ++i) {
+            int version = _versions[i];
             if (version > 0) {
                 handler(i, version);
-                if (++count >= Count) {
-                    break;
-                }
+            }
+            if (++count >= Count) {
+                break;
             }
         }
     }
@@ -124,8 +120,8 @@ public class BufferStorage<T, TBuffer> : IStorage<T>
         if (Count == 0) { return; }
 
         int count = 0;
-        for (int i = 0; i < _buffer.Capacity; ++i) {
-            int version = _buffer.GetRef(i).Version;
+        for (int i = 0; i < _versions.Count; ++i) {
+            int version = _versions[i];
             if (version > 0) {
                 handler(data, i, version);
                 if (++count >= Count) {
@@ -140,8 +136,8 @@ public class BufferStorage<T, TBuffer> : IStorage<T>
         if (Count == 0) { yield break; }
 
         int count = 0;
-        for (int i = 0; i < _buffer.Capacity; ++i) {
-            int version = _buffer.GetRef(i).Version;
+        for (int i = 0; i < _versions.Count; ++i) {
+            int version = _versions[i];
             if (version > 0) {
                 yield return (i, version);
                 if (++count >= Count) {

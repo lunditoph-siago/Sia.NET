@@ -15,7 +15,7 @@ public sealed class ManagedHeapStorage<T> : IStorage<T>
     public int Count => _entries.Count;
     public bool IsManaged => true;
 
-    private Dictionary<nint, Box<BufferStorageEntry<T>>> _entries = [];
+    private Dictionary<nint, Box<T>> _entries = [];
     private ObjectIDGenerator _idGenerator = new();
 
     private ManagedHeapStorage() {}
@@ -26,10 +26,7 @@ public sealed class ManagedHeapStorage<T> : IStorage<T>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public nint UnsafeAllocate(in T initial, out int version)
     {
-        Box<BufferStorageEntry<T>> entry = new BufferStorageEntry<T> {
-            Version = 1,
-            Value = initial
-        };
+        Box<T> entry = initial;
         nint id = (nint)_idGenerator.GetId(entry, out bool _);
         _entries[id] = entry;
         version = 1;
@@ -54,7 +51,7 @@ public sealed class ManagedHeapStorage<T> : IStorage<T>
         if (version != 1 || !_entries.TryGetValue(rawPointer, out var entry)) {
             throw new ArgumentException("Invalid pointer");
         }
-        return ref entry.GetReference().Value;
+        return ref entry.GetReference();
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
