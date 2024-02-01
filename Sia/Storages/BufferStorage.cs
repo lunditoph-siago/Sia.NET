@@ -105,9 +105,9 @@ public class BufferStorage<T, TBuffer>(TBuffer buffer) : IStorage<T>
             int version = _versions[i];
             if (version > 0) {
                 handler(i, version);
-            }
-            if (++count >= Count) {
-                break;
+                if (++count >= Count) {
+                    break;
+                }
             }
         }
     }
