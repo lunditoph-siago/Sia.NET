@@ -165,22 +165,13 @@ public sealed class World : IEntityQuery, IEventSender
     public IReadOnlyDictionary<IEntityMatcher, EntityQuery> Queries => _queries;
     public IEnumerable<IEntityHost> EntityHosts => _hosts.Values;
 
-    public IEnumerable<IAddon> Addons {
-        get {
-            for (int i = 0, addonAcc = 0; addonAcc < _addonCount; ++i) {
-                var addon = _addons.GetRef(i);
-                if (addon != null) {
-                    addonAcc++;
-                    yield return addon;
-                }
-            }
-        }
-    }
+    public IEnumerable<IAddon> Addons =>
+        _addons[.._addonCount].Where(addon => addon != null)!;
 
     private readonly Dictionary<IEntityMatcher, EntityQuery> _queries = [];
     private readonly SparseSet<IReactiveEntityHost> _hosts = new(256, 256);
 
-    private readonly BucketBuffer<IAddon> _addons = new();
+    private readonly IAddon?[] _addons = new IAddon?[1024];
     private int _addonCount = 0;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -465,7 +456,7 @@ public sealed class World : IEntityQuery, IEventSender
     public TAddon AcquireAddon<TAddon>()
         where TAddon : IAddon, new()
     {
-        ref var addon = ref _addons.GetRef(WorldAddonIndexer<TAddon>.Index);
+        ref var addon = ref _addons[WorldAddonIndexer<TAddon>.Index];
         if (addon != null) {
             return (TAddon)addon!;
         }
@@ -477,7 +468,7 @@ public sealed class World : IEntityQuery, IEventSender
     public TAddon AddAddon<TAddon>()
         where TAddon : IAddon, new()
     {
-        ref var addon = ref _addons.GetRef(WorldAddonIndexer<TAddon>.Index);
+        ref var addon = ref _addons[WorldAddonIndexer<TAddon>.Index];
         if (addon != null) {
             throw new Exception("Addon already exists: " + typeof(TAddon));
         }
@@ -489,7 +480,7 @@ public sealed class World : IEntityQuery, IEventSender
     public bool RemoveAddon<TAddon>()
         where TAddon : IAddon
     {
-        ref var addon = ref _addons.GetRef(WorldAddonIndexer<TAddon>.Index);
+        ref var addon = ref _addons[WorldAddonIndexer<TAddon>.Index];
         if (addon != null) {
             addon.OnUninitialize(this);
             addon = null;
@@ -502,7 +493,7 @@ public sealed class World : IEntityQuery, IEventSender
     public TAddon GetAddon<TAddon>()
         where TAddon : IAddon
     {
-        ref var addon = ref _addons.GetRef(WorldAddonIndexer<TAddon>.Index);
+        ref var addon = ref _addons[WorldAddonIndexer<TAddon>.Index];
         if (addon == null) {
             throw new KeyNotFoundException("Addon not found: " + typeof(TAddon));
         }
@@ -511,12 +502,12 @@ public sealed class World : IEntityQuery, IEventSender
 
     public bool ContainsAddon<TAddon>()
         where TAddon : IAddon
-        => _addons.GetRef(WorldAddonIndexer<TAddon>.Index) != null;
+        => _addons[WorldAddonIndexer<TAddon>.Index] != null;
     
     public bool TryGetAddon<TAddon>([MaybeNullWhen(false)] out TAddon addon)
         where TAddon : IAddon
     {
-        ref var rawAddon = ref _addons.GetRef(WorldAddonIndexer<TAddon>.Index);
+        ref var rawAddon = ref _addons[WorldAddonIndexer<TAddon>.Index];
         if (rawAddon != null) {
             addon = (TAddon)rawAddon;
             return true;
@@ -538,7 +529,7 @@ public sealed class World : IEntityQuery, IEventSender
         _hosts.Clear();
 
         for (int i = 0, addonAcc = 0; addonAcc < _addonCount; ++i) {
-            var addon = _addons.GetRef(i);
+            var addon = _addons[i];
             if (addon != null) {
                 addonAcc++;
                 addon.OnUninitialize(this);
