@@ -11,12 +11,20 @@ public sealed class HashBuffer<T> : IBuffer<T>
     private readonly Dictionary<int, T> _dict = [];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref T GetRef(int index)
+    public ref T CreateRef(int index)
         => ref CollectionsMarshal.GetValueRefOrAddDefault(_dict, index, out bool _)!;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref T GetRef(int index)
+        => ref CollectionsMarshal.GetValueRefOrNullRef(_dict, index)!;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool IsAllocated(int index)
         => _dict.ContainsKey(index);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool Release(int index)
+        => _dict.Remove(index);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Dispose()
