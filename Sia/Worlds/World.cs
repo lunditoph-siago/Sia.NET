@@ -421,10 +421,12 @@ public sealed class World : IEntityQuery, IEventSender
         where THost : IEntityHost
         => _hosts.ContainsKey(WorldEntityHostIndexer<THost>.Index);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Send<TEvent>(in EntityRef target, in TEvent e)
         where TEvent : IEvent
         => Dispatcher.Send(target, e);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Modify<TCommand>(in EntityRef target, in TCommand command)
         where TCommand : ICommand
     {
@@ -432,6 +434,7 @@ public sealed class World : IEntityQuery, IEventSender
         Dispatcher.Send(target, command);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Modify<TComponent, TCommand>(
         in EntityRef target, ref TComponent component, in TCommand command)
         where TCommand : ICommand<TComponent>
@@ -453,6 +456,7 @@ public sealed class World : IEntityQuery, IEventSender
         return addon;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public TAddon AcquireAddon<TAddon>()
         where TAddon : IAddon, new()
     {
@@ -465,6 +469,7 @@ public sealed class World : IEntityQuery, IEventSender
         return newAddon;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public TAddon AddAddon<TAddon>()
         where TAddon : IAddon, new()
     {
@@ -477,6 +482,7 @@ public sealed class World : IEntityQuery, IEventSender
         return newAddon;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool RemoveAddon<TAddon>()
         where TAddon : IAddon
     {
@@ -490,6 +496,7 @@ public sealed class World : IEntityQuery, IEventSender
         return false;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public TAddon GetAddon<TAddon>()
         where TAddon : IAddon
     {
@@ -500,10 +507,12 @@ public sealed class World : IEntityQuery, IEventSender
         return (TAddon)addon!;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool ContainsAddon<TAddon>()
         where TAddon : IAddon
         => _addons[WorldAddonIndexer<TAddon>.Index] != null;
     
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool TryGetAddon<TAddon>([MaybeNullWhen(false)] out TAddon addon)
         where TAddon : IAddon
     {
