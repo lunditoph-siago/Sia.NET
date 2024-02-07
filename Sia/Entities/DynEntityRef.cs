@@ -1,6 +1,6 @@
 namespace Sia;
 
-public sealed class DynEntityRef : IDisposable
+public struct DynEntityRef : IDisposable
 {
     private interface IEntityMover
     {
@@ -21,9 +21,9 @@ public sealed class DynEntityRef : IDisposable
         }
     }
 
-    public EntityRef Current => _currRef;
-    public object Boxed => _currRef.Boxed;
-    public bool Valid => _currRef.Valid;
+    public readonly EntityRef Current => _currRef;
+    public readonly object Boxed => _currRef.Boxed;
+    public readonly bool Valid => _currRef.Valid;
 
     private EntityRef _currRef;
     private IEntityMover _mover;
@@ -41,18 +41,18 @@ public sealed class DynEntityRef : IDisposable
     public unsafe void Add<TComponent>(in TComponent newComponent = default!)
         => (_currRef, _mover) = _mover.Add(_currRef, newComponent);
 
-    public bool Contains<TComponent>()
+    public readonly bool Contains<TComponent>()
         => _currRef.Contains<TComponent>();
 
-    public bool Contains(Type componentType)
+    public readonly bool Contains(Type componentType)
         => _currRef.Contains(componentType);
 
-    public ref TComponent Get<TComponent>()
+    public readonly ref TComponent Get<TComponent>()
         => ref _currRef.Get<TComponent>();
     
-    public ref TComponent GetOrNullRef<TComponent>()
+    public readonly ref TComponent GetOrNullRef<TComponent>()
         => ref _currRef.GetOrNullRef<TComponent>();
 
-    public void Dispose()
+    public readonly void Dispose()
         => _currRef.Dispose();
 }
