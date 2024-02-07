@@ -1,7 +1,6 @@
 namespace Sia_Examples;
 
 using System.Collections.Immutable;
-using System.ComponentModel;
 using System.Numerics;
 using Sia;
 

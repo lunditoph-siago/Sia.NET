@@ -38,7 +38,10 @@ public record WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>, IReactive
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public EntityRef Create()
+    EntityRef IEntityHost.Create() => _host.Create();
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public EntityRef<T> Create()
     {
         var entity = _host.Create();
         World.Count++;
@@ -48,7 +51,7 @@ public record WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>, IReactive
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public EntityRef Create(in T initial)
+    public EntityRef<T> Create(in T initial)
     {
         var entity = _host.Create(initial);
         World.Count++;
@@ -111,4 +114,8 @@ public record WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>, IReactive
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public object Box(nint pointer, int version)
         => _host.Box(pointer, version);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Span<byte> GetSpan(nint pointer, int version)
+        => _host.GetSpan(pointer, version);
 }

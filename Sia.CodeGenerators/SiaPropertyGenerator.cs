@@ -409,6 +409,36 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         source.WriteLine('{');
         source.Indent++;
 
+        void WriteHeader()
+        {
+            source.Indent++;
+            if (componentTypeParams != null) {
+                var constraints = GetTypeConstraints(property.ComponentSymbol);
+                if (constraints != null) {
+                    source.WriteLine(constraints);
+                }
+            }
+        }
+
+        void WriteBody()
+        {
+            source.Write("=> global::Sia.Context<global::Sia.World>.Current!.Modify(entity, new ");
+            if (parentTypes != "") {
+                source.Write(parentTypes);
+                source.Write('.');
+            }
+            source.Write(componentType);
+            if (componentTypeParams != null) {
+                WriteTypeParameters(source, componentTypeParams);
+            }
+            source.Write('.');
+            source.Write(commandName);
+            source.Write("(");
+            source.Write(parameters);
+            source.WriteLine("));");
+            source.Indent--;
+        }
+
         // EntityRef
 
         source.Write("public static void ");
@@ -421,25 +451,28 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         source.Write("(this global::Sia.EntityRef entity, ");
         source.Write(arguments);
         source.WriteLine(")");
-        source.Indent++;
-        if (componentTypeParams != null) {
-            source.WriteLine(GetTypeConstraints(property.ComponentSymbol));
-        }
-        source.Write("=> global::Sia.Context<global::Sia.World>.Current!.Modify(entity, new ");
-        if (parentTypes != "") {
-            source.Write(parentTypes);
-            source.Write('.');
-        }
+        WriteHeader();
+        WriteBody();
+        source.WriteLine();
+
+        // EntityRef<TEntity>
+
+        source.Write("public static void ");
         source.Write(componentType);
-        if (componentTypeParams != null) {
-            WriteTypeParameters(source, componentTypeParams);
-        }
-        source.Write('.');
+        source.Write('_');
         source.Write(commandName);
-        source.Write("(");
-        source.Write(parameters);
-        source.WriteLine("));");
-        source.Indent--;
+        source.Write("<TEntity");
+        if (componentTypeParams != null) {
+            source.Write(", ");
+            WriteTypeParametersInner(source, componentTypeParams);
+        }
+        source.Write('>');
+        source.Write("(this global::Sia.EntityRef<TEntity> entity, ");
+        source.Write(arguments);
+        source.WriteLine(")");
+        WriteHeader();
+        source.WriteLine("where TEntity : struct");
+        WriteBody();
 
         source.Indent--;
         source.WriteLine("}");

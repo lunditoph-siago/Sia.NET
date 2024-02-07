@@ -32,4 +32,8 @@ public static class Sid
         where TId : notnull
         => entity.Modify(new Sid<TId>.SetValue(id));
 
+    public static void SetSid<TEntity, TId>(this EntityRef<TEntity> entity, in TId id)
+        where TEntity : struct
+        where TId : notnull
+        => entity.Modify(new Sid<TId>.SetValue(id));
 }

@@ -427,7 +427,22 @@ public sealed class World : IEntityQuery, IEventSender
         => Dispatcher.Send(target, e);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Send<TEntity, TEvent>(in EntityRef<TEntity> target, in TEvent e)
+        where TEntity : struct
+        where TEvent : IEvent
+        => Dispatcher.Send(target, e);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Modify<TCommand>(in EntityRef target, in TCommand command)
+        where TCommand : ICommand
+    {
+        command.Execute(this, target);
+        Dispatcher.Send(target, command);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Modify<TEntity, TCommand>(in EntityRef<TEntity> target, in TCommand command)
+        where TEntity : struct
         where TCommand : ICommand
     {
         command.Execute(this, target);
@@ -437,6 +452,16 @@ public sealed class World : IEntityQuery, IEventSender
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Modify<TComponent, TCommand>(
         in EntityRef target, ref TComponent component, in TCommand command)
+        where TCommand : ICommand<TComponent>
+    {
+        command.Execute(this, target, ref component);
+        Dispatcher.Send(target, command);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Modify<TEntity, TComponent, TCommand>(
+        in EntityRef<TEntity> target, ref TComponent component, in TCommand command)
+        where TEntity : struct
         where TCommand : ICommand<TComponent>
     {
         command.Execute(this, target, ref component);

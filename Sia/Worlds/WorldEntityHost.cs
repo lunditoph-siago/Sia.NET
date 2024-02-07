@@ -14,7 +14,7 @@ public sealed class WorldEntityHost<[DynamicallyAccessedMembers(DynamicallyAcces
     public World World { get; } = world;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public override EntityRef Create()
+    public override EntityRef<T> Create()
     {
         var entity = base.Create();
         World.Count++;
@@ -24,7 +24,7 @@ public sealed class WorldEntityHost<[DynamicallyAccessedMembers(DynamicallyAcces
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public override EntityRef Create(in T initial)
+    public override EntityRef<T> Create(in T initial)
     {
         var entity = base.Create(initial);
         World.Count++;

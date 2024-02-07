@@ -22,6 +22,7 @@ public interface IEntityHost : IEnumerable<EntityRef>
     void IterateAllocated<TData>(in TData data, StoragePointerHandler<TData> handler);
 
     object Box(nint pointer, int version);
+    Span<byte> GetSpan(nint pointer, int version);
 }
 
 public interface IReactiveEntityHost : IEntityHost
@@ -33,5 +34,6 @@ public interface IReactiveEntityHost : IEntityHost
 public interface IEntityHost<T> : IEntityHost
     where T : struct
 {
-    EntityRef Create(in T initial);
+    new EntityRef<T> Create();
+    EntityRef<T> Create(in T initial);
 }
