@@ -27,6 +27,12 @@ public static class EntityWorldContextExtensions
         => Context<World>.Current!.Modify(entity, command);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void Modify<TComponent, TCommand>(
+        this EntityRef entity, ref TComponent component, in TCommand command)
+        where TCommand : ICommand<TComponent>
+        => Context<World>.Current!.Modify(entity, ref component, command);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void Modify<TEntity, TComponent, TCommand>(
         this EntityRef<TEntity> entity, ref TComponent component, in TCommand command)
         where TEntity : struct
