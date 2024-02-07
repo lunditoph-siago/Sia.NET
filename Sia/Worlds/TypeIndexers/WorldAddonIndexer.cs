@@ -2,7 +2,7 @@ namespace Sia;
 
 internal static class WorldAddonIndexerShared
 {
-    private static int _index;
+    private static int _index = -1;
     public static int GetNext() => Interlocked.Increment(ref _index);
 }
 
