@@ -12,7 +12,7 @@ public class Dispatcher<TTarget, TEvent> : IEventSender<TTarget, TEvent>
     private bool _sending = false;
 
     private readonly List<IEventListener<TTarget>> _globalListeners = [];
-    private readonly Dictionary<Type, object> _eventListeners = [];
+    private readonly BucketBuffer<object> _eventListeners = new();
     private readonly Dictionary<TTarget, List<IEventListener<TTarget>>> _targetListeners = [];
 
     private readonly Stack<List<IEventListener<TTarget>>> _targetListenersPool = new();
@@ -25,16 +25,19 @@ public class Dispatcher<TTarget, TEvent> : IEventSender<TTarget, TEvent>
     public void Listen<UEvent>(Listener<UEvent> listener)
         where UEvent : TEvent
     {
-        List<Listener<UEvent>> listeners;
+        int typeIndex = EventTypeIndexer<UEvent>.Index;
 
-        if (_eventListeners.TryGetValue(typeof(UEvent), out var rawListeners)) {
-            listeners = (List<Listener<UEvent>>)rawListeners!;
+        List<Listener<UEvent>> listeners;
+        ref var rawListeners = ref _eventListeners.GetRefOrNullRef(typeIndex);
+        
+        if (Unsafe.IsNullRef(ref rawListeners) || rawListeners == null) {
+            listeners = [];
+            _eventListeners.CreateRef(typeIndex) = listeners;
         }
         else {
-            listeners = [];
-            _eventListeners.Add(typeof(UEvent), listeners);
+            listeners = (List<Listener<UEvent>>)rawListeners;
         }
-        
+
         listeners.Add(listener);
     }
 
@@ -58,13 +61,16 @@ public class Dispatcher<TTarget, TEvent> : IEventSender<TTarget, TEvent>
     {
         GuardNotSending();
 
-        if (!_eventListeners.TryGetValue(typeof(UEvent), out var rawListeners)) {
+        int typeIndex = EventTypeIndexer<UEvent>.Index;
+        ref var rawListeners = ref _eventListeners.GetRefOrNullRef(typeIndex);
+
+        if (Unsafe.IsNullRef(ref rawListeners) || rawListeners == null) {
             return false;
         }
 
         var listeners = (List<Listener<UEvent>>)rawListeners;
-
         int index = listeners.IndexOf(listener);
+
         if (index == -1) {
             return false;
         }
@@ -73,6 +79,7 @@ public class Dispatcher<TTarget, TEvent> : IEventSender<TTarget, TEvent>
         if (index != lastIndex) {
             listeners[index] = listeners[lastIndex];
         }
+
         listeners.RemoveAt(lastIndex);
         return true;
     }
@@ -109,9 +116,13 @@ public class Dispatcher<TTarget, TEvent> : IEventSender<TTarget, TEvent>
     {
         GuardNotSending();
 
-        if (_eventListeners.TryGetValue(typeof(UEvent), out var rawListeners)) {
-            ((List<Listener<UEvent>>)rawListeners).Clear();
+        int typeIndex = EventTypeIndexer<UEvent>.Index;
+        ref var rawListeners = ref _eventListeners.GetRefOrNullRef(typeIndex);
+        if (Unsafe.IsNullRef(ref rawListeners) || rawListeners == null) {
+            return;
         }
+        var listeners = (List<Listener<UEvent>>)rawListeners;
+        listeners.Clear();
     }
 
     public void UnlistenAll(in TTarget target)
@@ -146,13 +157,17 @@ public class Dispatcher<TTarget, TEvent> : IEventSender<TTarget, TEvent>
     {
         _sending = true;
 
+        int typeIndex = EventTypeIndexer<UEvent>.Index;
+
         try {
             int globalListenerCount = _globalListeners.Count;
             int eventListenerCount = 0;
             int targetListenerCount = 0;
 
             List<Listener<UEvent>>? eventListeners = null;
-            if (_eventListeners.TryGetValue(typeof(UEvent), out var rawEventListeners)) {
+            ref var rawEventListeners = ref _eventListeners.GetRefOrNullRef(typeIndex);
+
+            if (!Unsafe.IsNullRef(ref rawEventListeners) && rawEventListeners != null) {
                 eventListeners = (List<Listener<UEvent>>)rawEventListeners;
                 eventListenerCount = eventListeners.Count;
             }
