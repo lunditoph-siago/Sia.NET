@@ -17,6 +17,10 @@ public sealed class ArrayBuffer<T>(int capacity) : IBuffer<T>
         => ref _values[index];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref T GetRefOrNullRef(int index)
+        => ref _values[index];
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool IsAllocated(int index)
         => true;
 
@@ -26,6 +30,10 @@ public sealed class ArrayBuffer<T>(int capacity) : IBuffer<T>
         _values[index] = default!;
         return true;
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Clear()
+        => Array.Clear(_values);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Dispose()

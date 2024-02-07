@@ -19,12 +19,20 @@ public sealed class HashBuffer<T> : IBuffer<T>
         => ref CollectionsMarshal.GetValueRefOrNullRef(_dict, index)!;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref T GetRefOrNullRef(int index)
+        => ref CollectionsMarshal.GetValueRefOrNullRef(_dict, index)!;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool IsAllocated(int index)
         => _dict.ContainsKey(index);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Release(int index)
         => _dict.Remove(index);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Clear()
+        => _dict.Clear();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Dispose()
