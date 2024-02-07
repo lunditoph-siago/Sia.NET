@@ -75,12 +75,12 @@ public static partial class Example4_Aggregator
         Console.WriteLine("Tick!");
         scheduler.Tick();
 
-        e2.SetSid<ObjectId>(2);
+        e2.SetSid(new ObjectId(2));
 
         Console.WriteLine("Tick!");
         scheduler.Tick();
 
-        e1.SetSid<ObjectId>(2);
+        e1.SetSid(new ObjectId(2));
         scheduler.Tick();
 
         var aggr = aggregator.Find(1);

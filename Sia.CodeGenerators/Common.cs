@@ -214,6 +214,13 @@ internal static class Common
     public static void WriteTypeParameters(IndentedTextWriter source, TypeParameterListSyntax typeParams)
     {
         source.Write('<');
+        WriteTypeParametersInner(source, typeParams);
+        source.Write('>');
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void WriteTypeParametersInner(IndentedTextWriter source, TypeParameterListSyntax typeParams)
+    {
         var paramsList = typeParams.Parameters;
         var lastIndex = paramsList.Count - 1;
         for (int i = 0; i != paramsList.Count; ++i) {
@@ -222,7 +229,6 @@ internal static class Common
                 source.Write(", ");
             }
         }
-        source.Write('>');
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

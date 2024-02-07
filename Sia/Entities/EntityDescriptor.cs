@@ -75,14 +75,18 @@ public record EntityDescriptor
 
     private class Proxy<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity> : IProxy
     {
-        public static EntityDescriptor Descriptor = new(typeof(TEntity), new Proxy<TEntity>());
+        public static EntityDescriptor Descriptor = new(
+            typeof(TEntity), Unsafe.SizeOf<TEntity>(), new Proxy<TEntity>());
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Contains(Type type)
             => EntityDescriptor<TEntity>.FieldOffsets.ContainsKey(type);
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Contains<TComponent>()
             => EntityIndexer<TEntity, TComponent>.Offset.HasValue;
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryGetOffset<TComponent>(out nint offset)
         {
             if (EntityIndexer<TEntity, TComponent>.Offset is IntPtr raw) {
@@ -98,12 +102,14 @@ public record EntityDescriptor
         => Proxy<TEntity>.Descriptor;
 
     public Type Type { get; }
+    public int MemorySize { get; }
 
     private readonly IProxy _proxy;
 
-    private EntityDescriptor(Type type, IProxy proxy)
+    private EntityDescriptor(Type type, int memorySize, IProxy proxy)
     {
         Type = type;
+        MemorySize = memorySize;
         _proxy = proxy;
     }
 

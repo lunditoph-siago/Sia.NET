@@ -28,14 +28,17 @@ public class EntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTyp
     public TStorage Storage { get; } = managedStorage;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public virtual EntityRef Create()
+    EntityRef IEntityHost.Create() => Create();
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public virtual EntityRef<T> Create()
     {
         var ptr = Storage.Allocate();
         return new(ptr.Raw, ptr.Version, this);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public virtual EntityRef Create(in T initial)
+    public virtual EntityRef<T> Create(in T initial)
     {
         var ptr = Storage.UnsafeAllocate(initial, out int version);
         return new(ptr, version, this);
@@ -90,6 +93,10 @@ public class EntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTyp
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public object Box(nint pointer, int version)
         => Storage.UnsafeGetRef(pointer, version);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe Span<byte> GetSpan(nint pointer, int version)
+        => new(Unsafe.AsPointer(ref Storage.UnsafeGetRef(pointer, version)), Descriptor.MemorySize);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public IEnumerator<EntityRef> GetEnumerator()
