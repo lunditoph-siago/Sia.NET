@@ -41,12 +41,26 @@ public sealed class BucketBuffer<T>(int bucketCapacity = 256) : IBuffer<T>
         ref var bucket = ref _buckets.AsSpan()[bucketIndex];
         return ref bucket!.Value.Memoery.Span[index % BucketCapacity];
     }
+    
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref T GetRefOrNullRef(int index)
+    {
+        int bucketIndex = index / BucketCapacity;
+        if (bucketIndex >= _buckets.Count) {
+            return ref Unsafe.NullRef<T>();
+        }
+        ref var bucket = ref _buckets.AsSpan()[bucketIndex];
+        if (bucket == null) {
+            return ref Unsafe.NullRef<T>();
+        }
+        return ref bucket.Value.Memoery.Span[index % BucketCapacity];
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool IsAllocated(int index)
     {
         int bucketIndex = index / BucketCapacity;
-        return bucketIndex < _buckets.Count && _buckets[bucketIndex] != null;
+        return bucketIndex < _buckets.Count && _buckets.AsSpan()[bucketIndex] != null;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -74,6 +88,16 @@ public sealed class BucketBuffer<T>(int bucketCapacity = 256) : IBuffer<T>
         return true;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Clear()
+    {
+        foreach (ref var bucket in _buckets.AsSpan()) {
+            bucket?.Memoery.Dispose();
+        }
+        _buckets.Clear();
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Dispose()
     {
     }
