@@ -165,8 +165,17 @@ public sealed class World : IEntityQuery, IEventSender
     public IReadOnlyDictionary<IEntityMatcher, EntityQuery> Queries => _queries;
     public IEnumerable<IEntityHost> EntityHosts => _hosts.Values;
 
-    public IEnumerable<IAddon> Addons =>
-        _addons[.._addonCount].Where(addon => addon != null)!;
+    public IEnumerable<IAddon> Addons {
+        get {
+            for (int i = 0; i < _addonCount;) {
+                var addon = _addons[i];
+                if (addon != null) {
+                    i++;
+                    yield return addon;
+                }
+            }
+        }
+    }
 
     private readonly Dictionary<IEntityMatcher, EntityQuery> _queries = [];
     private readonly SparseSet<IReactiveEntityHost> _hosts = new(256, 256);
@@ -470,24 +479,14 @@ public sealed class World : IEntityQuery, IEventSender
 
     public WorldCommandBuffer CreateCommandBuffer()
         => new(this);
-    
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private TAddon CreateAddon<TAddon>()
-        where TAddon : IAddon, new()
-    {
-        var addon = new TAddon();
-        addon.OnInitialize(this);
-        _addonCount++;
-        return addon;
-    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public TAddon AcquireAddon<TAddon>()
-        where TAddon : IAddon, new()
+        where TAddon : class, IAddon, new()
     {
         ref var addon = ref _addons[WorldAddonIndexer<TAddon>.Index];
         if (addon != null) {
-            return (TAddon)addon!;
+            return Unsafe.As<TAddon>(addon);
         }
         var newAddon = CreateAddon<TAddon>();
         addon = newAddon;
@@ -496,7 +495,7 @@ public sealed class World : IEntityQuery, IEventSender
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public TAddon AddAddon<TAddon>()
-        where TAddon : IAddon, new()
+        where TAddon : class, IAddon, new()
     {
         ref var addon = ref _addons[WorldAddonIndexer<TAddon>.Index];
         if (addon != null) {
@@ -508,44 +507,93 @@ public sealed class World : IEntityQuery, IEventSender
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private TAddon CreateAddon<TAddon>()
+        where TAddon : class, IAddon, new()
+    {
+        var addon = new TAddon();
+        addon.OnInitialize(this);
+        _addonCount++;
+        return addon;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool RemoveAddon<TAddon>()
-        where TAddon : IAddon
+        where TAddon : class, IAddon
     {
         ref var addon = ref _addons[WorldAddonIndexer<TAddon>.Index];
-        if (addon != null) {
-            addon.OnUninitialize(this);
-            addon = null;
-            _addonCount--;
-            return true;
+        if (addon == null) {
+            return false;
         }
-        return false;
+        addon.OnUninitialize(this);
+        addon = null;
+        _addonCount--;
+        return true;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public TAddon GetAddon<TAddon>()
-        where TAddon : IAddon
+        where TAddon : class, IAddon
     {
-        ref var addon = ref _addons[WorldAddonIndexer<TAddon>.Index];
-        if (addon == null) {
-            throw new KeyNotFoundException("Addon not found: " + typeof(TAddon));
+        var addon = _addons[WorldAddonIndexer<TAddon>.Index];
+        if (addon != null) {
+            return Unsafe.As<TAddon>(addon);
         }
-        return (TAddon)addon!;
+
+        for (int i = 0, found = 0; found < _addonCount; ++i) {
+            addon = _addons[i];
+            if (addon != null) {
+                if (addon is TAddon converted) {
+                    return converted;
+                }
+                found++;
+            }
+        }
+
+        throw new KeyNotFoundException("Addon not found: " + typeof(TAddon));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool ContainsAddon<TAddon>()
-        where TAddon : IAddon
-        => _addons[WorldAddonIndexer<TAddon>.Index] != null;
+    public IEnumerable<TAddon> GetAddons<TAddon>()
+        where TAddon : class, IAddon
+    {
+        var addon = _addons[WorldAddonIndexer<TAddon>.Index];
+        if (addon != null) {
+            yield return Unsafe.As<TAddon>(addon);
+        }
+
+        for (int i = 0, found = 0; found < _addonCount; ++i) {
+            addon = _addons[i];
+            if (addon != null) {
+                if (addon is TAddon converted) {
+                    yield return converted;
+                }
+                found++;
+            }
+        }
+    }
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool TryGetAddon<TAddon>([MaybeNullWhen(false)] out TAddon addon)
-        where TAddon : IAddon
+        where TAddon : class, IAddon
     {
-        ref var rawAddon = ref _addons[WorldAddonIndexer<TAddon>.Index];
+        var rawAddon = _addons[WorldAddonIndexer<TAddon>.Index];
+
         if (rawAddon != null) {
-            addon = (TAddon)rawAddon;
+            addon = Unsafe.As<TAddon>(rawAddon);
             return true;
         }
+
+        for (int i = 0, found = 0; found < _addonCount; ++i) {
+            rawAddon = _addons[i];
+            if (rawAddon != null) {
+                if (rawAddon is TAddon converted) {
+                    addon = converted;
+                    return true;
+                }
+                found++;
+            }
+        }
+
         addon = default;
         return false;
     }

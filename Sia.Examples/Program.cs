@@ -22,3 +22,4 @@ Invoke(Example8_SIMD.Run);
 Invoke(Example10_DuplicateSystem.Run);
 Invoke(Example11_RPG.Run);
 Invoke(Example12_DynEntityRef.Run);
+Invoke(Example13_Addon.Run);
