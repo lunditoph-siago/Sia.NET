@@ -16,10 +16,11 @@ public abstract class AddonSystemBase : SystemBase
     }
 
     protected TAddon AddAddon<TAddon>(World world)
-        where TAddon : IAddon, new()
+        where TAddon : class, IAddon, new()
     {
-        _addonRemovers.TryAdd(typeof(TAddon), static world => world.RemoveAddon<TAddon>());
-        return world.AcquireAddon<TAddon>();
+        _addonRemovers.TryAdd(typeof(TAddon),
+            static world => world.RemoveAddon<TAddon>());
+        return world.AddAddon<TAddon>();
     }
 
     public override void Uninitialize(World world, Scheduler scheduler)
