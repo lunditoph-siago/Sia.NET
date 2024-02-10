@@ -1,22 +1,13 @@
 namespace Sia;
 
-public abstract class SystemBase : ISystem
+public abstract class SystemBase(
+    SystemChain? children = null, IEntityMatcher? matcher = null,
+    IEventUnion? trigger = null, IEventUnion? filter = null) : ISystem
 {
-    public SystemChain? Children { get; init; }
-    public IEntityMatcher? Matcher { get; init; }
-    public IEventUnion? Trigger { get; init; }
-    public IEventUnion? Filter { get; init; }
-
-    public SystemBase() {}
-    public SystemBase(
-        SystemChain? children = null, IEntityMatcher? matcher = null,
-        IEventUnion? trigger = null, IEventUnion? filter = null)
-    {
-        Children = children;
-        Matcher = matcher;
-        Trigger = trigger;
-        Filter = filter;
-    }
+    public SystemChain? Children { get; init; } = children;
+    public IEntityMatcher? Matcher { get; init; } = matcher;
+    public IEventUnion? Trigger { get; init; } = trigger;
+    public IEventUnion? Filter { get; init; } = filter;
 
     public virtual void Initialize(World world, Scheduler scheduler) {}
     public virtual void Uninitialize(World world, Scheduler scheduler) {}
