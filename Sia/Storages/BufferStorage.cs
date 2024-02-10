@@ -1,9 +1,8 @@
+namespace Sia;
+
 using System.Collections;
 using System.Runtime.CompilerServices;
 using CommunityToolkit.HighPerformance;
-
-namespace Sia
-{
 
 public sealed class BufferStorage<T>
     where T : struct
@@ -155,6 +154,4 @@ public class BufferStorage<T, TBuffer>(TBuffer buffer) : IStorage<T>
         _buffer.Dispose();
         GC.SuppressFinalize(this);
     }
-}
-
 }

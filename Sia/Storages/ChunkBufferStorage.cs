@@ -1,9 +1,8 @@
+namespace Sia;
+
 using System.Collections;
 using System.Runtime.CompilerServices;
 using CommunityToolkit.HighPerformance;
-
-namespace Sia
-{
 
 public sealed class ChunkBufferStorage<T>
     where T : struct
@@ -425,6 +424,4 @@ public class ChunkBufferStorage<T, TBuffer> : IStorage<T>
         _buffer.Dispose();
         GC.SuppressFinalize(this);
     }
-}
-
 }
