@@ -63,6 +63,9 @@ public record SystemChain(ImmutableList<SystemChain.Entry> Entries)
                 GetAttributedSystemTypes<TSystem>(typeof(AfterSystemAttribute<>)),
                 GetAttributedSystemTypes<TSystem>(typeof(BeforeSystemAttribute<>)))
         )));
+
+    public SystemChain Concat(SystemChain chain)
+        => new(Entries.AddRange(chain.Entries));
     
     public SystemChain Remove<TSystem>()
         where TSystem : ISystem
@@ -229,6 +232,9 @@ public record SystemChain<TSystem>() : SystemChain(ImmutableList<Entry>.Empty)
     public new SystemChain<TSystem> Add<USystem>(Func<USystem> creator)
         where USystem : TSystem
         => Unsafe.As<SystemChain<TSystem>>(base.Add(creator));
+
+    public new SystemChain<TSystem> Concat(SystemChain chain)
+        => Unsafe.As<SystemChain<TSystem>>(base.Concat(chain));
 
     public new SystemChain<TSystem> Remove<USystem>()
         where USystem : TSystem
