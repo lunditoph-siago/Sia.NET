@@ -231,11 +231,13 @@ public sealed class World : IEntityQuery, IEventSender
         Dispose(false);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Start(Action action)
     {
         Context<World>.With(this, action);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void ForEach(EntityHandler handler)
     {
         var hosts = _hosts.UnsafeRawValues;
@@ -247,6 +249,7 @@ public sealed class World : IEntityQuery, IEventSender
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void ForEach(SimpleEntityHandler handler)
     {
         var hosts = _hosts.UnsafeRawValues;
@@ -258,6 +261,7 @@ public sealed class World : IEntityQuery, IEventSender
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void ForEach<TData>(in TData data, EntityHandler<TData> handler)
     {
         var hosts = _hosts.UnsafeRawValues;
@@ -269,6 +273,7 @@ public sealed class World : IEntityQuery, IEventSender
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void ForEach<TData>(in TData data, SimpleEntityHandler<TData> handler)
     {
         var hosts = _hosts.UnsafeRawValues;
@@ -296,14 +301,17 @@ public sealed class World : IEntityQuery, IEventSender
     IEnumerator IEnumerable.GetEnumerator()
         => GetEnumerator();
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Query<TTypeUnion>(EntityHandler handler)
         where TTypeUnion : ITypeUnion, new()
         => Query(Matchers.From<TTypeUnion>(), handler);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Query<TTypeUnion>(SimpleEntityHandler handler)
         where TTypeUnion : ITypeUnion, new()
         => Query(Matchers.From<TTypeUnion>(), handler);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Query(IEntityMatcher matcher, EntityHandler handler)
     {
         foreach (var host in _hosts.AsValueSpan()) {
@@ -313,6 +321,7 @@ public sealed class World : IEntityQuery, IEventSender
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Query(IEntityMatcher matcher, SimpleEntityHandler handler)
     {
         foreach (var host in _hosts.AsValueSpan()) {
@@ -322,6 +331,7 @@ public sealed class World : IEntityQuery, IEventSender
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Query<TData>(IEntityMatcher matcher, in TData data, EntityHandler<TData> handler)
     {
         var hosts = _hosts.UnsafeRawValues;
@@ -333,6 +343,7 @@ public sealed class World : IEntityQuery, IEventSender
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Query<TData>(IEntityMatcher matcher, in TData data, SimpleEntityHandler<TData> handler)
     {
         var hosts = _hosts.UnsafeRawValues;
@@ -344,10 +355,12 @@ public sealed class World : IEntityQuery, IEventSender
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public EntityQuery Query<TTypeUnion>()
         where TTypeUnion : ITypeUnion, new()
         => Query(Matchers.From<TTypeUnion>());
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public EntityQuery Query(IEntityMatcher matcher)
     {
         if (_queries.TryGetValue(matcher, out var query)) {
@@ -358,11 +371,13 @@ public sealed class World : IEntityQuery, IEventSender
         return query;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public WorldEntityHost<TEntity, TStorage> GetHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity, TStorage>()
         where TEntity : struct
         where TStorage : class, IStorage<TEntity>, new()
         => GetHost<TEntity, TStorage>(static () => new());
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public WorldEntityHost<TEntity, TStorage> GetHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity, TStorage>(Func<TStorage> creator)
         where TEntity : struct
         where TStorage : class, IStorage<TEntity>
@@ -376,11 +391,13 @@ public sealed class World : IEntityQuery, IEventSender
         return (WorldEntityHost<TEntity, TStorage>)host;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public WrappedWorldEntityHost<TEntity, THost> GetCustomHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity, THost>()
         where TEntity : struct
         where THost : IEntityHost<TEntity>, new()
         => GetCustomHost<TEntity, THost>(static () => new());
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public WrappedWorldEntityHost<TEntity, THost> GetCustomHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity, THost>(Func<THost> creator)
         where TEntity : struct
         where THost : IEntityHost<TEntity>
@@ -395,6 +412,7 @@ public sealed class World : IEntityQuery, IEventSender
         return (WrappedWorldEntityHost<TEntity, THost>)host;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool ReleaseHost<THost>()
         where THost : IEntityHost
     {
@@ -405,6 +423,7 @@ public sealed class World : IEntityQuery, IEventSender
         return false;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool ReleaseHost<THost>([MaybeNullWhen(false)] out IReactiveEntityHost host)
         where THost : IEntityHost
     {
@@ -415,6 +434,7 @@ public sealed class World : IEntityQuery, IEventSender
         return false;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool TryGetHost<THost>([MaybeNullWhen(false)] out THost host)
         where THost : IEntityHost
     {
@@ -426,9 +446,20 @@ public sealed class World : IEntityQuery, IEventSender
         return false;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool ConainsHost<THost>()
         where THost : IEntityHost
         => _hosts.ContainsKey(WorldEntityHostIndexer<THost>.Index);
+    
+    public void ClearHosts()
+    {
+        var hosts = _hosts.UnsafeRawValues;
+        for (int i = 0; i < hosts.Count; ++i) {
+            var host = hosts[i];
+            OnEntityHostReleased?.Invoke(host);
+        }
+        _hosts.Clear();
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Send<TEvent>(in EntityRef target, in TEvent e)
@@ -477,6 +508,7 @@ public sealed class World : IEntityQuery, IEventSender
         Dispatcher.Send(target, command);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public WorldCommandBuffer CreateCommandBuffer()
         => new(this);
 
@@ -539,20 +571,19 @@ public sealed class World : IEntityQuery, IEventSender
             return Unsafe.As<TAddon>(addon);
         }
 
-        for (int i = 0, found = 0; found < _addonCount; ++i) {
+        for (int i = 0, addonAcc = 0; addonAcc < _addonCount; ++i) {
             addon = _addons[i];
             if (addon != null) {
                 if (addon is TAddon converted) {
                     return converted;
                 }
-                found++;
+                addonAcc++;
             }
         }
 
         throw new KeyNotFoundException("Addon not found: " + typeof(TAddon));
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public IEnumerable<TAddon> GetAddons<TAddon>()
         where TAddon : class, IAddon
     {
@@ -561,18 +592,17 @@ public sealed class World : IEntityQuery, IEventSender
             yield return Unsafe.As<TAddon>(addon);
         }
 
-        for (int i = 0, found = 0; found < _addonCount; ++i) {
+        for (int i = 0, addonAcc = 0; addonAcc < _addonCount; ++i) {
             addon = _addons[i];
             if (addon != null) {
                 if (addon is TAddon converted) {
                     yield return converted;
                 }
-                found++;
+                addonAcc++;
             }
         }
     }
     
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool TryGetAddon<TAddon>([MaybeNullWhen(false)] out TAddon addon)
         where TAddon : class, IAddon
     {
@@ -583,14 +613,14 @@ public sealed class World : IEntityQuery, IEventSender
             return true;
         }
 
-        for (int i = 0, found = 0; found < _addonCount; ++i) {
+        for (int i = 0, addonAcc = 0; addonAcc < _addonCount; ++i) {
             rawAddon = _addons[i];
             if (rawAddon != null) {
                 if (rawAddon is TAddon converted) {
                     addon = converted;
                     return true;
                 }
-                found++;
+                addonAcc++;
             }
         }
 
@@ -598,27 +628,26 @@ public sealed class World : IEntityQuery, IEventSender
         return false;
     }
 
+    public void ClearAddons()
+    {
+        for (int i = 0, addonAcc = 0; addonAcc < _addonCount; ++i) {
+            var addon = _addons[i];
+            if (addon != null) {
+                addon.OnUninitialize(this);
+                addonAcc++;
+            }
+        }
+        _addonCount = 0;
+    }
+
     private void Dispose(bool disposing)
     {
         if (IsDisposed) { return; }
         IsDisposed = true;
 
-        var hosts = _hosts.UnsafeRawValues;
-        for (int i = 0; i < hosts.Count; ++i) {
-            var host = hosts[i];
-            OnEntityHostReleased?.Invoke(host);
-        }
-        _hosts.Clear();
+        ClearHosts();
+        ClearAddons();
 
-        for (int i = 0, addonAcc = 0; addonAcc < _addonCount; ++i) {
-            var addon = _addons[i];
-            if (addon != null) {
-                addonAcc++;
-                addon.OnUninitialize(this);
-            }
-        }
-
-        _addonCount = 0;
         OnDisposed?.Invoke(this);
     }
 
