@@ -6,13 +6,12 @@ using System.Runtime.InteropServices;
 using System.Diagnostics.CodeAnalysis;
 
 using CommunityToolkit.HighPerformance.Buffers;
+using CommunityToolkit.HighPerformance;
 
-public sealed class SparseSet<T>(int pageCount, int pageSize)
+public sealed class SparseSet<T>(int pageSize = 256)
     : IDictionary<int, T>, IReadOnlyDictionary<int, T>
 {
-    public int PageCount { get; init; } = pageCount;
     public int PageSize { get; init; } = pageSize;
-    public int Capacity { get; init; } = pageCount * pageSize;
     public int Count => _dense.Count;
 
     public T this[int index] {
@@ -32,6 +31,9 @@ public sealed class SparseSet<T>(int pageCount, int pageSize)
     public IEnumerable<int> Keys => _reverse;
     public IEnumerable<T> Values => _dense;
 
+    public ReadOnlySpan<int> KeySpan => _reverse.AsSpan();
+    public Span<T> ValueSpan => _dense.AsSpan();
+
     public List<int> UnsafeRawKeys => _reverse;
     public List<T> UnsafeRawValues => _dense;
 
@@ -42,7 +44,7 @@ public sealed class SparseSet<T>(int pageCount, int pageSize)
 
     private readonly List<T> _dense = [];
     private readonly List<int> _reverse = [];
-    private readonly Page[] _pages = new Page[pageCount];
+    private readonly List<Page> _pages = [];
 
     private struct Page
     {
@@ -67,11 +69,7 @@ public sealed class SparseSet<T>(int pageCount, int pageSize)
                 throw new InvalidOperationException("Page ref count should be less than 0");
             }
         }
-
     }
-
-    public ReadOnlySpan<int> AsKeySpan() => CollectionsMarshal.AsSpan(_reverse);
-    public Span<T> AsValueSpan() => CollectionsMarshal.AsSpan(_dense);
 
     public IEnumerator<KeyValuePair<int, T>> GetEnumerator()
     {
@@ -228,14 +226,11 @@ public sealed class SparseSet<T>(int pageCount, int pageSize)
 
     public ref T GetOrAddValueRef(int index, out bool exists)
     {
-        if (index < 0 || index >= Capacity) {
-            throw new IndexOutOfRangeException();
-        }
-
         int pageIndex = index / PageSize;
         int entryIndex = index - pageIndex * PageSize;
 
-        ref var page = ref _pages[pageIndex];
+        CollectionsMarshal.SetCount(_pages, pageIndex + 1);
+        ref var page = ref _pages.AsSpan()[pageIndex];
         ref var memory = ref page.Memory;
 
         if (memory == null) {
@@ -293,14 +288,13 @@ public sealed class SparseSet<T>(int pageCount, int pageSize)
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private ref Page GetPage(int index, out int entryIndex)
     {
-        if (index < 0 || index >= Capacity) {
+        int pageIndex = index / PageSize;
+        if (pageIndex >= _pages.Count) {
             entryIndex = -1;
             return ref Unsafe.NullRef<Page>();
         }
 
-        int pageIndex = index / PageSize;
-
-        ref var page = ref _pages[pageIndex];
+        ref var page = ref _pages.AsSpan()[pageIndex];
         var memory = page.Memory;
 
         if (memory == null) {
@@ -324,6 +318,6 @@ public sealed class SparseSet<T>(int pageCount, int pageSize)
     {
         int pageIndex = index / PageSize;
         pageEntryIndex = index - pageIndex * PageSize;
-        return ref _pages[pageIndex];
+        return ref _pages.AsSpan()[pageIndex];
     }
 }

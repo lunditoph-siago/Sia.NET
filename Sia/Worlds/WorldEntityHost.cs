@@ -4,7 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 public sealed class WorldEntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T, TStorage>(World world, TStorage storage)
-    : EntityHost<T, TStorage>(storage), IReactiveEntityHost
+    : StorageEntityHost<T, TStorage>(storage), IReactiveEntityHost
     where T : struct
     where TStorage : IStorage<T>
 {
@@ -34,9 +34,9 @@ public sealed class WorldEntityHost<[DynamicallyAccessedMembers(DynamicallyAcces
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public override void Release(nint pointer, int version)
+    public override void Release(int slot, int version)
     {
-        var entity = new EntityRef(pointer, version, this);
+        var entity = new EntityRef(slot, version, this);
 
         var dispatcher = World.Dispatcher;
         World.Count--;
@@ -44,6 +44,6 @@ public sealed class WorldEntityHost<[DynamicallyAccessedMembers(DynamicallyAcces
         dispatcher.UnlistenAll(entity);
 
         OnEntityReleased?.Invoke(entity);
-        base.Release(pointer, version);
+        base.Release(slot, version);
     }
 }

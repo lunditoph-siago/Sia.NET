@@ -29,12 +29,12 @@ public static partial class Example4_Aggregator
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
-            query.ForEach(world, static (world, entity) => {
+            foreach (var entity in query) {
                 ref var aggr = ref entity.Get<Aggregation<ObjectId>>();
                 int count = aggr.Group.Count;
                 entity.ComponentCount_SetValue(count);
                 Console.WriteLine($"[{aggr.Id}] Count: " + count);
-            });
+            }
         }
     }
 

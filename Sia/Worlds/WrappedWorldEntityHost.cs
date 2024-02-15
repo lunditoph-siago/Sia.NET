@@ -2,9 +2,10 @@
 namespace Sia;
 
 using System.Collections;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
-public record WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>, IReactiveEntityHost
+public sealed record WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>, IReactiveEntityHost
     where T : struct
     where TEntityHost : IEntityHost<T>
 {
@@ -14,20 +15,9 @@ public record WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>, IReactive
     public World World { get; }
     public TEntityHost InnerHost => _host;
 
-    public EntityDescriptor Descriptor {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _host.Descriptor;
-    } 
-
-    public int Capacity {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _host.Capacity;
-    }
-
-    public int Count {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _host.Count;
-    }
+    public int Capacity => _host.Capacity;
+    public int Count => _host.Count;
+    public ReadOnlySpan<StorageSlot> AllocatedSlots => _host.AllocatedSlots;
 
     private readonly TEntityHost _host;
 
@@ -36,6 +26,14 @@ public record WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>, IReactive
         World = world;
         _host = host;
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool ContainsCommon<TComponent>()
+        => _host.ContainsCommon<TComponent>();
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool ContainsCommon(Type componentType)
+        => _host.ContainsCommon(componentType);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     EntityRef IEntityHost.Create() => _host.Create();
@@ -62,10 +60,10 @@ public record WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>, IReactive
 
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Release(nint pointer, int version)
+    public void Release(int slot, int version)
     {
-        _host.Release(pointer, version);
-        var entity = new EntityRef(pointer, version, this);
+        _host.Release(slot, version);
+        var entity = new EntityRef(slot, version, this);
 
         var dispatcher = World.Dispatcher;
         World.Count--;
@@ -76,46 +74,43 @@ public record WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>, IReactive
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool IsValid(nint pointer, int version)
-        => _host.IsValid(pointer, version);
+    public bool IsValid(int slot, int version)
+        => _host.IsValid(slot, version);
+
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool Contains<TComponent>(nint pointer, int version)
-        => _host.Contains<TComponent>(pointer, version);
+    public bool Contains<TComponent>(int slot, int version)
+        => _host.ContainsCommon<TComponent>();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool Contains(nint pointer, int version, Type type)
-        => _host.Contains(pointer, version, type);
+    public bool Contains(int slot, int version, Type componentType)
+        => _host.ContainsCommon(componentType);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref TComponent Get<TComponent>(nint pointer, int version)
-        => ref _host.Get<TComponent>(pointer, version);
+    public EntityDescriptor GetDescriptor(int slot, int version)
+        => _host.GetDescriptor(slot, version);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref TComponent GetOrNullRef<TComponent>(nint pointer, int version)
-        => ref _host.GetOrNullRef<TComponent>(pointer, version);
+    public ref TComponent Get<TComponent>(int slot, int version)
+        => ref _host.Get<TComponent>(slot, version);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void IterateAllocated(StoragePointerHandler handler)
-        => _host.IterateAllocated(handler);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void IterateAllocated<TData>(in TData data, StoragePointerHandler<TData> handler)
-        => _host.IterateAllocated(data, handler);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public IEnumerator<EntityRef> GetEnumerator()
-        => _host.GetEnumerator();
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    IEnumerator IEnumerable.GetEnumerator()
-        => _host.GetEnumerator();
+    public ref TComponent GetOrNullRef<TComponent>(int slot, int version)
+        => ref _host.GetOrNullRef<TComponent>(slot, version);
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public object Box(nint pointer, int version)
-        => _host.Box(pointer, version);
+    public object Box(int slot, int version)
+        => _host.Box(slot, version);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Span<byte> GetSpan(nint pointer, int version)
-        => _host.GetSpan(pointer, version);
+    public Span<byte> GetSpan(int slot, int version)
+        => _host.GetSpan(slot, version);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public IEnumerator<EntityRef> GetEnumerator() => _host.GetEnumerator();
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    IEnumerator IEnumerable.GetEnumerator() => _host.GetEnumerator();
+
+    public void Dispose() => _host.Dispose();
 }

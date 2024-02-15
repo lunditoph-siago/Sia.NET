@@ -127,13 +127,13 @@ public static partial class Example11_RPG
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
-            query.ForEach(static entity => {
+            foreach (var entity in query) {
                 ref var character = ref entity.Get<Character>();
                 if (character.HP <= 0) {
                     Console.WriteLine(character.Name + " is dead!");
                     entity.Dispose();
                 }
-            });
+            }
         }
     }
 

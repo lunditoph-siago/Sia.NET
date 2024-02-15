@@ -5,7 +5,7 @@ namespace Sia;
 public static class EntityUtility
 {
     public static void CheckComponent<TComponent>(EntityRef entity)
-        => CheckComponent<TComponent>(entity.Host.Descriptor);
+        => CheckComponent<TComponent>(entity.Descriptor);
 
     public static void CheckComponent<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity, TComponent>()
         => CheckComponent<TComponent>(EntityDescriptor.Get<TEntity>());

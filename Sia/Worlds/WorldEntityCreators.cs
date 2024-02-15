@@ -23,17 +23,10 @@ public static class WorldEntityCreators
             => world.CreateInArrayHost(initial, capacity);
     }
 
-    public sealed class Sparse(World world, int capacity = 65535, int pageSize = 256) : IEntityCreator
+    public sealed class Sparse(World world, int pageSize = 256) : IEntityCreator
     {
         public EntityRef<TEntity> CreateEntity<TEntity>(TEntity initial)
             where TEntity : struct
-            => world.CreateInSparseHost(initial, capacity, pageSize);
-    }
-
-    public sealed class UnmanagedHeap(World world) : IEntityCreator
-    {
-        public EntityRef<TEntity> CreateEntity<TEntity>(TEntity initial)
-            where TEntity : struct
-            => world.CreateInUnmanagedHeapHost(initial);
+            => world.CreateInSparseHost(initial, pageSize);
     }
 }

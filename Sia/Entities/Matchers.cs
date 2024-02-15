@@ -127,20 +127,20 @@ public static class Matchers
 
     private record AnyMatcher : IEntityMatcher
     {
-        public bool Match(EntityDescriptor descriptor) => true;
+        public bool Match(IEntityHost host) => true;
     }
 
     private record NoneMatcher : IEntityMatcher
     {
-        public bool Match(EntityDescriptor descriptor) => false;
+        public bool Match(IEntityHost host) => false;
     }
 
     private record InclusiveMatcher(ITypeUnion Types) : IEntityMatcher
     {
-        public bool Match(EntityDescriptor descriptor)
+        public bool Match(IEntityHost host)
         {
             foreach (var compType in Types.Types) {
-                if (!descriptor.Contains(compType)) {
+                if (!host.ContainsCommon(compType)) {
                     return false;
                 }
             }
@@ -150,10 +150,10 @@ public static class Matchers
 
     private record ExclusiveMatcher(ITypeUnion Types) : IEntityMatcher
     {
-        public bool Match(EntityDescriptor descriptor)
+        public bool Match(IEntityHost host)
         {
             foreach (var compType in Types.Types) {
-                if (descriptor.Contains(compType)) {
+                if (host.ContainsCommon(compType)) {
                     return false;
                 }
             }
@@ -164,15 +164,15 @@ public static class Matchers
     private record InclusiveAndExclusiveMatcher(
         ITypeUnion InclusiveTypes, ITypeUnion ExclusiveTypes) : IEntityMatcher
     {
-        public bool Match(EntityDescriptor descriptor)
+        public bool Match(IEntityHost host)
         {
             foreach (var compType in InclusiveTypes.Types) {
-                if (!descriptor.Contains(compType)) {
+                if (!host.ContainsCommon(compType)) {
                     return false;
                 }
             }
             foreach (var compType in ExclusiveTypes.Types) {
-                if (descriptor.Contains(compType)) {
+                if (host.ContainsCommon(compType)) {
                     return false;
                 }
             }
@@ -182,31 +182,31 @@ public static class Matchers
 
     private record NotMatcher(IEntityMatcher Inner) : IEntityMatcher
     {
-        public bool Match(EntityDescriptor descriptor)
-            => !Inner.Match(descriptor);
+        public bool Match(IEntityHost host)
+            => !Inner.Match(host);
     }
 
     private record AndMatcher(IEntityMatcher Left, IEntityMatcher Right) : IEntityMatcher
     {
-        public bool Match(EntityDescriptor descriptor)
-            => Left.Match(descriptor) && Right.Match(descriptor);
+        public bool Match(IEntityHost host)
+            => Left.Match(host) && Right.Match(host);
     }
 
     private record OrMatcher(IEntityMatcher Left, IEntityMatcher Right) : IEntityMatcher
     {
-        public bool Match(EntityDescriptor descriptor)
-            => Left.Match(descriptor) || Right.Match(descriptor);
+        public bool Match(IEntityHost host)
+            => Left.Match(host) || Right.Match(host);
     }
 
     private record WithMatcher(IEntityMatcher Left, ITypeUnion Right) : IEntityMatcher
     {
-        public bool Match(EntityDescriptor descriptor)
+        public bool Match(IEntityHost host)
         {
-            if (!Left.Match(descriptor)) {
+            if (!Left.Match(host)) {
                 return false;
             }
             foreach (var compType in Right.Types) {
-                if (!descriptor.Contains(compType)) {
+                if (!host.ContainsCommon(compType)) {
                     return false;
                 }
             }
@@ -216,13 +216,13 @@ public static class Matchers
 
     private record WithoutMatcher(IEntityMatcher Left, ITypeUnion Right) : IEntityMatcher
     {
-        public bool Match(EntityDescriptor descriptor)
+        public bool Match(IEntityHost host)
         {
-            if (!Left.Match(descriptor)) {
+            if (!Left.Match(host)) {
                 return false;
             }
             foreach (var compType in Right.Types) {
-                if (descriptor.Contains(compType)) {
+                if (host.ContainsCommon(compType)) {
                     return false;
                 }
             }
@@ -233,18 +233,18 @@ public static class Matchers
     private record WithAndWithoutMatcher(
         IEntityMatcher Inner, ITypeUnion WithTypes, ITypeUnion WithoutTypes) : IEntityMatcher
     {
-        public bool Match(EntityDescriptor descriptor)
+        public bool Match(IEntityHost host)
         {
-            if (!Inner.Match(descriptor)) {
+            if (!Inner.Match(host)) {
                 return false;
             }
             foreach (var compType in WithTypes.Types) {
-                if (!descriptor.Contains(compType)) {
+                if (!host.ContainsCommon(compType)) {
                     return false;
                 }
             }
             foreach (var compType in WithoutTypes.Types) {
-                if (descriptor.Contains(compType)) {
+                if (host.ContainsCommon(compType)) {
                     return false;
                 }
             }
