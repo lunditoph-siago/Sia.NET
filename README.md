@@ -5,8 +5,9 @@ Modern ECS framework for .NET
 ## Example
 
 ```C#
-using System.Numerics;
+namespace Sia_Examples;
 
+using System.Numerics;
 using Sia;
 
 public static partial class Example1_HealthDamage
@@ -51,13 +52,13 @@ public static partial class Example1_HealthDamage
         {
             var game = world.GetAddon<Game>();
 
-            query.ForEach(game, static (game, entity) => {
+            foreach (var entity in query) {
                 ref var health = ref entity.Get<Health>();
                 if (health.Debuff != 0) {
                     entity.Modify(new Health.Damage(health.Debuff * game.DeltaTime));
                     Console.WriteLine($"Damage: HP {entity.Get<Health>().Value}");
                 }
-            });
+            }
         }
     }
 
@@ -68,12 +69,12 @@ public static partial class Example1_HealthDamage
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
-            query.ForEach(static entity => {
+            foreach (var entity in query) {
                 if (entity.Get<Health>().Value <= 0) {
                     entity.Dispose();
                     Console.WriteLine("Dead!");
                 }
-            });
+            }
         }
     }
 
@@ -90,17 +91,17 @@ public static partial class Example1_HealthDamage
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
-            query.ForEach(static entity => {
+            foreach (var entity in query) {
                 var pos = entity.Get<Transform>().Position;
                 if (pos.X == 1 && pos.Y == 1) {
                     entity.Modify(new Health.Damage(10));
                     Console.WriteLine($"Damage: HP {entity.Get<Health>().Value}");
                 }
                 if (pos.X == 1 && pos.Y == 2) {
-                    entity.Modify(new Health.SetDebuff(100));
+                    entity.Health_SetDebuff(100);
                     Console.WriteLine("Debuff!");
                 }
-            });
+            }
         }
     }
 
