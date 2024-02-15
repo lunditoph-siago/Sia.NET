@@ -1,5 +1,5 @@
 namespace Sia;
 
-public sealed class SparseBufferStorage<T>(int capacity = 65535, int pageSize = 256)
-    : BufferStorage<T, SparseBuffer<T>>(new(capacity, pageSize))
+public sealed class SparseBufferStorage<T>(int pageSize = 256)
+    : BufferStorage<T, SparseBuffer<T>>(new(pageSize))
     where T : struct;

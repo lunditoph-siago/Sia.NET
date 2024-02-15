@@ -1,28 +1,27 @@
 namespace Sia;
 
-public interface IEntityHost : IEnumerable<EntityRef>
+public interface IEntityHost : IEnumerable<EntityRef>, IDisposable
 {
-    EntityDescriptor Descriptor { get; }
-
     int Capacity { get; }
     int Count { get; }
+    ReadOnlySpan<StorageSlot> AllocatedSlots { get;}
+
+    bool ContainsCommon<TComponent>();
+    bool ContainsCommon(Type componentType);
 
     EntityRef Create();
-    void Release(nint pointer, int version);
+    void Release(int slot, int version);
+    bool IsValid(int slot, int version);
 
-    bool IsValid(nint pointer, int version);
+    bool Contains<TComponent>(int slot, int version);
+    bool Contains(int slot, int version, Type componentType);
 
-    bool Contains<TComponent>(nint pointer, int version);
-    bool Contains(nint pointer, int version, Type type);
+    ref TComponent Get<TComponent>(int slot, int version);
+    ref TComponent GetOrNullRef<TComponent>(int slot, int version);
 
-    ref TComponent Get<TComponent>(nint pointer, int version);
-    ref TComponent GetOrNullRef<TComponent>(nint pointer, int version);
-
-    void IterateAllocated(StoragePointerHandler handler);
-    void IterateAllocated<TData>(in TData data, StoragePointerHandler<TData> handler);
-
-    object Box(nint pointer, int version);
-    Span<byte> GetSpan(nint pointer, int version);
+    EntityDescriptor GetDescriptor(int slot, int version);
+    object Box(int slot, int version);
+    Span<byte> GetSpan(int slot, int version);
 }
 
 public interface IReactiveEntityHost : IEntityHost

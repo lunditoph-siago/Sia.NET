@@ -2,6 +2,7 @@ namespace Sia;
 
 using System.Runtime.CompilerServices;
 using System.Diagnostics.CodeAnalysis;
+using CommunityToolkit.HighPerformance.Buffers;
 using System.Collections;
 
 public class SystemLibrary : IAddon
@@ -12,87 +13,144 @@ public class SystemLibrary : IAddon
         internal readonly HashSet<Scheduler.TaskGraphNode> _taskGraphNodes = [];
     }
 
-    private class Collector : IEntityQuery
+    private class ReactiveEntityHost : IEntityHost
     {
-        public int Count => _collectedSet.Count;
-        public bool IsExecuting { get; private set; }
+        public int Capacity => int.MaxValue;
+        public int Count { get; private set; }
+        public ReadOnlySpan<StorageSlot> AllocatedSlots => _allocatedSlots.ValueSpan;
 
-        internal HashSet<EntityRef> CollectingSet => _collectingSet;
+        internal bool IsExecuting { get; private set; }
 
-        private HashSet<EntityRef> _collectingSet = [];
-        private HashSet<EntityRef> _collectedSet = [];
+        private readonly BucketBuffer<(IEntityHost Host, int Slot)> _buffer = new();
+        private readonly SparseSet<StorageSlot> _allocatedSlots = [];
+        private readonly Dictionary<EntityRef, int> _entitySlots = [];
+
+        private int _firstFreeSlot;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void BeginExecution()
         {
             IsExecuting = true;
-            (_collectedSet, _collectingSet) = (_collectingSet, _collectedSet);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void EndExecution()
         {
-            _collectedSet.Clear();
+            _buffer.Clear();
+            _allocatedSlots.Clear();
             IsExecuting = false;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Add(in EntityRef entity)
-            => _collectingSet.Add(entity);
+        {
+            var slot = _firstFreeSlot;
+            _allocatedSlots.Add(slot, new(slot, entity.Version));
+            while (_allocatedSlots.ContainsKey(++_firstFreeSlot)) {}
+
+            _buffer.CreateRef(slot) = (entity.Host, entity.Slot);
+            _entitySlots[entity] = slot;
+
+            Count++;
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Remove(in EntityRef entity)
-            => _collectingSet.Remove(entity);
-
-        public void ForEach(EntityHandler handler)
         {
-            foreach (var entity in _collectedSet) {
-                if (entity.Valid) {
-                    handler(entity);
-                }
+            if (!_entitySlots.Remove(entity, out int slot)) {
+                return false;
             }
+            _buffer.Release(slot);
+            _allocatedSlots.Remove(slot);
+
+            Count--;
+            if (_firstFreeSlot > slot) {
+                _firstFreeSlot = slot;
+            }
+            return true;
         }
 
-        public void ForEach(SimpleEntityHandler handler)
+        public bool ContainsCommon<TComponent>() => false;
+        public bool ContainsCommon(Type componentType) => false;
+
+        public EntityRef Create() => throw new NotSupportedException();
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Release(int slot, int version)
         {
-            foreach (var entity in _collectedSet) {
-                if (entity.Valid) {
-                    handler(entity);
-                }
-            }
+            var (host, innerSlot) = _buffer.GetRef(slot);
+            host.Release(innerSlot, version);
         }
 
-        public void ForEach<TData>(in TData data, EntityHandler<TData> handler)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool IsValid(int slot, int version)
         {
-            foreach (var entity in _collectedSet) {
-                if (entity.Valid) {
-                    handler(data, entity);
-                }
-            }
+            var (host, innerSlot) = _buffer.GetRef(slot);
+            return host.IsValid(innerSlot, version);
         }
 
-        public void ForEach<TData>(in TData data, SimpleEntityHandler<TData> handler)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool Contains<TComponent>(int slot, int version)
         {
-            foreach (var entity in _collectedSet) {
-                if (entity.Valid) {
-                    handler(data, entity);
-                }
-            }
+            var (host, innerSlot) = _buffer.GetRef(slot);
+            return host.Contains<TComponent>(innerSlot, version);
         }
 
-        public IEnumerator<EntityRef> GetEnumerator()
-            => _collectedSet.GetEnumerator();
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool Contains(int slot, int version, Type componentType)
+        {
+            var (host, innerSlot) = _buffer.GetRef(slot);
+            return host.Contains(innerSlot, version, componentType);
+        }
 
-        IEnumerator IEnumerable.GetEnumerator()
-            => GetEnumerator();
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ref TComponent Get<TComponent>(int slot, int version)
+        {
+            var (host, innerSlot) = _buffer.GetRef(slot);
+            return ref host.Get<TComponent>(innerSlot, version);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ref TComponent GetOrNullRef<TComponent>(int slot, int version)
+        {
+            var (host, innerSlot) = _buffer.GetRef(slot);
+            return ref host.GetOrNullRef<TComponent>(innerSlot, version);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public EntityDescriptor GetDescriptor(int slot, int version)
+        {
+            var (host, innerSlot) = _buffer.GetRef(slot);
+            return host.GetDescriptor(innerSlot, version);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public object Box(int slot, int version)
+        {
+            var (host, innerSlot) = _buffer.GetRef(slot);
+            return host.Box(innerSlot, version);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public Span<byte> GetSpan(int slot, int version)
+        {
+            var (host, innerSlot) = _buffer.GetRef(slot);
+            return host.GetSpan(innerSlot, version);
+        }
+
+        public IEnumerator<EntityRef> GetEnumerator() => _entitySlots.Keys.GetEnumerator();
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
         public void Dispose()
         {
+            _buffer.Dispose();
+            _allocatedSlots.Clear();
+            _entitySlots.Clear();
         }
     }
 
     private record MatchAnyEventListener<TSystem>(
-        TSystem System, World World, Scheduler Scheduler, Collector Collector,
+        TSystem System, World World, Scheduler Scheduler, ReactiveEntityHost Host,
         HashSet<Type> TriggerTypes) : IEventListener
         where TSystem : ISystem
     {
@@ -101,17 +159,17 @@ public class SystemLibrary : IAddon
         {
             var type = typeof(TEvent);
             if (type == typeof(WorldEvents.Remove)) {
-                Collector.Remove(target);
+                Host.Remove(target);
             }
             else if (TriggerTypes.Contains(e.GetType())) {
-                Collector.Add(target);
+                Host.Add(target);
             }
             return false;
         }
     }
 
     private record MatchAnyFilterableEventListener<TSystem>(
-        TSystem System, World World, Scheduler Scheduler, Collector Collector,
+        TSystem System, World World, Scheduler Scheduler, ReactiveEntityHost Host,
         HashSet<Type> TriggerTypes, HashSet<Type> FilterTypes) : IEventListener
         where TSystem : ISystem
     {
@@ -120,20 +178,20 @@ public class SystemLibrary : IAddon
         {
             var type = typeof(TEvent);
             if (type == typeof(WorldEvents.Remove)) {
-                Collector.Remove(target);
+                Host.Remove(target);
             }
             else if (TriggerTypes.Contains(type)) {
-                Collector.Add(target);
+                Host.Add(target);
             }
             else if (FilterTypes.Contains(type)) {
-                Collector.Remove(target);
+                Host.Remove(target);
             }
             return false;
         }
     }
 
     private record TargetEventListener<TSystem>(
-        TSystem System, World World, Scheduler Scheduler, Collector Collector,
+        TSystem System, World World, Scheduler Scheduler, ReactiveEntityHost Host,
         HashSet<Type> TriggerTypes) : IEventListener
         where TSystem : ISystem
     {
@@ -143,17 +201,17 @@ public class SystemLibrary : IAddon
         {
             var type = typeof(TEvent);
             if (type == typeof(WorldEvents.Remove)) {
-                Collector.Remove(target);
+                Host.Remove(target);
             }
             else if (TriggerTypes.Contains(e.GetType())) {
-                Collector.Add(target);
+                Host.Add(target);
             }
             return false;
         }
     }
 
     private record TargetFilterableEventListener<TSystem>(
-        TSystem System, World World, Scheduler Scheduler, Collector Collector,
+        TSystem System, World World, Scheduler Scheduler, ReactiveEntityHost Host,
         HashSet<Type> TriggerTypes, HashSet<Type> FilterTypes) : IEventListener
         where TSystem : ISystem
     {
@@ -163,13 +221,13 @@ public class SystemLibrary : IAddon
         {
             var type = typeof(TEvent);
             if (type == typeof(WorldEvents.Remove)) {
-                Collector.Remove(target);
+                Host.Remove(target);
             }
             else if (TriggerTypes.Contains(type)) {
-                Collector.Add(target);
+                Host.Add(target);
             }
             else if (FilterTypes.Contains(type)) {
-                Collector.Remove(target);
+                Host.Remove(target);
             }
             return false;
         }
@@ -278,16 +336,17 @@ public class SystemLibrary : IAddon
             }
         }
         else {
-            var collector = new Collector();
+            var reactiveHost = new ReactiveEntityHost();
+            var query = new EntityQuery([reactiveHost]);
 
             taskFunc = () => {
-                var count = collector.CollectingSet.Count;
+                var count = reactiveHost.Count;
                 if (count == 0) {
                     return false;
                 }
-                collector.BeginExecution();
-                system.Execute(_world, scheduler, collector);
-                collector.EndExecution();
+                reactiveHost.BeginExecution();
+                system.Execute(_world, scheduler, query);
+                reactiveHost.EndExecution();
                 return false;
             };
 
@@ -304,7 +363,7 @@ public class SystemLibrary : IAddon
                         System: system,
                         World: _world,
                         Scheduler: scheduler,
-                        Collector: collector,
+                        Host: reactiveHost,
                         TriggerTypes: triggerTypes,
                         FilterTypes: filterTypes);
 
@@ -318,7 +377,7 @@ public class SystemLibrary : IAddon
                             System: system,
                             World: _world,
                             Scheduler: scheduler,
-                            Collector: collector,
+                            Host: reactiveHost,
                             TriggerTypes: triggerTypes,
                             FilterTypes: filterTypes));
                 }
@@ -331,7 +390,7 @@ public class SystemLibrary : IAddon
                         System: system,
                         World: _world,
                         Scheduler: scheduler,
-                        Collector: collector,
+                        Host: reactiveHost,
                         TriggerTypes: triggerTypes);
 
                     dispatcher.Listen(listener);
@@ -344,7 +403,7 @@ public class SystemLibrary : IAddon
                             System: system,
                             World: _world,
                             Scheduler: scheduler,
-                            Collector: collector,
+                            Host: reactiveHost,
                             TriggerTypes: triggerTypes));
                 }
             }
@@ -412,9 +471,9 @@ public class SystemLibrary : IAddon
             query.OnEntityHostRemoved += host => host.OnEntityCreated -= OnEntityCreated;
 
             return () => {
-                query.ForEach((in EntityRef entity) => {
+                foreach (var entity in query) {
                     dispatcher.Unlisten(entity, listener);
-                });
+                }
                 foreach (var host in query.Hosts) {
                     host.OnEntityCreated -= OnEntityCreated;
                 }

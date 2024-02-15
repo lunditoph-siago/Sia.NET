@@ -184,12 +184,14 @@ public unsafe static class Tests
 
         var world = new World();
 
-        var e1Ref = world.GetManagedHeapHost<TestEntity>().Create();
-        var e2Ref = world.GetManagedHeapHost<TestEntity2>().Create();
+        var e1Ref = world.GetBucketHost<TestEntity>().Create();
+        var e2Ref = world.GetBucketHost<TestEntity2>().Create();
 
         var query1 = world.Query<TypeUnion<Position>>();
         var group = new List<EntityRef>();
-        query1.ForEach(group.Add);
+        foreach (var entity in query1) {
+            group.Add(entity);
+        }
 
         Console.WriteLine(group.Contains(e1Ref));
         Console.WriteLine(group.Contains(e2Ref));
@@ -207,9 +209,9 @@ public unsafe static class Tests
 
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
-            query.ForEach(static entity => {
+            foreach (var entity in query) {
                 Console.WriteLine(entity.Get<Position>());
-            });
+            }
         }
     }
 
@@ -223,9 +225,9 @@ public unsafe static class Tests
         
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
-            query.ForEach(static entity => {
+            foreach (var entity in query) {
                 Console.WriteLine("--> Changed: " + entity.Get<Position>());
-            });
+            }
         }
     }
 
@@ -248,14 +250,14 @@ public unsafe static class Tests
 
         world.RegisterSystem<PositionSystems>(scheduler);
 
-        var e1Ref = world.GetManagedHeapHost<TestEntity>().Create( new() {
+        var e1Ref = world.GetBucketHost<TestEntity>().Create(new() {
             Position = new Position {
                 X = 1,
                 Y = 2,
                 Z = 3
             }
         });
-        var e2Ref = world.GetManagedHeapHost<TestEntity>().Create(new() {
+        var e2Ref = world.GetBucketHost<TestEntity>().Create(new() {
             Position = new Position {
                 X = -1,
                 Y = -2,
@@ -306,8 +308,6 @@ public unsafe static class Tests
         DoTest(new ArrayBufferStorage<int>(5120));
         DoTest(new SparseBufferStorage<int>(5120));
         DoTest(new HashBufferStorage<int>());
-        DoTest(ManagedHeapStorage<int>.Instance);
-        DoTest(UnmanagedHeapStorage<int>.Instance);
 
         Console.WriteLine("Finished");
     }
@@ -320,7 +320,7 @@ public unsafe static class Tests
             where TStorage : class, IStorage<TestEntity>
         {
             Console.WriteLine($"[{storage}]");
-            var factory = new EntityHost<TestEntity, TStorage>(storage);
+            var factory = new StorageEntityHost<TestEntity, TStorage>(storage);
             var e1 = factory.Create(DefaultTestEntity);
             var e2 = factory.Create();
             var e3 = factory.Create();
@@ -343,8 +343,6 @@ public unsafe static class Tests
         DoTest(new ArrayBufferStorage<TestEntity>(512));
         DoTest(new SparseBufferStorage<TestEntity>(512));
         DoTest(new HashBufferStorage<TestEntity>());
-        DoTest(ManagedHeapStorage<TestEntity>.Instance);
-        //DoTest(UnmanagedHeapStorage<TestEntity>.Instance);
     }
 
     public static void Run()

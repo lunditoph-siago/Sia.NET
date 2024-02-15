@@ -78,9 +78,9 @@ public abstract class ViewBase<TTypeUnion> : ViewBase
         host.OnEntityCreated += OnEntityAdded;
         host.OnEntityReleased += OnEntityRemoved;
 
-        host.IterateAllocated((this, host),
-            static (in (ViewBase<TTypeUnion> View, IReactiveEntityHost Host) data, nint pointer, int version) =>
-                data.View.OnEntityAdded(new(pointer, version, data.Host)));
+        foreach (var entity in host) {
+            OnEntityAdded(entity);
+        }
     }
 
     public override void OnUninitialize(World world)

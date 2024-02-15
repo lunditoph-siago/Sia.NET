@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using CommunityToolkit.HighPerformance;
 
 namespace Sia;
 
@@ -102,19 +103,19 @@ public class WorldCommandBuffer
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Submit()
     {
-        foreach (var senders in _executors.Values) {
+        foreach (var executors in _executors.Values) {
             int count = 0;
             try {
-                foreach (var (sender, entity) in CollectionsMarshal.AsSpan(senders)) {
+                foreach (var (sender, entity) in executors.AsSpan()) {
                     ++count;
                     sender.Execute(World, entity);
                 }
             }
             catch {
-                senders.RemoveRange(0, count);
+                executors.RemoveRange(0, count);
                 throw;
             }
-            senders.Clear();
+            executors.Clear();
         }
     }
 }

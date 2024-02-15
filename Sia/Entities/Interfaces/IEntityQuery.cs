@@ -1,11 +1,16 @@
 namespace Sia;
 
-public interface IEntityQuery : IEnumerable<EntityRef>, IDisposable
+public interface IEntityQuery : IDisposable
 {
-    int Count { get; }
-    
-    void ForEach(EntityHandler handler);
-    void ForEach(SimpleEntityHandler handler);
-    void ForEach<TData>(in TData data, EntityHandler<TData> handler);
-    void ForEach<TData>(in TData data, SimpleEntityHandler<TData> handler);
+    int Count {
+        get {
+            int count = 0;
+            for (int i = 0; i != Hosts.Count; ++i) {
+                count += Hosts[i].Count;
+            }
+            return count;
+        }
+    }
+
+    IReadOnlyList<IEntityHost> Hosts { get; }
 }

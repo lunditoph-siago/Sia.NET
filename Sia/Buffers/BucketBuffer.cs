@@ -75,6 +75,8 @@ public sealed class BucketBuffer<T>(int bucketCapacity = 256) : IBuffer<T>
         if (bucket is not Bucket bucketValue) {
             return false;
         }
+        
+        bucketValue.Memoery.Span[index % BucketCapacity] = default!;
 
         var refCount = bucketValue.RefCount;
         if (refCount == 1) {
@@ -82,7 +84,6 @@ public sealed class BucketBuffer<T>(int bucketCapacity = 256) : IBuffer<T>
             bucket = null;
         }
         else {
-            bucketValue.Memoery.Span[index % BucketCapacity] = default!;
             bucket = bucketValue with { RefCount = refCount - 1 };
         }
         return true;
@@ -92,7 +93,13 @@ public sealed class BucketBuffer<T>(int bucketCapacity = 256) : IBuffer<T>
     public void Clear()
     {
         foreach (ref var bucket in _buckets.AsSpan()) {
-            bucket?.Memoery.Dispose();
+            if (bucket == null) {
+                continue;
+            }
+            var mem = bucket.Value.Memoery;
+            mem.Span.Clear();
+            mem.Dispose();
+            bucket = null;
         }
         _buckets.Clear();
     }
