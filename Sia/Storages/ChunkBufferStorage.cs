@@ -367,16 +367,11 @@ public class ChunkBufferStorage<T, TBuffer> : IStorage<T>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void IterateAllocated(StoragePointerHandler handler)
     {
-        if (Count == 0) { return; }
-
-        int count = 0;
-        for (int i = 0; i < _versions.Count; ++i) {
+        for (int i = 0, entityAcc = 0; entityAcc < Count; ++i) {
             int version = _versions[i];
             if (version > 0) {
                 handler(i, version);
-                if (++count >= Count) {
-                    break;
-                }
+                entityAcc++;
             }
         }
     }
@@ -386,32 +381,22 @@ public class ChunkBufferStorage<T, TBuffer> : IStorage<T>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void IterateAllocated<TData>(in TData data, StoragePointerHandler<TData> handler)
     {
-        if (Count == 0) { return; }
-
-        int count = 0;
-        for (int i = 0; i < _versions.Count; ++i) {
+        for (int i = 0, entityAcc = 0; entityAcc < Count; ++i) {
             int version = _versions[i];
             if (version > 0) {
                 handler(data, i, version);
-                if (++count >= Count) {
-                    break;
-                }
+                entityAcc++;
             }
         }
     }
 
     public IEnumerator<(nint, int)> GetEnumerator()
     {
-        if (Count == 0) { yield break; }
-
-        int count = 0;
-        for (int i = 0; i < _versions.Count; ++i) {
+        for (int i = 0, entityAcc = 0; entityAcc < Count; ++i) {
             int version = _versions[i];
             if (version > 0) {
                 yield return (i, version);
-                if (++count == Count) {
-                    break;
-                }
+                entityAcc++;
             }
         }
     }
