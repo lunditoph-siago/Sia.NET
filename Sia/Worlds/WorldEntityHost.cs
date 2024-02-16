@@ -34,7 +34,7 @@ public sealed class WorldEntityHost<[DynamicallyAccessedMembers(DynamicallyAcces
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public override void Release(StorageSlot slot)
+    public override void Release(scoped in StorageSlot slot)
     {
         var entity = new EntityRef(slot, this);
 

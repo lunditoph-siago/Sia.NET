@@ -18,6 +18,8 @@ public class StorageEntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMe
     where T : struct
     where TStorage : IStorage<T>
 {
+    public event Action? OnDisposed;
+
     public EntityDescriptor Descriptor { get; } = EntityDescriptor.Get<T>();
 
     public int Capacity => Storage.Capacity;
@@ -46,25 +48,25 @@ public class StorageEntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMe
         => new(Storage.AllocateSlot(initial), this);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public virtual void Release(StorageSlot slot)
+    public virtual void Release(scoped in StorageSlot slot)
         => Storage.Release(slot);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool IsValid(StorageSlot slot)
+    public bool IsValid(scoped in StorageSlot slot)
         => Storage.IsValid(slot);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool Contains<TComponent>(StorageSlot slot) => ContainsCommon<TComponent>();
+    public bool Contains<TComponent>(scoped in StorageSlot slot) => ContainsCommon<TComponent>();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool Contains(StorageSlot slot, Type componentType) => ContainsCommon(componentType);
+    public bool Contains(scoped in StorageSlot slot, Type componentType) => ContainsCommon(componentType);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public EntityDescriptor GetDescriptor(StorageSlot slot)
+    public EntityDescriptor GetDescriptor(scoped in StorageSlot slot)
         => Descriptor;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe ref TComponent Get<TComponent>(StorageSlot slot)
+    public unsafe ref TComponent Get<TComponent>(scoped in StorageSlot slot)
     {
         ref var entity = ref Storage.GetRef(slot);
         var offset = EntityIndexer<T, TComponent>.Offset
@@ -74,7 +76,7 @@ public class StorageEntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMe
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe ref TComponent GetOrNullRef<TComponent>(StorageSlot slot)
+    public unsafe ref TComponent GetOrNullRef<TComponent>(scoped in StorageSlot slot)
     {
         ref var entity = ref Storage.GetRef(slot);
         var offset = EntityIndexer<T, TComponent>.Offset;
@@ -102,11 +104,11 @@ public class StorageEntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMe
         => Storage.UnsafeWrite(slots, values);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public object Box(StorageSlot slot)
+    public object Box(scoped in StorageSlot slot)
         => Storage.GetRef(slot);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe Span<byte> GetSpan(StorageSlot slot)
+    public unsafe Span<byte> GetSpan(scoped in StorageSlot slot)
         => new(Unsafe.AsPointer(ref Storage.GetRef(slot)), Descriptor.MemorySize);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -123,6 +125,7 @@ public class StorageEntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMe
     public void Dispose()
     {
         Storage.Dispose();
+        OnDisposed?.Invoke();
         GC.SuppressFinalize(this);
     }
 }

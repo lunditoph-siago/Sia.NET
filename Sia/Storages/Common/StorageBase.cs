@@ -49,7 +49,7 @@ public abstract class StorageBase<T> : IStorage<T>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Release(StorageSlot slot)
+    public void Release(scoped in StorageSlot slot)
     {
         var (index, version) = slot;
 
@@ -68,11 +68,11 @@ public abstract class StorageBase<T> : IStorage<T>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool IsValid(StorageSlot slot)
+    public bool IsValid(scoped in StorageSlot slot)
         => slot.Index < _versions.Count && _versions[slot.Index] == slot.Version;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref T GetRef(StorageSlot slot)
+    public ref T GetRef(scoped in StorageSlot slot)
     {
         var index = slot.Index;
         if (_versions[index] != slot.Version) {
@@ -82,7 +82,7 @@ public abstract class StorageBase<T> : IStorage<T>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref T UnsafeGetRef(StorageSlot slot)
+    public ref T UnsafeGetRef(scoped in StorageSlot slot)
         => ref GetRef(slot.Index);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
