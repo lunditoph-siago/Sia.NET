@@ -14,10 +14,7 @@ public static class EntityQueryExtensions
 
         public readonly EntityRef Current {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get {
-                ref readonly var slot = ref _slots[_slotIndex];
-                return new(slot.Slot, slot.Version, _host);
-            }
+            get => new(_slots[_slotIndex], _host);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -43,7 +40,7 @@ public static class EntityQueryExtensions
         public void Reset()
         {
             _hostIndex = 0;
-            _host = hosts[_hostIndex];
+            _slotIndex = -1;
         }
     }
 

@@ -20,14 +20,14 @@ public static class WorldCommonHostExtensions
         where TEntity : struct
         => world.GetHashHost<TEntity>().Create(initial);
 
-    public static WorldEntityHost<TEntity, ArrayBufferStorage<TEntity>> GetArrayHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>(this World world, int capacity)
+    public static WorldEntityHost<TEntity, ArrayBufferStorage<TEntity>> GetArrayHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>(this World world, int initialCapacity = 0)
         where TEntity : struct
         => world.TryGetHost<WorldEntityHost<TEntity, ArrayBufferStorage<TEntity>>>(out var host)
-            ? host : world.GetHost<TEntity, ArrayBufferStorage<TEntity>>(() => new(capacity));
+            ? host : world.GetHost<TEntity, ArrayBufferStorage<TEntity>>(() => new(initialCapacity));
 
-    public static EntityRef<TEntity> CreateInArrayHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>(this World world, in TEntity initial, int capacity)
+    public static EntityRef<TEntity> CreateInArrayHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>(this World world, in TEntity initial, int initialCapacity = 0)
         where TEntity : struct
-        => world.GetArrayHost<TEntity>(capacity).Create(initial);
+        => world.GetArrayHost<TEntity>(initialCapacity).Create(initial);
 
     public static WorldEntityHost<TEntity, SparseBufferStorage<TEntity>> GetSparseHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>(this World world, int pageSize = 256)
         where TEntity : struct
