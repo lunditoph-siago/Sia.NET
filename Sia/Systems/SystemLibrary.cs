@@ -20,7 +20,7 @@ public class SystemLibrary : IAddon
 
         internal bool IsExecuting { get; private set; }
 
-        private readonly ArrayBuffer<(IEntityHost Host, int Slot)> _buffer = new();
+        private ArrayBuffer<(IEntityHost Host, int Slot)> _buffer = new();
         private readonly SparseSet<StorageSlot> _allocatedSlots = [];
         private readonly Dictionary<EntityRef, int> _entitySlots = [];
 

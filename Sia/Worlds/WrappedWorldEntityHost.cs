@@ -59,7 +59,6 @@ public sealed record WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>, IR
         return entity;
     }
 
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Release(StorageSlot slot)
     {
@@ -77,7 +76,6 @@ public sealed record WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>, IR
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool IsValid(StorageSlot slot)
         => _host.IsValid(slot);
-
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Contains<TComponent>(StorageSlot slot)

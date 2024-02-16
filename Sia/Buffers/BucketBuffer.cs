@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using CommunityToolkit.HighPerformance;
 
-public sealed class BucketBuffer<T>(int bucketCapacity = 256) : IBuffer<T>
+public readonly struct BucketBuffer<T>(int bucketCapacity) : IBuffer<T>
 {
     private struct Bucket(int capacity)
     {
@@ -16,6 +16,8 @@ public sealed class BucketBuffer<T>(int bucketCapacity = 256) : IBuffer<T>
     public int BucketCapacity { get; } = bucketCapacity;
 
     private readonly List<Bucket?> _buckets = [];
+
+    public BucketBuffer() : this(256) {}
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T CreateRef(int index)

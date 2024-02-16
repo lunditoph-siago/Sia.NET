@@ -21,7 +21,7 @@ public interface IStorage<T> : IStorage
     StorageSlot AllocateSlot(in T initial)
     {
         var slot = AllocateSlot();
-        GetRef(slot) = initial;
+        UnsafeGetRef(slot) = initial;
         return slot;
     }
 
@@ -32,6 +32,7 @@ public interface IStorage<T> : IStorage
     Pointer<T> Allocate(in T initial) => new(AllocateSlot(initial), this);
 
     ref T GetRef(StorageSlot slot);
+    ref T UnsafeGetRef(StorageSlot slot);
 
     SpanOwner<T> Fetch(ReadOnlySpan<StorageSlot> slots);
     SpanOwner<T> UnsafeFetch(ReadOnlySpan<StorageSlot> slots);
@@ -39,5 +40,4 @@ public interface IStorage<T> : IStorage
 
     void Write(ReadOnlySpan<StorageSlot> slots, ReadOnlySpan<T> values);
     void UnsafeWrite(ReadOnlySpan<StorageSlot> slots, ReadOnlySpan<T> values);
-    void WriteToAllocatedSlots(ReadOnlySpan<T> values) => UnsafeWrite(AllocatedSlots, values);
 }

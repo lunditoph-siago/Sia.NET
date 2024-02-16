@@ -82,6 +82,10 @@ public abstract class StorageBase<T> : IStorage<T>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref T UnsafeGetRef(StorageSlot slot)
+        => ref GetRef(slot.Index);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public SpanOwner<T> Fetch(ReadOnlySpan<StorageSlot> slots)
     {
         var spanOwner = SpanOwner<T>.Allocate(slots.Length);
