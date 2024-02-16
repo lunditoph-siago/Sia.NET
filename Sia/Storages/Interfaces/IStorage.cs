@@ -35,4 +35,5 @@ public interface IStorage<T> : IStorage
 
     SpanOwner<T> Fetch(ReadOnlySpan<StorageSlot> slots);
     SpanOwner<T> UnsafeFetch(ReadOnlySpan<StorageSlot> slots);
+    SpanOwner<T> FetchAll() => UnsafeFetch(AllocatedSlots);
 }
