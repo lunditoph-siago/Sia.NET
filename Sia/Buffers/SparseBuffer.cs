@@ -12,20 +12,20 @@ public sealed class SparseBuffer<T>(int pageSize = 256) : IBuffer<T>
         => ref _sparseSet.GetOrAddValueRef(index, out bool _);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref T GetRef(int index)
-        => ref _sparseSet.GetValueRefOrNullRef(index);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref T GetRefOrNullRef(int index)
-        => ref _sparseSet.GetValueRefOrNullRef(index);
+    public bool Release(int index)
+        => _sparseSet.Remove(index);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool IsAllocated(int index)
         => _sparseSet.ContainsKey(index);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool Release(int index)
-        => _sparseSet.Remove(index);
+    public ref T GetRef(int index)
+        => ref _sparseSet.GetValueRefOrNullRef(index);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref T GetRefOrNullRef(int index)
+        => ref _sparseSet.GetValueRefOrNullRef(index);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Clear()

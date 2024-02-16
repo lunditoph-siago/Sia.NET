@@ -30,16 +30,16 @@ public sealed class ArrayBuffer<T>(int initialCapacity = 0) : IBuffer<T>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool IsAllocated(int index)
+        => index < _values.Count;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetRef(int index)
         => ref _values.AsSpan()[index];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetRefOrNullRef(int index)
         => ref index >= _values.Count ? ref Unsafe.NullRef<T>() : ref _values.AsSpan()[index];
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool IsAllocated(int index)
-        => true;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Clear() => _values.Clear();
