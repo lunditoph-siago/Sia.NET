@@ -111,6 +111,24 @@ public abstract class StorageBase<T> : IStorage<T>
         return spanOwner;
     }
 
+    public void Write(ReadOnlySpan<StorageSlot> slots, ReadOnlySpan<T> values)
+    {
+        int i = 0;
+        foreach (var slot in slots) {
+            GetRef(slot) = values[i];
+            i++;
+        }
+    }
+
+    public void UnsafeWrite(ReadOnlySpan<StorageSlot> slots, ReadOnlySpan<T> values)
+    {
+        int i = 0;
+        foreach (var slot in slots) {
+            GetRef(slot.Index) = values[i];
+            i++;
+        }
+    }
+
     protected abstract void Allocate(int slot);
     protected abstract void Release(int slot);
     protected abstract ref T GetRef(int slot);
