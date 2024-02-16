@@ -14,17 +14,21 @@ public class SystemLibrary : IAddon
 
     private class ReactiveEntityHost : IEntityHost
     {
+        public event Action? OnDisposed;
+
         public int Capacity => int.MaxValue;
         public int Count { get; private set; }
         public ReadOnlySpan<StorageSlot> AllocatedSlots => _allocatedSlots.ValueSpan;
 
         internal bool IsExecuting { get; private set; }
 
-        private ArrayBuffer<(IEntityHost Host, int Slot)> _buffer = new();
+        private ArrayBuffer<IEntityHost> _hosts = new();
+        private readonly Dictionary<IEntityHost, ushort> _hostMap = [];
         private readonly SparseSet<StorageSlot> _allocatedSlots = [];
         private readonly Dictionary<EntityRef, int> _entitySlots = [];
 
         private int _firstFreeSlot;
+        private ushort _hostIdAcc = 0;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void BeginExecution()
@@ -35,20 +39,26 @@ public class SystemLibrary : IAddon
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void EndExecution()
         {
-            _buffer.Clear();
             _allocatedSlots.Clear();
+            _entitySlots.Clear();
             IsExecuting = false;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Add(in EntityRef entity)
         {
-            var index = _firstFreeSlot;
-            _allocatedSlots.Add(index, new(index, entity.Slot.Version));
-            while (_allocatedSlots.ContainsKey(++_firstFreeSlot)) {}
+            var host = entity.Host;
 
-            _buffer.CreateRef(index) = (entity.Host, entity.Slot.Index);
-            _entitySlots[entity] = index;
+            if (!_hostMap.TryGetValue(host, out var hostId)) {
+                hostId = _hostIdAcc;
+                _hosts.CreateRef(hostId) = host;
+                _hostIdAcc++;
+                host.OnDisposed += () => _hosts[hostId] = null!;
+            }
+
+            var index = _firstFreeSlot;
+            _allocatedSlots.Add(index, entity.Slot with { Extra = hostId } );
+            while (_allocatedSlots.ContainsKey(++_firstFreeSlot)) {}
 
             Count++;
         }
@@ -59,7 +69,6 @@ public class SystemLibrary : IAddon
             if (!_entitySlots.Remove(entity, out int slot)) {
                 return false;
             }
-            _buffer.Release(slot);
             _allocatedSlots.Remove(slot);
 
             Count--;
@@ -75,66 +84,66 @@ public class SystemLibrary : IAddon
         public EntityRef Create() => throw new NotSupportedException();
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Release(StorageSlot slot)
+        public void Release(scoped in StorageSlot slot)
         {
-            var (host, innerSlot) = _buffer.GetRef(slot.Index);
-            host.Release(new(innerSlot, slot.Version));
+            var host = _hosts[slot.Extra];
+            host.Release(slot);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool IsValid(StorageSlot slot)
+        public bool IsValid(scoped in StorageSlot slot)
         {
-            var (host, innerSlot) = _buffer.GetRef(slot.Index);
-            return host.IsValid(new(innerSlot, slot.Version));
+            var host = _hosts[slot.Extra];
+            return host.IsValid(slot);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool Contains<TComponent>(StorageSlot slot)
+        public bool Contains<TComponent>(scoped in StorageSlot slot)
         {
-            var (host, innerSlot) = _buffer.GetRef(slot.Index);
-            return host.Contains<TComponent>(new(innerSlot, slot.Version));
+            var host = _hosts[slot.Extra];
+            return host.Contains<TComponent>(slot);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool Contains(StorageSlot slot, Type componentType)
+        public bool Contains(scoped in StorageSlot slot, Type componentType)
         {
-            var (host, innerSlot) = _buffer.GetRef(slot.Index);
-            return host.Contains(new(innerSlot, slot.Version), componentType);
+            var host = _hosts[slot.Extra];
+            return host.Contains(slot, componentType);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ref TComponent Get<TComponent>(StorageSlot slot)
+        public ref TComponent Get<TComponent>(scoped in StorageSlot slot)
         {
-            var (host, innerSlot) = _buffer.GetRef(slot.Index);
-            return ref host.Get<TComponent>(new(innerSlot, slot.Version));
+            var host = _hosts[slot.Extra];
+            return ref host.Get<TComponent>(slot);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ref TComponent GetOrNullRef<TComponent>(StorageSlot slot)
+        public ref TComponent GetOrNullRef<TComponent>(scoped in StorageSlot slot)
         {
-            var (host, innerSlot) = _buffer.GetRef(slot.Index);
-            return ref host.GetOrNullRef<TComponent>(new(innerSlot, slot.Version));
+            var host = _hosts[slot.Extra];
+            return ref host.GetOrNullRef<TComponent>(slot);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public EntityDescriptor GetDescriptor(StorageSlot slot)
+        public EntityDescriptor GetDescriptor(scoped in StorageSlot slot)
         {
-            var (host, innerSlot) = _buffer.GetRef(slot.Index);
-            return host.GetDescriptor(new(innerSlot, slot.Version));
+            var host = _hosts[slot.Extra];
+            return host.GetDescriptor(slot);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public object Box(StorageSlot slot)
+        public object Box(scoped in StorageSlot slot)
         {
-            var (host, innerSlot) = _buffer.GetRef(slot.Index);
-            return host.Box(new(innerSlot, slot.Version));
+            var host = _hosts[slot.Extra];
+            return host.Box(slot);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Span<byte> GetSpan(StorageSlot slot)
+        public Span<byte> GetSpan(scoped in StorageSlot slot)
         {
-            var (host, innerSlot) = _buffer.GetRef(slot.Index);
-            return host.GetSpan(new(innerSlot, slot.Version));
+            var host = _hosts[slot.Extra];
+            return host.GetSpan(slot);
         }
 
         public IEnumerator<EntityRef> GetEnumerator() => _entitySlots.Keys.GetEnumerator();
@@ -142,9 +151,12 @@ public class SystemLibrary : IAddon
 
         public void Dispose()
         {
-            _buffer.Dispose();
+            _hosts.Clear();
+            _hostMap.Clear();
             _allocatedSlots.Clear();
             _entitySlots.Clear();
+
+            OnDisposed?.Invoke();
         }
     }
 
