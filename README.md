@@ -114,13 +114,13 @@ public static partial class Example1_HealthDamage
     public static class Player
     {
         public static EntityRef Create(World world)
-            => world.CreateInBucketHost(Bundle.Create(
+            => world.CreateInArrayHost(Bundle.Create(
                 new Transform(),
                 new Health()
             ));
 
         public static EntityRef Create(World world, Vector2 position)
-            => world.CreateInBucketHost(Bundle.Create(
+            => world.CreateInArrayHost(Bundle.Create(
                 new Transform {
                     Position = position
                 },

@@ -2,7 +2,9 @@ namespace Sia_Examples;
 
 using System.Diagnostics;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using CommunityToolkit.HighPerformance;
 using Sia;
 
 public static class Example8_SIMD
@@ -21,14 +23,9 @@ public static class Example8_SIMD
             var watch = new Stopwatch();
             watch.Start();
 
-            using var spanOwner = query.Record((in EntityRef entity, ref float value) => {
-                value = entity.Get<Number>().Value;
-            });
-            var span = spanOwner.Span;
-
             float acc = 0;
-            for (int i = 0; i != span.Length; ++i) {
-                acc += span[i];
+            foreach (var entity in query) {
+                acc += entity.Get<Number>().Value;
             }
             
             watch.Stop();
@@ -47,21 +44,31 @@ public static class Example8_SIMD
             var watch = new Stopwatch();
             watch.Start();
 
-            using var spanOwner = query.Record((in EntityRef entity, ref float value) => {
-                value = entity.Get<Number>().Value;
-            });
+            float result = 0;
 
-            var numbers = spanOwner.Span;
-            var vectors = MemoryMarshal.Cast<float, Vector<float>>(numbers);
+            foreach (var host in query.Hosts) {
+                if (host is IEntityHost<Bundle<Number>> numberHost) {
+                    using var numbers = numberHost.FetchAll();
+                    var numbersSpan = numbers.Span;
 
-            var acc = Vector<float>.Zero;
-            for (int i = 0; i < vectors.Length; ++i) {
-                acc += vectors[i];
-            }
+                    var vectors = numbersSpan.Cast<Bundle<Number>, Vector<float>>();
+                    var acc = Vector<float>.Zero;
 
-            float result = Vector.Dot(acc, Vector<float>.One);
-            for (int i = vectors.Length * Vector<float>.Count; i < numbers.Length; ++i) {
-                result += numbers[i];
+                    for (int i = 0; i < vectors.Length; ++i) {
+                        acc += vectors[i];
+                    }
+
+                    result = Vector.Dot(acc, Vector<float>.One);
+
+                    for (int i = vectors.Length * Vector<float>.Count; i < numbers.Length; ++i) {
+                        result += numbersSpan[i].Item1.Value;
+                    }
+                }
+                else {
+                    foreach (var entity in host) {
+                        result += entity.Get<Number>().Value;
+                    }
+                }
             }
 
             watch.Stop();
@@ -81,7 +88,7 @@ public static class Example8_SIMD
             .RegisterTo(world, scheduler);
         
         for (int i = 0; i != 1000000; ++i) {
-            world.CreateInBucketHost(Bundle.Create(
+            world.CreateInArrayHost(Bundle.Create(
                 new Number { Value = 1 }
             ));
         }
