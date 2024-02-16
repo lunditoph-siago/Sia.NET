@@ -1,6 +1,5 @@
 namespace Sia;
 
-using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using CommunityToolkit.HighPerformance.Buffers;
 
