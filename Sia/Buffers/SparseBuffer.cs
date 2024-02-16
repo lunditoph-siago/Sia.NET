@@ -7,6 +7,8 @@ public readonly struct SparseBuffer<T>(int pageSize) : IBuffer<T>
     public int Capacity => int.MaxValue;
     private readonly SparseSet<T> _sparseSet = new(pageSize);
 
+    public readonly ref T this[int index] => ref GetRef(index);
+
     public SparseBuffer() : this(256) {}
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -15,6 +15,8 @@ public readonly struct BucketBuffer<T>(int bucketCapacity) : IBuffer<T>
     public int Capacity => int.MaxValue;
     public int BucketCapacity { get; } = bucketCapacity;
 
+    public readonly ref T this[int index] => ref GetRef(index);
+
     private readonly List<Bucket?> _buckets = [];
 
     public BucketBuffer() : this(256) {}

@@ -9,6 +9,8 @@ public struct ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
 
     private T[] _values = new T[CalculateArraySize(initialCapacity)];
 
+    public readonly ref T this[int index] => ref GetRef(index);
+
     public ArrayBuffer() : this(0) {}
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
