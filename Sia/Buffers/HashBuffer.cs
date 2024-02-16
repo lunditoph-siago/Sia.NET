@@ -8,6 +8,8 @@ public readonly struct HashBuffer<T>() : IBuffer<T>
 {
     public int Capacity => int.MaxValue;
 
+    public readonly ref T this[int index] => ref GetRef(index);
+
     private readonly Dictionary<int, T> _dict = [];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
