@@ -34,35 +34,6 @@ public sealed class BucketBuffer<T>(int bucketCapacity = 256) : IBuffer<T>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref T GetRef(int index)
-    {
-        int bucketIndex = index / BucketCapacity;
-        ref var bucket = ref _buckets.AsSpan()[bucketIndex];
-        return ref bucket!.Value.Memory[index % BucketCapacity];
-    }
-    
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref T GetRefOrNullRef(int index)
-    {
-        int bucketIndex = index / BucketCapacity;
-        if (bucketIndex >= _buckets.Count) {
-            return ref Unsafe.NullRef<T>();
-        }
-        ref var bucket = ref _buckets.AsSpan()[bucketIndex];
-        if (bucket == null) {
-            return ref Unsafe.NullRef<T>();
-        }
-        return ref bucket.Value.Memory[index % BucketCapacity];
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool IsAllocated(int index)
-    {
-        int bucketIndex = index / BucketCapacity;
-        return bucketIndex < _buckets.Count && _buckets.AsSpan()[bucketIndex] != null;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Release(int index)
     {
         int bucketIndex = index / BucketCapacity;
@@ -85,6 +56,35 @@ public sealed class BucketBuffer<T>(int bucketCapacity = 256) : IBuffer<T>
             bucket = bucketValue with { RefCount = refCount - 1 };
         }
         return true;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool IsAllocated(int index)
+    {
+        int bucketIndex = index / BucketCapacity;
+        return bucketIndex < _buckets.Count && _buckets.AsSpan()[bucketIndex] != null;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref T GetRef(int index)
+    {
+        int bucketIndex = index / BucketCapacity;
+        ref var bucket = ref _buckets.AsSpan()[bucketIndex];
+        return ref bucket!.Value.Memory[index % BucketCapacity];
+    }
+    
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref T GetRefOrNullRef(int index)
+    {
+        int bucketIndex = index / BucketCapacity;
+        if (bucketIndex >= _buckets.Count) {
+            return ref Unsafe.NullRef<T>();
+        }
+        ref var bucket = ref _buckets.AsSpan()[bucketIndex];
+        if (bucket == null) {
+            return ref Unsafe.NullRef<T>();
+        }
+        return ref bucket.Value.Memory[index % BucketCapacity];
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
