@@ -35,7 +35,7 @@ public sealed partial class World : IEntityQuery, IEventSender
     internal readonly Dictionary<IEntityMatcher, EntityQuery> _queries = [];
     private readonly SparseSet<IReactiveEntityHost> _hosts = [];
 
-    private readonly IAddon?[] _addons = new IAddon?[1024];
+    private readonly IAddon?[] _addons = new IAddon?[2048];
     private int _addonCount = 0;
 
     public World()
@@ -179,17 +179,7 @@ public sealed partial class World : IEntityQuery, IEventSender
     {
         if (_hosts.Remove(WorldEntityHostIndexer<THost>.Index, out var host)) {
             OnEntityHostReleased?.Invoke(host);
-            return true;
-        }
-        return false;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool ReleaseHost<THost>([MaybeNullWhen(false)] out IReactiveEntityHost host)
-        where THost : IEntityHost
-    {
-        if (_hosts.Remove(WorldEntityHostIndexer<THost>.Index, out host)) {
-            OnEntityHostReleased?.Invoke(host);
+            host.Dispose();
             return true;
         }
         return false;
@@ -218,6 +208,7 @@ public sealed partial class World : IEntityQuery, IEventSender
         for (int i = 0; i < hosts.Count; ++i) {
             var host = hosts[i];
             OnEntityHostReleased?.Invoke(host);
+            host.Dispose();
         }
         _hosts.Clear();
     }
