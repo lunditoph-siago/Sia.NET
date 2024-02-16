@@ -2,7 +2,7 @@ namespace Sia;
 
 using System.Runtime.CompilerServices;
 
-public readonly record struct EntityRef(StorageSlot Slot, IEntityHost Host) : IDisposable
+public readonly record struct EntityRef(scoped in StorageSlot Slot, IEntityHost Host) : IDisposable
 {
     public object Boxed => Host.Box(Slot);
     public bool Valid => Host != null && Host.IsValid(Slot);
@@ -42,7 +42,7 @@ public readonly record struct EntityRef(StorageSlot Slot, IEntityHost Host) : ID
         => Host.Release(Slot);
 }
 
-public readonly record struct EntityRef<TEntity>(StorageSlot Slot, IEntityHost Host)
+public readonly record struct EntityRef<TEntity>(scoped in StorageSlot Slot, IEntityHost Host)
     : IDisposable
     where TEntity : struct
 {

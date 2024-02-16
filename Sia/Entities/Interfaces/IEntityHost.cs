@@ -4,6 +4,8 @@ namespace Sia;
 
 public interface IEntityHost : IEnumerable<EntityRef>, IDisposable
 {
+    event Action? OnDisposed;
+
     int Capacity { get; }
     int Count { get; }
     ReadOnlySpan<StorageSlot> AllocatedSlots { get;}
@@ -12,18 +14,18 @@ public interface IEntityHost : IEnumerable<EntityRef>, IDisposable
     bool ContainsCommon(Type componentType);
 
     EntityRef Create();
-    void Release(StorageSlot slot);
-    bool IsValid(StorageSlot slot);
+    void Release(scoped in StorageSlot slot);
+    bool IsValid(scoped in StorageSlot slot);
 
-    bool Contains<TComponent>(StorageSlot slot);
-    bool Contains(StorageSlot slot, Type componentType);
+    bool Contains<TComponent>(scoped in StorageSlot slot);
+    bool Contains(scoped in StorageSlot slot, Type componentType);
 
-    ref TComponent Get<TComponent>(StorageSlot slot);
-    ref TComponent GetOrNullRef<TComponent>(StorageSlot slot);
+    ref TComponent Get<TComponent>(scoped in StorageSlot slot);
+    ref TComponent GetOrNullRef<TComponent>(scoped in StorageSlot slot);
 
-    EntityDescriptor GetDescriptor(StorageSlot slot);
-    object Box(StorageSlot slot);
-    Span<byte> GetSpan(StorageSlot slot);
+    EntityDescriptor GetDescriptor(scoped in StorageSlot slot);
+    object Box(scoped in StorageSlot slot);
+    Span<byte> GetSpan(scoped in StorageSlot slot);
 }
 
 public interface IReactiveEntityHost : IEntityHost
