@@ -12,7 +12,7 @@ public static partial class Example12_DynEntityRef
     public static void Run(World world)
     {
         var dynEntity = DynEntityRef.Create(
-            world.CreateInBucketHost(Bundle.Create(new C1(114514))),
+            world.CreateInArrayHost(Bundle.Create(new C1(114514))),
             new WorldEntityCreators.Bucket(world));
 
         Console.WriteLine(dynEntity.Boxed);

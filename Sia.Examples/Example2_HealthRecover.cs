@@ -54,7 +54,7 @@ public static class Example2_HealthRecover
     public static class Player
     {
         public static EntityRef CreateResilient(World world, string name)
-            => world.CreateInBucketHost(Bundle.Create(
+            => world.CreateInArrayHost(Bundle.Create(
                 new Name(name),
                 new HP {
                     AutoRecoverRate = 10

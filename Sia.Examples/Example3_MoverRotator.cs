@@ -160,7 +160,7 @@ public static partial class Example3_MoveRotator
     {
         public static EntityRef Create(World world, Vector3 position)
         {
-            return world.CreateInBucketHost(Bundle.Create(
+            return world.CreateInArrayHost(Bundle.Create(
                 new Position(position),
                 new Rotation(),
                 new Mover(5f),

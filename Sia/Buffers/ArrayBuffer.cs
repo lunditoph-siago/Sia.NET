@@ -1,42 +1,49 @@
 namespace Sia;
 
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using CommunityToolkit.HighPerformance;
 
-public sealed class ArrayBuffer<T>(int capacity) : IBuffer<T>
+public sealed class ArrayBuffer<T>(int initialCapacity = 0) : IBuffer<T>
 {
-    public int Capacity => _values.Length;
+    public int Capacity => int.MaxValue;
 
-    private readonly T[] _values = new T[capacity];
+    private readonly List<T> _values = new(initialCapacity);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T CreateRef(int index)
-        => ref _values[index];
+    {
+        if (index >= _values.Count) {
+            CollectionsMarshal.SetCount(_values, index + 1);
+        }
+        return ref _values.AsSpan()[index];
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool Release(int index)
+    {
+        if (index >= _values.Count) {
+            return false;
+        }
+        _values[index] = default!;
+        return true;
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetRef(int index)
-        => ref _values[index];
+        => ref _values.AsSpan()[index];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetRefOrNullRef(int index)
-        => ref _values[index];
+        => ref index >= _values.Count ? ref Unsafe.NullRef<T>() : ref _values.AsSpan()[index];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool IsAllocated(int index)
         => true;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool Release(int index)
-    {
-        _values[index] = default!;
-        return true;
-    }
+    public void Clear() => _values.Clear();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Clear()
-        => Array.Clear(_values);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Dispose()
-    {
-    }
+    public void Dispose() {}
 }

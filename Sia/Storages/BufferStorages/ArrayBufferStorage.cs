@@ -1,5 +1,5 @@
 namespace Sia;
 
-public sealed class ArrayBufferStorage<T>(int capacity = 4096)
-    : BufferStorage<T, ArrayBuffer<T>>(new(capacity))
+public sealed class ArrayBufferStorage<T>(int initialCapacity = 0)
+    : BufferStorage<T, ArrayBuffer<T>>(new(initialCapacity))
     where T : struct;
