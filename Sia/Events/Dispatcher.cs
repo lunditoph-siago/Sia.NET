@@ -12,7 +12,7 @@ public class Dispatcher<TTarget, TEvent> : IEventSender<TTarget, TEvent>
     private bool _sending = false;
 
     private readonly List<IEventListener<TTarget>> _globalListeners = [];
-    private readonly BucketBuffer<object> _eventListeners = new();
+    private ArrayBuffer<object> _eventListeners = new();
     private readonly Dictionary<TTarget, List<IEventListener<TTarget>>> _targetListeners = [];
 
     private readonly Stack<List<IEventListener<TTarget>>> _targetListenersPool = new();

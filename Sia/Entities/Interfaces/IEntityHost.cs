@@ -44,5 +44,4 @@ public interface IEntityHost<T> : IEntityHost
 
     void Write(ReadOnlySpan<StorageSlot> slots, ReadOnlySpan<T> values);
     void UnsafeWrite(ReadOnlySpan<StorageSlot> slots, ReadOnlySpan<T> values);
-    void WriteToAllocatedSlots(ReadOnlySpan<T> values) => UnsafeWrite(AllocatedSlots, values);
 }

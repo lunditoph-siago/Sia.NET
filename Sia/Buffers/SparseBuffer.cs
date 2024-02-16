@@ -2,10 +2,12 @@ namespace Sia;
 
 using System.Runtime.CompilerServices;
 
-public sealed class SparseBuffer<T>(int pageSize = 256) : IBuffer<T>
+public readonly struct SparseBuffer<T>(int pageSize) : IBuffer<T>
 {
     public int Capacity => int.MaxValue;
     private readonly SparseSet<T> _sparseSet = new(pageSize);
+
+    public SparseBuffer() : this(256) {}
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T CreateRef(int index)
@@ -32,7 +34,5 @@ public sealed class SparseBuffer<T>(int pageSize = 256) : IBuffer<T>
         => _sparseSet.Clear();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Dispose()
-    {
-    }
+    public void Dispose() {}
 }
