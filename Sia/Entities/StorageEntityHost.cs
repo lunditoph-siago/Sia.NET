@@ -94,6 +94,14 @@ public class StorageEntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMe
         => Storage.UnsafeFetch(slots);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Write(ReadOnlySpan<StorageSlot> slots, ReadOnlySpan<T> values)
+        => Storage.Write(slots, values);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void UnsafeWrite(ReadOnlySpan<StorageSlot> slots, ReadOnlySpan<T> values)
+        => Storage.UnsafeWrite(slots, values);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public object Box(StorageSlot slot)
         => Storage.GetRef(slot);
 

@@ -106,6 +106,14 @@ public sealed record WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>, IR
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public SpanOwner<T> UnsafeFetch(ReadOnlySpan<StorageSlot> slots)
         => _host.UnsafeFetch(slots);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Write(ReadOnlySpan<StorageSlot> slots, ReadOnlySpan<T> values)
+        => _host.Write(slots, values);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void UnsafeWrite(ReadOnlySpan<StorageSlot> slots, ReadOnlySpan<T> values)
+        => _host.UnsafeWrite(slots, values);
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public object Box(StorageSlot slot)
