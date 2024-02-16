@@ -224,12 +224,15 @@ public sealed class SparseSet<T>(int pageSize = 256)
         return ref span[page[entryIndex]];
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetOrAddValueRef(int index, out bool exists)
     {
         int pageIndex = index / PageSize;
         int entryIndex = index - pageIndex * PageSize;
 
-        CollectionsMarshal.SetCount(_pages, pageIndex + 1);
+        if (pageIndex >= _pages.Count) {
+            CollectionsMarshal.SetCount(_pages, pageIndex + 1);
+        }
         ref var page = ref _pages.AsSpan()[pageIndex];
         ref var memory = ref page.Memory;
 
