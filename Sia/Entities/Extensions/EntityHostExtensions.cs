@@ -8,10 +8,7 @@ public static class EntityHostExtensions
     {
         public readonly EntityRef Current {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get {
-                ref readonly var slot = ref _slots[_slotIndex];
-                return new(slot.Slot, slot.Version, host);
-            }
+            get => new(_slots[_slotIndex], host);
         }
 
         private int _slotIndex = -1;

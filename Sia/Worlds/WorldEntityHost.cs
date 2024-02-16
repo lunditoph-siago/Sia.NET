@@ -34,9 +34,9 @@ public sealed class WorldEntityHost<[DynamicallyAccessedMembers(DynamicallyAcces
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public override void Release(int slot, int version)
+    public override void Release(StorageSlot slot)
     {
-        var entity = new EntityRef(slot, version, this);
+        var entity = new EntityRef(slot, this);
 
         var dispatcher = World.Dispatcher;
         World.Count--;
@@ -44,6 +44,6 @@ public sealed class WorldEntityHost<[DynamicallyAccessedMembers(DynamicallyAcces
         dispatcher.UnlistenAll(entity);
 
         OnEntityReleased?.Invoke(entity);
-        base.Release(slot, version);
+        base.Release(slot);
     }
 }

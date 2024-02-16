@@ -16,11 +16,11 @@ public static class WorldEntityCreators
             => world.CreateInHashHost(initial);
     }
 
-    public sealed class Array(World world, int capacity) : IEntityCreator
+    public sealed class Array(World world, int initialCapacity = 0) : IEntityCreator
     {
         public EntityRef<TEntity> CreateEntity<TEntity>(TEntity initial)
             where TEntity : struct
-            => world.CreateInArrayHost(initial, capacity);
+            => world.CreateInArrayHost(initial, initialCapacity);
     }
 
     public sealed class Sparse(World world, int pageSize = 256) : IEntityCreator

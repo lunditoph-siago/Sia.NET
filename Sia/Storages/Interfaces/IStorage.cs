@@ -1,6 +1,7 @@
 namespace Sia;
 
 using System.Runtime.CompilerServices;
+using CommunityToolkit.HighPerformance.Buffers;
 
 public interface IStorage : IEnumerable<StorageSlot>, IDisposable
 {
@@ -8,27 +9,30 @@ public interface IStorage : IEnumerable<StorageSlot>, IDisposable
     int Count { get; }
     ReadOnlySpan<StorageSlot> AllocatedSlots { get; }
 
-    int UnsafeAllocate(out int version);
-    void UnsafeRelease(int slot, int version);
-    bool IsValid(int slot, int version);
+    StorageSlot AllocateSlot();
+    void Release(StorageSlot slot);
+    bool IsValid(StorageSlot slot);
 }
 
 public interface IStorage<T> : IStorage
     where T : struct
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    int UnsafeAllocate(in T initial, out int version)
+    StorageSlot AllocateSlot(in T initial)
     {
-        int pointer = UnsafeAllocate(out version);
-        UnsafeGetRef(pointer, version) = initial;
-        return pointer;
+        var slot = AllocateSlot();
+        GetRef(slot) = initial;
+        return slot;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    Pointer<T> Allocate() => new(UnsafeAllocate(out int version), version, this);
+    Pointer<T> Allocate() => new(AllocateSlot(), this);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    Pointer<T> Allocate(in T initial) => new(UnsafeAllocate(initial, out int version), version, this);
+    Pointer<T> Allocate(in T initial) => new(AllocateSlot(initial), this);
 
-    ref T UnsafeGetRef(int slot, int version);
+    ref T GetRef(StorageSlot slot);
+
+    SpanOwner<T> Fetch(ReadOnlySpan<StorageSlot> slots);
+    SpanOwner<T> UnsafeFetch(ReadOnlySpan<StorageSlot> slots);
 }

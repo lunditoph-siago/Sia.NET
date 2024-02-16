@@ -1,11 +1,11 @@
 namespace Sia;
 
-public readonly record struct Pointer<T>(int Slot, int Version, IStorage<T> Storage) : IDisposable
+public readonly record struct Pointer<T>(StorageSlot Slot, IStorage<T> Storage) : IDisposable
     where T : struct
 {
     public readonly unsafe ref T GetRef()
-        => ref Storage.UnsafeGetRef(Slot, Version);
+        => ref Storage.GetRef(Slot);
     
     public readonly void Dispose()
-        => Storage.UnsafeRelease(Slot, Version);
+        => Storage.Release(Slot);
 }

@@ -1,3 +1,3 @@
 namespace Sia;
 
-public record struct StorageSlot(int Slot, int Version);
+public record struct StorageSlot(int Index, int Version);

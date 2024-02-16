@@ -4,6 +4,7 @@ namespace Sia;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using CommunityToolkit.HighPerformance.Buffers;
 
 public sealed record WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>, IReactiveEntityHost
     where T : struct
@@ -60,10 +61,10 @@ public sealed record WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>, IR
 
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Release(int slot, int version)
+    public void Release(StorageSlot slot)
     {
-        _host.Release(slot, version);
-        var entity = new EntityRef(slot, version, this);
+        _host.Release(slot);
+        var entity = new EntityRef(slot, this);
 
         var dispatcher = World.Dispatcher;
         World.Count--;
@@ -74,37 +75,45 @@ public sealed record WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>, IR
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool IsValid(int slot, int version)
-        => _host.IsValid(slot, version);
+    public bool IsValid(StorageSlot slot)
+        => _host.IsValid(slot);
 
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool Contains<TComponent>(int slot, int version)
+    public bool Contains<TComponent>(StorageSlot slot)
         => _host.ContainsCommon<TComponent>();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool Contains(int slot, int version, Type componentType)
+    public bool Contains(StorageSlot slot, Type componentType)
         => _host.ContainsCommon(componentType);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public EntityDescriptor GetDescriptor(int slot, int version)
-        => _host.GetDescriptor(slot, version);
+    public EntityDescriptor GetDescriptor(StorageSlot slot)
+        => _host.GetDescriptor(slot);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref TComponent Get<TComponent>(int slot, int version)
-        => ref _host.Get<TComponent>(slot, version);
+    public ref TComponent Get<TComponent>(StorageSlot slot)
+        => ref _host.Get<TComponent>(slot);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref TComponent GetOrNullRef<TComponent>(int slot, int version)
-        => ref _host.GetOrNullRef<TComponent>(slot, version);
+    public ref TComponent GetOrNullRef<TComponent>(StorageSlot slot)
+        => ref _host.GetOrNullRef<TComponent>(slot);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public SpanOwner<T> Fetch(ReadOnlySpan<StorageSlot> slots)
+        => _host.Fetch(slots);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public SpanOwner<T> UnsafeFetch(ReadOnlySpan<StorageSlot> slots)
+        => _host.UnsafeFetch(slots);
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public object Box(int slot, int version)
-        => _host.Box(slot, version);
+    public object Box(StorageSlot slot)
+        => _host.Box(slot);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Span<byte> GetSpan(int slot, int version)
-        => _host.GetSpan(slot, version);
+    public Span<byte> GetSpan(StorageSlot slot)
+        => _host.GetSpan(slot);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public IEnumerator<EntityRef> GetEnumerator() => _host.GetEnumerator();

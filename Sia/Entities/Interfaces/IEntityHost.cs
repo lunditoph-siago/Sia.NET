@@ -1,3 +1,5 @@
+using CommunityToolkit.HighPerformance.Buffers;
+
 namespace Sia;
 
 public interface IEntityHost : IEnumerable<EntityRef>, IDisposable
@@ -10,18 +12,18 @@ public interface IEntityHost : IEnumerable<EntityRef>, IDisposable
     bool ContainsCommon(Type componentType);
 
     EntityRef Create();
-    void Release(int slot, int version);
-    bool IsValid(int slot, int version);
+    void Release(StorageSlot slot);
+    bool IsValid(StorageSlot slot);
 
-    bool Contains<TComponent>(int slot, int version);
-    bool Contains(int slot, int version, Type componentType);
+    bool Contains<TComponent>(StorageSlot slot);
+    bool Contains(StorageSlot slot, Type componentType);
 
-    ref TComponent Get<TComponent>(int slot, int version);
-    ref TComponent GetOrNullRef<TComponent>(int slot, int version);
+    ref TComponent Get<TComponent>(StorageSlot slot);
+    ref TComponent GetOrNullRef<TComponent>(StorageSlot slot);
 
-    EntityDescriptor GetDescriptor(int slot, int version);
-    object Box(int slot, int version);
-    Span<byte> GetSpan(int slot, int version);
+    EntityDescriptor GetDescriptor(StorageSlot slot);
+    object Box(StorageSlot slot);
+    Span<byte> GetSpan(StorageSlot slot);
 }
 
 public interface IReactiveEntityHost : IEntityHost
@@ -35,4 +37,8 @@ public interface IEntityHost<T> : IEntityHost
 {
     new EntityRef<T> Create();
     EntityRef<T> Create(in T initial);
+
+    SpanOwner<T> Fetch(ReadOnlySpan<StorageSlot> slots);
+    SpanOwner<T> UnsafeFetch(ReadOnlySpan<StorageSlot> slots);
+    SpanOwner<T> FetchAll() => UnsafeFetch(AllocatedSlots);
 }
