@@ -3,13 +3,12 @@ namespace Sia;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using CommunityToolkit.HighPerformance;
-using CommunityToolkit.HighPerformance.Buffers;
 
 public sealed class BucketBuffer<T>(int bucketCapacity = 256) : IBuffer<T>
 {
     private struct Bucket(int capacity)
     {
-        public MemoryOwner<T> Memoery = MemoryOwner<T>.Allocate(capacity);
+        public T[] Memory = new T[capacity];
         public int RefCount = 1;
     }
     
@@ -31,7 +30,7 @@ public sealed class BucketBuffer<T>(int bucketCapacity = 256) : IBuffer<T>
             ? new(BucketCapacity)
             : bucket.Value with { RefCount = bucket.Value.RefCount + 1 };
         
-        return ref bucket.Value.Memoery.Span[index % BucketCapacity];
+        return ref bucket.Value.Memory[index % BucketCapacity];
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -39,7 +38,7 @@ public sealed class BucketBuffer<T>(int bucketCapacity = 256) : IBuffer<T>
     {
         int bucketIndex = index / BucketCapacity;
         ref var bucket = ref _buckets.AsSpan()[bucketIndex];
-        return ref bucket!.Value.Memoery.Span[index % BucketCapacity];
+        return ref bucket!.Value.Memory[index % BucketCapacity];
     }
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -53,7 +52,7 @@ public sealed class BucketBuffer<T>(int bucketCapacity = 256) : IBuffer<T>
         if (bucket == null) {
             return ref Unsafe.NullRef<T>();
         }
-        return ref bucket.Value.Memoery.Span[index % BucketCapacity];
+        return ref bucket.Value.Memory[index % BucketCapacity];
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -76,11 +75,10 @@ public sealed class BucketBuffer<T>(int bucketCapacity = 256) : IBuffer<T>
             return false;
         }
         
-        bucketValue.Memoery.Span[index % BucketCapacity] = default!;
+        bucketValue.Memory[index % BucketCapacity] = default!;
 
         var refCount = bucketValue.RefCount;
         if (refCount == 1) {
-            bucketValue.Memoery.Dispose();
             bucket = null;
         }
         else {
@@ -92,20 +90,9 @@ public sealed class BucketBuffer<T>(int bucketCapacity = 256) : IBuffer<T>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Clear()
     {
-        foreach (ref var bucket in _buckets.AsSpan()) {
-            if (bucket == null) {
-                continue;
-            }
-            var mem = bucket.Value.Memoery;
-            mem.Span.Clear();
-            mem.Dispose();
-            bucket = null;
-        }
         _buckets.Clear();
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Dispose()
-    {
-    }
+    public void Dispose() {}
 }
