@@ -11,26 +11,51 @@ public static class EntityQueryParallelExtensions
     public delegate bool CondRecordFunc<TResult>(in EntityRef entity, ref TResult result);
     public delegate bool CondRecordFunc<TData, TResult>(in TData data, in EntityRef entity, ref TResult result);
 
+    private static (IEntityHost Host, int From, int To) FindHostRange(IEntityQuery query, Tuple<int, int> range)
+    {
+        (int from, int to) = range;
+
+        var hosts = query.Hosts;
+        IEntityHost host;
+
+        int hostIndex = 0;
+        int counter = 0;
+        int prevCounter;
+
+        do {
+            host = hosts[hostIndex];
+            prevCounter = counter;
+            counter += host.Count;
+            hostIndex++;
+        } while (counter < from);
+
+        return (host, from - prevCounter, to - prevCounter);
+    }
+
     private readonly record struct ForEachParallelAction(
-        ArraySegment<EntityRef> Array, EntityHandler Handler)
+        IEntityQuery Query, EntityHandler Handler)
     {
         public void Invoke(Tuple<int, int> range)
         {
-            var span = Array.AsSpan();
-            for (int i = range.Item1; i != range.Item2; ++i) {
-                Handler(span[i]);
+            var (host, from, to) = FindHostRange(Query, range);
+            var slots = host.AllocatedSlots;
+
+            for (int i = from; i != to; ++i) {
+                Handler(new(slots[i], host));
             }
         }
     }
 
     private readonly record struct ForEachParallelAction<TData>(
-        ArraySegment<EntityRef> Array, in TData Data, EntityHandler<TData> Handler)
+        IEntityQuery Query, in TData Data, EntityHandler<TData> Handler)
     {
         public void Invoke(Tuple<int, int> range)
         {
-            var span = Array.AsSpan();
-            for (int i = range.Item1; i != range.Item2; ++i) {
-                Handler(Data, span[i]);
+            var (host, from, to) = FindHostRange(Query, range);
+            var slots = host.AllocatedSlots;
+
+            for (int i = from; i != to; ++i) {
+                Handler(Data, new(slots[i], host));
             }
         }
     }
@@ -77,11 +102,7 @@ public static class EntityQueryParallelExtensions
         var count = query.Count;
         if (count == 0) { return; }
 
-        var spanOwner = SpanOwner<EntityRef>.Allocate(count);
-        var array = spanOwner.DangerousGetArray();
-        Record(query, array);
-
-        var action = new ForEachParallelAction(array, handler);
+        var action = new ForEachParallelAction(query, handler);
         Partitioner.Create(0, count)
             .AsParallel()
             .ForAll(action.Invoke);
@@ -93,12 +114,7 @@ public static class EntityQueryParallelExtensions
         var count = query.Count;
         if (count == 0) { return; }
 
-        var spanOwner = SpanOwner<EntityRef>.Allocate(count);
-        var array = spanOwner.DangerousGetArray();
-        Record(query, array);
-        var reversed = array.Reverse();
-
-        var action = new ForEachParallelAction<TData>(array, data, handler);
+        var action = new ForEachParallelAction<TData>(query, data, handler);
         Partitioner.Create(0, count)
             .AsParallel()
             .ForAll(action.Invoke);
