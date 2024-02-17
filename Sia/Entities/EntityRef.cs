@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 public readonly record struct EntityRef(scoped in StorageSlot Slot, IEntityHost Host)
     : IDisposable
 {
+    public int Id => Slot.Id;
     public object Boxed => Host.Box(Slot);
     public bool Valid => Host != null && Host.IsValid(Slot);
     public EntityDescriptor Descriptor => Host.GetDescriptor(Slot);
