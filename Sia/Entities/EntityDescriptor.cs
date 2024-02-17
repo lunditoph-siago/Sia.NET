@@ -5,11 +5,11 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
-internal static class EntityDescriptor<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>
+public static class EntityDescriptor<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>
 {
     private delegate int GetOffsetDelegate(in TEntity entity);
 
-    public static FrozenDictionary<Type, IntPtr> FieldOffsets;
+    public static readonly FrozenDictionary<Type, IntPtr> FieldOffsets;
 
     private const BindingFlags s_bindingFlags =
         BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
@@ -52,7 +52,7 @@ internal static class EntityDescriptor<[DynamicallyAccessedMembers(DynamicallyAc
     }
 }
 
-internal static class EntityIndexer<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity, TComponent>
+public readonly struct EntityIndexer<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity, TComponent>
 {
     public static IntPtr? Offset { get; }
 
