@@ -2,13 +2,16 @@ namespace Sia;
 
 using System.Runtime.CompilerServices;
 
-public readonly record struct EntityRef(scoped in StorageSlot Slot, IEntityHost Host)
-    : IDisposable
+public readonly struct EntityRef(scoped in StorageSlot slot, IEntityHost host)
+    : IEquatable<EntityRef>, IDisposable
 {
     public int Id => Slot.Id;
     public object Boxed => Host.Box(Slot);
     public bool Valid => Host != null && Host.IsValid(Slot);
     public EntityDescriptor Descriptor => Host.GetDescriptor(Slot);
+
+    public readonly StorageSlot Slot = slot;
+    public readonly IEntityHost Host = host;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public EntityRef<TEntity> Cast<TEntity>()
@@ -66,6 +69,17 @@ public readonly record struct EntityRef(scoped in StorageSlot Slot, IEntityHost 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public readonly void Dispose()
         => Host.Release(Slot);
+
+    public override int GetHashCode() => Id;
+
+    public bool Equals(EntityRef other) => Id == other.Id;
+    public override bool Equals(object? obj) => obj is EntityRef e && Equals(e);
+
+    public static bool operator ==(EntityRef left, EntityRef right)
+        => left.Equals(right);
+
+    public static bool operator !=(EntityRef left, EntityRef right)
+        => !(left == right);
 }
 
 public readonly record struct EntityRef<TEntity>(scoped in StorageSlot Slot, IEntityHost Host)
