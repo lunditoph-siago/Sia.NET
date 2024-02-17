@@ -43,7 +43,7 @@ public abstract class StorageBase<T> : IStorage<T>
             while (++_firstFreeSlot < versionCount && _versions[_firstFreeSlot] > 0) {}
         }
 
-        var slot = new StorageSlot(index, version);
+        var slot = new StorageSlot(index, StorageSlot.NewId(), version);
         _allocatedSlots.Add(index, slot);
         return slot;
     }
@@ -51,7 +51,8 @@ public abstract class StorageBase<T> : IStorage<T>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Release(scoped in StorageSlot slot)
     {
-        var (index, version) = slot;
+        var index = slot.Index;
+        var version = slot.Version;
 
         ref var versionRef = ref _versions.AsSpan()[index];
         if (versionRef != version) {
@@ -141,8 +142,8 @@ public abstract class StorageBase<T> : IStorage<T>
 
     public IEnumerator<StorageSlot> GetEnumerator()
     {
-        foreach (var (slot, version) in _allocatedSlots.Values) {
-            yield return new(slot, version);
+        foreach (var slot in _allocatedSlots.Values) {
+            yield return slot;
         }
     }
 

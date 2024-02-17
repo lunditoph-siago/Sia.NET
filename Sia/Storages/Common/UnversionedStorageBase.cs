@@ -28,7 +28,7 @@ public abstract class UnversionedStorageBase<T> : IStorage<T>
         Allocate(index);
         while (_allocatedSlots.ContainsKey(++_firstFreeSlot)) {}
 
-        var slot = new StorageSlot(index, 1);
+        var slot = new StorageSlot(index, StorageSlot.NewId(), 1);
         _allocatedSlots.Add(index, slot);
         return slot;
     }
@@ -114,8 +114,8 @@ public abstract class UnversionedStorageBase<T> : IStorage<T>
 
     public IEnumerator<StorageSlot> GetEnumerator()
     {
-        foreach (var (slot, version) in _allocatedSlots.Values) {
-            yield return new(slot, version);
+        foreach (var slot in _allocatedSlots.Values) {
+            yield return slot;
         }
     }
 
