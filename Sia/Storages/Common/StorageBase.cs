@@ -15,7 +15,7 @@ public abstract class StorageBase<T> : IStorage<T>
     public ReadOnlySpan<StorageSlot> AllocatedSlots => _allocatedSlots.ValueSpan;
 
     private readonly SparseSet<StorageSlot> _allocatedSlots = [];
-    private readonly List<int> _versions = [];
+    private readonly List<short> _versions = [];
 
     private int _firstFreeSlot;
 
@@ -29,7 +29,7 @@ public abstract class StorageBase<T> : IStorage<T>
 
         Allocate(index);
 
-        int version;
+        short version;
         int versionCount = _versions.Count;
 
         if (index == versionCount) {
@@ -39,7 +39,7 @@ public abstract class StorageBase<T> : IStorage<T>
         }
         else {
             ref var versionRef = ref _versions.AsSpan()[index];
-            version = versionRef = -versionRef + 1;
+            version = versionRef = (short)(-versionRef + 1);
             while (++_firstFreeSlot < versionCount && _versions[_firstFreeSlot] > 0) {}
         }
 
@@ -58,7 +58,7 @@ public abstract class StorageBase<T> : IStorage<T>
             throw new ArgumentException("Bad slot access");
         }
 
-        versionRef = -versionRef;
+        versionRef = (short)-versionRef;
         _allocatedSlots.Remove(index);
         Release(index);
 
