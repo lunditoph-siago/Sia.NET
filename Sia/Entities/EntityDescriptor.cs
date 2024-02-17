@@ -86,7 +86,8 @@ public record EntityDescriptor
     public int MemorySize { get; }
     public FrozenDictionary<Type, nint> FieldOffsets { get; }
 
-    private readonly nint[] _offsetCache = new nint[256];
+    private const int OffsetCacheSize = 256;
+    private readonly (Type? Type, nint Offset)[] _offsetCache = new (Type?, nint)[OffsetCacheSize];
     private readonly IProxy _proxy;
 
     private EntityDescriptor(Type type, int memorySize, IProxy proxy)
@@ -95,10 +96,6 @@ public record EntityDescriptor
         MemorySize = memorySize;
         _proxy = proxy;
         FieldOffsets = _proxy.FieldOffsets;
-
-        foreach (ref var value in _offsetCache.AsSpan()) {
-            value = -2;
-        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -108,10 +105,14 @@ public record EntityDescriptor
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public nint GetOffset<TComponent>()
     {
-        ref var offset = ref _offsetCache[TypeIndexer<TComponent>.Index];
-        if (offset == -2) {
-            offset = _proxy.GetOffset<TComponent>();
+        ref var entry = ref _offsetCache[TypeIndexer<TComponent>.Index % OffsetCacheSize];
+        var type = typeof(TComponent);
+
+        if (entry.Type != type) {
+            entry.Type = type;
+            entry.Offset = _proxy.GetOffset<TComponent>();
         }
-        return offset;
+
+        return entry.Offset;
     }
 }
