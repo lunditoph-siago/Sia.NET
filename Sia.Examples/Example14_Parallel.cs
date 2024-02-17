@@ -5,6 +5,9 @@ using Sia;
 
 public static partial class Example14_Parallel
 {
+    private static TimeSpan _monoThreadElapsed;
+    private static TimeSpan _multiThreadElapsed;
+
     public sealed class MonoThreadUpdateSystem()
         : SystemBase(
             matcher: Matchers.Of<int>())
@@ -19,7 +22,7 @@ public static partial class Example14_Parallel
             }
 
             watch.Stop();
-            Console.WriteLine("MonoThread: " + watch.Elapsed);
+            _monoThreadElapsed = (_monoThreadElapsed + watch.Elapsed) / 2;
         }
     }
 
@@ -37,7 +40,7 @@ public static partial class Example14_Parallel
             });
 
             watch.Stop();
-            Console.WriteLine("MultiThread: " + watch.Elapsed);
+            _multiThreadElapsed = (_multiThreadElapsed + watch.Elapsed) / 2;
         }
     }
 
@@ -60,13 +63,14 @@ public static partial class Example14_Parallel
             world.CreateInArrayHost(Bundle.Create(0));
         }
 
-        schduler.Tick();
-        schduler.Tick();
-        schduler.Tick();
-        schduler.Tick();
-        schduler.Tick();
-        schduler.Tick();
-        schduler.Tick();
-        schduler.Tick();
+        for (int i = 0; i != 5; ++i) {
+            schduler.Tick();
+        }
+        for (int i = 0; i != 20; ++i) {
+            schduler.Tick();
+        }
+
+        Console.WriteLine("MonoThread: " + _monoThreadElapsed);
+        Console.WriteLine("MultiThread: " + _multiThreadElapsed);
     }
 }
