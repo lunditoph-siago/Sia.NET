@@ -9,7 +9,7 @@ public class Aggregator<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTyp
     where TId : notnull, IEquatable<TId>
 {
     [AllowNull]
-    private World.EntityQuery _aggregationQuery;
+    private IReactiveEntityQuery _aggregationQuery;
     private readonly Dictionary<TId, Aggregation<TId>> _aggrs = [];
     private readonly Stack<HashSet<EntityRef>> _groupPool = new();
 

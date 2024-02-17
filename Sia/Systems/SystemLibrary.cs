@@ -3,6 +3,7 @@ namespace Sia;
 using System.Runtime.CompilerServices;
 using System.Diagnostics.CodeAnalysis;
 using System.Collections;
+using System.Collections.Frozen;
 
 public class SystemLibrary : IAddon
 {
@@ -12,116 +13,92 @@ public class SystemLibrary : IAddon
         internal readonly HashSet<Scheduler.TaskGraphNode> _taskGraphNodes = [];
     }
 
-    private class ReactiveEntityHost : IEntityHost
+    private record WrappedReactiveEntityHost(IReactiveEntityHost Host) : IReactiveEntityHost
     {
-        public event Action? OnDisposed;
+        public event EntityHandler? OnEntityCreated {
+            add => Host.OnEntityCreated += value;
+            remove => Host.OnEntityCreated -= value;
+        }
 
-        public int Capacity => int.MaxValue;
+        public event EntityHandler? OnEntityReleased {
+            add => Host.OnEntityReleased += value;
+            remove => Host.OnEntityReleased -= value;
+        }
+
+        public event Action? OnDisposed {
+            add => Host.OnDisposed += value;
+            remove => Host.OnDisposed -= value;
+        }
+
+        public int Capacity => Host.Capacity;
         public int Count => _entitySlots.Count;
         public ReadOnlySpan<StorageSlot> AllocatedSlots => _allocatedSlots.ValueSpan;
 
-        internal bool IsExecuting { get; private set; }
-
-        private ArrayBuffer<IEntityHost> _hosts = new();
-        private readonly Dictionary<IEntityHost, ushort> _hostMap = [];
+        private int _firstFreeSlot;
 
         private readonly SparseSet<StorageSlot> _allocatedSlots = [];
         private readonly Dictionary<int, int> _entitySlots = [];
-
-        private int _firstFreeSlot;
-        private ushort _hostIdAcc = 0;
-
+        
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void BeginExecution()
+        public void Add(scoped in StorageSlot slot)
         {
-            IsExecuting = true;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void EndExecution()
-        {
-            IsExecuting = false;
-            _allocatedSlots.Clear();
-            _entitySlots.Clear();
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Add(in EntityRef entity)
-        {
-            var host = entity.Host;
-
-            if (!_hostMap.TryGetValue(host, out var hostId)) {
-                hostId = _hostIdAcc;
-                _hosts.CreateRef(hostId) = host;
-                _hostIdAcc++;
-                host.OnDisposed += () => _hosts[hostId] = null!;
-            }
-
             var index = _firstFreeSlot;
-            _allocatedSlots.Add(index, entity.Slot with { Extra = hostId } );
+            _allocatedSlots.Add(index, slot);
             while (_allocatedSlots.ContainsKey(++_firstFreeSlot)) {}
 
-            _entitySlots[entity.Id] = index;
+            _entitySlots[slot.Id] = index;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool Remove(in EntityRef entity)
+        public bool Remove(scoped in StorageSlot slot)
         {
-            if (!_entitySlots.Remove(entity.Id, out int slot)) {
+            if (!_entitySlots.Remove(slot.Id, out int slotIndex)) {
                 return false;
             }
-            _allocatedSlots.Remove(slot);
-
-            if (_firstFreeSlot > slot) {
-                _firstFreeSlot = slot;
+            _allocatedSlots.Remove(slotIndex);
+            if (_firstFreeSlot > slotIndex) {
+                _firstFreeSlot = slotIndex;
             }
             return true;
         }
 
-        public bool ContainsCommon<TComponent>() => false;
-        public bool ContainsCommon(Type componentType) => false;
-
-        public EntityRef Create() => throw new NotSupportedException();
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Release(scoped in StorageSlot slot)
+        public void ClearCollected()
         {
-            var host = _hosts[slot.Extra];
-            host.Release(slot);
+            _entitySlots.Clear();
+            _allocatedSlots.Clear();
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool IsValid(scoped in StorageSlot slot)
+        public bool ContainsCommon<TComponent>()
+            => Host.ContainsCommon<TComponent>();
+
+        public bool ContainsCommon(Type componentType)
+            => Host.ContainsCommon(componentType);
+
+        public EntityRef Create()
+            => Host.Create();
+
+        public void Release(in StorageSlot slot)
         {
-            var host = _hosts[slot.Extra];
-            return host.IsValid(slot);
+            Remove(slot);
+            Host.Release(slot);
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public EntityDescriptor GetDescriptor(scoped in StorageSlot slot)
-        {
-            var host = _hosts[slot.Extra];
-            return host.GetDescriptor(slot);
-        }
+        public bool IsValid(in StorageSlot slot)
+            => Host.IsValid(slot);
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public object Box(in StorageSlot slot)
+            => Host.Box(slot);
+
+        public EntityDescriptor GetDescriptor(in StorageSlot slot)
+            => Host.GetDescriptor(slot);
+
         public Span<byte> GetSpan(scoped in StorageSlot slot)
-        {
-            var host = _hosts[slot.Extra];
-            return host.GetSpan(slot);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public object Box(scoped in StorageSlot slot)
-        {
-            var host = _hosts[slot.Extra];
-            return host.Box(slot);
-        }
+            => Host.GetSpan(slot);
 
         public IEnumerator<EntityRef> GetEnumerator()
         {
             foreach (var slot in _allocatedSlots.Values) {
-                yield return new(slot, this);
+                yield return new(slot, Host);
             }
         }
 
@@ -129,96 +106,185 @@ public class SystemLibrary : IAddon
 
         public void Dispose()
         {
-            _hosts.Clear();
-            _hostMap.Clear();
             _allocatedSlots.Clear();
             _entitySlots.Clear();
-
-            OnDisposed?.Invoke();
+            Host.Dispose();
         }
     }
 
-    private record MatchAnyEventListener<TSystem>(
-        TSystem System, World World, Scheduler Scheduler, ReactiveEntityHost Host,
-        HashSet<Type> TriggerTypes) : IEventListener
-        where TSystem : ISystem
-    {
-        public bool OnEvent<TEvent>(in EntityRef target, in TEvent e)
-            where TEvent : IEvent
-        {
-            var type = typeof(TEvent);
-            if (type == typeof(WorldEvents.Remove)) {
-                Host.Remove(target);
-            }
-            else if (TriggerTypes.Contains(e.GetType())) {
-                Host.Add(target);
-            }
-            return false;
-        }
-    }
-
-    private record MatchAnyFilterableEventListener<TSystem>(
-        TSystem System, World World, Scheduler Scheduler, ReactiveEntityHost Host,
-        HashSet<Type> TriggerTypes, HashSet<Type> FilterTypes) : IEventListener
-        where TSystem : ISystem
-    {
-        public bool OnEvent<TEvent>(in EntityRef target, in TEvent e)
-            where TEvent : IEvent
-        {
-            var type = typeof(TEvent);
-            if (type == typeof(WorldEvents.Remove)) {
-                Host.Remove(target);
-            }
-            else if (TriggerTypes.Contains(type)) {
-                Host.Add(target);
-            }
-            else if (FilterTypes.Contains(type)) {
-                Host.Remove(target);
-            }
-            return false;
-        }
-    }
-
-    private record TargetEventListener<TSystem>(
-        TSystem System, World World, Scheduler Scheduler, ReactiveEntityHost Host,
-        HashSet<Type> TriggerTypes) : IEventListener
-        where TSystem : ISystem
+    private record TriggerEventListener(
+        WrappedReactiveEntityHost Host, FrozenSet<Type> TriggerTypes) : IEventListener
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool OnEvent<TEvent>(in EntityRef target, in TEvent e)
             where TEvent : IEvent
         {
             var type = typeof(TEvent);
-            if (type == typeof(WorldEvents.Remove)) {
-                Host.Remove(target);
-            }
-            else if (TriggerTypes.Contains(e.GetType())) {
-                Host.Add(target);
+            if (TriggerTypes.Contains(type)) {
+                Host.Add(target.Slot);
             }
             return false;
         }
     }
 
-    private record TargetFilterableEventListener<TSystem>(
-        TSystem System, World World, Scheduler Scheduler, ReactiveEntityHost Host,
-        HashSet<Type> TriggerTypes, HashSet<Type> FilterTypes) : IEventListener
-        where TSystem : ISystem
+    private record FilterEventListener(
+        WrappedReactiveEntityHost Host, FrozenSet<Type> FilterTypes) : IEventListener
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool OnEvent<TEvent>(in EntityRef target, in TEvent e)
             where TEvent : IEvent
         {
             var type = typeof(TEvent);
-            if (type == typeof(WorldEvents.Remove)) {
-                Host.Remove(target);
-            }
-            else if (TriggerTypes.Contains(type)) {
-                Host.Add(target);
-            }
-            else if (FilterTypes.Contains(type)) {
-                Host.Remove(target);
+            if (FilterTypes.Contains(type)) {
+                Host.Remove(target.Slot);
             }
             return false;
+        }
+    }
+
+    private record TriggerFilterEventListener(
+        WrappedReactiveEntityHost Host, FrozenSet<Type> TriggerTypes, FrozenSet<Type> FilterTypes) : IEventListener
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool OnEvent<TEvent>(in EntityRef target, in TEvent e)
+            where TEvent : IEvent
+        {
+            var type = typeof(TEvent);
+            if (TriggerTypes.Contains(type)) {
+                Host.Add(target.Slot);
+            }
+            else if (FilterTypes.Contains(type)) {
+                Host.Remove(target.Slot);
+            }
+            return false;
+        }
+    }
+
+    private class ReactiveQuery : IEntityQuery
+    {
+        public readonly record struct HostEntry(
+            WrappedReactiveEntityHost WrappedHost, EntityHandler EntityHandler, IEventListener? Listener);
+
+        public IReadOnlyList<IEntityHost> Hosts => _hosts;
+        private readonly List<WrappedReactiveEntityHost> _hosts = [];
+        private readonly Dictionary<IEntityHost, HostEntry> _hostMap = [];
+
+        private readonly IReactiveEntityQuery _query;
+        private readonly WorldDispatcher _dispatcher;
+
+        public readonly FrozenSet<Type> _triggerTypes;
+        public readonly FrozenSet<Type> _filterTypes;
+
+        private readonly bool _onlyHasAddEventTrigger;
+
+        private static bool OnlyHasAddEventTrigger(FrozenSet<Type> triggerTypes)
+            => triggerTypes.Count == 1 && triggerTypes.Contains(typeof(WorldEvents.Add));
+
+        public ReactiveQuery(
+            IReactiveEntityQuery query, WorldDispatcher dispatcher,
+            FrozenSet<Type> triggerTypes, FrozenSet<Type> filterTypes)
+        {
+            _query = query;
+            _dispatcher = dispatcher;
+
+            _triggerTypes = triggerTypes;
+            _filterTypes = filterTypes;
+
+            _onlyHasAddEventTrigger = OnlyHasAddEventTrigger(triggerTypes);
+
+            _query.OnEntityHostAdded += OnEntityHostAdded;
+            _query.OnEntityHostRemoved += OnEntityHostRemoved;
+        }
+
+        private void OnEntityHostAdded(IEntityHost host)
+        {
+            if (host is not IReactiveEntityHost reactiveHost) {
+                return;
+            }
+
+            var wrappedHost = new WrappedReactiveEntityHost(reactiveHost);
+            _hosts.Add(wrappedHost);
+
+            var onEntityCreated = CreateEntityHandler(wrappedHost, out var listener);
+            reactiveHost.OnEntityCreated += onEntityCreated;
+            _hostMap[reactiveHost] = new(wrappedHost, onEntityCreated, listener);
+        }
+
+        private EntityHandler CreateEntityHandler(WrappedReactiveEntityHost host, out IEventListener? resultListener)
+        {
+            if (_onlyHasAddEventTrigger) {
+                if (_filterTypes.Count == 0) {
+                    resultListener = null;
+                    return (in EntityRef target) => host.Add(target.Slot);
+                }
+                else {
+                    var listener = new FilterEventListener(host, _filterTypes);
+                    resultListener = listener;
+                    return (in EntityRef target) => {
+                        host.Add(target.Slot);
+                        _dispatcher.Listen(target, listener);
+                    };
+                }
+            }
+            else {
+                if (_filterTypes.Count == 0) {
+                    var listener = new TriggerEventListener(host, _triggerTypes);
+                    resultListener = listener;
+                    return (in EntityRef target) => _dispatcher.Listen(target, listener);
+                }
+                else {
+                    var listener = new TriggerFilterEventListener(host, _triggerTypes, _filterTypes);
+                    resultListener = listener;
+                    return (in EntityRef target) => _dispatcher.Listen(target, listener);;
+                }
+            }
+        }
+
+        private void OnEntityHostRemoved(IEntityHost host)
+        {
+            if (!_hostMap.Remove(host, out var entry)) {
+                return;
+            }
+
+            var wrappedHost = entry.WrappedHost;
+            _hosts.Remove(wrappedHost);
+
+            wrappedHost.ClearCollected();
+            wrappedHost.Host.OnEntityCreated -= entry.EntityHandler;
+
+            var listener = entry.Listener;
+            if (listener != null) {
+                foreach (var entity in wrappedHost.Host) {
+                    _dispatcher.Unlisten(entity, listener);
+                }
+            }
+        }
+
+        public void ClearCollected()
+        {
+            foreach (var host in _hosts) {
+                host.ClearCollected();
+            }
+        }
+
+        public void Dispose()
+        {
+            _query.OnEntityHostAdded -= OnEntityHostAdded;
+            _query.OnEntityHostRemoved -= OnEntityHostRemoved;
+
+            foreach (var (host, (wrappedHost, handler, listener)) in _hostMap) {
+                wrappedHost.ClearCollected();
+                Unsafe.As<IReactiveEntityHost>(host).OnEntityCreated -= handler;
+
+                if (listener != null) {
+                    foreach (var entity in host) {
+                        _dispatcher.Unlisten(entity, listener);
+                    }
+                }
+            }
+
+            _hostMap.Clear();
+            _hosts.Clear();
         }
     }
 
@@ -301,7 +367,7 @@ public class SystemLibrary : IAddon
         }
 
         Func<bool> taskFunc;
-        Action disposeFunc;
+        Action disposeFunc = () => {};
 
         var trigger = system.Trigger;
         var filter = system.Filter;
@@ -313,7 +379,6 @@ public class SystemLibrary : IAddon
                     system.Execute(_world, scheduler, _world);
                     return false;
                 };
-                disposeFunc = () => {};
             }
             else {
                 var query = _world.Query(matcher);
@@ -321,85 +386,26 @@ public class SystemLibrary : IAddon
                     system.Execute(_world, scheduler, query);
                     return false;
                 };
-                disposeFunc = query.Dispose;
             }
         }
         else {
-            var reactiveHost = new ReactiveEntityHost();
-            var query = new EntityQuery([reactiveHost]);
+            var filterTypes = filter?.EventTypesWithPureEvents.ToFrozenSet() ?? FrozenSet<Type>.Empty;
+            var triggerTypes = trigger?.EventTypesWithPureEvents.Except(filterTypes).ToFrozenSet() ?? FrozenSet<Type>.Empty;
+
+            if (triggerTypes.Count == 0) {
+                throw new InvalidSystemConfigurationException(
+                    "Failed to register system: reactive system must have at least one valid trigger");
+            }
+
+            var query = _world.Query(matcher);
+            var reactiveQuery = new ReactiveQuery(query, dispatcher, triggerTypes, filterTypes);
 
             taskFunc = () => {
-                var count = reactiveHost.Count;
-                if (count == 0) {
-                    return false;
-                }
-                reactiveHost.BeginExecution();
-                system.Execute(_world, scheduler, query);
-                reactiveHost.EndExecution();
+                system.Execute(_world, scheduler, reactiveQuery);
+                reactiveQuery.ClearCollected();
                 return false;
             };
-
-            if (trigger != null && filter != null) {
-                var triggerTypes = new HashSet<Type>(trigger.EventTypesWithPureEvents);
-                var filterTypes = new HashSet<Type>(filter.EventTypesWithPureEvents);
-
-                foreach (var filterType in filterTypes) {
-                    triggerTypes.Remove(filterType);
-                }
-
-                if (matcher == Matchers.Any) {
-                    var listener = new MatchAnyFilterableEventListener<TSystem>(
-                        System: system,
-                        World: _world,
-                        Scheduler: scheduler,
-                        Host: reactiveHost,
-                        TriggerTypes: triggerTypes,
-                        FilterTypes: filterTypes);
-
-                    dispatcher.Listen(listener);
-                    disposeFunc = () => dispatcher.Unlisten(listener);
-                }
-                else {
-                    disposeFunc = RegisterReactiveListener(
-                        dispatcher, triggerTypes, _world.Query(matcher),
-                        new TargetFilterableEventListener<TSystem>(
-                            System: system,
-                            World: _world,
-                            Scheduler: scheduler,
-                            Host: reactiveHost,
-                            TriggerTypes: triggerTypes,
-                            FilterTypes: filterTypes));
-                }
-            }
-            else if (trigger != null) {
-                var triggerTypes = new HashSet<Type>(trigger.EventTypesWithPureEvents);
-
-                if (matcher == Matchers.Any) {
-                    var listener = new MatchAnyEventListener<TSystem>(
-                        System: system,
-                        World: _world,
-                        Scheduler: scheduler,
-                        Host: reactiveHost,
-                        TriggerTypes: triggerTypes);
-
-                    dispatcher.Listen(listener);
-                    disposeFunc = () => dispatcher.Unlisten(listener);
-                }
-                else {
-                    disposeFunc = RegisterReactiveListener(
-                        dispatcher, triggerTypes, _world.Query(matcher),
-                        new TargetEventListener<TSystem>(
-                            System: system,
-                            World: _world,
-                            Scheduler: scheduler,
-                            Host: reactiveHost,
-                            TriggerTypes: triggerTypes));
-                }
-            }
-            else {
-                throw new InvalidSystemConfigurationException(
-                    "Failed to register system: system must have non-null trigger when filter is specified");
-            }
+            disposeFunc = reactiveQuery.Dispose;
         }
 
         task = dependedTasks != null
@@ -427,47 +433,5 @@ public class SystemLibrary : IAddon
             });
 
         return handle;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static bool OnlyHasAddEventTrigger(HashSet<Type> triggerTypes)
-        => triggerTypes.Count == 1 && triggerTypes.Contains(typeof(WorldEvents.Add));
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static Action RegisterReactiveListener<TListener>(
-        WorldDispatcher dispatcher, HashSet<Type> triggerTypes, World.EntityQuery query, TListener listener)
-        where TListener : IEventListener
-    {
-        if (OnlyHasAddEventTrigger(triggerTypes)) {
-            void OnEntityCreated(in EntityRef target)
-                => listener.OnEvent(target, WorldEvents.Add.Instance);
-
-            query.OnEntityHostAdded += host => host.OnEntityCreated += OnEntityCreated;
-            query.OnEntityHostRemoved += host => host.OnEntityCreated -= OnEntityCreated;
-
-            return () => {
-                foreach (var host in query.Hosts) {
-                    host.OnEntityCreated -= OnEntityCreated;
-                }
-                query.Dispose();
-            };
-        }
-        else {
-            void OnEntityCreated(in EntityRef target)
-                => dispatcher.Listen(target, listener);
-
-            query.OnEntityHostAdded += host => host.OnEntityCreated += OnEntityCreated;
-            query.OnEntityHostRemoved += host => host.OnEntityCreated -= OnEntityCreated;
-
-            return () => {
-                foreach (var entity in query) {
-                    dispatcher.Unlisten(entity, listener);
-                }
-                foreach (var host in query.Hosts) {
-                    host.OnEntityCreated -= OnEntityCreated;
-                }
-                query.Dispose();
-            };
-        }
     }
 }

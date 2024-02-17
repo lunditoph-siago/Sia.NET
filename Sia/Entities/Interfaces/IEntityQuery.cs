@@ -14,3 +14,11 @@ public interface IEntityQuery : IDisposable
 
     IReadOnlyList<IEntityHost> Hosts { get; }
 }
+
+public interface IReactiveEntityQuery : IEntityQuery
+{
+    new IReadOnlyList<IReactiveEntityHost> Hosts { get; }
+
+    public event Action<IReactiveEntityHost>? OnEntityHostAdded;
+    public event Action<IReactiveEntityHost>? OnEntityHostRemoved;
+}
