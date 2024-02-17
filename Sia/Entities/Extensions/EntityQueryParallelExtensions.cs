@@ -112,16 +112,19 @@ public static class EntityQueryParallelExtensions
         var acc = 0;
 
         var action = new ForEachParallelAction(query, handler);
-        var tasks = new Task[DegreeOfParallelism];
+        int finishCount = 0;
 
         for (int i = 0; i != DegreeOfParallelism; ++i) {
             int start = acc;
             acc += i < remaining ? div + 1 : div;
             var end = acc;
-            tasks[i] = Task.Factory.StartNew(() => action.Invoke((start, end)));
+            Task.Factory.StartNew(() => {
+                action.Invoke((start, end));
+                Interlocked.Increment(ref finishCount);
+            });
         }
 
-        Task.WaitAll(tasks);
+        SpinWait.SpinUntil(() => finishCount == DegreeOfParallelism);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -136,16 +139,19 @@ public static class EntityQueryParallelExtensions
         var acc = 0;
 
         var action = new ForEachParallelAction<TData>(query, data, handler);
-        var tasks = new Task[DegreeOfParallelism];
+        int finishCount = 0;
 
         for (int i = 0; i != DegreeOfParallelism; ++i) {
             int start = acc;
             acc += i < remaining ? div + 1 : div;
             var end = acc;
-            tasks[i] = Task.Factory.StartNew(() => action.Invoke((start, end)));
+            Task.Factory.StartNew(() => {
+                action.Invoke((start, end));
+                Interlocked.Increment(ref finishCount);
+            });
         }
 
-        Task.WaitAll(tasks);
+        SpinWait.SpinUntil(() => finishCount == DegreeOfParallelism);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
