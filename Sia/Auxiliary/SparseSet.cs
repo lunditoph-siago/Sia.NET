@@ -153,10 +153,9 @@ public sealed class SparseSet<T>(int pageSize = 256)
         }
 
         ref int valueIndexRef = ref page[entryIndex];
-        var span = CollectionsMarshal.AsSpan(_dense);
+        value = _dense[valueIndexRef];
+        RemoveValue(ref valueIndexRef);
 
-        value = span[valueIndexRef];
-        RemoveValue(ref valueIndexRef, span);
         page.DecreaseRef();
         return true;
     }
@@ -169,9 +168,8 @@ public sealed class SparseSet<T>(int pageSize = 256)
         }
 
         ref int valueIndexRef = ref page.Memory!.Span[entryIndex];
-        var span = CollectionsMarshal.AsSpan(_dense);
+        RemoveValue(ref valueIndexRef);
 
-        RemoveValue(ref valueIndexRef, span);
         page.DecreaseRef();
         return true;
     }
@@ -184,13 +182,11 @@ public sealed class SparseSet<T>(int pageSize = 256)
         }
 
         ref int valueIndexRef = ref page.Memory!.Span[entryIndex];
-        var span = CollectionsMarshal.AsSpan(_dense);
-
-        if (!span[valueIndexRef]!.Equals(item.Value)) {
+        if (!_dense[valueIndexRef]!.Equals(item.Value)) {
             return false;
         }
 
-        RemoveValue(ref valueIndexRef, span);
+        RemoveValue(ref valueIndexRef);
         page.DecreaseRef();
         return true;
     }
@@ -273,11 +269,11 @@ public sealed class SparseSet<T>(int pageSize = 256)
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void RemoveValue(ref int valueIndexRef, Span<T> denseSpan)
+    private void RemoveValue(ref int valueIndexRef)
     {
-        int lastValueIndex = denseSpan.Length - 1;
+        int lastValueIndex = _dense.Count - 1;
         if (valueIndexRef != lastValueIndex) {
-            denseSpan[valueIndexRef] = denseSpan[lastValueIndex];
+            _dense[valueIndexRef] = _dense[lastValueIndex];
             int lastIndex = _reverse[lastValueIndex];
             var page = UnsafeGetPage(lastIndex, out int entryIndex);
             page[entryIndex] = valueIndexRef;
