@@ -12,7 +12,7 @@ public static class EntityUtility
 
     public static void CheckComponent<TComponent>(EntityDescriptor descriptor)
     {
-        if (!descriptor.Contains<TComponent>()) {
+        if (descriptor.GetOffset<TComponent>() == -1) {
             throw new InvalidDataException(
                 "Entity does not contain required component " + typeof(TComponent));
         }

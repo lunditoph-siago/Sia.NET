@@ -32,7 +32,7 @@ public static partial class Example14_Parallel
             var watch = new Stopwatch();
             watch.Start();
 
-            query.ForEachParallel(static entity => {
+            query.ForEachParallel(entity => {
                 entity.Get<int>()++;
             });
 
@@ -50,7 +50,7 @@ public static partial class Example14_Parallel
             .Add<MultiThreadUpdateSystem>()
             .RegisterTo(world, schduler);
         
-        int entityCount = 1000000;
+        int entityCount = 100000;
         int entityPadding = 10;
 
         for (int i = 0; i < entityCount; ++i) {
@@ -59,6 +59,8 @@ public static partial class Example14_Parallel
             }
             world.CreateInArrayHost(Bundle.Create(0));
         }
+
+        var entity = world.CreateInArrayHost(Bundle.Create(0));
         
         schduler.Tick();
     }

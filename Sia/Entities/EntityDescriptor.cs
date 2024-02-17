@@ -54,48 +54,29 @@ public static class EntityDescriptor<[DynamicallyAccessedMembers(DynamicallyAcce
 
 public readonly struct EntityIndexer<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity, TComponent>
 {
-    public static IntPtr? Offset { get; }
-
-    static EntityIndexer()
-    {
-        if (EntityDescriptor<TEntity>.FieldOffsets.TryGetValue(typeof(TComponent), out var result)) {
-            Offset = result;
-        }
-    }
+    public static readonly IntPtr Offset =
+        EntityDescriptor<TEntity>.FieldOffsets.TryGetValue(typeof(TComponent), out var result)
+            ? result : -1;
 }
 
 public record EntityDescriptor
 {
     private interface IProxy
     {
-        bool Contains(Type type);
-        bool Contains<TComponent>();
-        bool TryGetOffset<TComponent>(out IntPtr offset);
+        public FrozenDictionary<Type, nint> FieldOffsets { get; }
+        nint GetOffset<TComponent>();
     }
 
     private class Proxy<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity> : IProxy
     {
         public static EntityDescriptor Descriptor = new(
             typeof(TEntity), Unsafe.SizeOf<TEntity>(), new Proxy<TEntity>());
+        
+        public FrozenDictionary<Type, nint> FieldOffsets => EntityDescriptor<TEntity>.FieldOffsets;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool Contains(Type type)
-            => EntityDescriptor<TEntity>.FieldOffsets.ContainsKey(type);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool Contains<TComponent>()
-            => EntityIndexer<TEntity, TComponent>.Offset.HasValue;
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool TryGetOffset<TComponent>(out nint offset)
-        {
-            if (EntityIndexer<TEntity, TComponent>.Offset is IntPtr raw) {
-                offset = raw;
-                return true;
-            }
-            offset = default;
-            return false;
-        }
+        public nint GetOffset<TComponent>()
+            => EntityIndexer<TEntity, TComponent>.Offset;
     }
 
     public static EntityDescriptor Get<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>()
@@ -103,7 +84,9 @@ public record EntityDescriptor
 
     public Type Type { get; }
     public int MemorySize { get; }
+    public FrozenDictionary<Type, nint> FieldOffsets { get; }
 
+    private readonly nint[] _offsetCache = new nint[256];
     private readonly IProxy _proxy;
 
     private EntityDescriptor(Type type, int memorySize, IProxy proxy)
@@ -111,17 +94,24 @@ public record EntityDescriptor
         Type = type;
         MemorySize = memorySize;
         _proxy = proxy;
+        FieldOffsets = _proxy.FieldOffsets;
+
+        foreach (ref var value in _offsetCache.AsSpan()) {
+            value = -2;
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool Contains(Type type)
-        => _proxy.Contains(type);
+    public nint GetOffset(Type componentType)
+        => FieldOffsets.TryGetValue(componentType, out var offset) ? offset : -1;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool Contains<TComponent>()
-        => _proxy.Contains<TComponent>();
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryGetOffset<TComponent>(out IntPtr offset)
-        => _proxy.TryGetOffset<TComponent>(out offset);
+    public nint GetOffset<TComponent>()
+    {
+        ref var offset = ref _offsetCache[TypeIndexer<TComponent>.Index];
+        if (offset == -2) {
+            offset = _proxy.GetOffset<TComponent>();
+        }
+        return offset;
+    }
 }

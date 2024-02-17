@@ -77,13 +77,13 @@ public unsafe static class Tests
         var desc = EntityDescriptor.Get<TestEntity>();
         Console.WriteLine("Component offsets:");
 
-        desc.TryGetOffset<Position>(out var offset);
+        var offset = desc.GetOffset<Position>();
         Console.WriteLine("\tPosition: " + offset + ", Value: " + Unsafe.AsRef<Position>((void*)(ptr + offset)));
 
-        desc.TryGetOffset<Rotation>(out offset);
+        offset = desc.GetOffset<Rotation>();
         Console.WriteLine("\tRotation: " + offset + ", Value: " + Unsafe.AsRef<Rotation>((void*)(ptr + offset)));
 
-        desc.TryGetOffset<Scale>(out offset);
+        offset = desc.GetOffset<Scale>();
         Console.WriteLine("\tScale: " + offset + ", Value: " + *((Scale*)(ptr + offset)));
     }
 
