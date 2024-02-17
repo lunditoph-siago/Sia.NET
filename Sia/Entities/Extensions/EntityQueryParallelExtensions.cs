@@ -32,35 +32,9 @@ public static class EntityQueryParallelExtensions
         return (host, from - prevCounter, to - prevCounter);
     }
 
-    private readonly record struct ForEachParallelAction(
-        IEntityQuery Query, EntityHandler Handler, (int, int) Range)
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Invoke()
-        {
-            var (host, from, to) = FindHostRange(Query, Range);
-            var slots = host.AllocatedSlots;
-
-            for (int i = from; i != to; ++i) {
-                Handler(new(slots[i], host));
-            }
-        }
-    }
-
-    private readonly record struct ForEachParallelAction<TData>(
-        IEntityQuery Query, TData Data, EntityHandler<TData> Handler, (int, int) Range)
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Invoke()
-        {
-            var (host, from, to) = FindHostRange(Query, Range);
-            var slots = host.AllocatedSlots;
-
-            for (int i = from; i != to; ++i) {
-                Handler(Data, new(slots[i], host));
-            }
-        }
-    }
+    public readonly record struct ForEachData(IEntityQuery Query, EntityHandler Handler);
+    public readonly record struct ForEachData<TUserData>(
+        TUserData UserData, IEntityQuery Query, EntityHandler<TUserData> Handler);
 
     private readonly unsafe struct RecordData(int* index, ArraySegment<EntityRef> array)
     {
@@ -98,67 +72,52 @@ public static class EntityQueryParallelExtensions
         public readonly CondRecordFunc<TData, TResult> RecordFunc = recordFunc;
     }
 
-    private static readonly ThreadLocal<Stack<Task[]>> s_taskArrayPool = new(() => []);
-
-    private static readonly int DegreeOfParallelism = Environment.ProcessorCount / 2;
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe void ForEachParallel(
-        this IEntityQuery query, EntityHandler handler)
+    public static unsafe void ForEach<TRunner>(
+        this IEntityQuery query, EntityHandler handler, TRunner runner)
+        where TRunner : IRunner<ForEachData>
     {
         var count = query.Count;
         if (count == 0) { return; }
 
-        var div = count / DegreeOfParallelism;
-        var remaining = count % DegreeOfParallelism;
-        var acc = 0;
+        runner.Run(count, new(query, handler), static (data, range) => {
+            var (host, from, to) = FindHostRange(data.Query, range);
+            var slots = host.AllocatedSlots;
+            var handler = data.Handler;
 
-        var pool = s_taskArrayPool.Value!;
-        if (!pool.TryPop(out var tasks)) {
-            tasks = new Task[DegreeOfParallelism];
-        }
-
-        for (int i = 0; i != DegreeOfParallelism; ++i) {
-            int start = acc;
-            acc += i < remaining ? div + 1 : div;
-            var action = new ForEachParallelAction(query, handler, (start, acc));
-            tasks[i] = Task.Run(action.Invoke);
-        }
-
-        Task.WaitAll(tasks);
-
-        Array.Clear(tasks);
-        pool.Push(tasks);
+            for (int i = from; i != to; ++i) {
+                handler(new(slots[i], host));
+            }
+        });
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe void ForEachParallel<TData>(
-        this IEntityQuery query, in TData data, EntityHandler<TData> handler)
+    public static unsafe void ForEachParallel(this IEntityQuery query, EntityHandler handler)
+        => ForEach(query, handler, ParallelRunner<ForEachData>.Default);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static unsafe void ForEach<TUserData, TRunner>(
+        this IEntityQuery query, in TUserData data, EntityHandler<TUserData> handler, TRunner runner)
+        where TRunner : IRunner<ForEachData<TUserData>>
     {
         var count = query.Count;
         if (count == 0) { return; }
 
-        var div = count / DegreeOfParallelism;
-        var remaining = count % DegreeOfParallelism;
-        var acc = 0;
+        runner.Run(count, new(data, query, handler), static (data, range) => {
+            var (host, from, to) = FindHostRange(data.Query, range);
+            var slots = host.AllocatedSlots;
+            var handler = data.Handler;
 
-        var pool = s_taskArrayPool.Value!;
-        if (!pool.TryPop(out var tasks)) {
-            tasks = new Task[DegreeOfParallelism];
-        }
-
-        for (int i = 0; i != DegreeOfParallelism; ++i) {
-            int start = acc;
-            acc += i < remaining ? div + 1 : div;
-            var action = new ForEachParallelAction<TData>(query, data, handler, (start, acc));
-            tasks[i] = Task.Run(action.Invoke);
-        }
-
-        Task.WaitAll(tasks);
-
-        Array.Clear(tasks);
-        pool.Push(tasks);
+            for (int i = from; i != to; ++i) {
+                handler(data.UserData, new(slots[i], host));
+            }
+        });
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static unsafe void ForEachParallel<TUserData>(
+        this IEntityQuery query, in TUserData data, EntityHandler<TUserData> handler)
+        => ForEach(query, data, handler, ParallelRunner<ForEachData<TUserData>>.Default);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void ForEachParallel(this IEntityQuery query, SimpleEntityHandler handler)
