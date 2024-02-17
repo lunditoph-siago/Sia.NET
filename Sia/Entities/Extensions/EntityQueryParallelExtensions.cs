@@ -118,7 +118,7 @@ public static class EntityQueryParallelExtensions
             int start = acc;
             acc += i < remaining ? div + 1 : div;
             var end = acc;
-            Task.Factory.StartNew(() => {
+            Task.Run(() => {
                 action.Invoke((start, end));
                 Interlocked.Increment(ref finishCount);
             });
