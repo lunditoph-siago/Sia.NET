@@ -1,9 +1,6 @@
-using System.Collections;
-
 namespace Sia;
 
-public sealed class EntityQuery
-    : IEntityQuery
+public sealed class EntityQuery : IEntityQuery
 {
     public IReadOnlyList<IEntityHost> Hosts => _hosts;
     private readonly List<IEntityHost> _hosts;

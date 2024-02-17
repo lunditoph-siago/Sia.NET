@@ -3,10 +3,10 @@ namespace Sia;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
-public sealed partial class World : IEntityQuery, IEventSender
+public sealed partial class World : IReactiveEntityQuery, IEventSender
 {
-    public event Action<IReactiveEntityHost>? OnEntityHostCreated;
-    public event Action<IReactiveEntityHost>? OnEntityHostReleased;
+    public event Action<IReactiveEntityHost>? OnEntityHostAdded;
+    public event Action<IReactiveEntityHost>? OnEntityHostRemoved;
     public event Action<World>? OnDisposed;
 
     public int Count { get; internal set; }
@@ -117,13 +117,16 @@ public sealed partial class World : IEntityQuery, IEventSender
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public EntityQuery Query<TTypeUnion>()
+    public IReactiveEntityQuery Query<TTypeUnion>()
         where TTypeUnion : ITypeUnion, new()
         => Query(Matchers.From<TTypeUnion>());
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public EntityQuery Query(IEntityMatcher matcher)
+    public IReactiveEntityQuery Query(IEntityMatcher matcher)
     {
+        if (matcher == Matchers.Any) {
+            return this;
+        }
         if (_queries.TryGetValue(matcher, out var query)) {
             return query;
         }
@@ -147,7 +150,7 @@ public sealed partial class World : IEntityQuery, IEventSender
             WorldEntityHostIndexer<WorldEntityHost<TEntity, TStorage>>.Index, out bool exists);
         if (!exists) {
             host = new WorldEntityHost<TEntity, TStorage>(this, creator());
-            OnEntityHostCreated?.Invoke(host);
+            OnEntityHostAdded?.Invoke(host);
         }
         return (WorldEntityHost<TEntity, TStorage>)host;
     }
@@ -167,7 +170,7 @@ public sealed partial class World : IEntityQuery, IEventSender
             WorldEntityHostIndexer<THost>.Index, out bool exists);
         if (!exists) {
             var newHost = new WrappedWorldEntityHost<TEntity, THost>(this, creator());
-            OnEntityHostCreated?.Invoke(newHost);
+            OnEntityHostAdded?.Invoke(newHost);
             return newHost;
         }
         return (WrappedWorldEntityHost<TEntity, THost>)host;
@@ -178,7 +181,7 @@ public sealed partial class World : IEntityQuery, IEventSender
         where THost : IEntityHost
     {
         if (_hosts.Remove(WorldEntityHostIndexer<THost>.Index, out var host)) {
-            OnEntityHostReleased?.Invoke(host);
+            OnEntityHostRemoved?.Invoke(host);
             host.Dispose();
             return true;
         }
@@ -207,7 +210,7 @@ public sealed partial class World : IEntityQuery, IEventSender
         var hosts = _hosts.UnsafeRawValues;
         for (int i = 0; i < hosts.Count; ++i) {
             var host = hosts[i];
-            OnEntityHostReleased?.Invoke(host);
+            OnEntityHostRemoved?.Invoke(host);
             host.Dispose();
         }
         _hosts.Clear();

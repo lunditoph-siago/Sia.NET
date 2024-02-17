@@ -2,7 +2,7 @@ namespace Sia;
 
 public partial class World
 {
-    public sealed class EntityQuery : IEntityQuery
+    public sealed class EntityQuery : IReactiveEntityQuery
     {
         public event Action<IReactiveEntityHost>? OnEntityHostAdded;
         public event Action<IReactiveEntityHost>? OnEntityHostRemoved;
@@ -30,8 +30,8 @@ public partial class World
             World = world;
             Matcher = matcher;
 
-            World.OnEntityHostCreated += OnEntityHostCreated;
-            World.OnEntityHostReleased += OnEntityHostReleased;
+            World.OnEntityHostAdded += OnEntityHostCreated;
+            World.OnEntityHostRemoved += OnEntityHostReleased;
 
             foreach (var host in world.Hosts) {
                 if (matcher.Match(host)) {
@@ -74,8 +74,8 @@ public partial class World
             }
 
             World._queries.Remove(Matcher);
-            World.OnEntityHostCreated -= OnEntityHostCreated;
-            World.OnEntityHostReleased -= OnEntityHostReleased;
+            World.OnEntityHostAdded -= OnEntityHostCreated;
+            World.OnEntityHostRemoved -= OnEntityHostReleased;
 
             World = null!;
             Matcher = null!;

@@ -59,7 +59,7 @@ public abstract class ViewBase<TTypeUnion> : ViewBase
     where TTypeUnion : ITypeUnion, new()
 {
     [AllowNull]
-    protected World.EntityQuery Query { get; private set; }
+    protected IReactiveEntityQuery Query { get; private set; }
 
     public override void OnInitialize(World world)
     {
