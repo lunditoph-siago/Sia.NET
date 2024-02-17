@@ -37,11 +37,11 @@ public readonly record struct EntityRef(scoped in StorageSlot Slot, IEntityHost 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe ref TComponent Get<TComponent>()
     {
-        ref var entityRef = ref Host.GetSpan(Slot)[0];
         nint offset = Descriptor.GetOffset<TComponent>();
         if (offset == -1) {
             throw new ComponentNotFoundException("Component not found: " + typeof(TComponent));
         }
+        ref var entityRef = ref Host.GetSpan(Slot)[0];
         return ref Unsafe.AsRef<TComponent>(
             (void*)((IntPtr)Unsafe.AsPointer(ref entityRef) + offset));
     }
@@ -49,11 +49,11 @@ public readonly record struct EntityRef(scoped in StorageSlot Slot, IEntityHost 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe ref TComponent GetOrNullRef<TComponent>()
     {
-        ref var entityRef = ref Host.GetSpan(Slot)[0];
         nint offset = Descriptor.GetOffset<TComponent>();
         if (offset == -1) {
             return ref Unsafe.NullRef<TComponent>();
         }
+        ref var entityRef = ref Host.GetSpan(Slot)[0];
         return ref Unsafe.AsRef<TComponent>(
             (void*)((IntPtr)Unsafe.AsPointer(ref entityRef) + offset));
     }
