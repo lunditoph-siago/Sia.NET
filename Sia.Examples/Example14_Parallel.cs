@@ -60,8 +60,13 @@ public static partial class Example14_Parallel
             world.CreateInArrayHost(Bundle.Create(0));
         }
 
-        var entity = world.CreateInArrayHost(Bundle.Create(0));
-        
+        schduler.Tick();
+        schduler.Tick();
+        schduler.Tick();
+        schduler.Tick();
+        schduler.Tick();
+        schduler.Tick();
+        schduler.Tick();
         schduler.Tick();
     }
 }
