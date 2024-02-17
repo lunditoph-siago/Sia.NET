@@ -26,7 +26,7 @@ public class SystemLibrary : IAddon
         private readonly Dictionary<IEntityHost, ushort> _hostMap = [];
 
         private readonly SparseSet<StorageSlot> _allocatedSlots = [];
-        private readonly Dictionary<EntityRef, int> _entitySlots = [];
+        private readonly Dictionary<int, int> _entitySlots = [];
 
         private int _firstFreeSlot;
         private ushort _hostIdAcc = 0;
@@ -61,13 +61,13 @@ public class SystemLibrary : IAddon
             _allocatedSlots.Add(index, entity.Slot with { Extra = hostId } );
             while (_allocatedSlots.ContainsKey(++_firstFreeSlot)) {}
 
-            _entitySlots[entity] = index;
+            _entitySlots[entity.Id] = index;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Remove(in EntityRef entity)
         {
-            if (!_entitySlots.Remove(entity, out int slot)) {
+            if (!_entitySlots.Remove(entity.Id, out int slot)) {
                 return false;
             }
             _allocatedSlots.Remove(slot);
@@ -118,7 +118,13 @@ public class SystemLibrary : IAddon
             return host.Box(slot);
         }
 
-        public IEnumerator<EntityRef> GetEnumerator() => _entitySlots.Keys.GetEnumerator();
+        public IEnumerator<EntityRef> GetEnumerator()
+        {
+            foreach (var slot in _allocatedSlots.Values) {
+                yield return new(slot, this);
+            }
+        }
+
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
         public void Dispose()
