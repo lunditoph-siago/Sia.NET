@@ -1,6 +1,6 @@
 namespace Sia;
 
-public record struct StorageSlot(int Index, int Version)
+public record struct StorageSlot(int Index, short Version)
 {
     internal ushort Extra;
 }
