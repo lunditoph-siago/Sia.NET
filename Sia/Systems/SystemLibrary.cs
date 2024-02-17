@@ -98,34 +98,6 @@ public class SystemLibrary : IAddon
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool Contains<TComponent>(scoped in StorageSlot slot)
-        {
-            var host = _hosts[slot.Extra];
-            return host.Contains<TComponent>(slot);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool Contains(scoped in StorageSlot slot, Type componentType)
-        {
-            var host = _hosts[slot.Extra];
-            return host.Contains(slot, componentType);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ref TComponent Get<TComponent>(scoped in StorageSlot slot)
-        {
-            var host = _hosts[slot.Extra];
-            return ref host.Get<TComponent>(slot);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ref TComponent GetOrNullRef<TComponent>(scoped in StorageSlot slot)
-        {
-            var host = _hosts[slot.Extra];
-            return ref host.GetOrNullRef<TComponent>(slot);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public EntityDescriptor GetDescriptor(scoped in StorageSlot slot)
         {
             var host = _hosts[slot.Extra];
@@ -133,17 +105,17 @@ public class SystemLibrary : IAddon
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public object Box(scoped in StorageSlot slot)
-        {
-            var host = _hosts[slot.Extra];
-            return host.Box(slot);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Span<byte> GetSpan(scoped in StorageSlot slot)
         {
             var host = _hosts[slot.Extra];
             return host.GetSpan(slot);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public object Box(scoped in StorageSlot slot)
+        {
+            var host = _hosts[slot.Extra];
+            return host.Box(slot);
         }
 
         public IEnumerator<EntityRef> GetEnumerator() => _entitySlots.Keys.GetEnumerator();

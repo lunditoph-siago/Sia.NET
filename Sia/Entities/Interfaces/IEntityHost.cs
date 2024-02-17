@@ -17,15 +17,9 @@ public interface IEntityHost : IEnumerable<EntityRef>, IDisposable
     void Release(scoped in StorageSlot slot);
     bool IsValid(scoped in StorageSlot slot);
 
-    bool Contains<TComponent>(scoped in StorageSlot slot);
-    bool Contains(scoped in StorageSlot slot, Type componentType);
-
-    ref TComponent Get<TComponent>(scoped in StorageSlot slot);
-    ref TComponent GetOrNullRef<TComponent>(scoped in StorageSlot slot);
-
     EntityDescriptor GetDescriptor(scoped in StorageSlot slot);
-    object Box(scoped in StorageSlot slot);
     Span<byte> GetSpan(scoped in StorageSlot slot);
+    object Box(scoped in StorageSlot slot);
 }
 
 public interface IReactiveEntityHost : IEntityHost
@@ -39,6 +33,8 @@ public interface IEntityHost<T> : IEntityHost
 {
     new EntityRef<T> Create();
     EntityRef<T> Create(in T initial);
+
+    ref T GetEntityRef(scoped in StorageSlot slot);
 
     SpanOwner<T> Fetch(ReadOnlySpan<StorageSlot> slots);
     SpanOwner<T> UnsafeFetch(ReadOnlySpan<StorageSlot> slots);

@@ -1,6 +1,5 @@
 namespace Sia;
 
-using System.Buffers;
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
@@ -30,11 +29,11 @@ public class StorageEntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMe
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool ContainsCommon<TComponent>()
-        => Descriptor.Contains<TComponent>();
+        => Descriptor.GetOffset<TComponent>() != -1;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool ContainsCommon(Type componentType)
-        => Descriptor.Contains(componentType);
+        => Descriptor.GetOffset(componentType) != -1;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     EntityRef IEntityHost.Create() => Create();
@@ -56,36 +55,20 @@ public class StorageEntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMe
         => Storage.IsValid(slot);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool Contains<TComponent>(scoped in StorageSlot slot) => ContainsCommon<TComponent>();
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool Contains(scoped in StorageSlot slot, Type componentType) => ContainsCommon(componentType);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public EntityDescriptor GetDescriptor(scoped in StorageSlot slot)
         => Descriptor;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe ref TComponent Get<TComponent>(scoped in StorageSlot slot)
-    {
-        ref var entity = ref Storage.GetRef(slot);
-        var offset = EntityIndexer<T, TComponent>.Offset
-            ?? throw new ComponentNotFoundException("Component not found: " + typeof(TComponent));
-        return ref Unsafe.AsRef<TComponent>(
-            (void*)((IntPtr)Unsafe.AsPointer(ref entity) + offset));
-    }
+    public unsafe Span<byte> GetSpan(scoped in StorageSlot slot)
+        => new(Unsafe.AsPointer(ref Storage.GetRef(slot)), Descriptor.MemorySize);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe ref TComponent GetOrNullRef<TComponent>(scoped in StorageSlot slot)
-    {
-        ref var entity = ref Storage.GetRef(slot);
-        var offset = EntityIndexer<T, TComponent>.Offset;
-        if (!offset.HasValue) {
-            return ref Unsafe.NullRef<TComponent>();
-        }
-        return ref Unsafe.AsRef<TComponent>(
-            (void*)((IntPtr)Unsafe.AsPointer(ref entity) + offset.Value));
-    }
+    public object Box(scoped in StorageSlot slot)
+        => Storage.GetRef(slot);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref T GetEntityRef(scoped in StorageSlot slot)
+        => ref Storage.GetRef(slot);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public SpanOwner<T> Fetch(ReadOnlySpan<StorageSlot> slots)
@@ -102,14 +85,6 @@ public class StorageEntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMe
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void UnsafeWrite(ReadOnlySpan<StorageSlot> slots, ReadOnlySpan<T> values)
         => Storage.UnsafeWrite(slots, values);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public object Box(scoped in StorageSlot slot)
-        => Storage.GetRef(slot);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe Span<byte> GetSpan(scoped in StorageSlot slot)
-        => new(Unsafe.AsPointer(ref Storage.GetRef(slot)), Descriptor.MemorySize);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public IEnumerator<EntityRef> GetEnumerator()

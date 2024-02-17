@@ -85,24 +85,20 @@ public sealed record WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>, IR
         => _host.IsValid(slot);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool Contains<TComponent>(scoped in StorageSlot slot)
-        => _host.ContainsCommon<TComponent>();
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool Contains(scoped in StorageSlot slot, Type componentType)
-        => _host.ContainsCommon(componentType);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public EntityDescriptor GetDescriptor(scoped in StorageSlot slot)
         => _host.GetDescriptor(slot);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref TComponent Get<TComponent>(scoped in StorageSlot slot)
-        => ref _host.Get<TComponent>(slot);
+    public Span<byte> GetSpan(scoped in StorageSlot slot)
+        => _host.GetSpan(slot);
+    
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public object Box(scoped in StorageSlot slot)
+        => _host.Box(slot);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref TComponent GetOrNullRef<TComponent>(scoped in StorageSlot slot)
-        => ref _host.GetOrNullRef<TComponent>(slot);
+    public ref T GetEntityRef(scoped in StorageSlot slot)
+        => ref _host.GetEntityRef(slot);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public SpanOwner<T> Fetch(ReadOnlySpan<StorageSlot> slots)
@@ -119,14 +115,6 @@ public sealed record WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>, IR
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void UnsafeWrite(ReadOnlySpan<StorageSlot> slots, ReadOnlySpan<T> values)
         => _host.UnsafeWrite(slots, values);
-    
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public object Box(scoped in StorageSlot slot)
-        => _host.Box(slot);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Span<byte> GetSpan(scoped in StorageSlot slot)
-        => _host.GetSpan(slot);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public IEnumerator<EntityRef> GetEnumerator() => _host.GetEnumerator();
