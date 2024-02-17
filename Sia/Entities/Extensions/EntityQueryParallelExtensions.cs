@@ -32,7 +32,7 @@ public static class EntityQueryParallelExtensions
         return (host, from - prevCounter, to - prevCounter);
     }
 
-    private readonly record struct ForEachParallelAction(
+    private class ForEachParallelAction(
         IEntityQuery Query, EntityHandler Handler)
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -47,8 +47,8 @@ public static class EntityQueryParallelExtensions
         }
     }
 
-    private readonly record struct ForEachParallelAction<TData>(
-        IEntityQuery Query, in TData Data, EntityHandler<TData> Handler)
+    private class ForEachParallelAction<TData>(
+        IEntityQuery Query, TData Data, EntityHandler<TData> Handler)
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Invoke(in (int, int) range)
@@ -98,7 +98,9 @@ public static class EntityQueryParallelExtensions
         public readonly CondRecordFunc<TData, TResult> RecordFunc = recordFunc;
     }
 
-    private static readonly int DegreeOfParallelism = Environment.ProcessorCount / 2;
+    private static readonly ThreadLocal<Stack<Task[]>> s_taskArrayPool = new(() => []);
+
+    private static readonly int DegreeOfParallelism = Environment.ProcessorCount;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void ForEachParallel(
@@ -111,20 +113,24 @@ public static class EntityQueryParallelExtensions
         var remaining = count % DegreeOfParallelism;
         var acc = 0;
 
+        var pool = s_taskArrayPool.Value!;
+        if (!pool.TryPop(out var tasks)) {
+            tasks = new Task[DegreeOfParallelism];
+        }
+
         var action = new ForEachParallelAction(query, handler);
-        int finishCount = 0;
 
         for (int i = 0; i != DegreeOfParallelism; ++i) {
             int start = acc;
             acc += i < remaining ? div + 1 : div;
             var end = acc;
-            Task.Run(() => {
-                action.Invoke((start, end));
-                Interlocked.Increment(ref finishCount);
-            });
+            tasks[i] = Task.Run(() => action.Invoke((start, end)));
         }
 
-        SpinWait.SpinUntil(() => finishCount == DegreeOfParallelism);
+        Task.WaitAll(tasks);
+
+        Array.Clear(tasks);
+        pool.Push(tasks);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -138,20 +144,24 @@ public static class EntityQueryParallelExtensions
         var remaining = count % DegreeOfParallelism;
         var acc = 0;
 
+        var pool = s_taskArrayPool.Value!;
+        if (!pool.TryPop(out var tasks)) {
+            tasks = new Task[DegreeOfParallelism];
+        }
+
         var action = new ForEachParallelAction<TData>(query, data, handler);
-        int finishCount = 0;
 
         for (int i = 0; i != DegreeOfParallelism; ++i) {
             int start = acc;
             acc += i < remaining ? div + 1 : div;
             var end = acc;
-            Task.Factory.StartNew(() => {
-                action.Invoke((start, end));
-                Interlocked.Increment(ref finishCount);
-            });
+            tasks[i] = Task.Run(() => action.Invoke((start, end)));
         }
 
-        SpinWait.SpinUntil(() => finishCount == DegreeOfParallelism);
+        Task.WaitAll(tasks);
+
+        Array.Clear(tasks);
+        pool.Push(tasks);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
