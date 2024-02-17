@@ -17,13 +17,14 @@ public class SystemLibrary : IAddon
         public event Action? OnDisposed;
 
         public int Capacity => int.MaxValue;
-        public int Count { get; private set; }
+        public int Count => _entitySlots.Count;
         public ReadOnlySpan<StorageSlot> AllocatedSlots => _allocatedSlots.ValueSpan;
 
         internal bool IsExecuting { get; private set; }
 
         private ArrayBuffer<IEntityHost> _hosts = new();
         private readonly Dictionary<IEntityHost, ushort> _hostMap = [];
+
         private readonly SparseSet<StorageSlot> _allocatedSlots = [];
         private readonly Dictionary<EntityRef, int> _entitySlots = [];
 
@@ -39,9 +40,9 @@ public class SystemLibrary : IAddon
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void EndExecution()
         {
+            IsExecuting = false;
             _allocatedSlots.Clear();
             _entitySlots.Clear();
-            IsExecuting = false;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -60,7 +61,7 @@ public class SystemLibrary : IAddon
             _allocatedSlots.Add(index, entity.Slot with { Extra = hostId } );
             while (_allocatedSlots.ContainsKey(++_firstFreeSlot)) {}
 
-            Count++;
+            _entitySlots[entity] = index;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -71,7 +72,6 @@ public class SystemLibrary : IAddon
             }
             _allocatedSlots.Remove(slot);
 
-            Count--;
             if (_firstFreeSlot > slot) {
                 _firstFreeSlot = slot;
             }
