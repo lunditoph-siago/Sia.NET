@@ -2,7 +2,6 @@ namespace Sia;
 
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
-using System.Threading.Tasks.Dataflow;
 using Microsoft.Extensions.ObjectPool;
 
 public sealed class ParallelRunner<TData> : IRunner<TData>

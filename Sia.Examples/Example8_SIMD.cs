@@ -33,6 +33,27 @@ public static class Example8_SIMD
         }
     }
 
+    public class RecordSumSystem()
+        : SystemBase(
+            matcher: Matchers.Of<Number>())
+    {
+        public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+        {
+            var watch = new Stopwatch();
+            watch.Start();
+
+            var mem = query.Record(static (in EntityRef entity, ref float value) => {
+                value = entity.Get<Number>().Value;
+            });
+            var result = mem.DangerousGetArray().Sum();
+            
+            watch.Stop();
+            Console.WriteLine("[RecordSumSystem]");
+            Console.WriteLine("Result: " + result);
+            Console.WriteLine("Time: " + watch.Elapsed);
+        }
+    }
+
     public class VectorizedSumSystem()
         : SystemBase(
             matcher: Matchers.Of<Number>())
@@ -82,6 +103,7 @@ public static class Example8_SIMD
 
         SystemChain.Empty
             .Add<SumSystem>()
+            .Add<RecordSumSystem>()
             .Add<VectorizedSumSystem>()
             .RegisterTo(world, scheduler);
         
