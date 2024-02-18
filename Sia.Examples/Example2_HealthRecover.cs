@@ -9,13 +9,15 @@ public static class Example2_HealthRecover
     public record struct HP(
         int Value, int Maximum, int AutoRecoverRate)
     {
+        public HP() : this(100, 100, 0) {}
+
         public readonly record struct Damage(int Value) : ICommand
         {
             public void Execute(World _, in EntityRef target)
                 => target.Get<HP>().Value -= Value;
         }
 
-        public HP() : this(100, 100, 0) {}
+        public sealed class Kill : SingletonEvent<Kill>, ICancellableEvent;
     }
 
     public class HPAutoRecoverSystem()
@@ -51,6 +53,23 @@ public static class Example2_HealthRecover
         }
     }
 
+    public class KillSystem()
+        : SystemBase(
+            matcher: Matchers.Of<HP>(),
+            trigger: EventUnion.Of<HP.Kill>(),
+            filter: EventUnion.Of<HOEvents.Cancel<HP.Kill>>())
+    {
+        public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+        {
+            Console.WriteLine("START KILLING!");
+
+            foreach (var entity in query) {
+                entity.Get<HP>().Value = 0;
+                Console.WriteLine("KILL!");
+            }
+        }
+    }
+
     public static class Player
     {
         public static EntityRef CreateResilient(World world, string name)
@@ -69,6 +88,7 @@ public static class Example2_HealthRecover
         SystemChain.Empty
             .Add<DamageDisplaySystem>()
             .Add<HPAutoRecoverSystem>()
+            .Add<KillSystem>()
             .RegisterTo(world, scheduler);
 
         var player = Player.CreateResilient(world, "玩家");
@@ -79,6 +99,16 @@ public static class Example2_HealthRecover
 
         world.Modify(player, new HP.Damage(50));
         Console.WriteLine("HP: " + hp.Value);
+        scheduler.Tick();
+        Console.WriteLine("HP: " + hp.Value);
+
+        world.Send(player, HP.Kill.Instance);
+        scheduler.Tick();
+        Console.WriteLine("HP: " + hp.Value);
+
+        hp.Value = 100;
+        world.Send(player, HP.Kill.Instance);
+        world.Send(player, HOEvents.Cancel<HP.Kill>.Instance);
         scheduler.Tick();
         Console.WriteLine("HP: " + hp.Value);
     }
