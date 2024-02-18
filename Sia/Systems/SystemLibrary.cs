@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Diagnostics.CodeAnalysis;
 using System.Collections;
 using System.Collections.Frozen;
+using CommunityToolkit.HighPerformance;
 
 public class SystemLibrary : IAddon
 {
@@ -164,6 +165,17 @@ public class SystemLibrary : IAddon
     {
         public readonly record struct HostEntry(
             WrappedReactiveEntityHost WrappedHost, EntityHandler EntityHandler, IEventListener? Listener);
+        
+        public int Count {
+            get {
+                int count = 0;
+                var span = _hosts.AsSpan();
+                for (int i = 0; i != span.Length; ++i) {
+                    count += span[i].Count;
+                }
+                return count;
+            }
+        }
 
         public IReadOnlyList<IEntityHost> Hosts => _hosts;
         private readonly List<WrappedReactiveEntityHost> _hosts = [];
@@ -235,7 +247,7 @@ public class SystemLibrary : IAddon
                 else {
                     var listener = new TriggerFilterEventListener(host, _triggerTypes, _filterTypes);
                     resultListener = listener;
-                    return (in EntityRef target) => _dispatcher.Listen(target, listener);;
+                    return (in EntityRef target) => _dispatcher.Listen(target, listener);
                 }
             }
         }
@@ -401,6 +413,9 @@ public class SystemLibrary : IAddon
             var reactiveQuery = new ReactiveQuery(query, dispatcher, triggerTypes, filterTypes);
 
             taskFunc = () => {
+                if (reactiveQuery.Count == 0) {
+                    return false;
+                }
                 system.Execute(_world, scheduler, reactiveQuery);
                 reactiveQuery.ClearCollected();
                 return false;
