@@ -44,10 +44,11 @@ public class SystemLibrary : IAddon
         public void Add(scoped in StorageSlot slot)
         {
             var index = _firstFreeSlot;
+            if (!_entitySlots.TryAdd(slot.Id, index)) {
+                return;
+            }
             _allocatedSlots.Add(index, slot);
             while (_allocatedSlots.ContainsKey(++_firstFreeSlot)) {}
-
-            _entitySlots[slot.Id] = index;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
