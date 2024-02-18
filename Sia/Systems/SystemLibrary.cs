@@ -67,6 +67,7 @@ public class SystemLibrary : IAddon
         {
             _entitySlots.Clear();
             _allocatedSlots.Clear();
+            _firstFreeSlot = 0;
         }
 
         public bool ContainsCommon<TComponent>()
