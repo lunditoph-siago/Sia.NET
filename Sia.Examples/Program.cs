@@ -18,7 +18,7 @@ Invoke(Example4_Aggregator.Run);
 Invoke(Example5_ComponentBundle.Run);
 Invoke(Example6_Hierarchy.Run);
 Invoke(Example7_Mapper.Run);
-Invoke(Example8_SIMD.Run);
+Invoke(Example8_Sum.Run);
 Invoke(Example10_DuplicateSystem.Run);
 Invoke(Example11_RPG.Run);
 Invoke(Example12_DynEntityRef.Run);

@@ -8,7 +8,7 @@ public readonly struct EntityRef(scoped in StorageSlot slot, IEntityHost host)
     public int Id => Slot.Id;
     public object Boxed => Host.Box(Slot);
     public bool Valid => Host != null && Host.IsValid(Slot);
-    public EntityDescriptor Descriptor => Host.GetDescriptor(Slot);
+    public EntityDescriptor Descriptor => Host.Descriptor;
 
     public readonly StorageSlot Slot = slot;
     public readonly IEntityHost Host = host;
@@ -17,10 +17,9 @@ public readonly struct EntityRef(scoped in StorageSlot slot, IEntityHost host)
     public EntityRef<TEntity> Cast<TEntity>()
         where TEntity : struct
     {
-        var descriptor = Host.GetDescriptor(Slot);
-        if (typeof(TEntity) != descriptor.Type) {
+        if (typeof(TEntity) != Descriptor.Type) {
             throw new InvalidCastException(
-                $"Cannot cast entity type from {descriptor.Type} to {typeof(TEntity)}");
+                $"Cannot cast entity type from {Descriptor.Type} to {typeof(TEntity)}");
         }
         return new(Slot, Host);
     }
@@ -45,9 +44,9 @@ public readonly struct EntityRef(scoped in StorageSlot slot, IEntityHost host)
         if (offset == -1) {
             throw new ComponentNotFoundException("Component not found: " + typeof(TComponent));
         }
-        ref var entityRef = ref Host.GetSpan(Slot)[0];
+        ref var byteRef = ref Host.GetByteRef(Slot);
         return ref Unsafe.AsRef<TComponent>(
-            (void*)((IntPtr)Unsafe.AsPointer(ref entityRef) + offset));
+            (void*)((IntPtr)Unsafe.AsPointer(ref byteRef) + offset));
     }
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -57,9 +56,9 @@ public readonly struct EntityRef(scoped in StorageSlot slot, IEntityHost host)
         if (offset == -1) {
             return ref Unsafe.NullRef<TComponent>();
         }
-        ref var entityRef = ref Host.GetSpan(Slot)[0];
+        ref var byteRef = ref Host.GetByteRef(Slot);
         return ref Unsafe.AsRef<TComponent>(
-            (void*)((IntPtr)Unsafe.AsPointer(ref entityRef) + offset));
+            (void*)((IntPtr)Unsafe.AsPointer(ref byteRef) + offset));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -88,7 +87,7 @@ public readonly record struct EntityRef<TEntity>(scoped in StorageSlot Slot, IEn
 {
     public object Boxed => Host.Box(Slot);
     public bool Valid => Host != null && Host.IsValid(Slot);
-    public EntityDescriptor Descriptor => Host.GetDescriptor(Slot);
+    public EntityDescriptor Descriptor => Host.Descriptor;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe ref TEntity AsRef()
@@ -130,25 +129,25 @@ public readonly record struct EntityRef<TEntity>(scoped in StorageSlot Slot, IEn
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe ref TComponent Get<TComponent>()
     {
-        ref var entityRef = ref Host.GetSpan(Slot)[0];
         nint offset = Descriptor.GetOffset<TComponent>();
         if (offset == -1) {
             throw new ComponentNotFoundException("Component not found: " + typeof(TComponent));
         }
+        ref var byteRef = ref Host.GetByteRef(Slot);
         return ref Unsafe.AsRef<TComponent>(
-            (void*)((IntPtr)Unsafe.AsPointer(ref entityRef) + offset));
+            (void*)((IntPtr)Unsafe.AsPointer(ref byteRef) + offset));
     }
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe ref TComponent GetOrNullRef<TComponent>()
     {
-        ref var entityRef = ref Host.GetSpan(Slot)[0];
         nint offset = Descriptor.GetOffset<TComponent>();
         if (offset == -1) {
             return ref Unsafe.NullRef<TComponent>();
         }
+        ref var byteRef = ref Host.GetByteRef(Slot);
         return ref Unsafe.AsRef<TComponent>(
-            (void*)((IntPtr)Unsafe.AsPointer(ref entityRef) + offset));
+            (void*)((IntPtr)Unsafe.AsPointer(ref byteRef) + offset));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

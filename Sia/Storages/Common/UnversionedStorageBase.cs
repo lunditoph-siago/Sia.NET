@@ -58,54 +58,6 @@ public abstract class UnversionedStorageBase<T> : IStorage<T>
     public ref T UnsafeGetRef(scoped in StorageSlot slot)
         => ref GetRef(slot.Index);
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public SpanOwner<T> Fetch(ReadOnlySpan<StorageSlot> slots)
-    {
-        var spanOwner = SpanOwner<T>.Allocate(slots.Length);
-        var span = spanOwner.Span;
-
-        int i = 0;
-        foreach (var slot in slots) {
-            span[i] = GetRef(slot);
-            i++;
-        }
-
-        return spanOwner;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public SpanOwner<T> UnsafeFetch(ReadOnlySpan<StorageSlot> slots)
-    {
-        var spanOwner = SpanOwner<T>.Allocate(slots.Length);
-        var span = spanOwner.Span;
-
-        int i = 0;
-        foreach (var slot in slots) {
-            span[i] = GetRef(slot.Index);
-            i++;
-        }
-
-        return spanOwner;
-    }
-
-    public void Write(ReadOnlySpan<StorageSlot> slots, ReadOnlySpan<T> values)
-    {
-        int i = 0;
-        foreach (var slot in slots) {
-            GetRef(slot) = values[i];
-            i++;
-        }
-    }
-
-    public void UnsafeWrite(ReadOnlySpan<StorageSlot> slots, ReadOnlySpan<T> values)
-    {
-        int i = 0;
-        foreach (var slot in slots) {
-            GetRef(slot.Index) = values[i];
-            i++;
-        }
-    }
-
     protected abstract void Allocate(int slot);
     protected abstract void Release(int slot);
     protected abstract ref T GetRef(int slot);

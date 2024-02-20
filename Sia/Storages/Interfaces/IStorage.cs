@@ -33,11 +33,4 @@ public interface IStorage<T> : IStorage
 
     ref T GetRef(scoped in StorageSlot slot);
     ref T UnsafeGetRef(scoped in StorageSlot slot);
-
-    SpanOwner<T> Fetch(ReadOnlySpan<StorageSlot> slots);
-    SpanOwner<T> UnsafeFetch(ReadOnlySpan<StorageSlot> slots);
-    SpanOwner<T> FetchAll() => UnsafeFetch(AllocatedSlots);
-
-    void Write(ReadOnlySpan<StorageSlot> slots, ReadOnlySpan<T> values);
-    void UnsafeWrite(ReadOnlySpan<StorageSlot> slots, ReadOnlySpan<T> values);
 }

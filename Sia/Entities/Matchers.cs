@@ -139,8 +139,9 @@ public static class Matchers
     {
         public bool Match(IEntityHost host)
         {
+            var offsets = host.Descriptor.FieldOffsets;
             foreach (var compType in Types.Types) {
-                if (!host.ContainsCommon(compType)) {
+                if (!offsets.ContainsKey(compType)) {
                     return false;
                 }
             }
@@ -152,8 +153,9 @@ public static class Matchers
     {
         public bool Match(IEntityHost host)
         {
+            var offsets = host.Descriptor.FieldOffsets;
             foreach (var compType in Types.Types) {
-                if (host.ContainsCommon(compType)) {
+                if (offsets.ContainsKey(compType)) {
                     return false;
                 }
             }
@@ -166,13 +168,14 @@ public static class Matchers
     {
         public bool Match(IEntityHost host)
         {
+            var offsets = host.Descriptor.FieldOffsets;
             foreach (var compType in InclusiveTypes.Types) {
-                if (!host.ContainsCommon(compType)) {
+                if (!offsets.ContainsKey(compType)) {
                     return false;
                 }
             }
             foreach (var compType in ExclusiveTypes.Types) {
-                if (host.ContainsCommon(compType)) {
+                if (offsets.ContainsKey(compType)) {
                     return false;
                 }
             }
@@ -205,8 +208,9 @@ public static class Matchers
             if (!Left.Match(host)) {
                 return false;
             }
+            var offsets = host.Descriptor.FieldOffsets;
             foreach (var compType in Right.Types) {
-                if (!host.ContainsCommon(compType)) {
+                if (!offsets.ContainsKey(compType)) {
                     return false;
                 }
             }
@@ -221,8 +225,9 @@ public static class Matchers
             if (!Left.Match(host)) {
                 return false;
             }
+            var offsets = host.Descriptor.FieldOffsets;
             foreach (var compType in Right.Types) {
-                if (host.ContainsCommon(compType)) {
+                if (offsets.ContainsKey(compType)) {
                     return false;
                 }
             }
@@ -238,13 +243,14 @@ public static class Matchers
             if (!Inner.Match(host)) {
                 return false;
             }
+            var offsets = host.Descriptor.FieldOffsets;
             foreach (var compType in WithTypes.Types) {
-                if (!host.ContainsCommon(compType)) {
+                if (!offsets.ContainsKey(compType)) {
                     return false;
                 }
             }
             foreach (var compType in WithoutTypes.Types) {
-                if (host.ContainsCommon(compType)) {
+                if (offsets.ContainsKey(compType)) {
                     return false;
                 }
             }

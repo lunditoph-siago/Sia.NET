@@ -93,7 +93,7 @@ public static partial class Example3_MoveRotator
         {
             var frame = world.GetAddon<Frame>();
             
-            query.ForEachParallel((_buffer, frame), static (d, entity) => {
+            query.ForEachOnParallel((_buffer, frame), static (d, entity) => {
                 ref var mover = ref entity.Get<Mover>();
                 ref var pos = ref entity.Get<Position>();
                 ref var rot = ref entity.Get<Rotation>();
@@ -121,7 +121,7 @@ public static partial class Example3_MoveRotator
         {
             var frame = world.GetAddon<Frame>();
 
-            query.ForEachParallel((_buffer, frame), static (d, entity) => {
+            query.ForEachOnParallel((_buffer, frame), static (d, entity) => {
                 ref var rotator = ref entity.Get<Rotator>();
                 ref var rot = ref entity.Get<Rotation>();
 
@@ -146,7 +146,7 @@ public static partial class Example3_MoveRotator
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
             int entityCount = world.Count;
-            query.ForEachParallel(this, static (sys, entity) => {
+            query.ForEachOnParallel(this, static (sys, entity) => {
                 if (Random.Shared.Next(3) == 2) {
                     sys._buffer.Do(entity, static (world, entity) => entity.Dispose());
                 }
