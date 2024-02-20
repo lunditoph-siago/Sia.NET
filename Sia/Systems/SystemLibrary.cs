@@ -31,6 +31,8 @@ public class SystemLibrary : IAddon
             remove => Host.OnDisposed -= value;
         }
 
+        public EntityDescriptor Descriptor => Host.Descriptor;
+
         public int Capacity => Host.Capacity;
         public int Count => _entitySlots.Count;
         public ReadOnlySpan<StorageSlot> AllocatedSlots => _allocatedSlots.ValueSpan;
@@ -71,12 +73,6 @@ public class SystemLibrary : IAddon
             _firstFreeSlot = 0;
         }
 
-        public bool ContainsCommon<TComponent>()
-            => Host.ContainsCommon<TComponent>();
-
-        public bool ContainsCommon(Type componentType)
-            => Host.ContainsCommon(componentType);
-
         public EntityRef Create()
             => Host.Create();
 
@@ -89,14 +85,14 @@ public class SystemLibrary : IAddon
         public bool IsValid(in StorageSlot slot)
             => Host.IsValid(slot);
 
+        public ref byte GetByteRef(scoped in StorageSlot slot)
+            => ref Host.GetByteRef(slot);
+
+        public ref byte UnsafeGetByteRef(scoped in StorageSlot slot)
+            => ref Host.UnsafeGetByteRef(slot);
+
         public object Box(in StorageSlot slot)
             => Host.Box(slot);
-
-        public EntityDescriptor GetDescriptor(in StorageSlot slot)
-            => Host.GetDescriptor(slot);
-
-        public Span<byte> GetSpan(scoped in StorageSlot slot)
-            => Host.GetSpan(slot);
 
         public IEnumerator<EntityRef> GetEnumerator()
         {

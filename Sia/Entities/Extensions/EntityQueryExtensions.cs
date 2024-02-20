@@ -2,7 +2,7 @@ namespace Sia;
 
 using System.Runtime.CompilerServices;
 
-public static class EntityQueryExtensions
+public static partial class EntityQueryExtensions
 {
     public ref struct Enumerator(IReadOnlyList<IEntityHost> hosts)
     {

@@ -3,9 +3,8 @@ namespace Sia;
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
-using CommunityToolkit.HighPerformance.Buffers;
 
-public class EntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>
+public class StorageEntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>
     where T : struct
 {
     public StorageEntityHost<T, TStorage> Create<TStorage>(TStorage storage)
@@ -59,32 +58,24 @@ public class StorageEntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMe
         => Descriptor;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe Span<byte> GetSpan(scoped in StorageSlot slot)
-        => new(Unsafe.AsPointer(ref Storage.GetRef(slot)), Descriptor.MemorySize);
+    public unsafe ref byte GetByteRef(scoped in StorageSlot slot)
+        => ref Unsafe.AsRef<byte>(Unsafe.AsPointer(ref Storage.GetRef(slot)));
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe ref byte UnsafeGetByteRef(scoped in StorageSlot slot)
+        => ref Unsafe.AsRef<byte>(Unsafe.AsPointer(ref Storage.UnsafeGetRef(slot)));
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref T GetRef(scoped in StorageSlot slot)
+        => ref Storage.GetRef(slot);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref T UnsafeGetRef(scoped in StorageSlot slot)
+        => ref Storage.UnsafeGetRef(slot);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public object Box(scoped in StorageSlot slot)
         => Storage.GetRef(slot);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref T GetEntityRef(scoped in StorageSlot slot)
-        => ref Storage.GetRef(slot);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public SpanOwner<T> Fetch(ReadOnlySpan<StorageSlot> slots)
-        => Storage.Fetch(slots);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public SpanOwner<T> UnsafeFetch(ReadOnlySpan<StorageSlot> slots)
-        => Storage.UnsafeFetch(slots);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Write(ReadOnlySpan<StorageSlot> slots, ReadOnlySpan<T> values)
-        => Storage.Write(slots, values);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void UnsafeWrite(ReadOnlySpan<StorageSlot> slots, ReadOnlySpan<T> values)
-        => Storage.UnsafeWrite(slots, values);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public IEnumerator<EntityRef> GetEnumerator()

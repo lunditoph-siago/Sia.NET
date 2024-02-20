@@ -2,7 +2,7 @@ namespace Sia;
 
 using System.Runtime.CompilerServices;
 
-public static class EntityHostExtensions
+public static partial class EntityHostExtensions
 {
     public ref struct Enumerator(IEntityHost host)
     {
@@ -26,4 +26,8 @@ public static class EntityHostExtensions
 
     public static Enumerator GetEnumerator(this IEntityHost host) => new(host);
     public static Enumerator GetEnumerator(this IReactiveEntityHost host) => new(host);
+    
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static unsafe Span<byte> GetSpan(this IEntityHost host, scoped in StorageSlot slot)
+        => new(Unsafe.AsPointer(ref host.GetByteRef(slot)), host.Descriptor.MemorySize);
 }
