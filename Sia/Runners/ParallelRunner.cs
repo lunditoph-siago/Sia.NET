@@ -9,13 +9,20 @@ public class ParallelRunner : IRunner
 {
     private abstract class JobBase : IJob, IResettable
     {
-        public RunnerBarrier Barrier { get; set; } = null!;
+        public Barrier Barrier { get; set; } = null!;
+        internal Exception? Exception { get; private set; }
 
         public abstract void Invoke();
+
+        public virtual void Throw(Exception e)
+        {
+            Exception = e;
+        }
 
         public virtual bool TryReset()
         {
             Barrier = null!;
+            Exception = null;
             return true;
         }
     }
@@ -32,6 +39,15 @@ public class ParallelRunner : IRunner
                 Barrier.SignalAndWait();
             }
         }
+
+        public override void Throw(Exception e)
+        {
+            base.Throw(e);
+
+            if (Interlocked.Decrement(ref *RemainingTaskGroups) == 0) {
+                Barrier.SignalAndWait();
+            }
+        }
     }
 
     private class ActionJob : JobBase
@@ -41,6 +57,12 @@ public class ParallelRunner : IRunner
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override void Invoke() {
             Action();
+            Barrier.SignalAndWait();
+        }
+
+        public override void Throw(Exception e)
+        {
+            base.Throw(e);
             Barrier.SignalAndWait();
         }
 
@@ -54,6 +76,7 @@ public class ParallelRunner : IRunner
     private class GroupActionJob : GroupJobBase
     {
         public GroupAction Action = default!;
+
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override void Invoke()
@@ -73,7 +96,7 @@ public class ParallelRunner : IRunner
     {
         public TData Data = default!;
         public GroupAction<TData> Action = default!;
-
+        
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override void Invoke()
         {
@@ -148,7 +171,12 @@ public class ParallelRunner : IRunner
         Thread.CurrentThread.Name = "ParallelRunner Worker " + id;
 
         await foreach (var job in reader.ReadAllAsync()) {
-            job.Invoke();
+            try {
+                job.Invoke();
+            }
+            catch (Exception e) {
+                job.Throw(e);
+            }
         }
     }
 
@@ -165,9 +193,12 @@ public class ParallelRunner : IRunner
 
         taskWriter.TryWrite(job);
         barrier.SignalAndWait();
-
-        _actionJobArrPool.Return(job);
         s_barrierPool.Return(barrier);
+
+        var e = job.Exception;
+        _actionJobArrPool.Return(job);
+
+        if (e != null) { throw e; }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -201,9 +232,18 @@ public class ParallelRunner : IRunner
         }
 
         barrier.SignalAndWait();
-
-        _groupActionJobArrPool.Return(jobs);
         s_barrierPool.Return(barrier);
+
+        try {
+            foreach (var job in jobs) {
+                if (job.Exception != null) {
+                    throw job.Exception;
+                }
+            }
+        }
+        finally {
+            _groupActionJobArrPool.Return(jobs);
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -249,9 +289,18 @@ public class ParallelRunner : IRunner
         }
 
         barrier.SignalAndWait();
-
-        pool.Return(jobs);
         s_barrierPool.Return(barrier);
+
+        try {
+            foreach (var job in jobs) {
+                if (job.Exception != null) {
+                    throw job.Exception;
+                }
+            }
+        }
+        finally {
+            pool.Return(jobs);
+        }
     }
 
     public void Dispose()
