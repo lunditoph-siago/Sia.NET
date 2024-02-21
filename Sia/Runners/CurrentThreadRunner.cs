@@ -12,6 +12,9 @@ public sealed class CurrentThreadRunner : IRunner
     public void Run(Action action) => action();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Run<TData>(in TData data, InAction<TData> action) => action(data);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Run(int taskCount, GroupAction action) => action((0, taskCount));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

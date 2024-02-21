@@ -72,6 +72,31 @@ public class ParallelRunner : IRunner
             return base.TryReset();
         }
     }
+
+    private class ActionJob<TData> : JobBase
+    {
+        public InAction<TData> Action = default!;
+        public TData Data = default!;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public override void Invoke() {
+            Action(Data);
+            Barrier.SignalAndWait();
+        }
+
+        public override void Throw(Exception e)
+        {
+            base.Throw(e);
+            Barrier.SignalAndWait();
+        }
+
+        public override bool TryReset()
+        {
+            Action = default!;
+            Data = default!;
+            return base.TryReset();
+        }
+    }
     
     private class GroupActionJob : GroupJobBase
     {
@@ -141,12 +166,12 @@ public class ParallelRunner : IRunner
 
     private readonly Channel<IJob> _jobChannel = Channel.CreateUnbounded<IJob>();
 
-    private readonly ObjectPool<ActionJob> _actionJobArrPool = ObjectPool.Create<ActionJob>();
     private readonly DefaultObjectPool<GroupActionJob[]> _groupActionJobArrPool;
     private readonly ConcurrentDictionary<Type, object> _genericGroupActionJobArrPools = [];
 
-    private readonly static ObjectPool<RunnerBarrier> s_barrierPool
-        = ObjectPool.Create<RunnerBarrier>();
+    private readonly static ObjectPool<ActionJob> s_actionJobPool = ObjectPool.Create<ActionJob>();
+    private readonly static ConcurrentDictionary<Type, object> s_genericActionJobPool = [];
+    private readonly static ObjectPool<RunnerBarrier> s_barrierPool = ObjectPool.Create<RunnerBarrier>();
 
     public ParallelRunner(int degreeOfParallelism)
     {
@@ -186,7 +211,7 @@ public class ParallelRunner : IRunner
         var taskWriter = _jobChannel.Writer;
 
         var barrier = s_barrierPool.Get();
-        var job = _actionJobArrPool.Get();
+        var job = s_actionJobPool.Get();
 
         job.Barrier = barrier;
         job.Action = action;
@@ -196,8 +221,34 @@ public class ParallelRunner : IRunner
         s_barrierPool.Return(barrier);
 
         var e = job.Exception;
-        _actionJobArrPool.Return(job);
+        s_actionJobPool.Return(job);
 
+        if (e != null) { throw e; }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe void Run<TData>(in TData data, InAction<TData> action)
+    {
+        var taskWriter = _jobChannel.Writer;
+        var barrier = s_barrierPool.Get();
+        
+        if (!s_genericActionJobPool.TryGetValue(typeof(TData), out var poolRaw)) {
+            poolRaw = s_genericActionJobPool.GetOrAdd(typeof(TData),
+                static _ => ObjectPool.Create<ActionJob<TData>>());
+        }
+
+        var pool = Unsafe.As<ObjectPool<ActionJob<TData>>>(poolRaw);
+        var job = pool.Get();
+
+        job.Data = data;
+        job.Action = action;
+
+        taskWriter.TryWrite(job);
+        barrier.SignalAndWait();
+        s_barrierPool.Return(barrier);
+
+        var e = job.Exception;
+        pool.Return(job);
         if (e != null) { throw e; }
     }
 

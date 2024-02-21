@@ -36,7 +36,7 @@ public static partial class EntityQueryExtensions
         var count = query.Count;
         if (count == 0) { return; }
 
-        runner.Run<HandleData>(count, new(query, handler), static (data, range) => {
+        runner.Run(count, new(query, handler), static (in HandleData data, (int, int) range) => {
             var (from, to) = range;
             var remainingCount = to - from;
 
@@ -70,8 +70,7 @@ public static partial class EntityQueryExtensions
         var count = query.Count;
         if (count == 0) { return; }
 
-        var data = new HandleData<TUserData>(query, userData, handler);
-        runner.Run(count, data, static (data, range) => {
+        runner.Run(count, new(query, userData, handler), static (in HandleData<TUserData> data, (int, int) range) => {
             var (from, to) = range;
             var remainingCount = to - from;
 
