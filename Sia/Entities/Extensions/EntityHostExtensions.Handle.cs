@@ -1,5 +1,6 @@
 namespace Sia;
 
+using System.Reflection.Metadata;
 using System.Runtime.CompilerServices;
 
 public static partial class EntityHostExtensions
@@ -17,7 +18,7 @@ public static partial class EntityHostExtensions
         var count = host.Count;
         if (count == 0) { return; }
 
-        runner.Run<HandleData>(count, new(host, handler), static (data, range) => {
+        runner.Run(count, new(host, handler), static (in HandleData data, (int, int) range) => {
             data.Handler(data.Host, range.Item1, range.Item2);
         });
     }
@@ -31,7 +32,7 @@ public static partial class EntityHostExtensions
         var count = host.Count;
         if (count == 0) { return; }
 
-        runner.Run<HandleData<TUserData>>(count, new(host, userData, handler), static (data, range) => {
+        runner.Run(count, new(host, userData, handler), static (in HandleData<TUserData> data, (int, int) range) => {
             data.Handler(data.Host, data.UserData, range.Item1, range.Item2);
         });
     }
