@@ -74,11 +74,8 @@ public abstract class StorageBase<T> : IStorage<T>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetRef(scoped in StorageSlot slot)
     {
-        var index = slot.Index;
-        if (_versions[index] != slot.Version) {
-            throw new ArgumentException("Bad slot access");
-        }
-        return ref GetRef(index);
+        GuardSlotVersion(slot);
+        return ref GetRef(slot.Index);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -87,7 +84,10 @@ public abstract class StorageBase<T> : IStorage<T>
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void UnsafeSetId(scoped in StorageSlot slot, int id)
-        => _allocatedSlots.ValueSpan[slot.Index].Id = id;
+    {
+        GuardSlotVersion(slot);
+        _allocatedSlots.GetValueRefOrNullRef(slot.Index).Id = id;
+    }
 
     protected abstract void Allocate(int slot);
     protected abstract void Release(int slot);
@@ -103,4 +103,12 @@ public abstract class StorageBase<T> : IStorage<T>
     }
 
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void GuardSlotVersion(scoped in StorageSlot slot)
+    {
+        if (_versions[slot.Index] != slot.Version) {
+            throw new ArgumentException("Bad slot access");
+        }
+    }
 }
