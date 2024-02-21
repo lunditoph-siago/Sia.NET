@@ -5,6 +5,8 @@ using System.Runtime.CompilerServices;
 
 public sealed partial class World : IReactiveEntityQuery, IEventSender
 {
+    public static World? Current => Context<World>.Current;
+
     public event Action<IReactiveEntityHost>? OnEntityHostAdded;
     public event Action<IReactiveEntityHost>? OnEntityHostRemoved;
     public event Action<World>? OnDisposed;
