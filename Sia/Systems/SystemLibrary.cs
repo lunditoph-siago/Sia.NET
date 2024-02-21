@@ -85,6 +85,9 @@ public class SystemLibrary : IAddon
         public bool IsValid(in StorageSlot slot)
             => Host.IsValid(slot);
 
+        public void UnsafeSetId(scoped in StorageSlot slot, int id)
+            => Host.UnsafeSetId(slot, id);
+
         public ref byte GetByteRef(scoped in StorageSlot slot)
             => ref Host.GetByteRef(slot);
 

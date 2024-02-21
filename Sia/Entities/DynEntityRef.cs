@@ -15,9 +15,13 @@ public struct DynEntityRef : IDisposable
             var bundle = Bundle.Create(
                 current.UnsafeCast<TEntity>().AsRef(), newComponent);
 
+            var id = current.Slot.Id;
             current.Dispose();
-            return (creator.CreateEntity(bundle),
-                new EntityMover<Bundle<TEntity, TComponent>>(creator));
+
+            var newEntity = creator.CreateEntity(bundle);
+            newEntity.Host.UnsafeSetId(newEntity.Slot, id);
+
+            return (newEntity, new EntityMover<Bundle<TEntity, TComponent>>(creator));
         }
     }
 

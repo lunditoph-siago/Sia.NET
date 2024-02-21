@@ -3,7 +3,6 @@ namespace Sia;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using CommunityToolkit.HighPerformance.Buffers;
 
 public abstract class UnversionedStorageBase<T> : IStorage<T>
     where T : struct
@@ -50,11 +49,12 @@ public abstract class UnversionedStorageBase<T> : IStorage<T>
     public bool IsValid(scoped in StorageSlot slot)
         => true;
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void UnsafeSetId(scoped in StorageSlot slot, int id)
+        => _allocatedSlots.ValueSpan[slot.Index].Id = id;
+
     public ref T GetRef(scoped in StorageSlot slot)
         => ref GetRef(slot.Index);
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T UnsafeGetRef(scoped in StorageSlot slot)
         => ref GetRef(slot.Index);
 

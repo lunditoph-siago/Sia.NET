@@ -4,7 +4,6 @@ namespace Sia;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using CommunityToolkit.HighPerformance.Buffers;
 
 public sealed record WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>, IReactiveEntityHost
     where T : struct
@@ -72,34 +71,28 @@ public sealed record WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>, IR
         OnEntityReleased?.Invoke(entity);
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool IsValid(scoped in StorageSlot slot)
         => _host.IsValid(slot);
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void UnsafeSetId(scoped in StorageSlot slot, int id)
+        => _host.UnsafeSetId(slot, id);
+
     public unsafe ref byte GetByteRef(scoped in StorageSlot slot)
         => ref _host.GetByteRef(slot);
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe ref byte UnsafeGetByteRef(scoped in StorageSlot slot)
         => ref _host.UnsafeGetByteRef(slot);
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetRef(scoped in StorageSlot slot)
         => ref _host.GetRef(slot);
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T UnsafeGetRef(scoped in StorageSlot slot)
         => ref _host.UnsafeGetRef(slot);
     
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public object Box(scoped in StorageSlot slot)
         => _host.Box(slot);
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public IEnumerator<EntityRef> GetEnumerator() => _host.GetEnumerator();
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     IEnumerator IEnumerable.GetEnumerator() => _host.GetEnumerator();
 
     public void Dispose() => _host.Dispose();

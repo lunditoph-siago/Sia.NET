@@ -1,6 +1,3 @@
-using System.Runtime.CompilerServices;
-using CommunityToolkit.HighPerformance.Buffers;
-
 namespace Sia;
 
 public interface IEntityHost : IEnumerable<EntityRef>, IDisposable
@@ -20,6 +17,7 @@ public interface IEntityHost : IEnumerable<EntityRef>, IDisposable
     ref byte GetByteRef(scoped in StorageSlot slot);
     ref byte UnsafeGetByteRef(scoped in StorageSlot slot);
 
+    void UnsafeSetId(scoped in StorageSlot slot, int id);
     object Box(scoped in StorageSlot slot);
 }
 
