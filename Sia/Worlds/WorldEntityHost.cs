@@ -3,10 +3,10 @@ namespace Sia;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
-public sealed class WorldEntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T, TStorage>(World world, TStorage storage)
-    : StorageEntityHost<T, TStorage>(storage), IReactiveEntityHost
-    where T : struct
-    where TStorage : IStorage<T>
+public sealed class WorldEntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity, TStorage>(World world, TStorage storage)
+    : StorageEntityHost<TEntity, TStorage>(storage), IReactiveEntityHost
+    where TEntity : struct
+    where TStorage : IStorage<TEntity>
 {
     public event EntityHandler? OnEntityCreated;
     public event EntityHandler? OnEntityReleased;
@@ -14,7 +14,7 @@ public sealed class WorldEntityHost<[DynamicallyAccessedMembers(DynamicallyAcces
     public World World { get; } = world;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public override EntityRef<T> Create()
+    public override EntityRef<TEntity> Create()
     {
         var entity = base.Create();
         World.Count++;
@@ -24,7 +24,7 @@ public sealed class WorldEntityHost<[DynamicallyAccessedMembers(DynamicallyAcces
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public override EntityRef<T> Create(in T initial)
+    public override EntityRef<TEntity> Create(in TEntity initial)
     {
         var entity = base.Create(initial);
         World.Count++;

@@ -12,13 +12,13 @@ public class StorageEntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMe
         => new(storage);
 }
 
-public class StorageEntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T, TStorage>(TStorage managedStorage) : IEntityHost<T>
-    where T : struct
-    where TStorage : IStorage<T>
+public class StorageEntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity, TStorage>(TStorage managedStorage) : IEntityHost<TEntity>
+    where TEntity : struct
+    where TStorage : IStorage<TEntity>
 {
     public event Action? OnDisposed;
 
-    public EntityDescriptor Descriptor { get; } = EntityDescriptor.Get<T>();
+    public EntityDescriptor Descriptor { get; } = EntityDescriptor.Get<TEntity>();
 
     public int Capacity => Storage.Capacity;
     public int Count => Storage.Count;
@@ -34,10 +34,10 @@ public class StorageEntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMe
 
     EntityRef IEntityHost.Create() => Create();
 
-    public virtual EntityRef<T> Create()
+    public virtual EntityRef<TEntity> Create()
         => new(Storage.AllocateSlot(), this);
 
-    public virtual EntityRef<T> Create(in T initial)
+    public virtual EntityRef<TEntity> Create(in TEntity initial)
         => new(Storage.AllocateSlot(initial), this);
 
     public virtual void Release(scoped in StorageSlot slot)
@@ -50,15 +50,15 @@ public class StorageEntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMe
         => Storage.UnsafeSetId(slot, id);
 
     public unsafe ref byte GetByteRef(scoped in StorageSlot slot)
-        => ref Unsafe.AsRef<byte>(Unsafe.AsPointer(ref Storage.GetRef(slot)));
+        => ref Unsafe.As<TEntity, byte>(ref Storage.GetRef(slot));
 
     public unsafe ref byte UnsafeGetByteRef(scoped in StorageSlot slot)
-        => ref Unsafe.AsRef<byte>(Unsafe.AsPointer(ref Storage.UnsafeGetRef(slot)));
+        => ref Unsafe.As<TEntity, byte>(ref Storage.UnsafeGetRef(slot));
 
-    public ref T GetRef(scoped in StorageSlot slot)
+    public ref TEntity GetRef(scoped in StorageSlot slot)
         => ref Storage.GetRef(slot);
 
-    public ref T UnsafeGetRef(scoped in StorageSlot slot)
+    public ref TEntity UnsafeGetRef(scoped in StorageSlot slot)
         => ref Storage.UnsafeGetRef(slot);
 
     public object Box(scoped in StorageSlot slot)

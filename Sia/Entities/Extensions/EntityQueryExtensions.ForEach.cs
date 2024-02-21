@@ -90,8 +90,8 @@ public static partial class EntityQueryExtensions
             var c1Offset = desc.GetOffset<C1>();
 
             foreach (ref readonly var slot in host.AllocatedSlots) {
-                var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slot));
-                handler(ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)));
+                ref var byteRef = ref host.UnsafeGetByteRef(slot);
+                handler(ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)));
             }
         }
     }
@@ -111,10 +111,10 @@ public static partial class EntityQueryExtensions
             var c2Offset = desc.GetOffset<C2>();
 
             foreach (ref readonly var slot in host.AllocatedSlots) {
-                var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slot));
+                ref var byteRef = ref host.UnsafeGetByteRef(slot);
                 handler(
-                    ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)),
-                    ref Unsafe.AsRef<C2>((void*)(ptr + c2Offset)));
+                    ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
+                    ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)));
             }
         }
     }
@@ -135,11 +135,11 @@ public static partial class EntityQueryExtensions
             var c3Offset = desc.GetOffset<C3>();
 
             foreach (ref readonly var slot in host.AllocatedSlots) {
-                var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slot));
+                ref var byteRef = ref host.UnsafeGetByteRef(slot);
                 handler(
-                    ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)),
-                    ref Unsafe.AsRef<C2>((void*)(ptr + c2Offset)),
-                    ref Unsafe.AsRef<C3>((void*)(ptr + c3Offset)));
+                    ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
+                    ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
+                    ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)));
             }
         }
     }
@@ -161,12 +161,12 @@ public static partial class EntityQueryExtensions
             var c4Offset = desc.GetOffset<C4>();
 
             foreach (ref readonly var slot in host.AllocatedSlots) {
-                var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slot));
+                ref var byteRef = ref host.UnsafeGetByteRef(slot);
                 handler(
-                    ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)),
-                    ref Unsafe.AsRef<C2>((void*)(ptr + c2Offset)),
-                    ref Unsafe.AsRef<C3>((void*)(ptr + c3Offset)),
-                    ref Unsafe.AsRef<C4>((void*)(ptr + c4Offset)));
+                    ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
+                    ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
+                    ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)),
+                    ref Unsafe.As<byte, C4>(ref Unsafe.AddByteOffset(ref byteRef, c4Offset)));
             }
         }
     }
@@ -189,13 +189,13 @@ public static partial class EntityQueryExtensions
             var c5Offset = desc.GetOffset<C5>();
 
             foreach (ref readonly var slot in host.AllocatedSlots) {
-                var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slot));
+                ref var byteRef = ref host.UnsafeGetByteRef(slot);
                 handler(
-                    ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)),
-                    ref Unsafe.AsRef<C2>((void*)(ptr + c2Offset)),
-                    ref Unsafe.AsRef<C3>((void*)(ptr + c3Offset)),
-                    ref Unsafe.AsRef<C4>((void*)(ptr + c4Offset)),
-                    ref Unsafe.AsRef<C5>((void*)(ptr + c5Offset)));
+                    ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
+                    ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
+                    ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)),
+                    ref Unsafe.As<byte, C4>(ref Unsafe.AddByteOffset(ref byteRef, c4Offset)),
+                    ref Unsafe.As<byte, C5>(ref Unsafe.AddByteOffset(ref byteRef, c5Offset)));
             }
         }
     }
@@ -219,14 +219,14 @@ public static partial class EntityQueryExtensions
             var c6Offset = desc.GetOffset<C6>();
 
             foreach (ref readonly var slot in host.AllocatedSlots) {
-                var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slot));
+                ref var byteRef = ref host.UnsafeGetByteRef(slot);
                 handler(
-                    ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)),
-                    ref Unsafe.AsRef<C2>((void*)(ptr + c2Offset)),
-                    ref Unsafe.AsRef<C3>((void*)(ptr + c3Offset)),
-                    ref Unsafe.AsRef<C4>((void*)(ptr + c4Offset)),
-                    ref Unsafe.AsRef<C5>((void*)(ptr + c5Offset)),
-                    ref Unsafe.AsRef<C6>((void*)(ptr + c6Offset)));
+                    ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
+                    ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
+                    ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)),
+                    ref Unsafe.As<byte, C4>(ref Unsafe.AddByteOffset(ref byteRef, c4Offset)),
+                    ref Unsafe.As<byte, C5>(ref Unsafe.AddByteOffset(ref byteRef, c5Offset)),
+                    ref Unsafe.As<byte, C6>(ref Unsafe.AddByteOffset(ref byteRef, c6Offset)));
             }
         }
     }
@@ -243,8 +243,8 @@ public static partial class EntityQueryExtensions
                 var c1Offset = desc.GetOffset<C1>();
 
                 for (int i = from; i != to; ++i) {
-                    var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slots[i]));
-                    handler(ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)));
+                    ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
+                    handler(ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)));
                 }
             }, runner);
 
@@ -261,10 +261,10 @@ public static partial class EntityQueryExtensions
                 var c2Offset = desc.GetOffset<C2>();
 
                 for (int i = from; i != to; ++i) {
-                    var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slots[i]));
+                    ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
                     handler(
-                        ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)),
-                        ref Unsafe.AsRef<C2>((void*)(ptr + c2Offset)));
+                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
+                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)));
                 }
             }, runner);
 
@@ -282,11 +282,11 @@ public static partial class EntityQueryExtensions
                 var c3Offset = desc.GetOffset<C3>();
 
                 for (int i = from; i != to; ++i) {
-                    var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slots[i]));
+                    ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
                     handler(
-                        ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)),
-                        ref Unsafe.AsRef<C2>((void*)(ptr + c2Offset)),
-                        ref Unsafe.AsRef<C3>((void*)(ptr + c3Offset)));
+                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
+                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
+                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)));
                 }
             }, runner);
 
@@ -305,12 +305,12 @@ public static partial class EntityQueryExtensions
                 var c4Offset = desc.GetOffset<C4>();
 
                 for (int i = from; i != to; ++i) {
-                    var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slots[i]));
+                    ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
                     handler(
-                        ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)),
-                        ref Unsafe.AsRef<C2>((void*)(ptr + c2Offset)),
-                        ref Unsafe.AsRef<C3>((void*)(ptr + c3Offset)),
-                        ref Unsafe.AsRef<C4>((void*)(ptr + c4Offset)));
+                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
+                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
+                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)),
+                        ref Unsafe.As<byte, C4>(ref Unsafe.AddByteOffset(ref byteRef, c4Offset)));
                 }
             }, runner);
 
@@ -330,13 +330,13 @@ public static partial class EntityQueryExtensions
                 var c5Offset = desc.GetOffset<C5>();
 
                 for (int i = from; i != to; ++i) {
-                    var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slots[i]));
+                    ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
                     handler(
-                        ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)),
-                        ref Unsafe.AsRef<C2>((void*)(ptr + c2Offset)),
-                        ref Unsafe.AsRef<C3>((void*)(ptr + c3Offset)),
-                        ref Unsafe.AsRef<C4>((void*)(ptr + c4Offset)),
-                        ref Unsafe.AsRef<C5>((void*)(ptr + c5Offset)));
+                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
+                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
+                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)),
+                        ref Unsafe.As<byte, C4>(ref Unsafe.AddByteOffset(ref byteRef, c4Offset)),
+                        ref Unsafe.As<byte, C5>(ref Unsafe.AddByteOffset(ref byteRef, c5Offset)));
                 }
             }, runner);
 
@@ -357,14 +357,14 @@ public static partial class EntityQueryExtensions
                 var c6Offset = desc.GetOffset<C6>();
 
                 for (int i = from; i != to; ++i) {
-                    var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slots[i]));
+                    ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
                     handler(
-                        ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)),
-                        ref Unsafe.AsRef<C2>((void*)(ptr + c2Offset)),
-                        ref Unsafe.AsRef<C3>((void*)(ptr + c3Offset)),
-                        ref Unsafe.AsRef<C4>((void*)(ptr + c4Offset)),
-                        ref Unsafe.AsRef<C5>((void*)(ptr + c5Offset)),
-                        ref Unsafe.AsRef<C6>((void*)(ptr + c6Offset)));
+                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
+                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
+                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)),
+                        ref Unsafe.As<byte, C4>(ref Unsafe.AddByteOffset(ref byteRef, c4Offset)),
+                        ref Unsafe.As<byte, C5>(ref Unsafe.AddByteOffset(ref byteRef, c5Offset)),
+                        ref Unsafe.As<byte, C6>(ref Unsafe.AddByteOffset(ref byteRef, c6Offset)));
                 }
             }, runner);
     
