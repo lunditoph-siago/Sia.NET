@@ -78,7 +78,7 @@ public static partial class EntityQueryExtensions
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForEach<C1>(
-        this IEntityQuery query, ComponentHandler<C1> updator)
+        this IEntityQuery query, ComponentHandler<C1> handler)
     {
         var hosts = query.Hosts;
         int count = hosts.Count;
@@ -91,14 +91,14 @@ public static partial class EntityQueryExtensions
 
             foreach (ref readonly var slot in host.AllocatedSlots) {
                 var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slot));
-                updator(ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)));
+                handler(ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)));
             }
         }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForEach<C1, C2>(
-        this IEntityQuery query, ComponentHandler<C1, C2> updator)
+        this IEntityQuery query, ComponentHandler<C1, C2> handler)
     {
         var hosts = query.Hosts;
         int count = hosts.Count;
@@ -112,7 +112,7 @@ public static partial class EntityQueryExtensions
 
             foreach (ref readonly var slot in host.AllocatedSlots) {
                 var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slot));
-                updator(
+                handler(
                     ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)),
                     ref Unsafe.AsRef<C2>((void*)(ptr + c2Offset)));
             }
@@ -121,7 +121,7 @@ public static partial class EntityQueryExtensions
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForEach<C1, C2, C3>(
-        this IEntityQuery query, ComponentHandler<C1, C2, C3> updator)
+        this IEntityQuery query, ComponentHandler<C1, C2, C3> handler)
     {
         var hosts = query.Hosts;
         int count = hosts.Count;
@@ -136,7 +136,7 @@ public static partial class EntityQueryExtensions
 
             foreach (ref readonly var slot in host.AllocatedSlots) {
                 var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slot));
-                updator(
+                handler(
                     ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)),
                     ref Unsafe.AsRef<C2>((void*)(ptr + c2Offset)),
                     ref Unsafe.AsRef<C3>((void*)(ptr + c3Offset)));
@@ -146,7 +146,7 @@ public static partial class EntityQueryExtensions
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForEach<C1, C2, C3, C4>(
-        this IEntityQuery query, ComponentHandler<C1, C2, C3, C4> updator)
+        this IEntityQuery query, ComponentHandler<C1, C2, C3, C4> handler)
     {
         var hosts = query.Hosts;
         int count = hosts.Count;
@@ -162,7 +162,7 @@ public static partial class EntityQueryExtensions
 
             foreach (ref readonly var slot in host.AllocatedSlots) {
                 var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slot));
-                updator(
+                handler(
                     ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)),
                     ref Unsafe.AsRef<C2>((void*)(ptr + c2Offset)),
                     ref Unsafe.AsRef<C3>((void*)(ptr + c3Offset)),
@@ -173,7 +173,7 @@ public static partial class EntityQueryExtensions
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForEach<C1, C2, C3, C4, C5>(
-        this IEntityQuery query, ComponentHandler<C1, C2, C3, C4, C5> updator)
+        this IEntityQuery query, ComponentHandler<C1, C2, C3, C4, C5> handler)
     {
         var hosts = query.Hosts;
         int count = hosts.Count;
@@ -190,7 +190,7 @@ public static partial class EntityQueryExtensions
 
             foreach (ref readonly var slot in host.AllocatedSlots) {
                 var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slot));
-                updator(
+                handler(
                     ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)),
                     ref Unsafe.AsRef<C2>((void*)(ptr + c2Offset)),
                     ref Unsafe.AsRef<C3>((void*)(ptr + c3Offset)),
@@ -202,7 +202,7 @@ public static partial class EntityQueryExtensions
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForEach<C1, C2, C3, C4, C5, C6>(
-        this IEntityQuery query, ComponentHandler<C1, C2, C3, C4, C5, C6> updator)
+        this IEntityQuery query, ComponentHandler<C1, C2, C3, C4, C5, C6> handler)
     {
         var hosts = query.Hosts;
         int count = hosts.Count;
@@ -220,7 +220,7 @@ public static partial class EntityQueryExtensions
 
             foreach (ref readonly var slot in host.AllocatedSlots) {
                 var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slot));
-                updator(
+                handler(
                     ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)),
                     ref Unsafe.AsRef<C2>((void*)(ptr + c2Offset)),
                     ref Unsafe.AsRef<C3>((void*)(ptr + c3Offset)),
@@ -233,10 +233,10 @@ public static partial class EntityQueryExtensions
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForEach<TRunner, C1>(
-        this IEntityQuery query, ComponentHandler<C1> updator, TRunner runner)
+        this IEntityQuery query, ComponentHandler<C1> handler, TRunner runner)
         where TRunner : IRunner
-        => query.Handle(updator,
-            static (IEntityHost host, in ComponentHandler<C1> updator, int from, int to) => {
+        => query.Handle(handler,
+            static (IEntityHost host, in ComponentHandler<C1> handler, int from, int to) => {
                 var desc = host.Descriptor;
                 var slots = host.AllocatedSlots;
 
@@ -244,16 +244,16 @@ public static partial class EntityQueryExtensions
 
                 for (int i = from; i != to; ++i) {
                     var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slots[i]));
-                    updator(ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)));
+                    handler(ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)));
                 }
             }, runner);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForEach<TRunner, C1, C2>(
-        this IEntityQuery query, ComponentHandler<C1, C2> updator, TRunner runner)
+        this IEntityQuery query, ComponentHandler<C1, C2> handler, TRunner runner)
         where TRunner : IRunner
-        => query.Handle(updator,
-            static (IEntityHost host, in ComponentHandler<C1, C2> updator, int from, int to) => {
+        => query.Handle(handler,
+            static (IEntityHost host, in ComponentHandler<C1, C2> handler, int from, int to) => {
                 var desc = host.Descriptor;
                 var slots = host.AllocatedSlots;
 
@@ -262,7 +262,7 @@ public static partial class EntityQueryExtensions
 
                 for (int i = from; i != to; ++i) {
                     var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slots[i]));
-                    updator(
+                    handler(
                         ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)),
                         ref Unsafe.AsRef<C2>((void*)(ptr + c2Offset)));
                 }
@@ -270,10 +270,10 @@ public static partial class EntityQueryExtensions
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForEach<TRunner, C1, C2, C3>(
-        this IEntityQuery query, ComponentHandler<C1, C2, C3> updator, TRunner runner)
+        this IEntityQuery query, ComponentHandler<C1, C2, C3> handler, TRunner runner)
         where TRunner : IRunner
-        => query.Handle(updator,
-            static (IEntityHost host, in ComponentHandler<C1, C2, C3> updator, int from, int to) => {
+        => query.Handle(handler,
+            static (IEntityHost host, in ComponentHandler<C1, C2, C3> handler, int from, int to) => {
                 var desc = host.Descriptor;
                 var slots = host.AllocatedSlots;
 
@@ -283,7 +283,7 @@ public static partial class EntityQueryExtensions
 
                 for (int i = from; i != to; ++i) {
                     var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slots[i]));
-                    updator(
+                    handler(
                         ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)),
                         ref Unsafe.AsRef<C2>((void*)(ptr + c2Offset)),
                         ref Unsafe.AsRef<C3>((void*)(ptr + c3Offset)));
@@ -292,10 +292,10 @@ public static partial class EntityQueryExtensions
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForEach<TRunner, C1, C2, C3, C4>(
-        this IEntityQuery query, ComponentHandler<C1, C2, C3, C4> updator, TRunner runner)
+        this IEntityQuery query, ComponentHandler<C1, C2, C3, C4> handler, TRunner runner)
         where TRunner : IRunner
-        => query.Handle(updator,
-            static (IEntityHost host, in ComponentHandler<C1, C2, C3, C4> updator, int from, int to) => {
+        => query.Handle(handler,
+            static (IEntityHost host, in ComponentHandler<C1, C2, C3, C4> handler, int from, int to) => {
                 var desc = host.Descriptor;
                 var slots = host.AllocatedSlots;
 
@@ -306,7 +306,7 @@ public static partial class EntityQueryExtensions
 
                 for (int i = from; i != to; ++i) {
                     var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slots[i]));
-                    updator(
+                    handler(
                         ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)),
                         ref Unsafe.AsRef<C2>((void*)(ptr + c2Offset)),
                         ref Unsafe.AsRef<C3>((void*)(ptr + c3Offset)),
@@ -316,10 +316,10 @@ public static partial class EntityQueryExtensions
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForEach<TRunner, C1, C2, C3, C4, C5>(
-        this IEntityQuery query, ComponentHandler<C1, C2, C3, C4, C5> updator, TRunner runner)
+        this IEntityQuery query, ComponentHandler<C1, C2, C3, C4, C5> handler, TRunner runner)
         where TRunner : IRunner
-        => query.Handle(updator,
-            static (IEntityHost host, in ComponentHandler<C1, C2, C3, C4, C5> updator, int from, int to) => {
+        => query.Handle(handler,
+            static (IEntityHost host, in ComponentHandler<C1, C2, C3, C4, C5> handler, int from, int to) => {
                 var desc = host.Descriptor;
                 var slots = host.AllocatedSlots;
 
@@ -331,7 +331,7 @@ public static partial class EntityQueryExtensions
 
                 for (int i = from; i != to; ++i) {
                     var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slots[i]));
-                    updator(
+                    handler(
                         ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)),
                         ref Unsafe.AsRef<C2>((void*)(ptr + c2Offset)),
                         ref Unsafe.AsRef<C3>((void*)(ptr + c3Offset)),
@@ -342,10 +342,10 @@ public static partial class EntityQueryExtensions
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForEach<TRunner, C1, C2, C3, C4, C5, C6>(
-        this IEntityQuery query, ComponentHandler<C1, C2, C3, C4, C5, C6> updator, TRunner runner)
+        this IEntityQuery query, ComponentHandler<C1, C2, C3, C4, C5, C6> handler, TRunner runner)
         where TRunner : IRunner
-        => query.Handle(updator,
-            static (IEntityHost host, in ComponentHandler<C1, C2, C3, C4, C5, C6> updator, int from, int to) => {
+        => query.Handle(handler,
+            static (IEntityHost host, in ComponentHandler<C1, C2, C3, C4, C5, C6> handler, int from, int to) => {
                 var desc = host.Descriptor;
                 var slots = host.AllocatedSlots;
 
@@ -358,7 +358,7 @@ public static partial class EntityQueryExtensions
 
                 for (int i = from; i != to; ++i) {
                     var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slots[i]));
-                    updator(
+                    handler(
                         ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)),
                         ref Unsafe.AsRef<C2>((void*)(ptr + c2Offset)),
                         ref Unsafe.AsRef<C3>((void*)(ptr + c3Offset)),
@@ -372,33 +372,33 @@ public static partial class EntityQueryExtensions
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForEachOnParallel<C1>(
-        this IEntityQuery query, ComponentHandler<C1> updator)
-        => query.ForEach(updator, ParallelRunner.Default);
+        this IEntityQuery query, ComponentHandler<C1> handler)
+        => query.ForEach(handler, ParallelRunner.Default);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForEachOnParallel<C1, C2>(
-        this IEntityQuery query, ComponentHandler<C1, C2> updator)
-        => query.ForEach(updator, ParallelRunner.Default);
+        this IEntityQuery query, ComponentHandler<C1, C2> handler)
+        => query.ForEach(handler, ParallelRunner.Default);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForEachOnParallel<C1, C2, C3>(
-        this IEntityQuery query, ComponentHandler<C1, C2, C3> updator)
-        => query.ForEach(updator, ParallelRunner.Default);
+        this IEntityQuery query, ComponentHandler<C1, C2, C3> handler)
+        => query.ForEach(handler, ParallelRunner.Default);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForEachOnParallel<C1, C2, C3, C4>(
-        this IEntityQuery query, ComponentHandler<C1, C2, C3, C4> updator)
-        => query.ForEach(updator, ParallelRunner.Default);
+        this IEntityQuery query, ComponentHandler<C1, C2, C3, C4> handler)
+        => query.ForEach(handler, ParallelRunner.Default);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForEachOnParallel<C1, C2, C3, C4, C5>(
-        this IEntityQuery query, ComponentHandler<C1, C2, C3, C4, C5> updator)
-        => query.ForEach(updator, ParallelRunner.Default);
+        this IEntityQuery query, ComponentHandler<C1, C2, C3, C4, C5> handler)
+        => query.ForEach(handler, ParallelRunner.Default);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForEachOnParallel<C1, C2, C3, C4, C5, C6>(
-        this IEntityQuery query, ComponentHandler<C1, C2, C3, C4, C5, C6> updator)
-        => query.ForEach(updator, ParallelRunner.Default);
+        this IEntityQuery query, ComponentHandler<C1, C2, C3, C4, C5, C6> handler)
+        => query.ForEach(handler, ParallelRunner.Default);
     
     #endregion
 }
