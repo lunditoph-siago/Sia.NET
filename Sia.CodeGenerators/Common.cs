@@ -33,7 +33,7 @@ internal static class Common
                     : ImmutableArray<string>.Empty,
                 (attributes
                     .FirstOrDefault(data =>
-                        data!.AttributeClass!.ToDisplayString() == "Sia.SiaPropertyAttribute")
+                        data!.AttributeClass!.ToDisplayString() == "Sia.SiaAttribute")
                     ?.NamedArguments.ToImmutableDictionary())
                         ?? ImmutableDictionary<string, TypedConstant>.Empty)
         {

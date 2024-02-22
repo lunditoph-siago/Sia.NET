@@ -25,7 +25,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         context.RegisterPostInitializationOutput(static context => {
-            context.AddSource("SiaPropertyAttribute.g.cs",
+            context.AddSource("SiaAttribute.g.cs",
                 SourceText.From(SiaPropertyAttributeSource, Encoding.UTF8));
         });
 

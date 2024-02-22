@@ -11,15 +11,15 @@ public static partial class Example5_ComponentBundle
             => new(id);
     }
 
-    public record struct Name([SiaProperty] string Value)
+    public record struct Name([Sia] string Value)
     {
         public static implicit operator Name(string name)
             => new(name);
     }
 
-    public record struct Position([SiaProperty] Vector3 Value);
-    public record struct Rotation([SiaProperty] Quaternion Value);
-    public record struct Scale([SiaProperty] Vector3 Value);
+    public record struct Position([Sia] Vector3 Value);
+    public record struct Rotation([Sia] Quaternion Value);
+    public record struct Scale([Sia] Vector3 Value);
 
     public record struct TransformBundle(
         Position Position, Rotation Rotation, Scale Scale) : IComponentBundle
@@ -41,7 +41,7 @@ public static partial class Example5_ComponentBundle
                 TransformBundle: new()) {}
     }
     
-    public record struct HP([SiaProperty] int Value);
+    public record struct HP([Sia] int Value);
     
     public static class TestObject
     {
