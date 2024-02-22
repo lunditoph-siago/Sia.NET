@@ -21,12 +21,12 @@ public static partial class Example1_HealthDamage
     }
 
     public partial record struct Transform(
-        [SiaProperty] Vector2 Position,
-        [SiaProperty] float Angle);
+        [Sia] Vector2 Position,
+        [Sia] float Angle);
 
     public partial record struct Health(
-        [SiaProperty] float Value,
-        [SiaProperty] float Debuff)
+        [Sia] float Value,
+        [Sia] float Debuff)
     {
         public Health() : this(100, 0) {}
 

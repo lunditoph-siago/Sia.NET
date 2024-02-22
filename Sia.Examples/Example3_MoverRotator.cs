@@ -53,13 +53,13 @@ public static class QuaternionExtensions
 
 public static partial class Example3_MoveRotator
 {
-    public partial record struct Position([SiaProperty] Vector3 Value);
-    public partial record struct Rotation([SiaProperty] Quaternion Value)
+    public partial record struct Position([Sia] Vector3 Value);
+    public partial record struct Rotation([Sia] Quaternion Value)
     {
         public Rotation() : this(Quaternion.Identity) {}
     }
-    public partial record struct Mover([SiaProperty] float Speed);
-    public partial record struct Rotator([SiaProperty] Vector3 AngularSpeed);
+    public partial record struct Mover([Sia] float Speed);
+    public partial record struct Rotator([Sia] Vector3 AngularSpeed);
 
     public sealed class Frame : IAddon
     {

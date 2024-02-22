@@ -28,12 +28,12 @@ public static partial class Example1_HealthDamage
     }
 
     public partial record struct Transform(
-        [SiaProperty] Vector2 Position,
-        [SiaProperty] float Angle);
+        [Sia] Vector2 Position,
+        [Sia] float Angle);
 
     public partial record struct Health(
-        [SiaProperty] float Value,
-        [SiaProperty] float Debuff)
+        [Sia] float Value,
+        [Sia] float Debuff)
     {
         public Health() : this(100, 0) {}
 
@@ -142,15 +142,15 @@ public static partial class Example1_HealthDamage
             var player = Player.Create(world, new(1, 1));
             game.Update(0.5f);
 
-            player.Modify(new Transform.SetPosition(new(1, 2)));
+            player.Transform_SetPosition(new(1, 2));
             game.Update(0.5f);
 
             game.Scheduler.CreateTask(() => {
                 Console.WriteLine("Callback invoked after health and gameplay systems");
                 return true; // remove task
-            }, handle.TaskGraphNodes);
+            }, handle.SystemTaskNodes);
         
-            player.Modify(new Transform.SetPosition(new(1, 3)));
+            player.Transform_SetPosition(new(1, 3));
             game.Update(0.5f);
             game.Update(0.5f);
             game.Update(0.5f);

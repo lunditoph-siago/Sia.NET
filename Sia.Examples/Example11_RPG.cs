@@ -72,11 +72,11 @@ public static partial class Example11_RPG
         float DefenseGrowthRate);
     
     public partial record struct Character(
-        [SiaProperty] string Name,
-        [SiaProperty] float HP,
-        [SiaProperty] float MP,
-        [SiaProperty] int Level = 0,
-        [SiaProperty] EntityRef? Weapon = null)
+        [Sia] string Name,
+        [Sia] float HP,
+        [Sia] float MP,
+        [Sia] int Level = 0,
+        [Sia] EntityRef? Weapon = null)
     {
         public readonly record struct Damage(EntityRef Attacker) : ICommand
         {

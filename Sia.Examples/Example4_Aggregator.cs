@@ -10,7 +10,7 @@ public static partial class Example4_Aggregator
             => new(id);
     }
 
-    public partial record struct ComponentCount([SiaProperty] int Value);
+    public partial record struct ComponentCount([Sia] int Value);
 
     public record struct TestEntity(
         Aggregation<ObjectId> Aggregation,

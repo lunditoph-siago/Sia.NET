@@ -16,10 +16,10 @@ public static partial class Example9_Templates
     {
         public T? Value { get; set; }
 
-        [SiaProperty(Item = "TestItem")]
+        [Sia(Item = "TestItem")]
         public ImmutableDictionary<Vector2, string> Test = ImmutableDictionary<Vector2, string>.Empty;
 
-        [SiaProperty(Item = "TestItem2")]
+        [Sia(Item = "TestItem2")]
         public ImmutableArray<Vector2> Test2 = ImmutableArray<Vector2>.Empty;
     }
 
