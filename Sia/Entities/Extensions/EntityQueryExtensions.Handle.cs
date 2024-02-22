@@ -6,8 +6,8 @@ public static partial class EntityQueryExtensions
 {
     public readonly record struct HandleData(
         IEntityQuery Query, EntityHostRangeHandler Handler);
-    public readonly record struct HandleData<TUserData>(
-        IEntityQuery Query, TUserData UserData, EntityHostRangeHandler<TUserData> Handler);
+    public readonly record struct HandleData<TData>(
+        IEntityQuery Query, TData UserData, EntityHostRangeHandler<TData> Handler);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static (IEntityHost Host, int HostIndex, int SlotIndex) FindHost(
@@ -62,15 +62,14 @@ public static partial class EntityQueryExtensions
     }
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe void Handle<TRunner, TUserData>(
-        this IEntityQuery query, in TUserData userData, EntityHostRangeHandler<TUserData> handler,
-        TRunner runner)
+    public static unsafe void Handle<TRunner, TData>(
+        this IEntityQuery query, in TData userData, EntityHostRangeHandler<TData> handler, TRunner runner)
         where TRunner : IRunner
     {
         var count = query.Count;
         if (count == 0) { return; }
 
-        runner.Run(count, new(query, userData, handler), static (in HandleData<TUserData> data, (int, int) range) => {
+        runner.Run(count, new(query, userData, handler), static (in HandleData<TData> data, (int, int) range) => {
             var (from, to) = range;
             var remainingCount = to - from;
 
@@ -105,11 +104,11 @@ public static partial class EntityQueryExtensions
         => query.Handle(handler, CurrentThreadRunner.Instance);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe void Handle<TUserData>(
-        this IEntityQuery query, in TUserData data, EntityHostRangeHandler<TUserData> handler)
+    public static unsafe void Handle<TData>(
+        this IEntityQuery query, in TData data, EntityHostRangeHandler<TData> handler)
         => query.Handle(data, handler, CurrentThreadRunner.Instance);
 
-    #endregion
+    #endregion // CurrentThreadRunner
 
     #region ParallelRunner
 
@@ -119,9 +118,9 @@ public static partial class EntityQueryExtensions
         => query.Handle(handler, ParallelRunner.Default);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe void HandleOnParallel<TUserData>(
-        this IEntityQuery query, in TUserData data, EntityHostRangeHandler<TUserData> handler)
+    public static unsafe void HandleOnParallel<TData>(
+        this IEntityQuery query, in TData data, EntityHostRangeHandler<TData> handler)
         => query.Handle(data, handler, ParallelRunner.Default);
     
-    #endregion
+    #endregion // ParallelRunner
 }

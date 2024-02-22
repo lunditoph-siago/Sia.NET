@@ -4,6 +4,8 @@ using System.Runtime.CompilerServices;
 
 public static partial class EntityHostExtensions
 {
+    #region EntityHandler
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void ForEach<TRunner>(
         this IEntityHost host, EntityHandler handler, TRunner runner)
@@ -17,11 +19,11 @@ public static partial class EntityHostExtensions
             }, runner);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe void ForEach<TRunner, TUserData>(
-        this IEntityHost host, in TUserData userData, EntityHandler<TUserData> handler, TRunner runner)
+    public static unsafe void ForEach<TRunner, TData>(
+        this IEntityHost host, in TData userData, EntityHandler<TData> handler, TRunner runner)
         where TRunner : IRunner
         => host.Handle((userData, handler),
-            static (IEntityHost host, in (TUserData, EntityHandler<TUserData>) entry, int from, int to) => {
+            static (IEntityHost host, in (TData, EntityHandler<TData>) entry, int from, int to) => {
                 ref readonly var data = ref entry.Item1;
                 var handler = entry.Item2;
                 var slosts = host.AllocatedSlots;
@@ -30,6 +32,22 @@ public static partial class EntityHostExtensions
                 }
             }, runner);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static unsafe void ForEach<TRunner>(
+        this IEntityHost host, SimpleEntityHandler handler, TRunner runner)
+        where TRunner : IRunner
+        => host.ForEach(handler,
+            static (in SimpleEntityHandler handler, in EntityRef entity)
+                => handler(entity), runner);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static unsafe void ForEach<TRunner, TData>(
+        this IEntityHost host, in TData userData, SimpleEntityHandler<TData> handler, TRunner runner)
+        where TRunner : IRunner
+        => host.ForEach((handler, userData),
+            static (in (SimpleEntityHandler<TData>, TData) data, in EntityRef entity)
+                => data.Item1(data.Item2, entity), runner);
+
     #region CurrentThreadRunner
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -37,187 +55,70 @@ public static partial class EntityHostExtensions
         => host.ForEach(handler, CurrentThreadRunner.Instance);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe void ForEach<TUserData>(
-        this IEntityHost host, in TUserData data, EntityHandler<TUserData> handler)
+    public static unsafe void ForEach<TData>(
+        this IEntityHost host, in TData data, EntityHandler<TData> handler)
         => host.ForEach(data, handler, CurrentThreadRunner.Instance);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void ForEach(this IEntityHost host, SimpleEntityHandler handler)
-        => host.ForEach(handler,
-            static (in SimpleEntityHandler handler, in EntityRef entity) => handler(entity));
+        => host.ForEach(handler, CurrentThreadRunner.Instance);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe void ForEach<TData>(this IEntityHost host, in TData data, SimpleEntityHandler<TData> handler)
-        => host.ForEach((handler, data),
-            static (in (SimpleEntityHandler<TData>, TData) data, in EntityRef entity) => data.Item1(data.Item2, entity));
+    public static unsafe void ForEach<TData>(
+        this IEntityHost host, in TData data, SimpleEntityHandler<TData> handler)
+        => host.ForEach(data, handler, CurrentThreadRunner.Instance);
     
-    #endregion
+    #endregion // CurrentThreadRunner
 
-    #region ParallelRunner
+   #region ParallelRunner
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void ForEachOnParallel(this IEntityHost host, EntityHandler handler)
         => host.ForEach(handler, ParallelRunner.Default);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe void ForEachOnParallel<TUserData>(
-        this IEntityHost host, in TUserData data, EntityHandler<TUserData> handler)
+    public static unsafe void ForEachOnParallel<TData>(
+        this IEntityHost host, in TData data, EntityHandler<TData> handler)
         => host.ForEach(data, handler, ParallelRunner.Default);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void ForEachOnParallel(this IEntityHost host, SimpleEntityHandler handler)
-        => host.ForEachOnParallel(handler,
-            static (in SimpleEntityHandler handler, in EntityRef entity) => handler(entity));
+        => host.ForEach(handler, ParallelRunner.Default);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe void ForEachOnParallel<TData>(this IEntityHost host, in TData data, SimpleEntityHandler<TData> handler)
-        => host.ForEachOnParallel((handler, data),
-            static (in (SimpleEntityHandler<TData>, TData) data, in EntityRef entity) => data.Item1(data.Item2, entity));
+    public static unsafe void ForEachOnParallel<TData>(
+        this IEntityHost host, in TData data, SimpleEntityHandler<TData> handler)
+        => host.ForEach(data, handler, ParallelRunner.Default);
     
-    #endregion
+    #endregion // ParallelRunner
+
+    #endregion // EntityHandler
+
+    #region ComponentHanlder
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForEach<C1>(
-        this IEntityHost host, ComponentHandler<C1> updator)
-    {
-        var desc = host.Descriptor;
-
-        var c1Offset = desc.GetOffset<C1>();
-
-        foreach (ref readonly var slot in host.AllocatedSlots) {
-            var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slot));
-            updator(ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)));
-        }
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForEach<C1, C2>(
-        this IEntityHost host, ComponentHandler<C1, C2> updator)
-    {
-        var desc = host.Descriptor;
-
-        var c1Offset = desc.GetOffset<C1>();
-        var c2Offset = desc.GetOffset<C2>();
-
-        foreach (ref readonly var slot in host.AllocatedSlots) {
-            var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slot));
-            updator(
-                ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)),
-                ref Unsafe.AsRef<C2>((void*)(ptr + c2Offset)));
-        }
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForEach<C1, C2, C3>(
-        this IEntityHost host, ComponentHandler<C1, C2, C3> updator)
-    {
-        var desc = host.Descriptor;
-
-        var c1Offset = desc.GetOffset<C1>();
-        var c2Offset = desc.GetOffset<C2>();
-        var c3Offset = desc.GetOffset<C3>();
-
-        foreach (ref readonly var slot in host.AllocatedSlots) {
-            var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slot));
-            updator(
-                ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)),
-                ref Unsafe.AsRef<C2>((void*)(ptr + c2Offset)),
-                ref Unsafe.AsRef<C3>((void*)(ptr + c3Offset)));
-        }
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForEach<C1, C2, C3, C4>(
-        this IEntityHost host, ComponentHandler<C1, C2, C3, C4> updator)
-    {
-        var desc = host.Descriptor;
-
-        var c1Offset = desc.GetOffset<C1>();
-        var c2Offset = desc.GetOffset<C2>();
-        var c3Offset = desc.GetOffset<C3>();
-        var c4Offset = desc.GetOffset<C4>();
-
-        foreach (ref readonly var slot in host.AllocatedSlots) {
-            var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slot));
-            updator(
-                ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)),
-                ref Unsafe.AsRef<C2>((void*)(ptr + c2Offset)),
-                ref Unsafe.AsRef<C3>((void*)(ptr + c3Offset)),
-                ref Unsafe.AsRef<C4>((void*)(ptr + c4Offset)));
-        }
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForEach<C1, C2, C3, C4, C5>(
-        this IEntityHost host, ComponentHandler<C1, C2, C3, C4, C5> updator)
-    {
-        var desc = host.Descriptor;
-
-        var c1Offset = desc.GetOffset<C1>();
-        var c2Offset = desc.GetOffset<C2>();
-        var c3Offset = desc.GetOffset<C3>();
-        var c4Offset = desc.GetOffset<C4>();
-        var c5Offset = desc.GetOffset<C5>();
-
-        foreach (ref readonly var slot in host.AllocatedSlots) {
-            var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slot));
-            updator(
-                ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)),
-                ref Unsafe.AsRef<C2>((void*)(ptr + c2Offset)),
-                ref Unsafe.AsRef<C3>((void*)(ptr + c3Offset)),
-                ref Unsafe.AsRef<C4>((void*)(ptr + c4Offset)),
-                ref Unsafe.AsRef<C5>((void*)(ptr + c5Offset)));
-        }
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForEach<C1, C2, C3, C4, C5, C6>(
-        this IEntityHost host, ComponentHandler<C1, C2, C3, C4, C5, C6> updator)
-    {
-        var desc = host.Descriptor;
-
-        var c1Offset = desc.GetOffset<C1>();
-        var c2Offset = desc.GetOffset<C2>();
-        var c3Offset = desc.GetOffset<C3>();
-        var c4Offset = desc.GetOffset<C4>();
-        var c5Offset = desc.GetOffset<C5>();
-        var c6Offset = desc.GetOffset<C6>();
-
-        foreach (ref readonly var slot in host.AllocatedSlots) {
-            var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slot));
-            updator(
-                ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)),
-                ref Unsafe.AsRef<C2>((void*)(ptr + c2Offset)),
-                ref Unsafe.AsRef<C3>((void*)(ptr + c3Offset)),
-                ref Unsafe.AsRef<C4>((void*)(ptr + c4Offset)),
-                ref Unsafe.AsRef<C5>((void*)(ptr + c5Offset)),
-                ref Unsafe.AsRef<C6>((void*)(ptr + c6Offset)));
-        }
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForEach<TRunner, C1>(
-        this IEntityHost host, ComponentHandler<C1> updator, TRunner runner)
+    public unsafe static void ForSlice<TRunner, C1>(
+        this IEntityHost host, ComponentHandler<C1> handler, TRunner runner)
         where TRunner : IRunner
-        => host.Handle(updator,
-            static (IEntityHost host, in ComponentHandler<C1> updator, int from, int to) => {
+        => host.Handle(handler,
+            static (IEntityHost host, in ComponentHandler<C1> handler, int from, int to) => {
                 var desc = host.Descriptor;
                 var slots = host.AllocatedSlots;
 
                 var c1Offset = desc.GetOffset<C1>();
 
                 for (int i = from; i != to; ++i) {
-                    var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slots[i]));
-                    updator(ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)));
+                    ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
+                    handler(ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)));
                 }
             }, runner);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForEach<TRunner, C1, C2>(
-        this IEntityHost host, ComponentHandler<C1, C2> updator, TRunner runner)
+    public unsafe static void ForSlice<TRunner, C1, C2>(
+        this IEntityHost host, ComponentHandler<C1, C2> handler, TRunner runner)
         where TRunner : IRunner
-        => host.Handle(updator,
-            static (IEntityHost host, in ComponentHandler<C1, C2> updator, int from, int to) => {
+        => host.Handle(handler,
+            static (IEntityHost host, in ComponentHandler<C1, C2> handler, int from, int to) => {
                 var desc = host.Descriptor;
                 var slots = host.AllocatedSlots;
 
@@ -225,19 +126,19 @@ public static partial class EntityHostExtensions
                 var c2Offset = desc.GetOffset<C2>();
 
                 for (int i = from; i != to; ++i) {
-                    var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slots[i]));
-                    updator(
-                        ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)),
-                        ref Unsafe.AsRef<C2>((void*)(ptr + c2Offset)));
+                    ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
+                    handler(
+                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
+                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)));
                 }
             }, runner);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForEach<TRunner, C1, C2, C3>(
-        this IEntityHost host, ComponentHandler<C1, C2, C3> updator, TRunner runner)
+    public unsafe static void ForSlice<TRunner, C1, C2, C3>(
+        this IEntityHost host, ComponentHandler<C1, C2, C3> handler, TRunner runner)
         where TRunner : IRunner
-        => host.Handle(updator,
-            static (IEntityHost host, in ComponentHandler<C1, C2, C3> updator, int from, int to) => {
+        => host.Handle(handler,
+            static (IEntityHost host, in ComponentHandler<C1, C2, C3> handler, int from, int to) => {
                 var desc = host.Descriptor;
                 var slots = host.AllocatedSlots;
 
@@ -246,20 +147,20 @@ public static partial class EntityHostExtensions
                 var c3Offset = desc.GetOffset<C3>();
 
                 for (int i = from; i != to; ++i) {
-                    var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slots[i]));
-                    updator(
-                        ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)),
-                        ref Unsafe.AsRef<C2>((void*)(ptr + c2Offset)),
-                        ref Unsafe.AsRef<C3>((void*)(ptr + c3Offset)));
+                    ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
+                    handler(
+                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
+                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
+                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)));
                 }
             }, runner);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForEach<TRunner, C1, C2, C3, C4>(
-        this IEntityHost host, ComponentHandler<C1, C2, C3, C4> updator, TRunner runner)
+    public unsafe static void ForSlice<TRunner, C1, C2, C3, C4>(
+        this IEntityHost host, ComponentHandler<C1, C2, C3, C4> handler, TRunner runner)
         where TRunner : IRunner
-        => host.Handle(updator,
-            static (IEntityHost host, in ComponentHandler<C1, C2, C3, C4> updator, int from, int to) => {
+        => host.Handle(handler,
+            static (IEntityHost host, in ComponentHandler<C1, C2, C3, C4> handler, int from, int to) => {
                 var desc = host.Descriptor;
                 var slots = host.AllocatedSlots;
 
@@ -269,21 +170,21 @@ public static partial class EntityHostExtensions
                 var c4Offset = desc.GetOffset<C4>();
 
                 for (int i = from; i != to; ++i) {
-                    var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slots[i]));
-                    updator(
-                        ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)),
-                        ref Unsafe.AsRef<C2>((void*)(ptr + c2Offset)),
-                        ref Unsafe.AsRef<C3>((void*)(ptr + c3Offset)),
-                        ref Unsafe.AsRef<C4>((void*)(ptr + c4Offset)));
+                    ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
+                    handler(
+                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
+                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
+                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)),
+                        ref Unsafe.As<byte, C4>(ref Unsafe.AddByteOffset(ref byteRef, c4Offset)));
                 }
             }, runner);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForEach<TRunner, C1, C2, C3, C4, C5>(
-        this IEntityHost host, ComponentHandler<C1, C2, C3, C4, C5> updator, TRunner runner)
+    public unsafe static void ForSlice<TRunner, C1, C2, C3, C4, C5>(
+        this IEntityHost host, ComponentHandler<C1, C2, C3, C4, C5> handler, TRunner runner)
         where TRunner : IRunner
-        => host.Handle(updator,
-            static (IEntityHost host, in ComponentHandler<C1, C2, C3, C4, C5> updator, int from, int to) => {
+        => host.Handle(handler,
+            static (IEntityHost host, in ComponentHandler<C1, C2, C3, C4, C5> handler, int from, int to) => {
                 var desc = host.Descriptor;
                 var slots = host.AllocatedSlots;
 
@@ -294,22 +195,22 @@ public static partial class EntityHostExtensions
                 var c5Offset = desc.GetOffset<C5>();
 
                 for (int i = from; i != to; ++i) {
-                    var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slots[i]));
-                    updator(
-                        ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)),
-                        ref Unsafe.AsRef<C2>((void*)(ptr + c2Offset)),
-                        ref Unsafe.AsRef<C3>((void*)(ptr + c3Offset)),
-                        ref Unsafe.AsRef<C4>((void*)(ptr + c4Offset)),
-                        ref Unsafe.AsRef<C5>((void*)(ptr + c5Offset)));
+                    ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
+                    handler(
+                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
+                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
+                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)),
+                        ref Unsafe.As<byte, C4>(ref Unsafe.AddByteOffset(ref byteRef, c4Offset)),
+                        ref Unsafe.As<byte, C5>(ref Unsafe.AddByteOffset(ref byteRef, c5Offset)));
                 }
             }, runner);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForEach<TRunner, C1, C2, C3, C4, C5, C6>(
-        this IEntityHost host, ComponentHandler<C1, C2, C3, C4, C5, C6> updator, TRunner runner)
+    public unsafe static void ForSlice<TRunner, C1, C2, C3, C4, C5, C6>(
+        this IEntityHost host, ComponentHandler<C1, C2, C3, C4, C5, C6> handler, TRunner runner)
         where TRunner : IRunner
-        => host.Handle(updator,
-            static (IEntityHost host, in ComponentHandler<C1, C2, C3, C4, C5, C6> updator, int from, int to) => {
+        => host.Handle(handler,
+            static (IEntityHost host, in ComponentHandler<C1, C2, C3, C4, C5, C6> handler, int from, int to) => {
                 var desc = host.Descriptor;
                 var slots = host.AllocatedSlots;
 
@@ -321,48 +222,299 @@ public static partial class EntityHostExtensions
                 var c6Offset = desc.GetOffset<C6>();
 
                 for (int i = from; i != to; ++i) {
-                    var ptr = (IntPtr)Unsafe.AsPointer(ref host.UnsafeGetByteRef(slots[i]));
-                    updator(
-                        ref Unsafe.AsRef<C1>((void*)(ptr + c1Offset)),
-                        ref Unsafe.AsRef<C2>((void*)(ptr + c2Offset)),
-                        ref Unsafe.AsRef<C3>((void*)(ptr + c3Offset)),
-                        ref Unsafe.AsRef<C4>((void*)(ptr + c4Offset)),
-                        ref Unsafe.AsRef<C5>((void*)(ptr + c5Offset)),
-                        ref Unsafe.AsRef<C6>((void*)(ptr + c6Offset)));
+                    ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
+                    handler(
+                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
+                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
+                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)),
+                        ref Unsafe.As<byte, C4>(ref Unsafe.AddByteOffset(ref byteRef, c4Offset)),
+                        ref Unsafe.As<byte, C5>(ref Unsafe.AddByteOffset(ref byteRef, c5Offset)),
+                        ref Unsafe.As<byte, C6>(ref Unsafe.AddByteOffset(ref byteRef, c6Offset)));
                 }
             }, runner);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void ForSlice<TRunner, TData, C1>(
+        this IEntityHost host, in TData userData, DataComponentHandler<TData, C1> handler, TRunner runner)
+        where TRunner : IRunner
+        => host.Handle((handler, userData),
+            static (IEntityHost host, in (DataComponentHandler<TData, C1>, TData) data, int from, int to) => {
+                var desc = host.Descriptor;
+                var slots = host.AllocatedSlots;
+
+                var c1Offset = desc.GetOffset<C1>();
+
+                var handler = data.Item1;
+                ref readonly var userData = ref data.Item2;
+
+                for (int i = from; i != to; ++i) {
+                    ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
+                    handler(userData, ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)));
+                }
+            }, runner);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void ForSlice<TRunner, TData, C1, C2>(
+        this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2> handler, TRunner runner)
+        where TRunner : IRunner
+        => host.Handle((handler, userData),
+            static (IEntityHost host, in (DataComponentHandler<TData, C1, C2>, TData) data, int from, int to) => {
+                var desc = host.Descriptor;
+                var slots = host.AllocatedSlots;
+
+                var c1Offset = desc.GetOffset<C1>();
+                var c2Offset = desc.GetOffset<C2>();
+
+                var handler = data.Item1;
+                ref readonly var userData = ref data.Item2;
+
+                for (int i = from; i != to; ++i) {
+                    ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
+                    handler(userData,
+                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
+                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)));
+                }
+            }, runner);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void ForSlice<TRunner, TData, C1, C2, C3>(
+        this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2, C3> handler, TRunner runner)
+        where TRunner : IRunner
+        => host.Handle((handler, userData),
+            static (IEntityHost host, in (DataComponentHandler<TData, C1, C2, C3>, TData) data, int from, int to) => {
+                var desc = host.Descriptor;
+                var slots = host.AllocatedSlots;
+
+                var c1Offset = desc.GetOffset<C1>();
+                var c2Offset = desc.GetOffset<C2>();
+                var c3Offset = desc.GetOffset<C3>();
+
+                var handler = data.Item1;
+                ref readonly var userData = ref data.Item2;
+
+                for (int i = from; i != to; ++i) {
+                    ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
+                    handler(userData,
+                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
+                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
+                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)));
+                }
+            }, runner);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void ForSlice<TRunner, TData, C1, C2, C3, C4>(
+        this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2, C3, C4> handler, TRunner runner)
+        where TRunner : IRunner
+        => host.Handle((handler, userData),
+            static (IEntityHost host, in (DataComponentHandler<TData, C1, C2, C3, C4>, TData) data, int from, int to) => {
+                var desc = host.Descriptor;
+                var slots = host.AllocatedSlots;
+
+                var c1Offset = desc.GetOffset<C1>();
+                var c2Offset = desc.GetOffset<C2>();
+                var c3Offset = desc.GetOffset<C3>();
+                var c4Offset = desc.GetOffset<C4>();
+
+                var handler = data.Item1;
+                ref readonly var userData = ref data.Item2;
+
+                for (int i = from; i != to; ++i) {
+                    ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
+                    handler(userData,
+                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
+                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
+                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)),
+                        ref Unsafe.As<byte, C4>(ref Unsafe.AddByteOffset(ref byteRef, c4Offset)));
+                }
+            }, runner);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void ForSlice<TRunner, TData, C1, C2, C3, C4, C5>(
+        this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2, C3, C4, C5> handler, TRunner runner)
+        where TRunner : IRunner
+        => host.Handle((handler, userData),
+            static (IEntityHost host, in (DataComponentHandler<TData, C1, C2, C3, C4, C5>, TData) data, int from, int to) => {
+                var desc = host.Descriptor;
+                var slots = host.AllocatedSlots;
+
+                var c1Offset = desc.GetOffset<C1>();
+                var c2Offset = desc.GetOffset<C2>();
+                var c3Offset = desc.GetOffset<C3>();
+                var c4Offset = desc.GetOffset<C4>();
+                var c5Offset = desc.GetOffset<C5>();
+
+                var handler = data.Item1;
+                ref readonly var userData = ref data.Item2;
+
+                for (int i = from; i != to; ++i) {
+                    ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
+                    handler(userData,
+                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
+                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
+                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)),
+                        ref Unsafe.As<byte, C4>(ref Unsafe.AddByteOffset(ref byteRef, c4Offset)),
+                        ref Unsafe.As<byte, C5>(ref Unsafe.AddByteOffset(ref byteRef, c5Offset)));
+                }
+            }, runner);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void ForSlice<TRunner, TData, C1, C2, C3, C4, C5, C6>(
+        this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2, C3, C4, C5, C6> handler, TRunner runner)
+        where TRunner : IRunner
+        => host.Handle((handler, userData),
+            static (IEntityHost host, in (DataComponentHandler<TData, C1, C2, C3, C4, C5, C6>, TData) data, int from, int to) => {
+                var desc = host.Descriptor;
+                var slots = host.AllocatedSlots;
+
+                var c1Offset = desc.GetOffset<C1>();
+                var c2Offset = desc.GetOffset<C2>();
+                var c3Offset = desc.GetOffset<C3>();
+                var c4Offset = desc.GetOffset<C4>();
+                var c5Offset = desc.GetOffset<C5>();
+                var c6Offset = desc.GetOffset<C6>();
+
+                var handler = data.Item1;
+                ref readonly var userData = ref data.Item2;
+
+                for (int i = from; i != to; ++i) {
+                    ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
+                    handler(userData,
+                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
+                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
+                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)),
+                        ref Unsafe.As<byte, C4>(ref Unsafe.AddByteOffset(ref byteRef, c4Offset)),
+                        ref Unsafe.As<byte, C5>(ref Unsafe.AddByteOffset(ref byteRef, c5Offset)),
+                        ref Unsafe.As<byte, C6>(ref Unsafe.AddByteOffset(ref byteRef, c6Offset)));
+                }
+            }, runner);
+
+    #region CurrentThreadRunner
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void ForSlice<C1>(
+        this IEntityHost host, ComponentHandler<C1> handler)
+        => host.ForSlice(handler, CurrentThreadRunner.Instance);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void ForSlice<C1, C2>(
+        this IEntityHost host, ComponentHandler<C1, C2> handler)
+        => host.ForSlice(handler, CurrentThreadRunner.Instance);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void ForSlice<C1, C2, C3>(
+        this IEntityHost host, ComponentHandler<C1, C2, C3> handler)
+        => host.ForSlice(handler, CurrentThreadRunner.Instance);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void ForSlice<C1, C2, C3, C4>(
+        this IEntityHost host, ComponentHandler<C1, C2, C3, C4> handler)
+        => host.ForSlice(handler, CurrentThreadRunner.Instance);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void ForSlice<C1, C2, C3, C4, C5>(
+        this IEntityHost host, ComponentHandler<C1, C2, C3, C4, C5> handler)
+        => host.ForSlice(handler, CurrentThreadRunner.Instance);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void ForSlice<C1, C2, C3, C4, C5, C6>(
+        this IEntityHost host, ComponentHandler<C1, C2, C3, C4, C5, C6> handler)
+        => host.ForSlice(handler, CurrentThreadRunner.Instance);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void ForSlice<TData, C1>(
+        this IEntityHost host, in TData userData, DataComponentHandler<TData, C1> handler)
+        => host.ForSlice(userData, handler, CurrentThreadRunner.Instance);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void ForSlice<TData, C1, C2>(
+        this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2> handler)
+        => host.ForSlice(userData, handler, CurrentThreadRunner.Instance);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void ForSlice<TData, C1, C2, C3>(
+        this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2, C3> handler)
+        => host.ForSlice(userData, handler, CurrentThreadRunner.Instance);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void ForSlice<TData, C1, C2, C3, C4>(
+        this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2, C3, C4> handler)
+        => host.ForSlice(userData, handler, CurrentThreadRunner.Instance);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void ForSlice<TData, C1, C2, C3, C4, C5>(
+        this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2, C3, C4, C5> handler)
+        => host.ForSlice(userData, handler, CurrentThreadRunner.Instance);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void ForSlice<TData, C1, C2, C3, C4, C5, C6>(
+        this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2, C3, C4, C5, C6> handler)
+        => host.ForSlice(userData, handler, CurrentThreadRunner.Instance);
+    
+    #endregion // ParallelRunner
 
     #region ParallelRunner
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForEachOnParallel<C1>(
-        this IEntityHost host, ComponentHandler<C1> updator)
-        => host.ForEach(updator, ParallelRunner.Default);
+    public unsafe static void ForSliceOnParallel<C1>(
+        this IEntityHost host, ComponentHandler<C1> handler)
+        => host.ForSlice(handler, ParallelRunner.Default);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForEachOnParallel<C1, C2>(
-        this IEntityHost host, ComponentHandler<C1, C2> updator)
-        => host.ForEach(updator, ParallelRunner.Default);
+    public unsafe static void ForSliceOnParallel<C1, C2>(
+        this IEntityHost host, ComponentHandler<C1, C2> handler)
+        => host.ForSlice(handler, ParallelRunner.Default);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForEachOnParallel<C1, C2, C3>(
-        this IEntityHost host, ComponentHandler<C1, C2, C3> updator)
-        => host.ForEach(updator, ParallelRunner.Default);
+    public unsafe static void ForSliceOnParallel<C1, C2, C3>(
+        this IEntityHost host, ComponentHandler<C1, C2, C3> handler)
+        => host.ForSlice(handler, ParallelRunner.Default);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForEachOnParallel<C1, C2, C3, C4>(
-        this IEntityHost host, ComponentHandler<C1, C2, C3, C4> updator)
-        => host.ForEach(updator, ParallelRunner.Default);
+    public unsafe static void ForSliceOnParallel<C1, C2, C3, C4>(
+        this IEntityHost host, ComponentHandler<C1, C2, C3, C4> handler)
+        => host.ForSlice(handler, ParallelRunner.Default);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForEachOnParallel<C1, C2, C3, C4, C5>(
-        this IEntityHost host, ComponentHandler<C1, C2, C3, C4, C5> updator)
-        => host.ForEach(updator, ParallelRunner.Default);
+    public unsafe static void ForSliceOnParallel<C1, C2, C3, C4, C5>(
+        this IEntityHost host, ComponentHandler<C1, C2, C3, C4, C5> handler)
+        => host.ForSlice(handler, ParallelRunner.Default);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForEachOnParallel<C1, C2, C3, C4, C5, C6>(
-        this IEntityHost host, ComponentHandler<C1, C2, C3, C4, C5, C6> updator)
-        => host.ForEach(updator, ParallelRunner.Default);
+    public unsafe static void ForSliceOnParallel<C1, C2, C3, C4, C5, C6>(
+        this IEntityHost host, ComponentHandler<C1, C2, C3, C4, C5, C6> handler)
+        => host.ForSlice(handler, ParallelRunner.Default);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void ForSliceOnParallel<TData, C1>(
+        this IEntityHost host, in TData userData, DataComponentHandler<TData, C1> handler)
+        => host.ForSlice(userData, handler, ParallelRunner.Default);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void ForSliceOnParallel<TData, C1, C2>(
+        this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2> handler)
+        => host.ForSlice(userData, handler, ParallelRunner.Default);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void ForSliceOnParallel<TData, C1, C2, C3>(
+        this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2, C3> handler)
+        => host.ForSlice(userData, handler, ParallelRunner.Default);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void ForSliceOnParallel<TData, C1, C2, C3, C4>(
+        this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2, C3, C4> handler)
+        => host.ForSlice(userData, handler, ParallelRunner.Default);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void ForSliceOnParallel<TData, C1, C2, C3, C4, C5>(
+        this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2, C3, C4, C5> handler)
+        => host.ForSlice(userData, handler, ParallelRunner.Default);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void ForSliceOnParallel<TData, C1, C2, C3, C4, C5, C6>(
+        this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2, C3, C4, C5, C6> handler)
+        => host.ForSlice(userData, handler, ParallelRunner.Default);
     
-    #endregion
+    #endregion // ParallelRunner
+
+    #endregion // ComponentHandler
 }

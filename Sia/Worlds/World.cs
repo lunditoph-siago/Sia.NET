@@ -62,11 +62,6 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
         => Query(Matchers.From<TTypeUnion>(), handler);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Query<TTypeUnion>(SimpleEntityHandler handler)
-        where TTypeUnion : ITypeUnion, new()
-        => Query(Matchers.From<TTypeUnion>(), handler);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Query(IEntityMatcher matcher, EntityHandler handler)
     {
         foreach (var host in _hosts.ValueSpan) {
@@ -79,33 +74,7 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Query(IEntityMatcher matcher, SimpleEntityHandler handler)
-    {
-        foreach (var host in _hosts.ValueSpan) {
-            if (host.Count != 0 && matcher.Match(host)) {
-                foreach (var entity in host) {
-                    handler(entity);
-                }
-            }
-        }
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Query<TData>(IEntityMatcher matcher, in TData data, EntityHandler<TData> handler)
-    {
-        var hosts = _hosts.UnsafeRawValues;
-        for (int i = 0; i != hosts.Count; ++i) {
-            var host = hosts[i];
-            if (host.Count != 0 && matcher.Match(host)) {
-                foreach (var entity in host) {
-                    handler(data, entity);
-                }
-            }
-        }
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Query<TData>(IEntityMatcher matcher, in TData data, SimpleEntityHandler<TData> handler)
     {
         var hosts = _hosts.UnsafeRawValues;
         for (int i = 0; i != hosts.Count; ++i) {
