@@ -18,7 +18,7 @@ public static partial class Example14_Parallel
             var watch = new Stopwatch();
             watch.Start();
 
-            query.ForEach((ref int num) => {
+            query.ForSlice((ref int num) => {
                 num++;
             });
 
@@ -36,7 +36,7 @@ public static partial class Example14_Parallel
             var watch = new Stopwatch();
             watch.Start();
 
-            query.ForEachOnParallel((ref int num) => {
+            query.ForSliceOnParallel((ref int num) => {
                 num++;
             });
 
