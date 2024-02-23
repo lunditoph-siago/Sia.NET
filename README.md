@@ -40,7 +40,7 @@ public static partial class Example1_HealthDamage
         public readonly record struct Damage(float Value) : ICommand
         {
             public void Execute(World world, in EntityRef target)
-                => target.Health_SetValue(target.Get<Health>().Value - Value);
+                => new View(target, world).Value -= Value;
         }
     }
 
@@ -56,7 +56,7 @@ public static partial class Example1_HealthDamage
                 ref var health = ref entity.Get<Health>();
                 if (health.Debuff != 0) {
                     entity.Modify(new Health.Damage(health.Debuff * game.DeltaTime));
-                    Console.WriteLine($"Damage: HP {entity.Get<Health>().Value}");
+                    Console.WriteLine($"Damage: HP {health.Value}");
                 }
             }
         }
@@ -93,12 +93,14 @@ public static partial class Example1_HealthDamage
         {
             foreach (var entity in query) {
                 var pos = entity.Get<Transform>().Position;
+                var health = new Health.View(entity);
+
                 if (pos.X == 1 && pos.Y == 1) {
                     entity.Modify(new Health.Damage(10));
-                    Console.WriteLine($"Damage: HP {entity.Get<Health>().Value}");
+                    Console.WriteLine($"Damage: HP {health.Value}");
                 }
                 if (pos.X == 1 && pos.Y == 2) {
-                    entity.Health_SetDebuff(100);
+                    health.Debuff = 100;
                     Console.WriteLine("Debuff!");
                 }
             }
@@ -142,7 +144,9 @@ public static partial class Example1_HealthDamage
             var player = Player.Create(world, new(1, 1));
             game.Update(0.5f);
 
-            player.Transform_SetPosition(new(1, 2));
+            var trans = new Transform.View(player) {
+                Position = new(1, 2)
+            };
             game.Update(0.5f);
 
             game.Scheduler.CreateTask(() => {
@@ -150,7 +154,8 @@ public static partial class Example1_HealthDamage
                 return true; // remove task
             }, handle.SystemTaskNodes);
         
-            player.Transform_SetPosition(new(1, 3));
+            trans.Position = new(1, 3);
+
             game.Update(0.5f);
             game.Update(0.5f);
             game.Update(0.5f);

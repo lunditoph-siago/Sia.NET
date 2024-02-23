@@ -125,14 +125,14 @@ internal static class Common
         return source;
     }
 
-    private class EmptyDisposable : IDisposable
+    public class EmptyDisposable : IDisposable
     {
         public static readonly EmptyDisposable Instance = new();
 
         public void Dispose() {}
     }
 
-    private class EnclosingDisposable(IndentedTextWriter source, int count) : IDisposable
+    public class EnclosingDisposable(IndentedTextWriter source, int count) : IDisposable
     {
         private readonly IndentedTextWriter _source = source;
         private readonly int _count = count;

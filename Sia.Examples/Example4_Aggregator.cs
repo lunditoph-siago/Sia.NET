@@ -32,7 +32,7 @@ public static partial class Example4_Aggregator
             foreach (var entity in query) {
                 ref var aggr = ref entity.Get<Aggregation<ObjectId>>();
                 int count = aggr.Group.Count;
-                entity.ComponentCount_SetValue(count);
+                world.Modify(entity, new ComponentCount.SetValue(count));
                 Console.WriteLine($"[{aggr.Id}] Count: " + count);
             }
         }
