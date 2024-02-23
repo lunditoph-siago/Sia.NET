@@ -82,14 +82,41 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
         
         context.RegisterSourceOutput(codeGenInfos , static (context, info) => {
             using var source = CreateFileSource(out var builder);
-            using var topLevelSource = CreateSource(out var topLevelBuilder);
-            topLevelSource.Indent++;
 
             using (GenerateInNamespace(source, info.Namespace)) {
                 using (GenerateInPartialTypes(source, info.ParentTypes)) {
-                    GenerateComponent(source, topLevelSource, info);
+                    using (GenerateInComponentType(source, info)) {
+                        var templateType = info.TemplateType;
+                        var compName = info.ComponentName;
+                        var properties = info.Properties;
+                        var immutable = info.Immutable;
+
+                        GenerateConstructor(source, templateType, compName, properties);
+
+                        source.WriteLine();
+                        GenerateConstructMethod(source, templateType, compName, properties);
+
+                        if (!immutable) {
+                            source.WriteLine();
+
+                            GenerateResetCommand(source,
+                                templateType: templateType,
+                                componentName: compName,
+                                properties: properties);
+                            
+                            if (properties.Length != 0) {
+                                source.WriteLine();
+                                SiaPropertyGenerator.GenerateViewTypeMainDecl(source, compName, templateType.TypeParameterList);
+
+                                foreach (var prop in properties) {
+                                    source.WriteLine();
+                                    SiaPropertyGenerator.GeneratePropertyCommands(
+                                        source, prop, compName, templateType.TypeParameterList);
+                                }
+                            }
+                        }
+                    }
                 }
-                source.WriteLine(topLevelBuilder.ToString());
             }
 
             Debug.Assert(source.Indent == 0);
@@ -116,11 +143,10 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
         return builder.ToString();
     }
 
-    private static void GenerateComponent(
-        IndentedTextWriter source, IndentedTextWriter topLevelSource, CodeGenerationInfo info)
+    private static IDisposable GenerateInComponentType(
+        IndentedTextWriter source, CodeGenerationInfo info)
     {
         var templateType = info.TemplateType;
-        var compName = info.ComponentName;
         var properties = info.Properties;
         var immutable = info.Immutable;
 
@@ -161,29 +187,7 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
         source.WriteLine("{");
         source.Indent++;
 
-        GenerateConstructor(source, templateType, compName, properties);
-
-        source.WriteLine();
-        GenerateConstructMethod(source, templateType, compName, properties);
-
-        if (!immutable) {
-            source.WriteLine();
-            GenerateResetCommand(source,
-                templateType: templateType,
-                componentName: compName,
-                properties: properties);
-            
-            var parentType = string.Join(".", info.ParentTypes.Select(t => t.Identifier));
-
-            foreach (var prop in properties) {
-                source.WriteLine();
-                SiaPropertyGenerator.GeneratePropertyCommands(
-                    source, topLevelSource, parentType, prop, compName, templateType.TypeParameterList);
-            }
-        }
-
-        source.Indent--;
-        source.WriteLine("}");
+        return new EnclosingDisposable(source, 1);
     }
 
     public static void GenerateConstructor(
