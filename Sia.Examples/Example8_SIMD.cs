@@ -3,6 +3,7 @@ namespace Sia_Examples;
 using System.Diagnostics;
 using System.Numerics;
 using CommunityToolkit.HighPerformance;
+using CommunityToolkit.HighPerformance.Buffers;
 using Sia;
 
 public static class Example8_Sum
@@ -45,7 +46,8 @@ public static class Example8_Sum
             var watch = new Stopwatch();
             watch.Start();
 
-            using var mem = query.RecordSlices(static (ref Number num, out float value) => {
+            using var mem = SpanOwner<float>.Allocate(query.Count);
+            query.RecordSlices(mem.DangerousGetArray(), static (ref Number num, out float value) => {
                 value = num.Value;
             });
             var result = mem.DangerousGetArray().Sum();
@@ -66,7 +68,8 @@ public static class Example8_Sum
             var watch = new Stopwatch();
             watch.Start();
 
-            using var mem = query.RecordSlices(static (ref Number num, out float value) => {
+            var mem = SpanOwner<float>.Allocate(query.Count);
+            query.RecordSlices(mem.Span, static (ref Number num, out float value) => {
                 value = num.Value;
             });
             var span = mem.Span;
