@@ -22,5 +22,4 @@ public static partial class Example9_Templates
         [Sia(Item = "TestItem2")]
         public ImmutableArray<Vector2> Test2 = ImmutableArray<Vector2>.Empty;
     }
-
 }
