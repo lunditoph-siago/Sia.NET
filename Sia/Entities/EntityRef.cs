@@ -45,8 +45,8 @@ public readonly struct EntityRef(scoped in StorageSlot slot, IEntityHost host)
             throw new ComponentNotFoundException("Component not found: " + typeof(TComponent));
         }
         ref var byteRef = ref Host.GetByteRef(Slot);
-        return ref Unsafe.AsRef<TComponent>(
-            (void*)((IntPtr)Unsafe.AsPointer(ref byteRef) + offset));
+        return ref Unsafe.As<byte, TComponent>(
+            ref Unsafe.AddByteOffset(ref byteRef, offset));
     }
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -57,8 +57,8 @@ public readonly struct EntityRef(scoped in StorageSlot slot, IEntityHost host)
             return ref Unsafe.NullRef<TComponent>();
         }
         ref var byteRef = ref Host.GetByteRef(Slot);
-        return ref Unsafe.AsRef<TComponent>(
-            (void*)((IntPtr)Unsafe.AsPointer(ref byteRef) + offset));
+        return ref Unsafe.As<byte, TComponent>(
+            ref Unsafe.AddByteOffset(ref byteRef, offset));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -134,8 +134,8 @@ public readonly record struct EntityRef<TEntity>(scoped in StorageSlot Slot, IEn
             throw new ComponentNotFoundException("Component not found: " + typeof(TComponent));
         }
         ref var byteRef = ref Host.GetByteRef(Slot);
-        return ref Unsafe.AsRef<TComponent>(
-            (void*)((IntPtr)Unsafe.AsPointer(ref byteRef) + offset));
+        return ref Unsafe.As<byte, TComponent>(
+            ref Unsafe.AddByteOffset(ref byteRef, offset));
     }
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -146,8 +146,8 @@ public readonly record struct EntityRef<TEntity>(scoped in StorageSlot Slot, IEn
             return ref Unsafe.NullRef<TComponent>();
         }
         ref var byteRef = ref Host.GetByteRef(Slot);
-        return ref Unsafe.AsRef<TComponent>(
-            (void*)((IntPtr)Unsafe.AsPointer(ref byteRef) + offset));
+        return ref Unsafe.As<byte, TComponent>(
+            ref Unsafe.AddByteOffset(ref byteRef, offset));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
