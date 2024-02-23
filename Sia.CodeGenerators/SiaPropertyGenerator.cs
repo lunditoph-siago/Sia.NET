@@ -10,6 +10,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
 using static Common;
+using System.Runtime.CompilerServices;
 
 [Generator]
 internal partial class SiaPropertyGenerator : IIncrementalGenerator
@@ -127,50 +128,50 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
     }
 
     public static void GeneratePropertyCommands(
-        IndentedTextWriter source, PropertyInfo property,
+        IndentedTextWriter source, PropertyInfo info,
         string componentType, TypeParameterListSyntax? componentTypeParams = null)
     {
-        if (property.GetArgument("NoCommands", false)) {
+        if (info.GetArgument("NoCommands", false)) {
             return;
         }
-        if (property.GetArgument("GenerateSetCommand", true)) {
+        if (info.GetArgument("GenerateSetCommand", true)) {
             GenerateSetCommand(
-                source, property, componentType, componentTypeParams);
+                source, info, componentType, componentTypeParams);
         }
 
-        var immutableType = property.ImmutableContainerType;
+        var immutableType = info.ImmutableContainerType;
         if (immutableType == null) { return; }
 
-        var itemName = property.GetArgument("Item", "");
+        var itemName = info.GetArgument("Item", "");
         if (itemName == "") { return; }
 
         string? keyType, valueType;
 
         switch (immutableType) {
         case "Dictionary":
-            keyType = property.TypeArguments[0];
-            valueType = property.TypeArguments[1];
+            keyType = info.TypeArguments[0];
+            valueType = info.TypeArguments[1];
 
-            if (property.GetArgument("GenerateAddItemCommand", true)) {
+            if (info.GetArgument("GenerateAddItemCommand", true)) {
                 source.WriteLine();
                 GenerateImmutableContainerCommand(
-                    source, property, componentType, componentTypeParams,
+                    source, info, componentType, componentTypeParams,
                     "Add" + itemName,
                     $"{keyType} Key, {valueType} Value",
                     ".Add(Key, Value);");
             }
-            if (property.GetArgument("GenerateSetItemCommand", true)) {
+            if (info.GetArgument("GenerateSetItemCommand", true)) {
                 source.WriteLine();
                 GenerateImmutableContainerCommand(
-                    source, property, componentType, componentTypeParams,
+                    source, info, componentType, componentTypeParams,
                     "Set" + itemName,
                     $"{keyType} Key, {valueType} Value",
                     ".SetItem(Key, Value);");
             }
-            if (property.GetArgument("GenerateRemoveItemCommand", true)) {
+            if (info.GetArgument("GenerateRemoveItemCommand", true)) {
                 source.WriteLine();
                 GenerateImmutableContainerCommand(
-                    source, property, componentType, componentTypeParams,
+                    source, info, componentType, componentTypeParams,
                     "Remove" + itemName,
                     $"{keyType} Key",
                     ".Remove(Key);");
@@ -178,12 +179,12 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
             break;
 
         case "Queue":
-            valueType = property.TypeArguments[0];
+            valueType = info.TypeArguments[0];
 
-            if (property.GetArgument("GenerateAddItemCommand", true)) {
+            if (info.GetArgument("GenerateAddItemCommand", true)) {
                 source.WriteLine();
                 GenerateImmutableContainerCommand(
-                    source, property, componentType, componentTypeParams,
+                    source, info, componentType, componentTypeParams,
                     "Enqueue" + itemName,
                     $"{valueType} Value",
                     ".Enqueue(Value);");
@@ -191,12 +192,12 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
             break;
 
         case "Stack":
-            valueType = property.TypeArguments[0];
+            valueType = info.TypeArguments[0];
 
-            if (property.GetArgument("GenerateAddItemCommand", true)) {
+            if (info.GetArgument("GenerateAddItemCommand", true)) {
                 source.WriteLine();
                 GenerateImmutableContainerCommand(
-                    source, property, componentType, componentTypeParams,
+                    source, info, componentType, componentTypeParams,
                     "Push" + itemName,
                     $"{valueType} Value",
                     ".Push(Value);");
@@ -206,28 +207,28 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         case "HashSet":
         case "List":
         case "Array":
-            valueType = property.TypeArguments[0];
+            valueType = info.TypeArguments[0];
 
-            if (property.GetArgument("GenerateAddItemCommand", true)) {
+            if (info.GetArgument("GenerateAddItemCommand", true)) {
                 source.WriteLine();
                 GenerateImmutableContainerCommand(
-                    source, property, componentType, componentTypeParams,
+                    source, info, componentType, componentTypeParams,
                     "Add" + itemName,
                     $"{valueType} Value",
                     ".Add(Value);");
             }
-            if (immutableType != "HashSet" && property.GetArgument("GenerateSetItemCommand", true)) {
+            if (immutableType != "HashSet" && info.GetArgument("GenerateSetItemCommand", true)) {
                 source.WriteLine();
                 GenerateImmutableContainerCommand(
-                    source, property, componentType, componentTypeParams,
+                    source, info, componentType, componentTypeParams,
                     "Set" + itemName,
                     $"int Index, {valueType} Value",
                     ".SetItem(Index, Value);");
             }
-            if (property.GetArgument("GenerateRemoveItemCommand", true)) {
+            if (info.GetArgument("GenerateRemoveItemCommand", true)) {
                 source.WriteLine();
                 GenerateImmutableContainerCommand(
-                    source, property, componentType, componentTypeParams,
+                    source, info, componentType, componentTypeParams,
                     "Remove" + itemName,
                     $"{valueType} Value",
                     ".Remove(Value);");
@@ -237,7 +238,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
     }
 
     public static void GenerateSetCommand(
-        IndentedTextWriter source, PropertyInfo property,
+        IndentedTextWriter source, PropertyInfo info,
         string componentType, TypeParameterListSyntax? componentTypeParams = null)
     {
         void WriteComponentType()
@@ -248,25 +249,25 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
             }
         }
 
-        var commandName = "Set" + property.Name;
+        var commandName = "Set" + info.Name;
 
         source.Write("public readonly record struct ");
         source.Write(commandName);
         source.Write('(');
-        source.Write(property.DisplayType);
+        source.Write(info.DisplayType);
         source.Write(" Value) : global::Sia.IReconstructableCommand<");
         source.Write(commandName);
         source.Write(">, global::Sia.IParallelCommand<");
         WriteComponentType();
         source.Write(">, global::Sia.IPropertyCommand<");
-        source.Write(property.DisplayType);
+        source.Write(info.DisplayType);
         source.WriteLine('>');
         source.WriteLine('{');
         source.Indent++;
 
 
         source.Write("public static string PropertyName => \"");
-        source.Write(property.Name);
+        source.Write(info.Name);
         source.WriteLine("\";");
 
         source.Write("public static ");
@@ -276,7 +277,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         source.Write("=> new(entity.Get<");
         WriteComponentType();
         source.Write(">().");
-        source.Write(property.Name);
+        source.Write(info.Name);
         source.WriteLine(");");
         source.Indent--;
 
@@ -297,7 +298,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         source.Write("=> target.Get<");
         WriteComponentType();
         source.Write(">().");
-        source.Write(property.Name);
+        source.Write(info.Name);
         source.WriteLine(" = Value;");
         source.Indent--;
 
@@ -306,7 +307,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         source.WriteLine(" component)");
         source.Indent++;
         source.Write("=> component.");
-        source.Write(property.Name);
+        source.Write(info.Name);
         source.WriteLine(" = Value;");
         source.Indent--;
 
@@ -315,7 +316,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
     }
 
     public static void GenerateImmutableContainerCommand(
-        IndentedTextWriter source, PropertyInfo property,
+        IndentedTextWriter source, PropertyInfo info,
         string componentType, TypeParameterListSyntax? componentTypeParams,
         string commandName, string arguments, string call)
     {
@@ -347,9 +348,9 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         source.WriteLine(">();");
 
         source.Write("component.");
-        source.Write(property.Name);
+        source.Write(info.Name);
         source.Write(" = component.");
-        source.Write(property.Name);
+        source.Write(info.Name);
         source.WriteLine(call);
 
         source.Indent--;
@@ -364,9 +365,9 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         source.Indent++;
 
         source.Write("component.");
-        source.Write(property.Name);
+        source.Write(info.Name);
         source.Write(" = component.");
-        source.Write(property.Name);
+        source.Write(info.Name);
         source.WriteLine(call);
 
         source.Indent--;
@@ -391,12 +392,18 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         source.WriteLine("{");
         source.Indent++;
 
-        source.WriteLine("public readonly global::Sia.World World = world ?? global::Sia.Context<global::Sia.World>.Current!;");
-        source.Write("public readonly ref ");
+        source.WriteLine("private readonly global::Sia.World _world = world ?? global::Sia.Context<global::Sia.World>.Current!;");
+        source.Write("private readonly ref ");
         WriteComponentType();
-        source.Write(" Component = ref entity.Get<");
+        source.Write(" _component = ref entity.Get<");
         WriteComponentType();
         source.WriteLine(">();");
+
+        source.WriteLine();
+        source.WriteLine("public readonly global::Sia.World GetWorld() => _world;");
+        source.Write("public readonly ref ");
+        WriteComponentType();
+        source.WriteLine(" GetRef() => ref _component;");
 
         source.Indent--;
         source.WriteLine("}");
@@ -416,23 +423,23 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         source.WriteLine(" {");
 
         source.Indent++;
-        source.Write("get => Component.");
+        source.Write("get => _component.");
         source.Write(info.Name);
         source.WriteLine(';');
-        if (!info.GetArgument("NoCommands", false)) {
+        if (!info.GetArgument("NoCommands", false) && info.GetArgument("GenerateSetCommand", true)) {
             source.WriteLine("set {");
             source.Indent++;
-            source.Write("Component.");
+            source.Write("_component.");
             source.Write(info.Name);
             source.WriteLine(" = value;");
-            source.Write("World.Dispatcher.Send(entity, new Set");
+            source.Write("_world.Dispatcher.Send(entity, new Set");
             source.Write(info.Name);
             source.WriteLine("(value));");
             source.Indent--;
             source.WriteLine('}');
         }
         else {
-            source.Write("set => Component.");
+            source.Write("set => _component.");
             source.Write(info.Name);
             source.WriteLine(" = value;");
         }
