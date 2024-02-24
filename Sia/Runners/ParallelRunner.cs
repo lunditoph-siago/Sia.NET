@@ -230,8 +230,6 @@ public class ParallelRunner : IRunner
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe IRunnerBarrier Run(Action action)
     {
-        var taskWriter = _jobChannel.Writer;
-
         var barrier = Barrier.Get(1);
 
         var job = s_actionJobPool.Get();
@@ -242,24 +240,23 @@ public class ParallelRunner : IRunner
         barrier.Callback = Unsafe.As<Action<object?>>(callback);
         barrier.Argument = job;
 
-        taskWriter.TryWrite(job);
+        _jobChannel.Writer.TryWrite(job);
         return barrier;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe IRunnerBarrier Run<TData>(in TData data, InAction<TData> action)
     {
-        var taskWriter = _jobChannel.Writer;
-        var barrier = Barrier.Get(1);
-        
         if (!s_genericActionJobPool.TryGetValue(typeof(TData), out var poolRaw)) {
             poolRaw = s_genericActionJobPool.GetOrAdd(typeof(TData),
                 static _ => ObjectPool.Create<ActionJob<TData>>());
         }
 
         var pool = Unsafe.As<ObjectPool<ActionJob<TData>>>(poolRaw);
-
         var job = pool.Get();
+
+        var barrier = Barrier.Get(1);
+        job.Barrier = barrier;
         job.Data = data;
         job.Action = action;
 
@@ -267,23 +264,22 @@ public class ParallelRunner : IRunner
         barrier.Callback = Unsafe.As<Action<object?>>(callback);
         barrier.Argument = job;
 
-        taskWriter.TryWrite(job);
+        _jobChannel.Writer.TryWrite(job);
         return barrier;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe IRunnerBarrier Run(int taskCount, GroupAction action)
     {
-        var taskWriter = _jobChannel.Writer;
         var degreeOfParallelism = Math.Min(taskCount, DegreeOfParallelism);
-
         var div = taskCount / degreeOfParallelism;
         var remaining = taskCount % degreeOfParallelism;
         var acc = 0;
 
-        var barrier = Barrier.Get(degreeOfParallelism);
         var jobs = _groupActionJobArrPool.Get();
+        var taskWriter = _jobChannel.Writer;
 
+        var barrier = Barrier.Get(degreeOfParallelism);
         var callback = _groupActionJobArrPool.Return;
         barrier.Callback = Unsafe.As<Action<object?>>(callback);
         barrier.Argument = jobs;
@@ -293,8 +289,8 @@ public class ParallelRunner : IRunner
             acc += i < remaining ? div + 1 : div;
 
             var job = jobs[i];
-            job.Range = (start, acc);
             job.Barrier = barrier;
+            job.Range = (start, acc);
             job.Action = action;
             taskWriter.TryWrite(job);
         }
@@ -305,9 +301,7 @@ public class ParallelRunner : IRunner
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe IRunnerBarrier Run<TData>(int taskCount, in TData data, GroupAction<TData> action)
     {
-        var taskWriter = _jobChannel.Writer;
         var degreeOfParallelism = Math.Min(taskCount, DegreeOfParallelism);
-
         var div = taskCount / degreeOfParallelism;
         var remaining = taskCount % degreeOfParallelism;
         var acc = 0;
@@ -321,10 +315,11 @@ public class ParallelRunner : IRunner
                 _ => CreateJobArrayPool(this));
         }
 
-        var barrier = Barrier.Get(degreeOfParallelism);
         var pool = Unsafe.As<DefaultObjectPool<GroupActionJob<TData>[]>>(poolRaw);
         var jobs = pool.Get();
+        var taskWriter = _jobChannel.Writer;
 
+        var barrier = Barrier.Get(degreeOfParallelism);
         var callback = pool.Return;
         barrier.Callback = Unsafe.As<Action<object?>>(callback);
         barrier.Argument = jobs;
