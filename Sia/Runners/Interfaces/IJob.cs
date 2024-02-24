@@ -2,6 +2,6 @@ namespace Sia;
 
 public interface IJob
 {
-    void Throw(Exception e);
+    IRunnerBarrier Barrier { get; }
     void Invoke();
 }

@@ -58,7 +58,7 @@ public static partial class EntityQueryExtensions
                     slotIndex = 0;
                 }
             }
-        });
+        }).WaitAndReturn();
     }
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -93,7 +93,7 @@ public static partial class EntityQueryExtensions
                 host = hosts[++hostIndex];
                 slotIndex = 0;
             }
-        });
+        }).WaitAndReturn();
     }
 
     #region CurrentThreadRunner

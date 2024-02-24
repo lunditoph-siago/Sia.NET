@@ -9,20 +9,13 @@ public class ParallelRunner : IRunner
 {
     private abstract class JobBase : IJob, IResettable
     {
-        public Barrier Barrier { get; set; } = null!;
-        internal Exception? Exception { get; private set; }
+        public IRunnerBarrier Barrier { get; set; } = null!;
 
         public abstract void Invoke();
-
-        public virtual void Throw(Exception e)
-        {
-            Exception = e;
-        }
 
         public virtual bool TryReset()
         {
             Barrier = null!;
-            Exception = null;
             return true;
         }
     }
@@ -30,24 +23,9 @@ public class ParallelRunner : IRunner
     private unsafe abstract class GroupJobBase : JobBase
     {
         public (int, int) Range { get; set; }
-        public int* RemainingTaskGroups { get; set; }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        protected void FinishJob()
-        {
-            if (Interlocked.Decrement(ref *RemainingTaskGroups) == 0) {
-                Barrier.SignalAndWait();
-            }
-        }
-
-        public override void Throw(Exception e)
-        {
-            base.Throw(e);
-
-            if (Interlocked.Decrement(ref *RemainingTaskGroups) == 0) {
-                Barrier.SignalAndWait();
-            }
-        }
+        protected void FinishJob() => Barrier.Signal();
     }
 
     private class ActionJob : JobBase
@@ -57,13 +35,7 @@ public class ParallelRunner : IRunner
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override void Invoke() {
             Action();
-            Barrier.SignalAndWait();
-        }
-
-        public override void Throw(Exception e)
-        {
-            base.Throw(e);
-            Barrier.SignalAndWait();
+            Barrier.Signal();
         }
 
         public override bool TryReset()
@@ -81,13 +53,7 @@ public class ParallelRunner : IRunner
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override void Invoke() {
             Action(Data);
-            Barrier.SignalAndWait();
-        }
-
-        public override void Throw(Exception e)
-        {
-            base.Throw(e);
-            Barrier.SignalAndWait();
+            Barrier.Signal();
         }
 
         public override bool TryReset()
@@ -158,7 +124,64 @@ public class ParallelRunner : IRunner
         }
     }
 
-    private class RunnerBarrier() : Barrier(2);
+    private class Barrier : IRunnerBarrier
+    {
+        private class PoolPolicy : IPooledObjectPolicy<Barrier>
+        {
+            public Barrier Create() => new();
+            public bool Return(Barrier barrier)
+            {
+                var raw = barrier.Raw;
+                raw.RemoveParticipants(raw.ParticipantCount);
+                barrier.Exception = null;
+                barrier.Callback = null;
+                barrier.Argument = null;
+                return true;
+            }
+        }
+
+        public System.Threading.Barrier Raw { get; } = new(0);
+        public Exception? Exception { get; private set; }
+
+        public Action<object?>? Callback { get; set; }
+        public object? Argument { get; set; }
+
+        private readonly static DefaultObjectPool<Barrier> s_barrierPool = new(new PoolPolicy());
+
+        public static Barrier Get(int taskCount)
+        {
+            var barrier = s_barrierPool.Get();
+            barrier.Raw.AddParticipants(taskCount + 1);
+            return barrier;
+        }
+
+        private Barrier() {}
+
+        public void Signal()
+        {
+            Raw.RemoveParticipant();
+        }
+
+        public void Throw(Exception e)
+        {
+            Exception = e;
+            Raw.RemoveParticipant();
+        }
+
+        public void WaitAndReturn()
+        {
+            Raw.SignalAndWait();
+            Callback?.Invoke(Argument);
+
+            if (Exception != null) {
+                s_barrierPool.Return(this);
+                throw Exception;
+            }
+            else {
+                s_barrierPool.Return(this);
+            }
+        }
+    }
     
     public static readonly ParallelRunner Default = new(Environment.ProcessorCount);
 
@@ -171,7 +194,6 @@ public class ParallelRunner : IRunner
 
     private readonly static ObjectPool<ActionJob> s_actionJobPool = ObjectPool.Create<ActionJob>();
     private readonly static ConcurrentDictionary<Type, object> s_genericActionJobPool = [];
-    private readonly static ObjectPool<RunnerBarrier> s_barrierPool = ObjectPool.Create<RunnerBarrier>();
 
     public ParallelRunner(int degreeOfParallelism)
     {
@@ -200,37 +222,35 @@ public class ParallelRunner : IRunner
                 job.Invoke();
             }
             catch (Exception e) {
-                job.Throw(e);
+                job.Barrier.Throw(e);
             }
         }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe void Run(Action action)
+    public unsafe IRunnerBarrier Run(Action action)
     {
         var taskWriter = _jobChannel.Writer;
 
-        var barrier = s_barrierPool.Get();
-        var job = s_actionJobPool.Get();
+        var barrier = Barrier.Get(1);
 
+        var job = s_actionJobPool.Get();
         job.Barrier = barrier;
         job.Action = action;
 
+        var callback = s_actionJobPool.Return;
+        barrier.Callback = Unsafe.As<Action<object?>>(callback);
+        barrier.Argument = job;
+
         taskWriter.TryWrite(job);
-        barrier.SignalAndWait();
-        s_barrierPool.Return(barrier);
-
-        var e = job.Exception;
-        s_actionJobPool.Return(job);
-
-        if (e != null) { throw e; }
+        return barrier;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe void Run<TData>(in TData data, InAction<TData> action)
+    public unsafe IRunnerBarrier Run<TData>(in TData data, InAction<TData> action)
     {
         var taskWriter = _jobChannel.Writer;
-        var barrier = s_barrierPool.Get();
+        var barrier = Barrier.Get(1);
         
         if (!s_genericActionJobPool.TryGetValue(typeof(TData), out var poolRaw)) {
             poolRaw = s_genericActionJobPool.GetOrAdd(typeof(TData),
@@ -238,81 +258,59 @@ public class ParallelRunner : IRunner
         }
 
         var pool = Unsafe.As<ObjectPool<ActionJob<TData>>>(poolRaw);
-        var job = pool.Get();
 
+        var job = pool.Get();
         job.Data = data;
         job.Action = action;
 
-        taskWriter.TryWrite(job);
-        barrier.SignalAndWait();
-        s_barrierPool.Return(barrier);
+        var callback = pool.Return;
+        barrier.Callback = Unsafe.As<Action<object?>>(callback);
+        barrier.Argument = job;
 
-        var e = job.Exception;
-        pool.Return(job);
-        if (e != null) { throw e; }
+        taskWriter.TryWrite(job);
+        return barrier;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe void Run(int taskCount, GroupAction action)
+    public unsafe IRunnerBarrier Run(int taskCount, GroupAction action)
     {
         var taskWriter = _jobChannel.Writer;
+        var degreeOfParallelism = Math.Min(taskCount, DegreeOfParallelism);
 
-        var div = taskCount / DegreeOfParallelism;
-        var remaining = taskCount % DegreeOfParallelism;
+        var div = taskCount / degreeOfParallelism;
+        var remaining = taskCount % degreeOfParallelism;
         var acc = 0;
 
-        if (div == 0) {
-            action((0, taskCount));
-            return;
-        }
-
-        int remainingTaskGroups = DegreeOfParallelism;
-        var barrier = s_barrierPool.Get();
+        var barrier = Barrier.Get(degreeOfParallelism);
         var jobs = _groupActionJobArrPool.Get();
 
-        for (int i = 0; i != DegreeOfParallelism; ++i) {
+        var callback = _groupActionJobArrPool.Return;
+        barrier.Callback = Unsafe.As<Action<object?>>(callback);
+        barrier.Argument = jobs;
+
+        for (int i = 0; i != degreeOfParallelism; ++i) {
             int start = acc;
             acc += i < remaining ? div + 1 : div;
 
             var job = jobs[i];
             job.Range = (start, acc);
             job.Barrier = barrier;
-            job.RemainingTaskGroups = &remainingTaskGroups;
             job.Action = action;
             taskWriter.TryWrite(job);
         }
 
-        barrier.SignalAndWait();
-        s_barrierPool.Return(barrier);
-
-        try {
-            foreach (var job in jobs) {
-                if (job.Exception != null) {
-                    throw job.Exception;
-                }
-            }
-        }
-        finally {
-            _groupActionJobArrPool.Return(jobs);
-        }
+        return barrier;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe void Run<TData>(int taskCount, in TData data, GroupAction<TData> action)
+    public unsafe IRunnerBarrier Run<TData>(int taskCount, in TData data, GroupAction<TData> action)
     {
         var taskWriter = _jobChannel.Writer;
+        var degreeOfParallelism = Math.Min(taskCount, DegreeOfParallelism);
 
-        var div = taskCount / DegreeOfParallelism;
-        var remaining = taskCount % DegreeOfParallelism;
+        var div = taskCount / degreeOfParallelism;
+        var remaining = taskCount % degreeOfParallelism;
         var acc = 0;
-
-        if (div == 0) {
-            action(data, (0, taskCount));
-            return;
-        }
-
-        int remainingTaskGroups = DegreeOfParallelism;
-        var barrier = s_barrierPool.Get();
 
         static object CreateJobArrayPool(ParallelRunner runner)
             => new DefaultObjectPool<GroupActionJob<TData>[]>(
@@ -323,35 +321,27 @@ public class ParallelRunner : IRunner
                 _ => CreateJobArrayPool(this));
         }
 
+        var barrier = Barrier.Get(degreeOfParallelism);
         var pool = Unsafe.As<DefaultObjectPool<GroupActionJob<TData>[]>>(poolRaw);
         var jobs = pool.Get();
 
-        for (int i = 0; i != DegreeOfParallelism; ++i) {
+        var callback = pool.Return;
+        barrier.Callback = Unsafe.As<Action<object?>>(callback);
+        barrier.Argument = jobs;
+
+        for (int i = 0; i != degreeOfParallelism; ++i) {
             int start = acc;
             acc += i < remaining ? div + 1 : div;
 
             var job = jobs[i];
             job.Range = (start, acc);
             job.Barrier = barrier;
-            job.RemainingTaskGroups = &remainingTaskGroups;
             job.Data = data;
             job.Action = action;
             taskWriter.TryWrite(job);
         }
 
-        barrier.SignalAndWait();
-        s_barrierPool.Return(barrier);
-
-        try {
-            foreach (var job in jobs) {
-                if (job.Exception != null) {
-                    throw job.Exception;
-                }
-            }
-        }
-        finally {
-            pool.Return(jobs);
-        }
+        return barrier;
     }
 
     public void Dispose()

@@ -9,16 +9,32 @@ public sealed class CurrentThreadRunner : IRunner
     private CurrentThreadRunner() {}
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Run(Action action) => action();
+    public IRunnerBarrier Run(Action action)
+    {
+        action();
+        return RunnerBarriers.Empty;
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Run<TData>(in TData data, InAction<TData> action) => action(data);
+    public IRunnerBarrier Run<TData>(in TData data, InAction<TData> action)
+    {
+        action(data);
+        return RunnerBarriers.Empty;
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Run(int taskCount, GroupAction action) => action((0, taskCount));
+    public IRunnerBarrier Run(int taskCount, GroupAction action)
+    {
+        action((0, taskCount));
+        return RunnerBarriers.Empty;
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Run<TData>(int taskCount, in TData data, GroupAction<TData> action) => action(data, (0, taskCount));
+    public IRunnerBarrier Run<TData>(int taskCount, in TData data, GroupAction<TData> action)
+    {
+        action(data, (0, taskCount));
+        return RunnerBarriers.Empty;
+    }
 
     public void Dispose() {}
 }

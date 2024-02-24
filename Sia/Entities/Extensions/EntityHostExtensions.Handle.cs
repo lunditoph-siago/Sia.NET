@@ -19,7 +19,7 @@ public static partial class EntityHostExtensions
 
         runner.Run(count, new(host, handler), static (in HandleData data, (int, int) range) => {
             data.Handler(data.Host, range.Item1, range.Item2);
-        });
+        }).WaitAndReturn();
     }
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -32,7 +32,7 @@ public static partial class EntityHostExtensions
 
         runner.Run(count, new(host, userData, handler), static (in HandleData<TData> data, (int, int) range) => {
             data.Handler(data.Host, data.UserData, range.Item1, range.Item2);
-        });
+        }).WaitAndReturn();
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
