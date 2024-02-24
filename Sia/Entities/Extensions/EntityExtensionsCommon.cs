@@ -110,6 +110,14 @@ internal static class EntityExtensionsCommon
         public TResult* Pointer;
         public int* Index;
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void GuardSpanLength<TResult>(Span<TResult> span, int requiredSize)
+    {
+        if (span.Length < requiredSize) {
+            throw new ArgumentException("Span length is not sufficient");
+        }
+    }
 }
 
 #pragma warning restore CS8500
