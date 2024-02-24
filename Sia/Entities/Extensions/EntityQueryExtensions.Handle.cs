@@ -1,6 +1,7 @@
 namespace Sia;
 
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 public static partial class EntityQueryExtensions
 {
@@ -30,13 +31,17 @@ public static partial class EntityQueryExtensions
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void Handle<TRunner>(
-        this IEntityQuery query, EntityHostRangeHandler handler, TRunner runner)
+        this IEntityQuery query, EntityHostRangeHandler handler, TRunner runner, out IRunnerBarrier barrier)
         where TRunner : IRunner
     {
         var count = query.Count;
-        if (count == 0) { return; }
-
-        runner.Run(count, new(query, handler), static (in HandleData data, (int, int) range) => {
+        if (count == 0) {
+            barrier = RunnerBarriers.Empty;
+            return;
+        }
+        
+        static void Action(in HandleData data, (int, int) range)
+        {
             var (from, to) = range;
             var remainingCount = to - from;
 
@@ -58,18 +63,34 @@ public static partial class EntityQueryExtensions
                     slotIndex = 0;
                 }
             }
-        }).WaitAndReturn();
+        }
+
+        barrier = runner.Run(count, new HandleData(query, handler), Action);
     }
-    
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static unsafe void Handle<TRunner>(
+        this IEntityQuery query, EntityHostRangeHandler handler, TRunner runner)
+        where TRunner : IRunner
+    {
+        query.Handle(handler, runner, out var barrier);
+        barrier.WaitAndReturn();
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void Handle<TRunner, TData>(
-        this IEntityQuery query, in TData userData, EntityHostRangeHandler<TData> handler, TRunner runner)
+        this IEntityQuery query, in TData userData, EntityHostRangeHandler<TData> handler,
+        TRunner runner, out IRunnerBarrier barrier)
         where TRunner : IRunner
     {
         var count = query.Count;
-        if (count == 0) { return; }
+        if (count == 0) {
+            barrier = RunnerBarriers.Empty;
+            return;
+        }
 
-        runner.Run(count, new(query, userData, handler), static (in HandleData<TData> data, (int, int) range) => {
+        static void Action(in HandleData<TData> data, (int, int) range)
+        {
             var (from, to) = range;
             var remainingCount = to - from;
 
@@ -93,7 +114,19 @@ public static partial class EntityQueryExtensions
                 host = hosts[++hostIndex];
                 slotIndex = 0;
             }
-        }).WaitAndReturn();
+        };
+
+        barrier = runner.Run(
+            count, new HandleData<TData>(query, userData, handler), Action);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static unsafe void Handle<TRunner, TData>(
+        this IEntityQuery query, in TData userData, EntityHostRangeHandler<TData> handler, TRunner runner)
+        where TRunner : IRunner
+    {
+        query.Handle(userData, handler, runner, out var barrier);
+        barrier.WaitAndReturn();
     }
 
     #region CurrentThreadRunner
