@@ -4,35 +4,60 @@ using System.Runtime.CompilerServices;
 
 public static partial class EntityHostExtensions
 {
-    public readonly record struct HandleData(
+    private readonly record struct HandleData(
         IEntityHost Host, EntityHostRangeHandler Handler);
-    public readonly record struct HandleData<TData>(
+    private readonly record struct HandleData<TData>(
         IEntityHost Host, TData UserData, EntityHostRangeHandler<TData> Handler);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static unsafe void Handle<TRunner>(
+        this IEntityHost host, EntityHostRangeHandler handler, TRunner runner, out IRunnerBarrier barrier)
+        where TRunner : IRunner
+    {
+        var count = host.Count;
+        if (count == 0) {
+            barrier = RunnerBarriers.Empty;
+            return;
+        }
+
+        barrier = runner.Run(count, new(host, handler),
+            static (in HandleData data, (int, int) range) =>
+                data.Handler(data.Host, range.Item1, range.Item2));
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void Handle<TRunner>(
         this IEntityHost host, EntityHostRangeHandler handler, TRunner runner)
         where TRunner : IRunner
     {
-        var count = host.Count;
-        if (count == 0) { return; }
-
-        runner.Run(count, new(host, handler), static (in HandleData data, (int, int) range) => {
-            data.Handler(data.Host, range.Item1, range.Item2);
-        }).WaitAndReturn();
+        host.Handle(handler, runner, out var barrier);
+        barrier.WaitAndReturn();
     }
-    
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static unsafe void Handle<TRunner, TData>(
+        this IEntityHost host, in TData userData, EntityHostRangeHandler<TData> handler,
+        TRunner runner, out IRunnerBarrier barrier)
+        where TRunner : IRunner
+    {
+        var count = host.Count;
+        if (count == 0) {
+            barrier = RunnerBarriers.Empty;
+            return;
+        }
+
+        barrier = runner.Run(count, new(host, userData, handler),
+            static (in HandleData<TData> data, (int, int) range) =>
+                data.Handler(data.Host, data.UserData, range.Item1, range.Item2));
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void Handle<TRunner, TData>(
         this IEntityHost host, in TData userData, EntityHostRangeHandler<TData> handler, TRunner runner)
         where TRunner : IRunner
     {
-        var count = host.Count;
-        if (count == 0) { return; }
-
-        runner.Run(count, new(host, userData, handler), static (in HandleData<TData> data, (int, int) range) => {
-            data.Handler(data.Host, data.UserData, range.Item1, range.Item2);
-        }).WaitAndReturn();
+        host.Handle(userData, handler, runner, out var barrier);
+        barrier.WaitAndReturn();
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
