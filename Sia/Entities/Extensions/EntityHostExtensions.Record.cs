@@ -12,6 +12,7 @@ public static partial class EntityHostExtensions
         this IEntityHost host, Span<TResult> span, EntityRecorder<TResult> recorder, TRunner runner)
         where TRunner : IRunner
     {
+        GuardSpanLength(span, host.Count);
         int index = -1;
 
         fixed (TResult* pointer = span) {
@@ -40,6 +41,7 @@ public static partial class EntityHostExtensions
         this IEntityHost host, Span<TResult> span, in TData userData, EntityRecorder<TData, TResult> recorder, TRunner runner)
         where TRunner : IRunner
     {
+        GuardSpanLength(span, host.Count);
         int index = -1;
 
         fixed (TResult* pointer = span) {
@@ -113,6 +115,7 @@ public static partial class EntityHostExtensions
         this IEntityHost host, Span<TResult> span, ComponentRecorder<C1, TResult> recorder, TRunner runner)
         where TRunner : IRunner
     {
+        GuardSpanLength(span, host.Count);
         int index = -1;
 
         fixed (TResult* pointer = span) {
@@ -134,6 +137,7 @@ public static partial class EntityHostExtensions
         this IEntityHost host, Span<TResult> span, ComponentRecorder<C1, C2, TResult> recorder, TRunner runner)
         where TRunner : IRunner
     {
+        GuardSpanLength(span, host.Count);
         int index = -1;
 
         fixed (TResult* pointer = span) {
@@ -155,6 +159,7 @@ public static partial class EntityHostExtensions
         this IEntityHost host, Span<TResult> span, ComponentRecorder<C1, C2, C3, TResult> recorder, TRunner runner)
         where TRunner : IRunner
     {
+        GuardSpanLength(span, host.Count);
         int index = -1;
 
         fixed (TResult* pointer = span) {
@@ -176,6 +181,7 @@ public static partial class EntityHostExtensions
         this IEntityHost host, Span<TResult> span, ComponentRecorder<C1, C2, C3, C4, TResult> recorder, TRunner runner)
         where TRunner : IRunner
     {
+        GuardSpanLength(span, host.Count);
         int index = -1;
 
         fixed (TResult* pointer = span) {
@@ -197,6 +203,7 @@ public static partial class EntityHostExtensions
         this IEntityHost host, Span<TResult> span, ComponentRecorder<C1, C2, C3, C4, C5, TResult> recorder, TRunner runner)
         where TRunner : IRunner
     {
+        GuardSpanLength(span, host.Count);
         int index = -1;
 
         fixed (TResult* pointer = span) {
@@ -218,6 +225,7 @@ public static partial class EntityHostExtensions
         this IEntityHost host, Span<TResult> span, ComponentRecorder<C1, C2, C3, C4, C5, C6, TResult> recorder, TRunner runner)
         where TRunner : IRunner
     {
+        GuardSpanLength(span, host.Count);
         int index = -1;
 
         fixed (TResult* pointer = span) {
@@ -239,6 +247,7 @@ public static partial class EntityHostExtensions
         this IEntityHost host, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, TResult> recorder, TRunner runner)
         where TRunner : IRunner
     {
+        GuardSpanLength(span, host.Count);
         int index = -1;
 
         fixed (TResult* pointer = span) {
@@ -262,6 +271,7 @@ public static partial class EntityHostExtensions
         this IEntityHost host, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, TResult> recorder, TRunner runner)
         where TRunner : IRunner
     {
+        GuardSpanLength(span, host.Count);
         int index = -1;
 
         fixed (TResult* pointer = span) {
@@ -285,6 +295,7 @@ public static partial class EntityHostExtensions
         this IEntityHost host, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, TResult> recorder, TRunner runner)
         where TRunner : IRunner
     {
+        GuardSpanLength(span, host.Count);
         int index = -1;
 
         fixed (TResult* pointer = span) {
@@ -308,6 +319,7 @@ public static partial class EntityHostExtensions
         this IEntityHost host, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, C4, TResult> recorder, TRunner runner)
         where TRunner : IRunner
     {
+        GuardSpanLength(span, host.Count);
         int index = -1;
 
         fixed (TResult* pointer = span) {
@@ -331,6 +343,7 @@ public static partial class EntityHostExtensions
         this IEntityHost host, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, C4, C5, TResult> recorder, TRunner runner)
         where TRunner : IRunner
     {
+        GuardSpanLength(span, host.Count);
         int index = -1;
 
         fixed (TResult* pointer = span) {
@@ -354,6 +367,7 @@ public static partial class EntityHostExtensions
         this IEntityHost host, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, C4, C5, C6, TResult> recorder, TRunner runner)
         where TRunner : IRunner
     {
+        GuardSpanLength(span, host.Count);
         int index = -1;
 
         fixed (TResult* pointer = span) {
