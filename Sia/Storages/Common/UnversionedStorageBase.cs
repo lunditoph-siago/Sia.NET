@@ -50,7 +50,7 @@ public abstract class UnversionedStorageBase<T> : IStorage<T>
         => true;
 
     public void UnsafeSetId(scoped in StorageSlot slot, int id)
-        => _allocatedSlots.ValueSpan[slot.Index].Id = id;
+        => _allocatedSlots.GetValueRefOrNullRef(slot.Index).Id = id;
 
     public ref T GetRef(scoped in StorageSlot slot)
         => ref GetRef(slot.Index);

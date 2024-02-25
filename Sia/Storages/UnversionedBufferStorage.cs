@@ -10,7 +10,7 @@ public static class UnversionedBufferStorage<T>
         => new(buffer);
 }
 
-public class UnversionedBufferStorage<T, TBuffer>(in TBuffer buffer) : StorageBase<T>
+public class UnversionedBufferStorage<T, TBuffer>(in TBuffer buffer) : UnversionedStorageBase<T>
     where T : struct
     where TBuffer : IBuffer<T>
 {
