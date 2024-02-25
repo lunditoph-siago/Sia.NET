@@ -1,7 +1,7 @@
 namespace Sia_Examples;
 
+using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using Sia;
 
@@ -82,26 +82,23 @@ public static partial class Example3_MoveRotator
         : SystemBase(
             matcher: Matchers.Of<Mover, Position, Rotation>())
     {
-        [AllowNull] private WorldCommandBuffer _buffer;
+        private Frame _frame = null!;
 
         public override void Initialize(World world, Scheduler scheduler)
         {
-            _buffer = world.CreateCommandBuffer();
+            base.Initialize(world, scheduler);
+            _frame = world.GetAddon<Frame>();
         }
 
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
-            var frame = world.GetAddon<Frame>();
-            
-            query.ForEachOnParallel((_buffer, frame), static (d, entity) => {
-                ref var mover = ref entity.Get<Mover>();
-                ref var pos = ref entity.Get<Position>();
-                ref var rot = ref entity.Get<Rotation>();
-
-                var newPos = pos.Value + Vector3.Transform(Vector3.UnitZ, rot.Value) * mover.Speed * d.frame.Delta;
-                d._buffer.Modify(entity, new Position.SetValue(newPos));
-            });
-            _buffer.Submit();
+            query.ForSliceOnParallel(_frame,
+                static (in Frame frame, ref Mover mover, ref Position pos, ref Rotation rot) => {
+                    pos.Value += Vector3.Transform(Vector3.UnitZ, rot.Value) * mover.Speed * frame.Delta;
+                });
+            foreach (var entity in query) {
+                world.Send(entity, PureEvent<Position.SetValue>.Instance);
+            }
         }
     }
 
@@ -110,25 +107,24 @@ public static partial class Example3_MoveRotator
         : SystemBase(
             matcher: Matchers.Of<Rotator, Rotation>())
     {
-        [AllowNull] private WorldCommandBuffer _buffer;
+        private Frame _frame = null!;
 
         public override void Initialize(World world, Scheduler scheduler)
         {
-            _buffer = world.CreateCommandBuffer();
+            base.Initialize(world, scheduler);
+            _frame = world.GetAddon<Frame>();
         }
 
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
-            var frame = world.GetAddon<Frame>();
-
-            query.ForEachOnParallel((_buffer, frame), static (d, entity) => {
-                ref var rotator = ref entity.Get<Rotator>();
-                ref var rot = ref entity.Get<Rotation>();
-
-                var newRot = rot.Value.ToEulerAngles() + rotator.AngularSpeed * d.frame.Delta;
-                d._buffer.Modify(entity, new Rotation.SetValue(newRot.ToQuaternion()));
-            });
-            _buffer.Submit();
+            query.ForSliceOnParallel(_frame,
+                static (in Frame frame, ref Rotator rotator, ref Rotation rot) => {
+                    var newRot = rot.Value.ToEulerAngles() + rotator.AngularSpeed * frame.Delta;
+                    rot.Value = newRot.ToQuaternion();
+                });
+            foreach (var entity in query) {
+                world.Send(entity, PureEvent<Rotation.SetValue>.Instance);
+            }
         }
     }
 
@@ -136,22 +132,20 @@ public static partial class Example3_MoveRotator
         : SystemBase(
             matcher: Matchers.Of<Mover, Position>())
     {
-        [AllowNull] private WorldCommandBuffer _buffer;
-
-        public override void Initialize(World world, Scheduler scheduler)
-        {
-            _buffer = world.CreateCommandBuffer();
-        }
+        private readonly ConcurrentStack<EntityRef> _entitiesToDestroy = [];
 
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
             int entityCount = world.Count;
             query.ForEachOnParallel(this, static (sys, entity) => {
                 if (Random.Shared.Next(3) == 2) {
-                    sys._buffer.Do(entity, static (world, entity) => entity.Dispose());
+                    sys._entitiesToDestroy.Push(entity);
                 }
             });
-            _buffer.Submit();
+            foreach (var entity in _entitiesToDestroy) {
+                entity.Dispose();
+            }
+            _entitiesToDestroy.Clear();
             Console.WriteLine($"Destroyed {entityCount - world.Count} entities.");
         }
     }
@@ -173,6 +167,9 @@ public static partial class Example3_MoveRotator
     {
         var scheduler = new Scheduler();
 
+        var frame = world.AcquireAddon<Frame>();
+        frame.Delta = 0.5f;
+
         SystemChain.Empty
             .Add<MoverUpdateSystem>()
             .Add<RotatorUpdateSystem>()
@@ -186,9 +183,6 @@ public static partial class Example3_MoveRotator
                     Random.Shared.NextSingle() * 100 - 50, 0,
                     Random.Shared.NextSingle() * 100 - 50));
         }
-
-        var frame = world.AcquireAddon<Frame>();
-        frame.Delta = 0.5f;
 
         scheduler.Tick();
 
