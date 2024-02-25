@@ -2,7 +2,7 @@ namespace Sia;
 
 using System.Diagnostics.CodeAnalysis;
 
-public abstract class ViewBase : IAddon
+public abstract class ReactorBase : IAddon
 {
     protected delegate void ForeverListener<UEvent>(in EntityRef target, in UEvent e)
         where UEvent : IEvent;
@@ -55,7 +55,7 @@ public abstract class ViewBase : IAddon
     }
 }
 
-public abstract class ViewBase<TTypeUnion> : ViewBase
+public abstract class ReactorBase<TTypeUnion> : ReactorBase
     where TTypeUnion : ITypeUnion, new()
 {
     [AllowNull]

@@ -3,7 +3,7 @@ namespace Sia;
 using System.Collections;
 using System.Runtime.CompilerServices;
 
-public class Hierarchy<TTag> : ViewBase<TypeUnion<Node<TTag>>>, IEnumerable<EntityRef>
+public class Hierarchy<TTag> : ReactorBase<TypeUnion<Node<TTag>>>, IEnumerable<EntityRef>
 {
     public IReadOnlySet<EntityRef> Root => _root;
 
