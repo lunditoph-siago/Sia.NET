@@ -235,10 +235,6 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public WorldCommandBuffer CreateCommandBuffer()
-        => new(this);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public TAddon AcquireAddon<TAddon>()
         where TAddon : class, IAddon, new()
     {
