@@ -22,6 +22,7 @@ public record struct Sid<TId>(TId Value)
         }
     }
 }
+
 public static class Sid
 {
     public static Sid<TId> From<TId>(in TId id)

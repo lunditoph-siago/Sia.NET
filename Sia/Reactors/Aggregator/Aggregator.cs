@@ -4,7 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-public class Aggregator<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TAggregationEntity, TId> : ViewBase<TypeUnion<Sid<TId>>>
+public class Aggregator<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TAggregationEntity, TId> : ReactorBase<TypeUnion<Sid<TId>>>
     where TAggregationEntity : IAggregationEntity<TId>
     where TId : notnull, IEquatable<TId>
 {
