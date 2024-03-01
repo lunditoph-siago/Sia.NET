@@ -2,6 +2,6 @@ namespace Sia;
 
 public interface IJob
 {
-    IRunnerBarrier Barrier { get; }
+    RunnerBarrier? Barrier { get; }
     void Invoke();
 }

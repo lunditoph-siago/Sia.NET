@@ -1,40 +1,22 @@
 namespace Sia;
 
-using System.Runtime.CompilerServices;
-
 public sealed class CurrentThreadRunner : IRunner
 {
     public static readonly CurrentThreadRunner Instance = new();
 
     private CurrentThreadRunner() {}
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public IRunnerBarrier Run(Action action)
-    {
-        action();
-        return RunnerBarriers.Empty;
-    }
+    public void Run(Action action, RunnerBarrier? barrier = null)
+        => action();
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public IRunnerBarrier Run<TData>(in TData data, InAction<TData> action)
-    {
-        action(data);
-        return RunnerBarriers.Empty;
-    }
+    public void Run<TData>(in TData data, InAction<TData> action, RunnerBarrier? barrier = null)
+        => action(data);
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public IRunnerBarrier Run(int taskCount, GroupAction action)
-    {
-        action((0, taskCount));
-        return RunnerBarriers.Empty;
-    }
+    public void Run(int taskCount, GroupAction action, RunnerBarrier? barrier = null)
+        => action((0, taskCount));
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public IRunnerBarrier Run<TData>(int taskCount, in TData data, GroupAction<TData> action)
-    {
-        action(data, (0, taskCount));
-        return RunnerBarriers.Empty;
-    }
+    public void Run<TData>(int taskCount, in TData data, GroupAction<TData> action, RunnerBarrier? barrier = null)
+        => action(data, (0, taskCount));
 
     public void Dispose() {}
 }

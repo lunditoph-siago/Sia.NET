@@ -11,18 +11,17 @@ public static partial class EntityHostExtensions
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void Handle<TRunner>(
-        this IEntityHost host, EntityHostRangeHandler handler, TRunner runner, out IRunnerBarrier barrier)
+        this IEntityHost host, EntityHostRangeHandler handler, TRunner runner, RunnerBarrier barrier)
         where TRunner : IRunner
     {
         var count = host.Count;
         if (count == 0) {
-            barrier = RunnerBarriers.Empty;
             return;
         }
-
-        barrier = runner.Run(count, new(host, handler),
+        runner.Run(count, new(host, handler),
             static (in HandleData data, (int, int) range) =>
-                data.Handler(data.Host, range.Item1, range.Item2));
+                data.Handler(data.Host, range.Item1, range.Item2),
+            barrier);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -30,25 +29,25 @@ public static partial class EntityHostExtensions
         this IEntityHost host, EntityHostRangeHandler handler, TRunner runner)
         where TRunner : IRunner
     {
-        host.Handle(handler, runner, out var barrier);
+        var barrier = RunnerBarrier.Get();
+        host.Handle(handler, runner, barrier);
         barrier.WaitAndReturn();
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void Handle<TRunner, TData>(
         this IEntityHost host, in TData userData, EntityHostRangeHandler<TData> handler,
-        TRunner runner, out IRunnerBarrier barrier)
+        TRunner runner, RunnerBarrier barrier)
         where TRunner : IRunner
     {
         var count = host.Count;
         if (count == 0) {
-            barrier = RunnerBarriers.Empty;
             return;
         }
-
-        barrier = runner.Run(count, new(host, userData, handler),
+        runner.Run(count, new(host, userData, handler),
             static (in HandleData<TData> data, (int, int) range) =>
-                data.Handler(data.Host, data.UserData, range.Item1, range.Item2));
+                data.Handler(data.Host, data.UserData, range.Item1, range.Item2),
+            barrier);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -56,7 +55,8 @@ public static partial class EntityHostExtensions
         this IEntityHost host, in TData userData, EntityHostRangeHandler<TData> handler, TRunner runner)
         where TRunner : IRunner
     {
-        host.Handle(userData, handler, runner, out var barrier);
+        var barrier = RunnerBarrier.Get();
+        host.Handle(userData, handler, runner);
         barrier.WaitAndReturn();
     }
 
