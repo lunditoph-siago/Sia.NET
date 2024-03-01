@@ -517,4 +517,488 @@ public static partial class EntityQueryExtensions
     #endregion // ParallelRunner
 
     #endregion // ComponentHandler
+
+    #region ComponentFilter
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void Filter<TRunner, C1>(
+        this IEntityQuery query, ComponentFilter<C1> filter, EntityHandler handler, TRunner runner)
+        where TRunner : IRunner
+        => query.Handle((filter, handler),
+            static (IEntityHost host, in (ComponentFilter<C1>, EntityHandler) fs, int from, int to) => {
+                var desc = host.Descriptor;
+                var slots = host.AllocatedSlots;
+                var (filter, handler) = fs;
+
+                var c1Offset = desc.GetOffset<C1>();
+
+                for (int i = from; i != to; ++i) {
+                    ref readonly var slot = ref slots[i];
+                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
+
+                    if (filter(ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)))) {
+                        handler(new(slot, host));
+                    }
+                }
+            }, runner);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void Filter<TRunner, C1, C2>(
+        this IEntityQuery query, ComponentFilter<C1, C2> filter, EntityHandler handler, TRunner runner)
+        where TRunner : IRunner
+        => query.Handle((filter, handler),
+            static (IEntityHost host, in (ComponentFilter<C1, C2>, EntityHandler) fs, int from, int to) => {
+                var desc = host.Descriptor;
+                var slots = host.AllocatedSlots;
+                var (filter, handler) = fs;
+
+                var c1Offset = desc.GetOffset<C1>();
+                var c2Offset = desc.GetOffset<C2>();
+
+                for (int i = from; i != to; ++i) {
+                    ref readonly var slot = ref slots[i];
+                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
+
+                    if (filter(
+                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
+                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)))) {
+                        handler(new(slot, host));
+                    }
+                }
+            }, runner);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void Filter<TRunner, C1, C2, C3>(
+        this IEntityQuery query, ComponentFilter<C1, C2, C3> filter, EntityHandler handler, TRunner runner)
+        where TRunner : IRunner
+        => query.Handle((filter, handler),
+            static (IEntityHost host, in (ComponentFilter<C1, C2, C3>, EntityHandler) fs, int from, int to) => {
+                var desc = host.Descriptor;
+                var slots = host.AllocatedSlots;
+                var (filter, handler) = fs;
+
+                var c1Offset = desc.GetOffset<C1>();
+                var c2Offset = desc.GetOffset<C2>();
+                var c3Offset = desc.GetOffset<C3>();
+
+                for (int i = from; i != to; ++i) {
+                    ref readonly var slot = ref slots[i];
+                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
+
+                    if (filter(
+                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
+                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
+                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)))) {
+                        handler(new(slot, host));
+                    }
+                }
+            }, runner);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void Filter<TRunner, C1, C2, C3, C4>(
+        this IEntityQuery query, ComponentFilter<C1, C2, C3, C4> filter, EntityHandler handler, TRunner runner)
+        where TRunner : IRunner
+        => query.Handle((filter, handler),
+            static (IEntityHost host, in (ComponentFilter<C1, C2, C3, C4>, EntityHandler) fs, int from, int to) => {
+                var desc = host.Descriptor;
+                var slots = host.AllocatedSlots;
+                var (filter, handler) = fs;
+
+                var c1Offset = desc.GetOffset<C1>();
+                var c2Offset = desc.GetOffset<C2>();
+                var c3Offset = desc.GetOffset<C3>();
+                var c4Offset = desc.GetOffset<C4>();
+
+                for (int i = from; i != to; ++i) {
+                    ref readonly var slot = ref slots[i];
+                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
+
+                    if (filter(
+                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
+                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
+                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)),
+                        ref Unsafe.As<byte, C4>(ref Unsafe.AddByteOffset(ref byteRef, c4Offset)))) {
+                        handler(new(slot, host));
+                    }
+                }
+            }, runner);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void Filter<TRunner, C1, C2, C3, C4, C5>(
+        this IEntityQuery query, ComponentFilter<C1, C2, C3, C4, C5> filter, EntityHandler handler, TRunner runner)
+        where TRunner : IRunner
+        => query.Handle((filter, handler),
+            static (IEntityHost host, in (ComponentFilter<C1, C2, C3, C4, C5>, EntityHandler) fs, int from, int to) => {
+                var desc = host.Descriptor;
+                var slots = host.AllocatedSlots;
+                var (filter, handler) = fs;
+
+                var c1Offset = desc.GetOffset<C1>();
+                var c2Offset = desc.GetOffset<C2>();
+                var c3Offset = desc.GetOffset<C3>();
+                var c4Offset = desc.GetOffset<C4>();
+                var c5Offset = desc.GetOffset<C5>();
+
+                for (int i = from; i != to; ++i) {
+                    ref readonly var slot = ref slots[i];
+                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
+
+                    if (filter(
+                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
+                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
+                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)),
+                        ref Unsafe.As<byte, C4>(ref Unsafe.AddByteOffset(ref byteRef, c4Offset)),
+                        ref Unsafe.As<byte, C5>(ref Unsafe.AddByteOffset(ref byteRef, c5Offset)))) {
+                        handler(new(slot, host));
+                    }
+                }
+            }, runner);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void Filter<TRunner, C1, C2, C3, C4, C5, C6>(
+        this IEntityQuery query, ComponentFilter<C1, C2, C3, C4, C5, C6> filter, EntityHandler handler, TRunner runner)
+        where TRunner : IRunner
+        => query.Handle((filter, handler),
+            static (IEntityHost host, in (ComponentFilter<C1, C2, C3, C4, C5, C6>, EntityHandler) fs, int from, int to) => {
+                var desc = host.Descriptor;
+                var slots = host.AllocatedSlots;
+                var (filter, handler) = fs;
+
+                var c1Offset = desc.GetOffset<C1>();
+                var c2Offset = desc.GetOffset<C2>();
+                var c3Offset = desc.GetOffset<C3>();
+                var c4Offset = desc.GetOffset<C4>();
+                var c5Offset = desc.GetOffset<C5>();
+                var c6Offset = desc.GetOffset<C6>();
+
+                for (int i = from; i != to; ++i) {
+                    ref readonly var slot = ref slots[i];
+                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
+
+                    if (filter(
+                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
+                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
+                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)),
+                        ref Unsafe.As<byte, C4>(ref Unsafe.AddByteOffset(ref byteRef, c4Offset)),
+                        ref Unsafe.As<byte, C5>(ref Unsafe.AddByteOffset(ref byteRef, c5Offset)),
+                        ref Unsafe.As<byte, C6>(ref Unsafe.AddByteOffset(ref byteRef, c6Offset)))) {
+                        handler(new(slot, host));
+                    }
+                }
+            }, runner);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void Filter<TRunner, TData, C1>(
+        this IEntityQuery query, in TData userData, DataComponentFilter<TData, C1> filter, EntityHandler<TData> handler, TRunner runner)
+        where TRunner : IRunner
+        => query.Handle((filter, handler, userData),
+            static (IEntityHost host, in (DataComponentFilter<TData, C1>, EntityHandler<TData>, TData) data, int from, int to) => {
+                var desc = host.Descriptor;
+                var slots = host.AllocatedSlots;
+
+                var c1Offset = desc.GetOffset<C1>();
+
+                var filter = data.Item1;
+                var handler = data.Item2;
+                ref readonly var userData = ref data.Item3;
+
+                for (int i = from; i != to; ++i) {
+                    ref readonly var slot = ref slots[i];
+                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
+                    
+                    if (filter(userData, ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)))) {
+                        handler(userData, new(slot, host));
+                    }
+                }
+            }, runner);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void Filter<TRunner, TData, C1, C2>(
+        this IEntityQuery query, in TData userData, DataComponentFilter<TData, C1, C2> filter, EntityHandler<TData> handler, TRunner runner)
+        where TRunner : IRunner
+        => query.Handle((filter, handler, userData),
+            static (IEntityHost host, in (DataComponentFilter<TData, C1, C2>, EntityHandler<TData>, TData) data, int from, int to) => {
+                var desc = host.Descriptor;
+                var slots = host.AllocatedSlots;
+
+                var c1Offset = desc.GetOffset<C1>();
+                var c2Offset = desc.GetOffset<C2>();
+
+                var filter = data.Item1;
+                var handler = data.Item2;
+                ref readonly var userData = ref data.Item3;
+
+                for (int i = from; i != to; ++i) {
+                    ref readonly var slot = ref slots[i];
+                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
+
+                    if (filter(userData,
+                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
+                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)))) {
+                        handler(userData, new(slot, host));
+                    }
+                }
+            }, runner);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void Filter<TRunner, TData, C1, C2, C3>(
+        this IEntityQuery query, in TData userData, DataComponentFilter<TData, C1, C2, C3> filter, EntityHandler<TData> handler, TRunner runner)
+        where TRunner : IRunner
+        => query.Handle((filter, handler, userData),
+            static (IEntityHost host, in (DataComponentFilter<TData, C1, C2, C3>, EntityHandler<TData>, TData) data, int from, int to) => {
+                var desc = host.Descriptor;
+                var slots = host.AllocatedSlots;
+
+                var c1Offset = desc.GetOffset<C1>();
+                var c2Offset = desc.GetOffset<C2>();
+                var c3Offset = desc.GetOffset<C3>();
+
+                var filter = data.Item1;
+                var handler = data.Item2;
+                ref readonly var userData = ref data.Item3;
+
+                for (int i = from; i != to; ++i) {
+                    ref readonly var slot = ref slots[i];
+                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
+
+                    if (filter(userData,
+                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
+                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
+                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)))) {
+                        handler(userData, new(slot, host));
+                    }
+                }
+            }, runner);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void Filter<TRunner, TData, C1, C2, C3, C4>(
+        this IEntityQuery query, in TData userData, DataComponentFilter<TData, C1, C2, C3, C4> filter, EntityHandler<TData> handler, TRunner runner)
+        where TRunner : IRunner
+        => query.Handle((filter, handler, userData),
+            static (IEntityHost host, in (DataComponentFilter<TData, C1, C2, C3, C4>, EntityHandler<TData>, TData) data, int from, int to) => {
+                var desc = host.Descriptor;
+                var slots = host.AllocatedSlots;
+
+                var c1Offset = desc.GetOffset<C1>();
+                var c2Offset = desc.GetOffset<C2>();
+                var c3Offset = desc.GetOffset<C3>();
+                var c4Offset = desc.GetOffset<C4>();
+
+                var filter = data.Item1;
+                var handler = data.Item2;
+                ref readonly var userData = ref data.Item3;
+
+                for (int i = from; i != to; ++i) {
+                    ref readonly var slot = ref slots[i];
+                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
+
+                    if (filter(userData,
+                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
+                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
+                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)),
+                        ref Unsafe.As<byte, C4>(ref Unsafe.AddByteOffset(ref byteRef, c4Offset)))) {
+                        handler(userData, new(slot, host));
+                    }
+                }
+            }, runner);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void Filter<TRunner, TData, C1, C2, C3, C4, C5>(
+        this IEntityQuery query, in TData userData, DataComponentFilter<TData, C1, C2, C3, C4, C5> filter, EntityHandler<TData> handler, TRunner runner)
+        where TRunner : IRunner
+        => query.Handle((filter, handler, userData),
+            static (IEntityHost host, in (DataComponentFilter<TData, C1, C2, C3, C4, C5>, EntityHandler<TData>, TData) data, int from, int to) => {
+                var desc = host.Descriptor;
+                var slots = host.AllocatedSlots;
+
+                var c1Offset = desc.GetOffset<C1>();
+                var c2Offset = desc.GetOffset<C2>();
+                var c3Offset = desc.GetOffset<C3>();
+                var c4Offset = desc.GetOffset<C4>();
+                var c5Offset = desc.GetOffset<C5>();
+
+                var filter = data.Item1;
+                var handler = data.Item2;
+                ref readonly var userData = ref data.Item3;
+
+                for (int i = from; i != to; ++i) {
+                    ref readonly var slot = ref slots[i];
+                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
+
+                    if (filter(userData,
+                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
+                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
+                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)),
+                        ref Unsafe.As<byte, C4>(ref Unsafe.AddByteOffset(ref byteRef, c4Offset)),
+                        ref Unsafe.As<byte, C5>(ref Unsafe.AddByteOffset(ref byteRef, c5Offset)))) {
+                        handler(userData, new(slot, host));
+                    }
+                }
+            }, runner);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void Filter<TRunner, TData, C1, C2, C3, C4, C5, C6>(
+        this IEntityQuery query, in TData userData, DataComponentFilter<TData, C1, C2, C3, C4, C5, C6> filter, EntityHandler<TData> handler, TRunner runner)
+        where TRunner : IRunner
+        => query.Handle((filter, handler, userData),
+            static (IEntityHost host, in (DataComponentFilter<TData, C1, C2, C3, C4, C5, C6>, EntityHandler<TData>, TData) data, int from, int to) => {
+                var desc = host.Descriptor;
+                var slots = host.AllocatedSlots;
+
+                var c1Offset = desc.GetOffset<C1>();
+                var c2Offset = desc.GetOffset<C2>();
+                var c3Offset = desc.GetOffset<C3>();
+                var c4Offset = desc.GetOffset<C4>();
+                var c5Offset = desc.GetOffset<C5>();
+                var c6Offset = desc.GetOffset<C6>();
+
+                var filter = data.Item1;
+                var handler = data.Item2;
+                ref readonly var userData = ref data.Item3;
+
+                for (int i = from; i != to; ++i) {
+                    ref readonly var slot = ref slots[i];
+                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
+
+                    if (filter(userData,
+                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
+                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
+                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)),
+                        ref Unsafe.As<byte, C4>(ref Unsafe.AddByteOffset(ref byteRef, c4Offset)),
+                        ref Unsafe.As<byte, C5>(ref Unsafe.AddByteOffset(ref byteRef, c5Offset)),
+                        ref Unsafe.As<byte, C6>(ref Unsafe.AddByteOffset(ref byteRef, c6Offset)))) {
+                        handler(userData, new(slot, host));
+                    }
+                }
+            }, runner);
+
+    #region CurrentThreadRunner
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void Filter<C1>(
+        this IEntityQuery query, ComponentFilter<C1> filter, EntityHandler handler)
+        => query.Filter(filter, handler, CurrentThreadRunner.Instance);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void Filter<C1, C2>(
+        this IEntityQuery query, ComponentFilter<C1, C2> filter, EntityHandler handler)
+        => query.Filter(filter, handler, CurrentThreadRunner.Instance);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void Filter<C1, C2, C3>(
+        this IEntityQuery query, ComponentFilter<C1, C2, C3> filter, EntityHandler handler)
+        => query.Filter(filter, handler, CurrentThreadRunner.Instance);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void Filter<C1, C2, C3, C4>(
+        this IEntityQuery query, ComponentFilter<C1, C2, C3, C4> filter, EntityHandler handler)
+        => query.Filter(filter, handler, CurrentThreadRunner.Instance);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void Filter<C1, C2, C3, C4, C5>(
+        this IEntityQuery query, ComponentFilter<C1, C2, C3, C4, C5> filter, EntityHandler handler)
+        => query.Filter(filter, handler, CurrentThreadRunner.Instance);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void Filter<C1, C2, C3, C4, C5, C6>(
+        this IEntityQuery query, ComponentFilter<C1, C2, C3, C4, C5, C6> filter, EntityHandler handler)
+        => query.Filter(filter, handler, CurrentThreadRunner.Instance);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void Filter<TData, C1>(
+        this IEntityQuery query, in TData userData, DataComponentFilter<TData, C1> filter, EntityHandler<TData> handler)
+        => query.Filter(userData, filter, handler, CurrentThreadRunner.Instance);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void Filter<TData, C1, C2>(
+        this IEntityQuery query, in TData userData, DataComponentFilter<TData, C1, C2> filter, EntityHandler<TData> handler)
+        => query.Filter(userData, filter, handler, CurrentThreadRunner.Instance);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void Filter<TData, C1, C2, C3>(
+        this IEntityQuery query, in TData userData, DataComponentFilter<TData, C1, C2, C3> filter, EntityHandler<TData> handler)
+        => query.Filter(userData, filter, handler, CurrentThreadRunner.Instance);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void Filter<TData, C1, C2, C3, C4>(
+        this IEntityQuery query, in TData userData, DataComponentFilter<TData, C1, C2, C3, C4> filter, EntityHandler<TData> handler)
+        => query.Filter(userData, filter, handler, CurrentThreadRunner.Instance);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void Filter<TData, C1, C2, C3, C4, C5>(
+        this IEntityQuery query, in TData userData, DataComponentFilter<TData, C1, C2, C3, C4, C5> filter, EntityHandler<TData> handler)
+        => query.Filter(userData, filter, handler, CurrentThreadRunner.Instance);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void Filter<TData, C1, C2, C3, C4, C5, C6>(
+        this IEntityQuery query, in TData userData, DataComponentFilter<TData, C1, C2, C3, C4, C5, C6> filter, EntityHandler<TData> handler)
+        => query.Filter(userData, filter, handler, CurrentThreadRunner.Instance);
+    
+    #endregion // ParallelRunner
+
+    #region ParallelRunner
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void FilterOnParallel<C1>(
+        this IEntityQuery query, ComponentFilter<C1> filter, EntityHandler handler)
+        => query.Filter(filter, handler, ParallelRunner.Default);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void FilterOnParallel<C1, C2>(
+        this IEntityQuery query, ComponentFilter<C1, C2> filter, EntityHandler handler)
+        => query.Filter(filter, handler, ParallelRunner.Default);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void FilterOnParallel<C1, C2, C3>(
+        this IEntityQuery query, ComponentFilter<C1, C2, C3> filter, EntityHandler handler)
+        => query.Filter(filter, handler, ParallelRunner.Default);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void FilterOnParallel<C1, C2, C3, C4>(
+        this IEntityQuery query, ComponentFilter<C1, C2, C3, C4> filter, EntityHandler handler)
+        => query.Filter(filter, handler, ParallelRunner.Default);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void FilterOnParallel<C1, C2, C3, C4, C5>(
+        this IEntityQuery query, ComponentFilter<C1, C2, C3, C4, C5> filter, EntityHandler handler)
+        => query.Filter(filter, handler, ParallelRunner.Default);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void FilterOnParallel<C1, C2, C3, C4, C5, C6>(
+        this IEntityQuery query, ComponentFilter<C1, C2, C3, C4, C5, C6> filter, EntityHandler handler)
+        => query.Filter(filter, handler, ParallelRunner.Default);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void FilterOnParallel<TData, C1>(
+        this IEntityQuery query, in TData userData, DataComponentFilter<TData, C1> filter, EntityHandler<TData> handler)
+        => query.Filter(userData, filter, handler, ParallelRunner.Default);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void FilterOnParallel<TData, C1, C2>(
+        this IEntityQuery query, in TData userData, DataComponentFilter<TData, C1, C2> filter, EntityHandler<TData> handler)
+        => query.Filter(userData, filter, handler, ParallelRunner.Default);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void FilterOnParallel<TData, C1, C2, C3>(
+        this IEntityQuery query, in TData userData, DataComponentFilter<TData, C1, C2, C3> filter, EntityHandler<TData> handler)
+        => query.Filter(userData, filter, handler, ParallelRunner.Default);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void FilterOnParallel<TData, C1, C2, C3, C4>(
+        this IEntityQuery query, in TData userData, DataComponentFilter<TData, C1, C2, C3, C4> filter, EntityHandler<TData> handler)
+        => query.Filter(userData, filter, handler, ParallelRunner.Default);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void FilterOnParallel<TData, C1, C2, C3, C4, C5>(
+        this IEntityQuery query, in TData userData, DataComponentFilter<TData, C1, C2, C3, C4, C5> filter, EntityHandler<TData> handler)
+        => query.Filter(userData, filter, handler, ParallelRunner.Default);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe static void FilterOnParallel<TData, C1, C2, C3, C4, C5, C6>(
+        this IEntityQuery query, in TData userData, DataComponentFilter<TData, C1, C2, C3, C4, C5, C6> filter, EntityHandler<TData> handler)
+        => query.Filter(userData, filter, handler, ParallelRunner.Default);
+    
+    #endregion // ParallelRunner
+
+    #endregion // ComponentFilter
 }
