@@ -51,12 +51,6 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Start(Action action)
-    {
-        Context<World>.With(this, action);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Query<TTypeUnion>(EntityHandler handler)
         where TTypeUnion : ITypeUnion, new()
         => Query(Matchers.From<TTypeUnion>(), handler);
