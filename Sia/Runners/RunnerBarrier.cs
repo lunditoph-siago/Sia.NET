@@ -32,12 +32,7 @@ public sealed class RunnerBarrier
     private readonly static DefaultObjectPool<RunnerBarrier> s_barrierPool
         = new(new PoolPolicy());
 
-    public static RunnerBarrier Get()
-    {
-        var barrier = s_barrierPool.Get();
-        barrier.AddParticipants(1);
-        return barrier;
-    }
+    public static RunnerBarrier Get() => s_barrierPool.Get();
 
     private RunnerBarrier() {}
 
@@ -61,8 +56,9 @@ public sealed class RunnerBarrier
         Raw.RemoveParticipant();
     }
 
-    public void WaitAndReturn()
+    public void Wait()
     {
+        Raw.AddParticipant();
         Raw.SignalAndWait();
 
         Exception? exception;
@@ -77,11 +73,20 @@ public sealed class RunnerBarrier
             Array.Clear(_callbacks, 0, _callbackCount);
             _callbackCount = 0;
             exception = Exception;
-            s_barrierPool.Return(this);
         }
 
         if (exception != null) {
             throw exception;
+        }
+    }
+
+    public void WaitAndReturn()
+    {
+        try {
+            Wait();
+        }
+        finally {
+            s_barrierPool.Return(this);
         }
     }
 }
