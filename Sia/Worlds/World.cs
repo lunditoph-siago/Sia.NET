@@ -103,13 +103,13 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public WorldEntityHost<TEntity, TStorage> GetHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity, TStorage>()
         where TEntity : struct
-        where TStorage : class, IStorage<TEntity>, new()
+        where TStorage : class, IStorage<WithId<TEntity>>, new()
         => GetHost<TEntity, TStorage>(static () => new());
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public WorldEntityHost<TEntity, TStorage> GetHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity, TStorage>(Func<TStorage> creator)
         where TEntity : struct
-        where TStorage : class, IStorage<TEntity>
+        where TStorage : class, IStorage<WithId<TEntity>>
     {
         ref var host = ref _hosts.GetOrAddValueRef(
             WorldEntityHostIndexer<WorldEntityHost<TEntity, TStorage>>.Index, out bool exists);

@@ -6,7 +6,7 @@ using System.Runtime.CompilerServices;
 public sealed class WorldEntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity, TStorage>(World world, TStorage storage)
     : StorageEntityHost<TEntity, TStorage>(storage), IReactiveEntityHost
     where TEntity : struct
-    where TStorage : IStorage<TEntity>
+    where TStorage : IStorage<WithId<TEntity>>
 {
     public event EntityHandler? OnEntityCreated;
     public event EntityHandler? OnEntityReleased;
@@ -14,7 +14,7 @@ public sealed class WorldEntityHost<[DynamicallyAccessedMembers(DynamicallyAcces
     public World World { get; } = world;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public override EntityRef<TEntity> Create()
+    public override EntityRef<WithId<TEntity>> Create()
     {
         var entity = base.Create();
         World.Count++;
@@ -24,7 +24,7 @@ public sealed class WorldEntityHost<[DynamicallyAccessedMembers(DynamicallyAcces
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public override EntityRef<TEntity> Create(in TEntity initial)
+    public override EntityRef<WithId<TEntity>> Create(in TEntity initial)
     {
         var entity = base.Create(initial);
         World.Count++;

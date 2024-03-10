@@ -5,9 +5,9 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
-public sealed record WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>, IReactiveEntityHost
-    where T : struct
-    where TEntityHost : IEntityHost<T>
+public sealed record WrappedWorldEntityHost<TEntity, TEntityHost> : IEntityHost<TEntity>, IReactiveEntityHost
+    where TEntity : struct
+    where TEntityHost : IEntityHost<TEntity>
 {
     public event Action? OnDisposed {
         add => _host.OnDisposed += value;
@@ -38,7 +38,7 @@ public sealed record WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>, IR
     EntityRef IEntityHost.Create() => _host.Create();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public EntityRef<T> Create()
+    public EntityRef<WithId<TEntity>> Create()
     {
         var entity = _host.Create();
         World.Count++;
@@ -48,7 +48,7 @@ public sealed record WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>, IR
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public EntityRef<T> Create(in T initial)
+    public EntityRef<WithId<TEntity>> Create(in TEntity initial)
     {
         var entity = _host.Create(initial);
         World.Count++;
@@ -74,19 +74,16 @@ public sealed record WrappedWorldEntityHost<T, TEntityHost> : IEntityHost<T>, IR
     public bool IsValid(scoped in StorageSlot slot)
         => _host.IsValid(slot);
 
-    public void UnsafeSetId(scoped in StorageSlot slot, int id)
-        => _host.UnsafeSetId(slot, id);
-
     public unsafe ref byte GetByteRef(scoped in StorageSlot slot)
         => ref _host.GetByteRef(slot);
 
     public unsafe ref byte UnsafeGetByteRef(scoped in StorageSlot slot)
         => ref _host.UnsafeGetByteRef(slot);
 
-    public ref T GetRef(scoped in StorageSlot slot)
+    public ref WithId<TEntity> GetRef(scoped in StorageSlot slot)
         => ref _host.GetRef(slot);
 
-    public ref T UnsafeGetRef(scoped in StorageSlot slot)
+    public ref WithId<TEntity> UnsafeGetRef(scoped in StorageSlot slot)
         => ref _host.UnsafeGetRef(slot);
     
     public object Box(scoped in StorageSlot slot)

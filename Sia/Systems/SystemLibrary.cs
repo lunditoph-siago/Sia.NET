@@ -40,13 +40,14 @@ public class SystemLibrary : IAddon
         private int _firstFreeSlot;
 
         private readonly SparseSet<StorageSlot> _allocatedSlots = [];
-        private readonly Dictionary<int, int> _entitySlots = [];
+        private readonly Dictionary<Identity, int> _entitySlots = [];
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Add(scoped in StorageSlot slot)
         {
             var index = _firstFreeSlot;
-            if (!_entitySlots.TryAdd(slot.Id, index)) {
+            var id = Host.GetIdentity(slot);
+            if (!_entitySlots.TryAdd(id, index)) {
                 return;
             }
             _allocatedSlots.Add(index, slot);
@@ -56,7 +57,8 @@ public class SystemLibrary : IAddon
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Remove(scoped in StorageSlot slot)
         {
-            if (!_entitySlots.Remove(slot.Id, out int slotIndex)) {
+            var id = Host.GetIdentity(slot);
+            if (!_entitySlots.Remove(id, out int slotIndex)) {
                 return false;
             }
             _allocatedSlots.Remove(slotIndex);
@@ -84,9 +86,6 @@ public class SystemLibrary : IAddon
 
         public bool IsValid(in StorageSlot slot)
             => Host.IsValid(slot);
-
-        public void UnsafeSetId(scoped in StorageSlot slot, int id)
-            => Host.UnsafeSetId(slot, id);
 
         public ref byte GetByteRef(scoped in StorageSlot slot)
             => ref Host.GetByteRef(slot);

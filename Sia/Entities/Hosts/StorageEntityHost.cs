@@ -2,23 +2,24 @@ namespace Sia;
 
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 
-public class StorageEntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>
-    where T : struct
+public class StorageEntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>
+    where TEntity : struct
 {
-    public StorageEntityHost<T, TStorage> Create<TStorage>(TStorage storage)
-        where TStorage : class, IStorage<T>
+    public StorageEntityHost<TEntity, TStorage> Create<TStorage>(TStorage storage)
+        where TStorage : IStorage<WithId<TEntity>>
         => new(storage);
 }
 
 public class StorageEntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity, TStorage>(TStorage managedStorage) : IEntityHost<TEntity>
     where TEntity : struct
-    where TStorage : IStorage<TEntity>
+    where TStorage : IStorage<WithId<TEntity>>
 {
     public event Action? OnDisposed;
 
-    public EntityDescriptor Descriptor { get; } = EntityDescriptor.Get<TEntity>();
+    public EntityDescriptor Descriptor { get; } = EntityDescriptor.Get<WithId<TEntity>>();
 
     public int Capacity => Storage.Capacity;
     public int Count => Storage.Count;
@@ -34,11 +35,16 @@ public class StorageEntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMe
 
     EntityRef IEntityHost.Create() => Create();
 
-    public virtual EntityRef<TEntity> Create()
-        => new(Storage.AllocateSlot(), this);
+    public virtual EntityRef<WithId<TEntity>> Create()
+        => new(Storage.AllocateSlot(new WithId<TEntity> {
+            Identity = Identity.Create()
+        }), this);
 
-    public virtual EntityRef<TEntity> Create(in TEntity initial)
-        => new(Storage.AllocateSlot(initial), this);
+    public virtual EntityRef<WithId<TEntity>> Create(in TEntity initial)
+        => new(Storage.AllocateSlot(new WithId<TEntity> {
+            Identity = Identity.Create(),
+            Entity = initial
+        }), this);
 
     public virtual void Release(scoped in StorageSlot slot)
         => Storage.Release(slot);
@@ -46,19 +52,16 @@ public class StorageEntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMe
     public bool IsValid(scoped in StorageSlot slot)
         => Storage.IsValid(slot);
 
-    public void UnsafeSetId(scoped in StorageSlot slot, int id)
-        => Storage.UnsafeSetId(slot, id);
-
     public unsafe ref byte GetByteRef(scoped in StorageSlot slot)
-        => ref Unsafe.As<TEntity, byte>(ref Storage.GetRef(slot));
+        => ref Unsafe.As<WithId<TEntity>, byte>(ref Storage.GetRef(slot));
 
     public unsafe ref byte UnsafeGetByteRef(scoped in StorageSlot slot)
-        => ref Unsafe.As<TEntity, byte>(ref Storage.UnsafeGetRef(slot));
+        => ref Unsafe.As<WithId<TEntity>, byte>(ref Storage.UnsafeGetRef(slot));
 
-    public ref TEntity GetRef(scoped in StorageSlot slot)
+    public ref WithId<TEntity> GetRef(scoped in StorageSlot slot)
         => ref Storage.GetRef(slot);
 
-    public ref TEntity UnsafeGetRef(scoped in StorageSlot slot)
+    public ref WithId<TEntity> UnsafeGetRef(scoped in StorageSlot slot)
         => ref Storage.UnsafeGetRef(slot);
 
     public object Box(scoped in StorageSlot slot)

@@ -32,7 +32,8 @@ public static class EntityDescriptor<[DynamicallyAccessedMembers(DynamicallyAcce
             var offset = GetFieldOffset(fieldInfo);
 
             var fieldType = fieldInfo.FieldType;
-            if (fieldType.IsAssignableTo(typeof(IComponentBundle))) {
+            if (fieldType.IsAssignableTo(typeof(IComponentBundle))
+                    || fieldInfo.GetCustomAttribute<ComponentBundleAttribute>() != null) {
                 RegisterFields(dict, fieldType, baseOffset + offset);
             }
             else if (!dict.TryAdd(fieldType, baseOffset + offset)) {

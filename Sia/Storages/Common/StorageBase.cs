@@ -42,7 +42,7 @@ public abstract class StorageBase<T> : IStorage<T>
             while (++_firstFreeSlot < versionCount && _versions[_firstFreeSlot] > 0) {}
         }
 
-        var slot = new StorageSlot(index, StorageSlot.NewId(), version);
+        var slot = new StorageSlot(index, version);
         _allocatedSlots.Add(index, slot);
         return slot;
     }
@@ -81,13 +81,6 @@ public abstract class StorageBase<T> : IStorage<T>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T UnsafeGetRef(scoped in StorageSlot slot)
         => ref GetRef(slot.Index);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void UnsafeSetId(scoped in StorageSlot slot, int id)
-    {
-        GuardSlotVersion(slot);
-        _allocatedSlots.GetValueRefOrNullRef(slot.Index).Id = id;
-    }
 
     protected abstract void Allocate(int slot);
     protected abstract void Release(int slot);
