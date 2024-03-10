@@ -17,7 +17,6 @@ public interface IEntityHost : IEnumerable<EntityRef>, IDisposable
     ref byte GetByteRef(scoped in StorageSlot slot);
     ref byte UnsafeGetByteRef(scoped in StorageSlot slot);
 
-    void UnsafeSetId(scoped in StorageSlot slot, int id);
     object Box(scoped in StorageSlot slot);
 }
 
@@ -30,9 +29,9 @@ public interface IReactiveEntityHost : IEntityHost
 public interface IEntityHost<T> : IEntityHost
     where T : struct
 {
-    new EntityRef<T> Create();
-    EntityRef<T> Create(in T initial);
+    new EntityRef<WithId<T>> Create();
+    EntityRef<WithId<T>> Create(in T initial);
 
-    ref T GetRef(scoped in StorageSlot slot);
-    ref T UnsafeGetRef(scoped in StorageSlot slot);
+    ref WithId<T> GetRef(scoped in StorageSlot slot);
+    ref WithId<T> UnsafeGetRef(scoped in StorageSlot slot);
 }

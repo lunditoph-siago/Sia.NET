@@ -27,7 +27,7 @@ public abstract class UnversionedStorageBase<T> : IStorage<T>
         Allocate(index);
         while (_allocatedSlots.ContainsKey(++_firstFreeSlot)) {}
 
-        var slot = new StorageSlot(index, StorageSlot.NewId(), 1);
+        var slot = new StorageSlot(index, 1);
         _allocatedSlots.Add(index, slot);
         return slot;
     }
@@ -48,9 +48,6 @@ public abstract class UnversionedStorageBase<T> : IStorage<T>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool IsValid(scoped in StorageSlot slot)
         => true;
-
-    public void UnsafeSetId(scoped in StorageSlot slot, int id)
-        => _allocatedSlots.GetValueRefOrNullRef(slot.Index).Id = id;
 
     public ref T GetRef(scoped in StorageSlot slot)
         => ref GetRef(slot.Index);

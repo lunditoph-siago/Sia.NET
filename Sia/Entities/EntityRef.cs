@@ -2,16 +2,11 @@ namespace Sia;
 
 using System.Runtime.CompilerServices;
 
-public readonly struct EntityRef(scoped in StorageSlot slot, IEntityHost host)
-    : IEquatable<EntityRef>, IDisposable
+public readonly record struct EntityRef(scoped in StorageSlot Slot, IEntityHost Host) : IDisposable
 {
-    public int Id => Slot.Id;
     public object Boxed => Host.Box(Slot);
     public bool Valid => Host != null && Host.IsValid(Slot);
     public EntityDescriptor Descriptor => Host.Descriptor;
-
-    public readonly StorageSlot Slot = slot;
-    public readonly IEntityHost Host = host;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public EntityRef<TEntity> Cast<TEntity>()
@@ -68,17 +63,6 @@ public readonly struct EntityRef(scoped in StorageSlot slot, IEntityHost host)
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public readonly void Dispose()
         => Host.Release(Slot);
-
-    public override int GetHashCode() => Id;
-
-    public bool Equals(EntityRef other) => Id == other.Id;
-    public override bool Equals(object? obj) => obj is EntityRef e && Equals(e);
-
-    public static bool operator ==(EntityRef left, EntityRef right)
-        => left.Equals(right);
-
-    public static bool operator !=(EntityRef left, EntityRef right)
-        => !(left == right);
 }
 
 public readonly record struct EntityRef<TEntity>(scoped in StorageSlot Slot, IEntityHost Host)
@@ -91,32 +75,11 @@ public readonly record struct EntityRef<TEntity>(scoped in StorageSlot Slot, IEn
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe ref TEntity AsRef()
-        => ref Unsafe.AsRef<TEntity>(Unsafe.AsPointer(ref AsSpan()[0]));
+        => ref Unsafe.AsRef<TEntity>(Unsafe.AsPointer(ref Host.GetByteRef(Slot)));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe EntityRef<Bundle<TEntity, TComponent>> Add<TComponent>(
-        in TComponent newComponent, IEntityCreator creator)
-    {
-        var bundle = Bundle.Create(AsRef(), newComponent);
-        return creator.CreateEntity(bundle);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe EntityRef<TEntity> Move(IEntityCreator creator)
-    {
-        var data = AsRef();
-        Dispose();
-        return creator.CreateEntity(data);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe EntityRef<Bundle<TEntity, TComponent>> Move<TComponent>(
-        in TComponent newComponent, IEntityCreator creator)
-    {
-        var bundle = Bundle.Create(AsRef(), newComponent);
-        Dispose();
-        return creator.CreateEntity(bundle);
-    }
+    public unsafe ref TEntity UnsafeAsRef()
+        => ref Unsafe.AsRef<TEntity>(Unsafe.AsPointer(ref Host.UnsafeGetByteRef(Slot)));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Contains<TComponent>()

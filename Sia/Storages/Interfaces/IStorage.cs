@@ -11,8 +11,6 @@ public interface IStorage : IEnumerable<StorageSlot>, IDisposable
     StorageSlot AllocateSlot();
     void Release(scoped in StorageSlot slot);
     bool IsValid(scoped in StorageSlot slot);
-
-    void UnsafeSetId(scoped in StorageSlot slot, int id);
 }
 
 public interface IStorage<T> : IStorage
