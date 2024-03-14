@@ -25,3 +25,4 @@ Invoke(Example11_RPG.Run);
 Invoke(Example12_EntityBuilder.Run);
 Invoke(Example13_Addon.Run);
 Invoke(Example14_Parallel.Run);
+Invoke(Example15_PolyList.Run);
