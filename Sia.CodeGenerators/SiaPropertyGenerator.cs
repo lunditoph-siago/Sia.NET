@@ -10,7 +10,6 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
 using static Common;
-using System.Runtime.CompilerServices;
 
 [Generator]
 internal partial class SiaPropertyGenerator : IIncrementalGenerator

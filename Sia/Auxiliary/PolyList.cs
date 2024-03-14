@@ -21,6 +21,7 @@ public interface IPolyList
 {
     public void HandleHead<THandler>(in THandler handler)
         where THandler : IGenericHandler;
+
     public void HandleTail<THandler>(in THandler handler)
         where THandler : IGenericHandler<IPolyList>;
     
