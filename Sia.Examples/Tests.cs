@@ -317,7 +317,7 @@ public unsafe static class Tests
         Console.WriteLine("== Test Entity Factory ==");
 
         static void DoTest<TStorage>(TStorage storage)
-            where TStorage : class, IStorage<TestEntity>
+            where TStorage : class, IStorage<WithId<TestEntity>>
         {
             Console.WriteLine($"[{storage}]");
             var factory = new StorageEntityHost<TestEntity, TStorage>(storage);
@@ -340,9 +340,9 @@ public unsafe static class Tests
             e5.Dispose();
         }
 
-        DoTest(new ArrayBufferStorage<TestEntity>(512));
-        DoTest(new SparseBufferStorage<TestEntity>(512));
-        DoTest(new HashBufferStorage<TestEntity>());
+        DoTest(new ArrayBufferStorage<WithId<TestEntity>>(512));
+        DoTest(new SparseBufferStorage<WithId<TestEntity>>(512));
+        DoTest(new HashBufferStorage<WithId<TestEntity>>());
     }
 
     public static void Run()
