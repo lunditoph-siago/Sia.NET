@@ -98,17 +98,18 @@ public static partial class EntityQueryExtensions
 
             while (true) {
                 var slotCount = host.Count;
-                if (remainingCount < slotCount) {
-                    handler(host, data.UserData, slotIndex, slotIndex + remainingCount);
+                var endIndex = slotIndex + remainingCount;
+                if (endIndex < slotCount) {
+                    handler(host, data.UserData, slotIndex, endIndex);
                     return;
                 }
 
                 handler(host, data.UserData, slotIndex, slotCount);
-                remainingCount -= slotCount;
 
-                if (remainingCount == 0) {
-                    return;
-                }
+                remainingCount = slotIndex + remainingCount - slotCount;
+
+                if (remainingCount == 0) return;
+
                 host = hosts[++hostIndex];
                 slotIndex = 0;
             }
