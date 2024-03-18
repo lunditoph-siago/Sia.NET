@@ -135,6 +135,8 @@ public static partial class Example1_HealthDamage
     public static void Run()
     {
         var world = new World();
+        Context<World>.Current = world;
+
         var game = world.AcquireAddon<Game>();
 
         var handle = SystemChain.Empty
@@ -142,29 +144,27 @@ public static partial class Example1_HealthDamage
             .Add<GameplaySystems>()
             .RegisterTo(world, game.Scheduler);
         
-        world.Start(() => {
-            var player = Player.Create(world, new(1, 1));
-            game.Update(0.5f);
+        var player = Player.Create(world, new(1, 1));
+        game.Update(0.5f);
 
-            var trans = new Transform.View(player) {
-                Position = new(1, 2)
-            };
-            game.Update(0.5f);
+        var trans = new Transform.View(player) {
+            Position = new(1, 2)
+        };
+        game.Update(0.5f);
 
-            game.Scheduler.CreateTask(() => {
-                Console.WriteLine("Callback invoked after health and gameplay systems");
-                return true; // remove task
-            }, handle.SystemTaskNodes);
-        
-            trans.Position = new(1, 3);
+        game.Scheduler.CreateTask(() => {
+            Console.WriteLine("Callback invoked after health and gameplay systems");
+            return true; // remove task
+        }, handle.SystemTaskNodes);
+    
+        trans.Position = new(1, 3);
 
-            game.Update(0.5f);
-            game.Update(0.5f);
-            game.Update(0.5f);
-            game.Update(0.5f); // player dead
+        game.Update(0.5f);
+        game.Update(0.5f);
+        game.Update(0.5f);
+        game.Update(0.5f); // player dead
 
-            handle.Dispose();
-        });
+        handle.Dispose();
     }
 }
 ```
