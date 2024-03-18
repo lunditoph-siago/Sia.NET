@@ -96,21 +96,28 @@ public static partial class EntityQueryExtensions
             var hosts = data.Query.Hosts;
             var (host, hostIndex, slotIndex) = FindHost(hosts, from);
 
+            int slotCount = host.Count - slotIndex;
+            if (remainingCount <= slotCount) {
+                handler(host, data.UserData, slotIndex, slotIndex + remainingCount);
+                return;
+            }
+            handler(host, data.UserData, slotIndex, slotIndex + slotCount);
+            remainingCount -= slotCount;
+            if (remainingCount == 0) { return; }
+
+            host = hosts[++hostIndex];
+            slotCount = host.Count;
+
             while (true) {
-                var slotCount = host.Count;
-                if (remainingCount < slotCount) {
-                    handler(host, data.UserData, slotIndex, slotIndex + remainingCount);
+                if (remainingCount <= slotCount) {
+                    handler(host, data.UserData, 0, remainingCount);
                     return;
                 }
-
-                handler(host, data.UserData, slotIndex, slotCount);
+                handler(host, data.UserData, 0, slotCount);
                 remainingCount -= slotCount;
 
-                if (remainingCount == 0) {
-                    return;
-                }
                 host = hosts[++hostIndex];
-                slotIndex = 0;
+                slotCount = host.Count;
             }
         };
 
