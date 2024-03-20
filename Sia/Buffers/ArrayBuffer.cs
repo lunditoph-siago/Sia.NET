@@ -1,7 +1,8 @@
+using System.Diagnostics;
+
 namespace Sia;
 
 using System.Runtime.CompilerServices;
-using CommunityToolkit.HighPerformance;
 
 public struct ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
 {
@@ -9,7 +10,14 @@ public struct ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
 
     private T[] _values = new T[CalculateArraySize(initialCapacity)];
 
-    public readonly ref T this[int index] => ref GetRef(index);
+    public ref T this[int index]
+    {
+        get
+        {
+            CheckElementReadAccess(index);
+            return ref index >= _values.Length ? ref Unsafe.NullRef<T>() : ref _values[index];
+        }
+    }
 
     public ArrayBuffer() : this(0) {}
 
@@ -47,16 +55,15 @@ public struct ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
         => index < _values.Length;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly ref T GetRef(int index)
-        => ref _values[index];
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly ref T GetRefOrNullRef(int index)
-        => ref index >= _values.Length ? ref Unsafe.NullRef<T>() : ref _values[index];
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public readonly void Clear() => Array.Clear(_values);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly void Dispose() {}
+    public readonly void Dispose() { }
+
+    [Conditional("ENABLE_COLLECTIONS_CHECKS")]
+    private void CheckElementReadAccess(int index)
+    {
+        if (index < 0 || index >= _values.Length)
+            throw new IndexOutOfRangeException($"Index {(object)index} is out of range of '{(object)_values.Length}' Length.");
+    }
 }

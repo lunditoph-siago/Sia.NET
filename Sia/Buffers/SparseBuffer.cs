@@ -7,7 +7,7 @@ public readonly struct SparseBuffer<T>(int pageSize) : IBuffer<T>
     public int Capacity => int.MaxValue;
     private readonly SparseSet<T> _sparseSet = new(pageSize);
 
-    public readonly ref T this[int index] => ref GetRef(index);
+    public readonly ref T this[int index] => ref _sparseSet.GetValueRefOrNullRef(index);
 
     public SparseBuffer() : this(256) {}
 
@@ -22,14 +22,6 @@ public readonly struct SparseBuffer<T>(int pageSize) : IBuffer<T>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool IsAllocated(int index)
         => _sparseSet.ContainsKey(index);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref T GetRef(int index)
-        => ref _sparseSet.GetValueRefOrNullRef(index);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref T GetRefOrNullRef(int index)
-        => ref _sparseSet.GetValueRefOrNullRef(index);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Clear()

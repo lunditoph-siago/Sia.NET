@@ -28,7 +28,7 @@ public class Dispatcher<TTarget, TEvent> : IEventSender<TTarget, TEvent>
         int typeIndex = EventTypeIndexer<UEvent>.Index;
 
         List<Listener<UEvent>> listeners;
-        ref var rawListeners = ref _eventListeners.GetRefOrNullRef(typeIndex);
+        ref var rawListeners = ref _eventListeners[typeIndex];
         
         if (Unsafe.IsNullRef(ref rawListeners) || rawListeners == null) {
             listeners = [];
@@ -62,7 +62,7 @@ public class Dispatcher<TTarget, TEvent> : IEventSender<TTarget, TEvent>
         GuardNotSending();
 
         int typeIndex = EventTypeIndexer<UEvent>.Index;
-        ref var rawListeners = ref _eventListeners.GetRefOrNullRef(typeIndex);
+        ref var rawListeners = ref _eventListeners[typeIndex];
 
         if (Unsafe.IsNullRef(ref rawListeners) || rawListeners == null) {
             return false;
@@ -117,7 +117,7 @@ public class Dispatcher<TTarget, TEvent> : IEventSender<TTarget, TEvent>
         GuardNotSending();
 
         int typeIndex = EventTypeIndexer<UEvent>.Index;
-        ref var rawListeners = ref _eventListeners.GetRefOrNullRef(typeIndex);
+        ref var rawListeners = ref _eventListeners[typeIndex];
         if (Unsafe.IsNullRef(ref rawListeners) || rawListeners == null) {
             return;
         }
@@ -165,7 +165,7 @@ public class Dispatcher<TTarget, TEvent> : IEventSender<TTarget, TEvent>
             int targetListenerCount = 0;
 
             List<Listener<UEvent>>? eventListeners = null;
-            ref var rawEventListeners = ref _eventListeners.GetRefOrNullRef(typeIndex);
+            ref var rawEventListeners = ref _eventListeners[typeIndex];
 
             if (!Unsafe.IsNullRef(ref rawEventListeners) && rawEventListeners != null) {
                 eventListeners = (List<Listener<UEvent>>)rawEventListeners;

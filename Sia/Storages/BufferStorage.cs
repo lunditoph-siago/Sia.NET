@@ -30,7 +30,7 @@ public class BufferStorage<T, TBuffer>(in TBuffer buffer) : StorageBase<T>
     protected override void Release(int slot) => _buffer.Release(slot);
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    protected override ref T GetRef(int slot) => ref _buffer.GetRef(slot);
+    protected override ref T GetRef(int slot) => ref _buffer[slot];
 
     public override void Dispose()
     {

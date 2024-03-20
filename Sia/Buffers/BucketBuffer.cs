@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace Sia;
 
 using System.Runtime.CompilerServices;
@@ -15,7 +17,19 @@ public readonly struct BucketBuffer<T>(int bucketCapacity) : IBuffer<T>
     public int Capacity => int.MaxValue;
     public int BucketCapacity { get; } = bucketCapacity;
 
-    public readonly ref T this[int index] => ref GetRef(index);
+    public ref T this[int index]
+    {
+        get
+        {
+            int bucketIndex = index / BucketCapacity;
+            CheckElementReadAccess(bucketIndex);
+            if (bucketIndex >= _buckets.Count) return ref Unsafe.NullRef<T>();
+            ref var bucket = ref _buckets.AsSpan()[bucketIndex];
+            IsNotNull(bucket, bucketIndex);
+            if (bucket == null) return ref Unsafe.NullRef<T>();
+            return ref bucket.Value.Memory[index % BucketCapacity];
+        }
+    }
 
     private readonly List<Bucket?> _buckets = [];
 
@@ -70,28 +84,6 @@ public readonly struct BucketBuffer<T>(int bucketCapacity) : IBuffer<T>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref T GetRef(int index)
-    {
-        int bucketIndex = index / BucketCapacity;
-        ref var bucket = ref _buckets.AsSpan()[bucketIndex];
-        return ref bucket!.Value.Memory[index % BucketCapacity];
-    }
-    
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref T GetRefOrNullRef(int index)
-    {
-        int bucketIndex = index / BucketCapacity;
-        if (bucketIndex >= _buckets.Count) {
-            return ref Unsafe.NullRef<T>();
-        }
-        ref var bucket = ref _buckets.AsSpan()[bucketIndex];
-        if (bucket == null) {
-            return ref Unsafe.NullRef<T>();
-        }
-        return ref bucket.Value.Memory[index % BucketCapacity];
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Clear()
     {
         _buckets.Clear();
@@ -99,4 +91,18 @@ public readonly struct BucketBuffer<T>(int bucketCapacity) : IBuffer<T>
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Dispose() {}
+
+    [Conditional("ENABLE_COLLECTIONS_CHECKS")]
+    private void CheckElementReadAccess(int index)
+    {
+        if (index < 0 || index >= _buckets.Count)
+            throw new IndexOutOfRangeException($"Index {(object)index} is out of range of '{(object)_buckets.Count}' Length.");
+    }
+
+    [Conditional("ENABLE_COLLECTIONS_CHECKS")]
+    private void IsNotNull(Bucket? item, int index)
+    {
+        if (item is null)
+            throw new IndexOutOfRangeException($"Element at index {(object)index} is null");
+    }
 }
