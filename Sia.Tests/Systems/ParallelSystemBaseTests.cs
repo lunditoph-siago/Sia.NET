@@ -29,7 +29,7 @@ public class ParallelSystemBaseTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void ParallelSystemBaseSingleComponentTest(bool padding)
+    public void ParallelSystemBaseSingleComponent_Test(bool padding)
     {
         using var fixture = new WorldFixture();
         fixture.Prepare(new VariableData(), 100, padding);
