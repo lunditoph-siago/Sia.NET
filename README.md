@@ -4,6 +4,143 @@
 
 Modern ECS framework for .NET
 
+## Get started
+
+```console
+dotnet add package Sia
+```
+
+The package uses [Roslyn Source Generators](https://docs.microsoft.com/en-us/dotnet/csharp/roslyn-sdk/source-generators-overview).
+Because of this, you should use an IDE that's compatible with source generators. Previous IDE versions might experience
+slow-downs or mark valid code as errors. The following IDEs are compatible with source generators:
+
+- Visual Studio 2022+
+- Rider 2021.3.3+
+- ~~Visual Studio Code (preview LPS)~~
+
+## Components overview
+
+Components represent the data in the Entity Component System (ECS) architecture. 
+
+### Add components to an entity
+
+To add components to an entity, we provided multiple approachs for different scenario.
+
+```csharp
+public static EntityRef<WithId<TEntity>> CreateInBucketHost<
+    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>(
+        this World world, in TEntity initial, int bucketCapacity = 256)
+    where TEntity : struct
+```
+
+```csharp
+public static EntityRef<WithId<TEntity>> CreateInHashHost<
+    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>(
+        this World world, in TEntity initial)
+    where TEntity : struct
+```
+
+```csharp
+public static EntityRef<WithId<TEntity>> CreateInArrayHost<
+    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>(
+        this World world, in TEntity initial, int initialCapacity = 0)
+    where TEntity : struct
+```
+
+```csharp
+public static EntityRef<WithId<TEntity>> CreateInSparseHost<
+    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>(
+        this World world, in TEntity initial, int pageSize = 256)
+    where TEntity : struct
+```
+
+### Remove components from an entity
+
+The `EntityRef` is a class inherit from `IDisposable` interface. We can call `Dispose` to release the entity from the
+world.
+
+### Read and write component values of entities
+
+TODO: I don't known about trigger related.
+
+## Systems overview
+
+### Introduction to systems
+
+We can register system to `world` in two approach:
+
+1. use method `RegisterTo` to `SystemChain`:
+   ```csharp
+   SystemChain.Empty.Add<System>().RegisterTo(world, scheduler);
+   ```
+
+2. use register api in `World`:
+   ```csharp
+   world.RegisterSystem<System>(scheduler);
+   ```
+
+#### The core of System: ISystem
+
+```csharp
+public interface ISystem
+{
+    SystemChain? Children { get; }
+    IEntityMatcher? Matcher { get; }
+    IEventUnion? Trigger { get; }
+    IEventUnion? Filter { get; }
+
+    void Initialize(World world, Scheduler scheduler);
+    void Uninitialize(World world, Scheduler scheduler);
+    void Execute(World world, Scheduler scheduler, IEntityQuery query);
+}
+```
+
+#### Using SystemBase
+
+TODO: Trigger, children, Match, Filter
+
+#### Using ParallelSystemBase
+
+This system is a wrapper for `SystemBase`
+
+### Iterate over component data
+
+Iterating over data is one of the most common tasks you need to perform when you create a system. A system typically
+processes a set of entities, reads data from one or more components, performs a calculation, and then writes the result
+to another component.
+
+1. Use `Enumerator` for `query` each entity:
+   ```csharp
+   public class System : SystemBase
+   {
+       public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+       {
+           foreach (var entity in query) {
+               // Process each entity.
+           }
+       }
+   }
+   ```
+
+2. Use `lambda` style for `query` either component or entity:
+   ```csharp
+   public class System : SystemBase
+   {
+       public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+       {
+           query.ForEach((ref T component) => {
+               // process each component.
+           });
+           query.ForSliceOnParallel((ref T component) => {
+               // process each component.
+           });
+           query.ForEach(entity => {
+               // process each entity.
+           });
+       }
+   }
+   ```
+
 ## Example
 
 ```C#
