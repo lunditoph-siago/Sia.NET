@@ -17,13 +17,29 @@ public interface IGenericHandler<TBase>
     public void Handle<T>(in T value) where T : TBase;
 }
 
+public interface IRefGenericHandler
+{
+    public void Handle<T>(ref T value);
+}
+
+public interface IRefGenericHandler<TBase>
+{
+    public void Handle<T>(ref T value) where T : TBase;
+}
+
 public interface IHList
 {
     public void HandleHead<THandler>(in THandler handler)
         where THandler : IGenericHandler;
 
+    public void HandleHeadRef<THandler>(in THandler handler)
+        where THandler : IRefGenericHandler;
+
     public void HandleTail<THandler>(in THandler handler)
         where THandler : IGenericHandler<IHList>;
+
+    public void HandleTailRef<THandler>(in THandler handler)
+        where THandler : IRefGenericHandler<IHList>;
     
     public void Concat<THList, TResultHandler>(in THList list, in TResultHandler handler)
         where THList : IHList
@@ -44,8 +60,14 @@ public struct EmptyHList : IHList
     public readonly void HandleHead<THandler>(in THandler handler)
         where THandler : IGenericHandler {}
 
+    public readonly void HandleHeadRef<THandler>(in THandler handler)
+        where THandler : IRefGenericHandler {}
+
     public readonly void HandleTail<THandler>(in THandler handler)
         where THandler : IGenericHandler<IHList> {}
+
+    public readonly void HandleTailRef<THandler>(in THandler handler)
+        where THandler : IRefGenericHandler<IHList> {}
 
     public readonly void Concat<THList, TResultHandler>(in THList list, in TResultHandler handler)
         where THList : IHList
@@ -75,9 +97,17 @@ public struct HList<THead, TTail>(in THead head, in TTail tail) : IHList
         where THandler : IGenericHandler
         => handler.Handle(Head);
 
+    public void HandleHeadRef<THandler>(in THandler handler)
+        where THandler : IRefGenericHandler
+        => handler.Handle(ref Head);
+
     public readonly void HandleTail<THandler>(in THandler handler)
         where THandler : IGenericHandler<IHList>
         => handler.Handle(Tail);
+
+    public void HandleTailRef<THandler>(in THandler handler)
+        where THandler : IRefGenericHandler<IHList>
+        => handler.Handle(ref Tail);
 
     private struct TailConcater<TResultHandler>(in THead head, in TResultHandler handler)
         : IGenericHandler<IHList>
