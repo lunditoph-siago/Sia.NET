@@ -80,7 +80,7 @@ public static partial class Example1_HealthDamage
     public class LocationDamageSystem()
         : SystemBase(
             matcher: Matchers.Of<Transform, Health>(),
-            trigger: EventUnion.Of<WorldEvents.Add, Transform.SetPosition>())
+            trigger: EventUnion.Of<WorldEvents.Add<Health>, Transform.SetPosition>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
