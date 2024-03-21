@@ -33,7 +33,7 @@ public abstract class UnversionedStorageBase<T> : IStorage<T>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Release(scoped in StorageSlot slot)
+    public void Release(in StorageSlot slot)
     {
         int index = slot.Index;
 
@@ -46,7 +46,7 @@ public abstract class UnversionedStorageBase<T> : IStorage<T>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool IsValid(scoped in StorageSlot slot)
+    public bool IsValid(in StorageSlot slot)
         => true;
 
     public ref T GetRef(scoped in StorageSlot slot)

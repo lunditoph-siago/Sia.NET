@@ -58,7 +58,7 @@ public sealed record WrappedWorldEntityHost<TEntity, TEntityHost> : IEntityHost<
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Release(scoped in StorageSlot slot)
+    public void Release(in StorageSlot slot)
     {
         _host.Release(slot);
         var entity = new EntityRef(slot, this);
@@ -99,22 +99,22 @@ public sealed record WrappedWorldEntityHost<TEntity, TEntityHost> : IEntityHost<
     public EntityRef Remove<TComponent>(in StorageSlot slot)
         => _host.Remove<TComponent>(slot);
 
-    public bool IsValid(scoped in StorageSlot slot)
+    public bool IsValid(in StorageSlot slot)
         => _host.IsValid(slot);
 
-    public unsafe ref byte GetByteRef(scoped in StorageSlot slot)
+    public unsafe ref byte GetByteRef(in StorageSlot slot)
         => ref _host.GetByteRef(slot);
 
-    public unsafe ref byte UnsafeGetByteRef(scoped in StorageSlot slot)
+    public unsafe ref byte UnsafeGetByteRef(in StorageSlot slot)
         => ref _host.UnsafeGetByteRef(slot);
 
-    public ref HList<Identity, TEntity> GetRef(scoped in StorageSlot slot)
+    public ref HList<Identity, TEntity> GetRef(in StorageSlot slot)
         => ref _host.GetRef(slot);
 
-    public ref HList<Identity, TEntity> UnsafeGetRef(scoped in StorageSlot slot)
+    public ref HList<Identity, TEntity> UnsafeGetRef(in StorageSlot slot)
         => ref _host.UnsafeGetRef(slot);
     
-    public object Box(scoped in StorageSlot slot)
+    public object Box(in StorageSlot slot)
         => _host.Box(slot);
 
     public IEnumerator<EntityRef> GetEnumerator() => _host.GetEnumerator();

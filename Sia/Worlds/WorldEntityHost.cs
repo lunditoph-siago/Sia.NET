@@ -85,7 +85,7 @@ public class WorldEntityHost<TEntity, TStorage>(
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public override void Release(scoped in StorageSlot slot)
+    public override void Release(in StorageSlot slot)
     {
         var entity = new EntityRef(slot, this);
         var dispatcher = World.Dispatcher;

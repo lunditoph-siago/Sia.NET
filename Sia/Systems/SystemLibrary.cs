@@ -51,7 +51,7 @@ public class SystemLibrary : IAddon
         }
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Add(scoped in StorageSlot slot)
+        public void Add(in StorageSlot slot)
         {
             var index = _firstFreeSlot;
             var id = Host.GetIdentity(slot);
@@ -63,7 +63,7 @@ public class SystemLibrary : IAddon
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool Remove(scoped in StorageSlot slot)
+        public bool Remove(in StorageSlot slot)
         {
             var id = Host.GetIdentity(slot);
             if (!_entitySlots.Remove(id, out int slotIndex)) {
@@ -84,7 +84,7 @@ public class SystemLibrary : IAddon
         }
 
         public EntityRef Create() => Host.Create();
-        public void Release(scoped in StorageSlot slot) => Host.Release(slot);
+        public void Release(in StorageSlot slot) => Host.Release(slot);
 
         public void MoveOut(in StorageSlot slot)
             => Host.MoveOut(slot);
@@ -102,10 +102,10 @@ public class SystemLibrary : IAddon
         public bool IsValid(in StorageSlot slot)
             => Host.IsValid(slot);
 
-        public ref byte GetByteRef(scoped in StorageSlot slot)
+        public ref byte GetByteRef(in StorageSlot slot)
             => ref Host.GetByteRef(slot);
 
-        public ref byte UnsafeGetByteRef(scoped in StorageSlot slot)
+        public ref byte UnsafeGetByteRef(in StorageSlot slot)
             => ref Host.UnsafeGetByteRef(slot);
 
         public object Box(in StorageSlot slot)

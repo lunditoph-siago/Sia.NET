@@ -9,8 +9,8 @@ public interface IStorage : IEnumerable<StorageSlot>, IDisposable
     ReadOnlySpan<StorageSlot> AllocatedSlots { get; }
 
     StorageSlot AllocateSlot();
-    void Release(scoped in StorageSlot slot);
-    bool IsValid(scoped in StorageSlot slot);
+    void Release(in StorageSlot slot);
+    bool IsValid(in StorageSlot slot);
 }
 
 public interface IStorage<T> : IStorage
