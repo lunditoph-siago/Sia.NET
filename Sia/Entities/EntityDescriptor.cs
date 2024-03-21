@@ -10,24 +10,23 @@ public static class EntityDescriptor<TEntity>
 
     public static readonly FrozenDictionary<Type, IntPtr> FieldOffsets;
 
-    private unsafe struct HeadOffsetRecorder(Dictionary<Type, IntPtr> dict, int* offset) : IGenericHandler
+    private unsafe struct HeadOffsetRecorder(Dictionary<Type, IntPtr> dict, IntPtr entityPtr) : IRefGenericHandler
     {
-        public readonly void Handle<T>(in T value)
+        public readonly void Handle<T>(ref T value)
         {
-            if (!dict.TryAdd(typeof(T), *offset)) {
+            var compPtr = (IntPtr)Unsafe.AsPointer(ref value);
+            if (!dict.TryAdd(typeof(T), compPtr - entityPtr)) {
                 throw new InvalidDataException("Entity cannot have multiple components of the same type");
             }
-            *offset += Unsafe.SizeOf<T>();
         }
     }
 
-    private unsafe struct TailOffsetRecorder(Dictionary<Type, IntPtr> dict, int* offset) : IGenericHandler<IHList>
+    private unsafe struct TailOffsetRecorder(Dictionary<Type, IntPtr> dict, IntPtr entityPtr) : IRefGenericHandler<IHList>
     {
-        public readonly void Handle<T>(in T value) where T : IHList
+        public readonly void Handle<T>(ref T value) where T : IHList
         {
-            var headRecorder = new HeadOffsetRecorder(dict, offset);
-            value.HandleHead(headRecorder);
-            value.HandleTail(new TailOffsetRecorder(dict, offset));
+            value.HandleHeadRef(new HeadOffsetRecorder(dict, entityPtr));
+            value.HandleTailRef(new TailOffsetRecorder(dict, entityPtr));
         }
     }
 
@@ -35,11 +34,10 @@ public static class EntityDescriptor<TEntity>
     {
         var dict = new Dictionary<Type, IntPtr>();
         var defaultEntity = default(TEntity)!;
+        var entityPtr = (IntPtr)Unsafe.AsPointer(ref defaultEntity);
 
-        int offset = 0;
-        var headRecorder = new HeadOffsetRecorder(dict, &offset);
-        defaultEntity.HandleHead(headRecorder);
-        defaultEntity.HandleTail(new TailOffsetRecorder(dict, &offset));
+        defaultEntity.HandleHeadRef(new HeadOffsetRecorder(dict, entityPtr));
+        defaultEntity.HandleTailRef(new TailOffsetRecorder(dict, entityPtr));
 
         FieldOffsets = dict.ToFrozenDictionary();
     }
