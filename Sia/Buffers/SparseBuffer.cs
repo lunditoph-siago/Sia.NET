@@ -9,7 +9,7 @@ public readonly struct SparseBuffer<T>(int pageSize) : IBuffer<T>
 
     public ref T this[int index] => ref _sparseSet.GetValueRefOrNullRef(index);
 
-    public SparseBuffer() : this(256) { }
+    public SparseBuffer() : this(256) {}
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T CreateRef(int index)
@@ -28,5 +28,5 @@ public readonly struct SparseBuffer<T>(int pageSize) : IBuffer<T>
         => _sparseSet.Clear();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Dispose() { }
+    public void Dispose() {}
 }

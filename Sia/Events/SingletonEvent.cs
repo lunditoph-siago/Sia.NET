@@ -5,5 +5,5 @@ public abstract class SingletonEvent<TEvent> : IEvent
 {
     public static TEvent Instance { get; } = new();
 
-    protected SingletonEvent() { }
+    protected SingletonEvent() {}
 }

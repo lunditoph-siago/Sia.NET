@@ -27,7 +27,7 @@ public class Scheduler
         internal HashSet<TaskGraphNode>? _dependedTasks;
         internal HashSet<TaskGraphNode>? _dependingTasks;
 
-        internal TaskGraphNode() { }
+        internal TaskGraphNode() {}
 
         public void Terminate()
             => DoStop(force: true);

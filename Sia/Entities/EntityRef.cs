@@ -61,7 +61,7 @@ public readonly record struct EntityRef(scoped in StorageSlot Slot, IEntityHost 
         => Host.GetSpan(Slot);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly void Dispose()
+    public void Dispose()
         => Host.Release(Slot);
 }
 

@@ -34,7 +34,7 @@ public sealed class RunnerBarrier
 
     public static RunnerBarrier Get() => s_barrierPool.Get();
 
-    private RunnerBarrier() { }
+    private RunnerBarrier() {}
 
     public void AddCallback(Action<object?> callback, object? userData = null)
     {

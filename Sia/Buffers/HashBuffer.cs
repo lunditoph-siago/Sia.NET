@@ -29,5 +29,5 @@ public readonly struct HashBuffer<T>() : IBuffer<T>
         => _dict.Clear();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Dispose() { }
+    public void Dispose() {}
 }
