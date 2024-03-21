@@ -20,17 +20,17 @@ namespace Sia_Examples
             public static implicit operator Name(string name)
                 => new(name);
         }
-            
+
         public static class BundleExtensions
         {
             public static EntityRef AddTransformBundle(this EntityRef entity)
-                => entity.AddBundle(HList.Create(
+                => entity.AddMany(HList.Create(
                     new Position(),
                     new Rotation(Quaternion.Identity),
                     new Scale(Vector3.One)));
 
             public static EntityRef AddObjectBundle(this EntityRef entity, ObjectId id, string name)
-                => entity.AddBundle(HList.Create(
+                => entity.AddMany(HList.Create(
                     new Sid<ObjectId>(id),
                     new Name(name)));
         }

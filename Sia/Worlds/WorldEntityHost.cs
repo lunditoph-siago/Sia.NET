@@ -90,9 +90,9 @@ public class WorldEntityHost<TEntity, TStorage>(
         return e;
     }
 
-    public override EntityRef AddBundle<TBundle>(in StorageSlot slot, in TBundle bundle)
+    public override EntityRef AddMany<TBundle>(in StorageSlot slot, in TBundle bundle)
     {
-        var e = base.AddBundle(slot, bundle);
+        var e = base.AddMany(slot, bundle);
         bundle.HandleHead(new EntityHeadAddEventSender(e, World.Dispatcher));
         bundle.HandleTail(new EntityTailAddEventSender(e, World.Dispatcher));
         return e;
