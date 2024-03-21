@@ -10,21 +10,9 @@ public static partial class Example4_Aggregator
             => new(id);
     }
 
-    public partial record struct ComponentCount([Sia] int Value);
-
-    public record struct TestEntity(
-        Aggregation<ObjectId> Aggregation,
-        ComponentCount ComponentCount) : IAggregationEntity<ObjectId>
-    {
-        public static EntityRef Create(World world)
-            => world.CreateInArrayHost(new TestEntity {
-                ComponentCount = new(0)
-            });
-    }
-
     public sealed class ComponentCountSystem()
         : SystemBase(
-            matcher: Matchers.Of<ComponentCount, Aggregation<ObjectId>>(),
+            matcher: Matchers.Of<Aggregation<ObjectId>>(),
             trigger: EventUnion.Of<Aggregation.EntityAdded, Aggregation.EntityRemoved>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
@@ -32,7 +20,6 @@ public static partial class Example4_Aggregator
             foreach (var entity in query) {
                 ref var aggr = ref entity.Get<Aggregation<ObjectId>>();
                 int count = aggr.Group.Count;
-                world.Modify(entity, new ComponentCount.SetValue(count));
                 Console.WriteLine($"[{aggr.Id}] Count: " + count);
             }
         }
@@ -42,33 +29,33 @@ public static partial class Example4_Aggregator
     {
         var scheduler = new Scheduler();
 
-        var aggregator = world.AcquireAddon<Aggregator<TestEntity, ObjectId>>();
+        var aggregator = world.AcquireAddon<Aggregator<ObjectId>>();
 
         SystemChain.Empty
             .Add<ComponentCountSystem>()
             .RegisterTo(world, scheduler);
         
-        world.CreateInArrayHost(Bundle.Create(
+        world.CreateInArrayHost(HList.Create(
             new Sid<ObjectId>(0)
         ));
 
         Console.WriteLine("Tick!");
         scheduler.Tick();
 
-        world.CreateInArrayHost(Bundle.Create(
+        world.CreateInArrayHost(HList.Create(
             new Sid<ObjectId>(1)
         ));
 
         Console.WriteLine("Tick!");
         scheduler.Tick();
 
-        world.CreateInArrayHost(Bundle.Create(
+        world.CreateInArrayHost(HList.Create(
             new Sid<ObjectId>(1)
         ));
-        var e1 = world.CreateInArrayHost(Bundle.Create(
+        var e1 = world.CreateInArrayHost(HList.Create(
             new Sid<ObjectId>(1)
         ));
-        var e2 = world.CreateInArrayHost(Bundle.Create(
+        var e2 = world.CreateInArrayHost(HList.Create(
             new Sid<ObjectId>(1)
         ));
 

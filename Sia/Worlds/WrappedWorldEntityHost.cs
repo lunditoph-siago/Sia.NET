@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
 public sealed record WrappedWorldEntityHost<TEntity, TEntityHost> : IEntityHost<TEntity>, IReactiveEntityHost
-    where TEntity : struct
+    where TEntity : IHList
     where TEntityHost : IEntityHost<TEntity>
 {
     public event Action? OnDisposed {
@@ -38,7 +38,7 @@ public sealed record WrappedWorldEntityHost<TEntity, TEntityHost> : IEntityHost<
     EntityRef IEntityHost.Create() => _host.Create();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public EntityRef<WithId<TEntity>> Create()
+    public EntityRef Create()
     {
         var entity = _host.Create();
         World.Count++;
@@ -48,7 +48,7 @@ public sealed record WrappedWorldEntityHost<TEntity, TEntityHost> : IEntityHost<
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public EntityRef<WithId<TEntity>> Create(in TEntity initial)
+    public EntityRef Create(in TEntity initial)
     {
         var entity = _host.Create(initial);
         World.Count++;
@@ -71,6 +71,34 @@ public sealed record WrappedWorldEntityHost<TEntity, TEntityHost> : IEntityHost<
         OnEntityReleased?.Invoke(entity);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public EntityRef MoveIn(in HList<Identity, TEntity> data)
+    {
+        var entity = _host.MoveIn(data);
+        OnEntityCreated?.Invoke(entity);
+        return entity;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void MoveOut(in StorageSlot slot)
+    {
+        OnEntityReleased?.Invoke(new(slot, this));
+        _host.MoveOut(slot);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public EntityRef Add<TComponent>(in StorageSlot slot, in TComponent initial)
+        => _host.Add(slot, initial);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public EntityRef AddBundle<TBundle>(in StorageSlot slot, in TBundle bundle)
+        where TBundle : IHList
+        => _host.AddBundle(slot, bundle);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public EntityRef Remove<TComponent>(in StorageSlot slot)
+        => _host.Remove<TComponent>(slot);
+
     public bool IsValid(scoped in StorageSlot slot)
         => _host.IsValid(slot);
 
@@ -80,10 +108,10 @@ public sealed record WrappedWorldEntityHost<TEntity, TEntityHost> : IEntityHost<
     public unsafe ref byte UnsafeGetByteRef(scoped in StorageSlot slot)
         => ref _host.UnsafeGetByteRef(slot);
 
-    public ref WithId<TEntity> GetRef(scoped in StorageSlot slot)
+    public ref HList<Identity, TEntity> GetRef(scoped in StorageSlot slot)
         => ref _host.GetRef(slot);
 
-    public ref WithId<TEntity> UnsafeGetRef(scoped in StorageSlot slot)
+    public ref HList<Identity, TEntity> UnsafeGetRef(scoped in StorageSlot slot)
         => ref _host.UnsafeGetRef(slot);
     
     public object Box(scoped in StorageSlot slot)

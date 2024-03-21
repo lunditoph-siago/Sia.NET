@@ -10,32 +10,13 @@ public static class EntityWorldContextExtensions
         => World.Current!.Send(entity, e);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void Send<TEntity, TEvent>(this EntityRef<TEntity> entity, in TEvent e)
-        where TEntity : struct
-        where TEvent : IEvent
-        => World.Current!.Send(entity, e);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void Modify<TCommand>(this EntityRef entity, in TCommand command)
-        where TCommand : ICommand
-        => World.Current!.Modify(entity, command);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void Modify<TEntity, TCommand>(this EntityRef<TEntity> entity, in TCommand command)
-        where TEntity : struct
         where TCommand : ICommand
         => World.Current!.Modify(entity, command);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void Modify<TComponent, TCommand>(
         this EntityRef entity, ref TComponent component, in TCommand command)
-        where TCommand : ICommand<TComponent>
-        => World.Current!.Modify(entity, ref component, command);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void Modify<TEntity, TComponent, TCommand>(
-        this EntityRef<TEntity> entity, ref TComponent component, in TCommand command)
-        where TEntity : struct
         where TCommand : ICommand<TComponent>
         => World.Current!.Modify(entity, ref component, command);
 }

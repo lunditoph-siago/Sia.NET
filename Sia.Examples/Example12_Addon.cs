@@ -2,7 +2,7 @@ namespace Sia_Examples;
 
 using Sia;
 
-public static partial class Example13_Addon
+public static partial class Example12_Addon
 {
     public interface ITestAddon : IAddon {}
     public class Addon1 : ITestAddon {}

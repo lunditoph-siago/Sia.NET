@@ -7,13 +7,13 @@ public static partial class Example6_Hierarchy
     public readonly record struct Name(string Value);
 
     public sealed class TestTag {}
-    public record struct TestNode(Node<TestTag> Node, Name Name)
+    public static class TestNode
     {
         public static EntityRef Create(World world, string name, EntityRef? parent = null)
-            => world.CreateInArrayHost(new TestNode {
-                Node = new(parent),
-                Name = new(name)
-            });
+            => world.CreateInArrayHost(HList.Create(
+                new Node<TestTag>(parent),
+                 new Name(name)
+            ));
     }
 
     public static void Run(World world)

@@ -9,9 +9,9 @@ public abstract class ParallelSystemBase<C1>(
     public IRunner Runner { get; } = runner ?? ParallelRunner.Default;
 
     public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
-        => query.ForSlice<IRunner, C1>(OnExecute, Runner);
+        => query.ForSlice<IRunner, C1>(HandleSlice, Runner);
 
-    protected abstract void OnExecute(ref C1 c1);
+    protected abstract void HandleSlice(ref C1 c1);
 }
 
 public abstract class ParallelSystemBase<C1, C2>(

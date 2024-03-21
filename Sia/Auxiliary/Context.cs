@@ -3,22 +3,23 @@ namespace Sia;
 public static class Context<T>
 {
     public static T? Current {
-        get => s_current.Value;
-        set => s_current.Value = value;
+        get => s_current;
+        set => s_current = value;
     }
 
-    private static readonly ThreadLocal<T?> s_current = new();
+    [ThreadStatic]
+    private static T? s_current;
 
     public static void With(T value, Action action)
     {
-        var prev = s_current.Value;
-        s_current.Value = value;
+        var prev = s_current;
+        s_current = value;
 
         try {
             action();
         } 
         finally {
-            s_current.Value = prev;
+            s_current = prev;
         }
     }
 }

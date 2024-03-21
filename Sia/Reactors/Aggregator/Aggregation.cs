@@ -25,13 +25,13 @@ public record struct Aggregation<TId> : IEnumerable<EntityRef>, IDisposable
         RawGroup = group;
     }
 
-    public HashSet<EntityRef>.Enumerator GetEnumerator()
+    public readonly HashSet<EntityRef>.Enumerator GetEnumerator()
         => RawGroup.GetEnumerator();
 
-    IEnumerator<EntityRef> IEnumerable<EntityRef>.GetEnumerator()
+    readonly IEnumerator<EntityRef> IEnumerable<EntityRef>.GetEnumerator()
         => RawGroup.GetEnumerator();
 
-    IEnumerator IEnumerable.GetEnumerator()
+    readonly IEnumerator IEnumerable.GetEnumerator()
         => RawGroup.GetEnumerator();
 
     public void Dispose()

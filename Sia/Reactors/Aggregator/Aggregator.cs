@@ -4,8 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-public class Aggregator<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TAggregationEntity, TId> : ReactorBase<TypeUnion<Sid<TId>>>
-    where TAggregationEntity : IAggregationEntity<TId>
+public abstract class AggregatorBase<TId> : ReactorBase<TypeUnion<Sid<TId>>>
     where TId : notnull, IEquatable<TId>
 {
     [AllowNull]
@@ -14,11 +13,6 @@ public class Aggregator<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTyp
     private readonly Stack<HashSet<EntityRef>> _groupPool = new();
 
     public Aggregation<TId> this[in TId component] => _aggrs[component];
-
-    public Aggregator()
-    {
-        EntityUtility.CheckComponent<TAggregationEntity, Aggregation<TId>>();
-    }
 
     public override void OnInitialize(World world)
     {
@@ -80,6 +74,8 @@ public class Aggregator<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTyp
         RemoveFromAggregation(entity, id);
     }
 
+    protected abstract EntityRef CreateAggregationEntity();
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void AddToAggregation(in EntityRef entity, in TId id)
     {
@@ -90,7 +86,7 @@ public class Aggregator<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTyp
         ref var aggr = ref CollectionsMarshal.GetValueRefOrAddDefault(_aggrs, id, out bool exists);
 
         if (!exists) {
-            var aggrEntity = TAggregationEntity.Create(World);
+            var aggrEntity = CreateAggregationEntity();
             aggr = new(aggrEntity, id, _groupPool.TryPop(out var pooled) ? pooled : []) {
                 First = entity
             };
@@ -127,7 +123,9 @@ public class Aggregator<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTyp
     }
 }
 
-public class Aggregator<TId> : Aggregator<AggregationGroup<TId>, TId>
+public class Aggregator<TId> : AggregatorBase<TId>
     where TId : notnull, IEquatable<TId>
 {
+    protected override EntityRef CreateAggregationEntity()
+        => World.CreateInArrayHost(HList.Create(new Aggregation<TId>()));
 }

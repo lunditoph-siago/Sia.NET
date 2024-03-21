@@ -2,8 +2,7 @@ namespace Sia;
 
 public static class WorldAggregatorExtensions
 {
-    public static Aggregation<TId>? FindAggregation<TEntity, TId>(this World world, in TId id)
-        where TEntity : IAggregationEntity<TId>
+    public static Aggregation<TId>? FindAggregation<TId>(this World world, in TId id)
         where TId : notnull, IEquatable<TId>
-        => world.TryGetAddon<Aggregator<TEntity, TId>>(out var aggregator) ? aggregator.Find(id) : null;
+        => world.TryGetAddon<AggregatorBase<TId>>(out var aggregator) ? aggregator.Find(id) : null;
 }

@@ -3,11 +3,11 @@
 using System.Runtime.CompilerServices;
 using Sia;
 
-public record struct Position
+using TestEntity = Sia.HList<Position, Sia.HList<Rotation, Sia.HList<Scale, Sia.EmptyHList>>>;
+using TestEntity2 = Sia.HList<Position, Sia.HList<Rotation, Sia.EmptyHList>>;
+
+public record struct Position(float X, float Y, float Z)
 {
-    public float X;
-    public float Y;
-    public float Z;
     public List<int> ManagedTest;
 
     public readonly record struct Set(float X, float Y, float Z) : ICommand
@@ -34,36 +34,33 @@ public record struct Scale
     public float Z;
 }
 
-public record struct TestEntity
+public static class BundleExtensions
 {
-    public Position Position;
-    public Rotation Rotation;
-    public Scale Scale;
-}
+    public static void AddTestBundle(this EntityRef entity)
+        => entity.AddBundle(HList.Create(
+            new Position(1, 2, 3),
+            new Rotation { Angle = 2 },
+            new Scale()
+        ));
 
-public record struct TestEntity2
-{
-    public Position Position;
-    public Rotation Rotation;
+    public static void AddTest2Bundle(this EntityRef entity)
+        => entity.AddBundle(HList.Create(
+            new Position(1, 2, 3),
+            new Rotation { Angle = 2 }
+        ));
 }
 
 public unsafe static class Tests
 {
-    public static readonly TestEntity DefaultTestEntity = new() {
-        Position = new() {
-            X = 1,
-            Y = 2,
-            Z = 3
-        },
-        Rotation = new() {
-            Angle = 2
-        },
-        Scale = new() {
+    public static readonly TestEntity DefaultTestEntity = HList.Create(
+        new Position(1, 2, 3),
+        new Rotation { Angle = 2 },
+        new Scale() {
             X = 1,
             Y = 2,
             Z = 3
         }
-    };
+    );
 
     private unsafe static void TestEntityDescriptor()
     {
@@ -72,7 +69,6 @@ public unsafe static class Tests
         var e = DefaultTestEntity;
 
         var ptr = (IntPtr)Unsafe.AsPointer(ref e);
-        Console.WriteLine(e.Scale);
 
         var desc = EntityDescriptor.Get<TestEntity>();
         Console.WriteLine("Component offsets:");
@@ -84,7 +80,7 @@ public unsafe static class Tests
         Console.WriteLine("\tRotation: " + offset + ", Value: " + Unsafe.AsRef<Rotation>((void*)(ptr + offset)));
 
         offset = desc.GetOffset<Scale>();
-        Console.WriteLine("\tScale: " + offset + ", Value: " + *((Scale*)(ptr + offset)));
+        Console.WriteLine("\tScale: " + offset + ", Value: " + *(Scale*)(ptr + offset));
     }
 
     private static void TestScheduler()
@@ -241,38 +237,6 @@ public unsafe static class Tests
         }
     }
 
-    private static void TestSystem()
-    {
-        Console.WriteLine("== Test System ==");
-
-        var world = new World();
-        var scheduler = new Scheduler();
-
-        world.RegisterSystem<PositionSystems>(scheduler);
-
-        var e1Ref = world.GetBucketHost<TestEntity>().Create(new() {
-            Position = new Position {
-                X = 1,
-                Y = 2,
-                Z = 3
-            }
-        });
-        var e2Ref = world.GetBucketHost<TestEntity>().Create(new() {
-            Position = new Position {
-                X = -1,
-                Y = -2,
-                Z = -3
-            }
-        });
-
-        scheduler.Tick();
-        scheduler.Tick();
-
-        world.Modify(e1Ref, new Position.Set(4, 5, 6));
-        world.Modify(e2Ref, new Position.Set(-4, -5, -6));
-        scheduler.Tick();
-    }
-
     private static void TestStorages()
     {
         Console.WriteLine("== Test Storages ==");
@@ -317,7 +281,7 @@ public unsafe static class Tests
         Console.WriteLine("== Test Entity Factory ==");
 
         static void DoTest<TStorage>(TStorage storage)
-            where TStorage : class, IStorage<WithId<TestEntity>>
+            where TStorage : class, IStorage<HList<Identity, TestEntity>>
         {
             Console.WriteLine($"[{storage}]");
             var factory = new StorageEntityHost<TestEntity, TStorage>(storage);
@@ -340,9 +304,9 @@ public unsafe static class Tests
             e5.Dispose();
         }
 
-        DoTest(new ArrayBufferStorage<WithId<TestEntity>>(512));
-        DoTest(new SparseBufferStorage<WithId<TestEntity>>(512));
-        DoTest(new HashBufferStorage<WithId<TestEntity>>());
+        DoTest(new ArrayBufferStorage<HList<Identity, TestEntity>>());
+        DoTest(new SparseBufferStorage<HList<Identity, TestEntity>>());
+        DoTest(new HashBufferStorage<HList<Identity, TestEntity>>());
     }
 
     public static void Run()
@@ -353,7 +317,6 @@ public unsafe static class Tests
         TestTypeUnion();
         TestMatcher();
         TestWorldQuery();
-        TestSystem();
         TestStorages();
         TestEntityFactory();
     }
