@@ -88,7 +88,7 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage managedStorage) : IEn
         }
     }
 
-    public virtual unsafe EntityRef AddBundle<TBundle>(in StorageSlot slot, in TBundle bundle)
+    public virtual unsafe EntityRef AddMany<TBundle>(in StorageSlot slot, in TBundle bundle)
         where TBundle : IHList
     {
         ref var entity = ref Storage.GetRef(slot);

@@ -44,9 +44,9 @@ public readonly record struct EntityRef(in StorageSlot Slot, IEntityHost Host) :
     public EntityRef Add<TComponent>(in TComponent initial)
         => Host.Add(Slot, initial);
 
-    public EntityRef AddBundle<TBundle>(in TBundle bundle)
+    public EntityRef AddMany<TBundle>(in TBundle bundle)
         where TBundle : IHList
-        => Host.AddBundle(Slot, bundle);
+        => Host.AddMany(Slot, bundle);
 
     public EntityRef Remove<TComponent>()
         => Host.Remove<TComponent>(Slot);

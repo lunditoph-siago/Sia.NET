@@ -110,10 +110,10 @@ public sealed record WrappedWorldEntityHost<TEntity, TEntityHost> : IEntityHost<
         => _host.Add(slot, initial);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public EntityRef AddBundle<TBundle>(in StorageSlot slot, in TBundle bundle)
+    public EntityRef AddMany<TBundle>(in StorageSlot slot, in TBundle bundle)
         where TBundle : IHList
     {
-        var e = _host.AddBundle(slot, bundle);
+        var e = _host.AddMany(slot, bundle);
         bundle.HandleHead(new EntityHeadAddEventSender(e, World.Dispatcher));
         bundle.HandleTail(new EntityTailAddEventSender(e, World.Dispatcher));
         return e;
