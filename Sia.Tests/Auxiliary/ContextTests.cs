@@ -2,6 +2,23 @@ namespace Sia.Tests.Auxiliary;
 
 public class ContextTests
 {
+    private interface IAssertService
+    {
+        void Assert();
+    }
+
+    private class TestRunner(string name, int degreeOfParallelism)
+        : ParallelRunner(degreeOfParallelism)
+    {
+        private class MockAssertService(string name) : IAssertService
+        {
+            public void Assert()
+            {
+                
+            }
+        }
+    }
+
     [Fact]
     public async Task ContextValue_Assign_Test()
     {
@@ -13,14 +30,12 @@ public class ContextTests
 
         Context<string>.Current = "The best Sia";
 
-        var task1 = Task.Run(() =>
-        {
+        var task1 = Task.Run(() => {
             Context<string>.Current = valueForThread1;
             result1 = Context.Get<string>();
         });
 
-        var task2 = Task.Run(() =>
-        {
+        var task2 = Task.Run(() => {
             Context<string>.Current = valueForThread2;
             result2 = Context.Get<string>();
         });

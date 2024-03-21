@@ -1,27 +1,28 @@
 ﻿using System.Numerics;
-using Sia.Tests.Components;
+using TransformEntity = Sia.HList<System.Numerics.Vector3, Sia.HList<System.Numerics.Quaternion, Sia.HList<float, Sia.EmptyHList>>>;
 
 namespace Sia.Tests.Entities;
 
 public class StorageEntityHostTests
 {
+
     public static List<object[]> StorageEntityHostTestData =>
     [
-        [new ArrayBufferStorage<WithId<Transform>>(512)],
-        [new SparseBufferStorage<WithId<Transform>>(512)],
-        [new HashBufferStorage<WithId<Transform>>()]
+        [new ArrayBufferStorage<HList<Identity, TransformEntity>>(512)],
+        [new SparseBufferStorage<HList<Identity, TransformEntity>>(512)],
+        [new HashBufferStorage<HList<Identity, TransformEntity>>()]
     ];
 
     [Theory]
     [MemberData(nameof(StorageEntityHostTestData))]
     public void StorageEntityHost_Insert_Test<TStorage>(TStorage storage)
-        where TStorage : class, IStorage<WithId<Transform>>
+        where TStorage : class, IStorage<HList<Identity, TransformEntity>>
     {
         // Arrange
-        var factory = new StorageEntityHost<Transform, TStorage>(storage);
+        var factory = new StorageEntityHost<TransformEntity, TStorage>(storage);
 
         // Act
-        var e1 = factory.Create(Transform.Default);
+        var e1 = factory.Create(Components.Transform.Baked);
         var e2 = factory.Create();
         var e3 = factory.Create();
 
