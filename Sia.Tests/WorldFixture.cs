@@ -1,4 +1,6 @@
-﻿namespace Sia.Tests.Systems;
+﻿using System.Collections;
+
+namespace Sia.Tests.Systems;
 
 public class WorldFixture : IDisposable
 {
@@ -19,22 +21,22 @@ public class WorldFixture : IDisposable
                 switch (i % 4)
                 {
                     case 0:
-                        World.CreateInArrayHost(Bundle.Create(item1, new SystemBaseTests.Padding1()));
+                        World.CreateInArrayHost(HList.Create(item1, new SystemBaseTests.Padding1()));
                         break;
                     case 1:
-                        World.CreateInArrayHost(Bundle.Create(item1, new SystemBaseTests.Padding2()));
+                        World.CreateInArrayHost(HList.Create(item1, new SystemBaseTests.Padding2()));
                         break;
                     case 2:
-                        World.CreateInArrayHost(Bundle.Create(item1, new SystemBaseTests.Padding3()));
+                        World.CreateInArrayHost(HList.Create(item1, new SystemBaseTests.Padding3()));
                         break;
                     case 3:
-                        World.CreateInArrayHost(Bundle.Create(item1, new SystemBaseTests.Padding4()));
+                        World.CreateInArrayHost(HList.Create(item1, new SystemBaseTests.Padding4()));
                         break;
                 }
             }
             else
             {
-                World.CreateInArrayHost(Bundle.Create(item1));
+                World.CreateInArrayHost(HList.Create(item1));
             }
         }
     }
@@ -48,22 +50,22 @@ public class WorldFixture : IDisposable
                 switch (i % 4)
                 {
                     case 0:
-                        World.CreateInArrayHost(Bundle.Create(item1, item2, new SystemBaseTests.Padding1()));
+                        World.CreateInArrayHost(HList.Create(item1, item2, new SystemBaseTests.Padding1()));
                         break;
                     case 1:
-                        World.CreateInArrayHost(Bundle.Create(item1, item2, new SystemBaseTests.Padding2()));
+                        World.CreateInArrayHost(HList.Create(item1, item2, new SystemBaseTests.Padding2()));
                         break;
                     case 2:
-                        World.CreateInArrayHost(Bundle.Create(item1, item2, new SystemBaseTests.Padding3()));
+                        World.CreateInArrayHost(HList.Create(item1, item2, new SystemBaseTests.Padding3()));
                         break;
                     case 3:
-                        World.CreateInArrayHost(Bundle.Create(item1, item2, new SystemBaseTests.Padding4()));
+                        World.CreateInArrayHost(HList.Create(item1, item2, new SystemBaseTests.Padding4()));
                         break;
                 }
             }
             else
             {
-                World.CreateInArrayHost(Bundle.Create(item1, item2));
+                World.CreateInArrayHost(HList.Create(item1, item2));
             }
         }
     }

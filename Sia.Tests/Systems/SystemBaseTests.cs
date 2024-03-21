@@ -107,11 +107,13 @@ public partial class SystemBaseTests
     {
         using var fixture = new WorldFixture();
 
-        var component = fixture.World.CreateInArrayHost(Bundle.Create(new VariableData(), new ConstData()));
+        var component = fixture.World.CreateInArrayHost(HList.Create(new VariableData(), new ConstData()));
 
         var scheduler = new Scheduler();
 
         fixture.World.RegisterSystem<MultiComponentsUpdateContext.UpdateMultiComponentsWithTriggerSystem>(scheduler);
+
+        ref var variable = ref component.Get<VariableData>();
 
         _ = new ConstData.View(component) {
             Value = 1
@@ -119,9 +121,7 @@ public partial class SystemBaseTests
 
         scheduler.Tick();
 
-        var data = new VariableData.View(component);
-
         // Assert
-        Assert.Equal(1, data.Value);
+        Assert.Equal(1, variable.Value);
     }
 }

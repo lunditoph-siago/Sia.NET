@@ -10,16 +10,11 @@ public class EntityDescriptorTests
     public unsafe void EntityDescriptor_Test()
     {
         // Arrange
-        var entity = new Transform
-        {
-            Position = Vector3.Zero,
-            Rotation = Quaternion.Identity,
-            Scale = 1.0f
-        };
+        var entity = Transform.Baked;
 
         // Act
         var ptr = (IntPtr)Unsafe.AsPointer(ref entity);
-        var desc = EntityDescriptor.Get<Transform>();
+        var desc = EntityDescriptor.Get<HList<Vector3, HList<Quaternion, HList<float, EmptyHList>>>>();
 
         // Assert
         Assert.Equal(0, desc.GetOffset<Vector3>());

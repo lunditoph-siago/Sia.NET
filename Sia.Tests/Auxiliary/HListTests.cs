@@ -2,7 +2,7 @@
 
 namespace Sia.Tests.Auxiliary;
 
-public class PolyListTests
+public class HListTests
 {
     public class MockHandler : IGenericHandler
     {
@@ -14,11 +14,11 @@ public class PolyListTests
         }
     }
 
-    public class MockGenericHandler : IGenericHandler<IPolyList>
+    public class MockGenericHandler : IGenericHandler<IHList>
     {
-        public List<IPolyList> HandledValues { get; } = new();
+        public List<IHList> HandledValues { get; } = new();
 
-        public void Handle<T>(in T value) where T : IPolyList
+        public void Handle<T>(in T value) where T : IHList
         {
             HandledValues.Add(value);
         }
@@ -29,7 +29,7 @@ public class PolyListTests
     {
         // Arrange
         const int headValue = 1;
-        var list = PolyList.Create(headValue);
+        var list = HList.Create(headValue);
         var mockHandler = new MockHandler();
 
         // Act
@@ -43,8 +43,8 @@ public class PolyListTests
     public void PolyList_ConsTwoPolyLists_Test()
     {
         // Arrange
-        var list1 = PolyList.Cons("Mock", PolyList.Create(1.0f));
-        var list2 = PolyList.Cons(new Vector3(1, 2, 3), PolyList.Create(true));
+        var list1 = HList.Create("Mock", 1.0f);
+        var list2 = HList.Create(new Vector3(1, 2, 3), true);
         var mockHandler = new MockGenericHandler();
 
         // Act
@@ -58,13 +58,13 @@ public class PolyListTests
             switch (index)
             {
                 case 0:
-                    Assert.Equal(PolyList.Cons("Mock", PolyList.Cons(1.0f, PolyList.Cons(new Vector3(1, 2, 3), PolyList.Create(true)))), data);
+                    Assert.Equal(HList.Create("Mock", 1.0f, new Vector3(1, 2, 3), true), data);
                     break;
                 case 1:
-                    Assert.Equal(PolyList.Cons("Mock", EmptyPolyList.Default), data);
+                    Assert.Equal(HList.Create("Mock"), data);
                     break;
                 case 2:
-                    Assert.Equal(PolyList.Cons(new Vector3(1, 2, 3), EmptyPolyList.Default), data);
+                    Assert.Equal(HList.Create(new Vector3(1, 2, 3)), data);
                     break;
             }
         });
