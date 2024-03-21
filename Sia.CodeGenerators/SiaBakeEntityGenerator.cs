@@ -67,7 +67,7 @@ internal partial class SiaBakeEntityGenerator : IIncrementalGenerator
 
                 source.WriteLine($"public static {GenerateType(members)} BakedEntity => {GenerateNestedHLists(members)};");
                 source.WriteLine("");
-                source.WriteLine("public readonly void ToMany(global::Sia.IGenericHandler<global::Sia.IHList> handler)");
+                source.WriteLine("public readonly void ToHList(global::Sia.IGenericHandler<global::Sia.IHList> handler)");
                 source.WriteLine("{");
                 source.Indent++;
                 source.WriteLine($"handler.Handle({GenerateNestedHLists(members)});");

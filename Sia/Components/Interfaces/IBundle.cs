@@ -2,5 +2,5 @@
 
 public interface IBundle
 {
-    void ToMany(IGenericHandler<IHList> handler);
+    void ToHList(IGenericHandler<IHList> handler);
 }

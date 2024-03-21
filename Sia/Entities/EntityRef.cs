@@ -48,9 +48,9 @@ public readonly record struct EntityRef(in StorageSlot Slot, IEntityHost Host) :
         where TBundle : IHList
         => Host.AddMany(Slot, bundle);
 
-    public void AddMany<TBundle>(in TBundle bundle)
+    public void AddBundle<TBundle>(in TBundle bundle)
         where TBundle : IBundle
-        => bundle.ToMany(new BundleCreateHandler(this));
+        => bundle.ToHList(new BundleCreateHandler(this));
 
     public EntityRef Remove<TComponent>()
         => Host.Remove<TComponent>(Slot);
@@ -63,8 +63,6 @@ public readonly record struct EntityRef(in StorageSlot Slot, IEntityHost Host) :
     
     private readonly struct BundleCreateHandler(EntityRef entityRef): IGenericHandler<IHList>
     {
-        public void Handle<T>(in T value)
-            where T : IBundle
-            => entityRef.AddMany(value);
+        public void Handle<T>(in T value) where T : IHList => entityRef.AddMany(value);
     }
 }
