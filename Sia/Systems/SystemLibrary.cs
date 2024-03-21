@@ -14,8 +14,10 @@ public class SystemLibrary : IAddon
         internal readonly HashSet<Scheduler.TaskGraphNode> _taskGraphNodes = [];
     }
 
-    private record WrappedReactiveEntityHost(IReactiveEntityHost Host) : IReactiveEntityHost
+    private class WrappedReactiveEntityHost : IReactiveEntityHost
     {
+        public IReactiveEntityHost Host { get; }
+
         public event EntityHandler? OnEntityCreated {
             add => Host.OnEntityCreated += value;
             remove => Host.OnEntityCreated -= value;
@@ -41,6 +43,12 @@ public class SystemLibrary : IAddon
 
         private readonly SparseSet<StorageSlot> _allocatedSlots = [];
         private readonly Dictionary<Identity, int> _entitySlots = [];
+
+        public WrappedReactiveEntityHost(IReactiveEntityHost host)
+        {
+            Host = host;
+            Host.OnEntityReleased += (in EntityRef e) => Remove(e.Slot);
+        }
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Add(scoped in StorageSlot slot)
@@ -75,14 +83,8 @@ public class SystemLibrary : IAddon
             _firstFreeSlot = 0;
         }
 
-        public EntityRef Create()
-            => Host.Create();
-        
-        public void Release(in StorageSlot slot)
-        {
-            Remove(slot);
-            Host.Release(slot);
-        }
+        public EntityRef Create() => Host.Create();
+        public void Release(scoped in StorageSlot slot) => Host.Release(slot);
 
         public void MoveOut(in StorageSlot slot)
             => Host.MoveOut(slot);
