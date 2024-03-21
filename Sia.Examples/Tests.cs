@@ -34,22 +34,6 @@ public record struct Scale
     public float Z;
 }
 
-public static class BundleExtensions
-{
-    public static void AddTestBundle(this EntityRef entity)
-        => entity.AddBundle(HList.Create(
-            new Position(1, 2, 3),
-            new Rotation { Angle = 2 },
-            new Scale()
-        ));
-
-    public static void AddTest2Bundle(this EntityRef entity)
-        => entity.AddBundle(HList.Create(
-            new Position(1, 2, 3),
-            new Rotation { Angle = 2 }
-        ));
-}
-
 public unsafe static class Tests
 {
     public static readonly TestEntity DefaultTestEntity = HList.Create(
