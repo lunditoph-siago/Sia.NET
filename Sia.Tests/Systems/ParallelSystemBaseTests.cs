@@ -8,7 +8,7 @@ public class ParallelSystemBaseTests
 
     public class UpdateSingleComponentSystem : ParallelSystemBase<VariableData>
     {
-        protected override void OnExecute(ref VariableData c) => c.Value++;
+        protected override void HandleSlice(ref VariableData c) => c.Value++;
     }
 
     [AfterSystem<UpdateSingleComponentSystem>]
