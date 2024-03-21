@@ -129,9 +129,9 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool IsValidTemplateMember(ISymbol symbol)
-        => !symbol.IsStatic && symbol.DeclaredAccessibility == Accessibility.Public
-            && !symbol.GetAttributes().Any(attr =>
-                attr.AttributeClass?.ToDisplayString() == SiaIgnoreAttributeName);
+        => symbol is { IsStatic: false, DeclaredAccessibility: Accessibility.Public }
+           && !symbol.GetAttributes().Any(attr =>
+               attr.AttributeClass?.ToDisplayString() == SiaIgnoreAttributeName);
     private static string GenerateFileName(CodeGenerationInfo info)
     {
         var builder = new StringBuilder();
