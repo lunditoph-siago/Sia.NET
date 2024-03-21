@@ -21,7 +21,7 @@ public static class Example15_RunnerWithContext
             }
         }
 
-        protected override void RunWorkerThread(int id, BlockingCollection<IJob> jobs)
+        protected override void RunWorkerThread(int id, BlockingQueue<IJob> jobs)
         {
             Context<ITestService>.Current = new TestService(name);
             Console.WriteLine(Context.Get<ITestService>());
