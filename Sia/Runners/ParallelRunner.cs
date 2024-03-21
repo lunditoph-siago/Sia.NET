@@ -1,8 +1,6 @@
 namespace Sia;
 
 using System.Collections.Concurrent;
-using System.Diagnostics.SymbolStore;
-using System.Linq.Expressions;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using Microsoft.Extensions.ObjectPool;
@@ -88,7 +86,7 @@ public class ParallelRunner : IRunner
         }
     }
 
-    private unsafe class GroupActionJob<TData> : GroupJobBase
+    private class GroupActionJob<TData> : GroupJobBase
     {
         public TData Data = default!;
         public GroupAction<TData> Action = default!;
@@ -137,8 +135,8 @@ public class ParallelRunner : IRunner
     private readonly DefaultObjectPool<GroupActionJob[]> _groupActionJobArrPool;
     private readonly ConcurrentDictionary<Type, object> _genericGroupActionJobArrPools = [];
 
-    private readonly static ObjectPool<ActionJob> s_actionJobPool = ObjectPool.Create<ActionJob>();
-    private readonly static ConcurrentDictionary<Type, object> s_genericActionJobPools = [];
+    private static readonly ObjectPool<ActionJob> s_actionJobPool = ObjectPool.Create<ActionJob>();
+    private static readonly ConcurrentDictionary<Type, object> s_genericActionJobPools = [];
 
     public ParallelRunner(int degreeOfParallelism)
     {
@@ -178,7 +176,7 @@ public class ParallelRunner : IRunner
         }
     }
 
-    public unsafe void Run(Action action, RunnerBarrier? barrier = null)
+    public void Run(Action action, RunnerBarrier? barrier = null)
     {
         var job = s_actionJobPool.Get();
         job.Action = action;
@@ -191,7 +189,7 @@ public class ParallelRunner : IRunner
         _jobChannel.Writer.TryWrite(job);
     }
 
-    public unsafe void Run<TData>(in TData data, InAction<TData> action, RunnerBarrier? barrier = null)
+    public void Run<TData>(in TData data, InAction<TData> action, RunnerBarrier? barrier = null)
     {
         if (!s_genericActionJobPools.TryGetValue(typeof(TData), out var poolRaw)) {
             poolRaw = s_genericActionJobPools.GetOrAdd(typeof(TData),
@@ -212,7 +210,7 @@ public class ParallelRunner : IRunner
         _jobChannel.Writer.TryWrite(job);
     }
 
-    public unsafe void Run(int taskCount, GroupAction action, RunnerBarrier? barrier = null)
+    public void Run(int taskCount, GroupAction action, RunnerBarrier? barrier = null)
     {
         var taskWriter = _jobChannel.Writer;
 
@@ -253,7 +251,7 @@ public class ParallelRunner : IRunner
         }
     }
 
-    public unsafe void Run<TData>(
+    public void Run<TData>(
         int taskCount, in TData data, GroupAction<TData> action, RunnerBarrier? barrier = null)
     {
         var taskWriter = _jobChannel.Writer;

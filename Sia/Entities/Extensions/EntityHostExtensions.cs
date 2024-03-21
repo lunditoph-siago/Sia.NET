@@ -32,6 +32,6 @@ public static partial class EntityHostExtensions
         => new(Unsafe.AsPointer(ref host.GetByteRef(slot)), host.Descriptor.MemorySize);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe Identity GetIdentity(this IEntityHost host, scoped in StorageSlot slot)
+    public static Identity GetIdentity(this IEntityHost host, scoped in StorageSlot slot)
         => Unsafe.As<byte, Identity>(ref host.GetByteRef(slot));
 }

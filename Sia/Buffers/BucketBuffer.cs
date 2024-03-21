@@ -31,7 +31,7 @@ public readonly struct BucketBuffer<T>(int bucketCapacity) : IBuffer<T>
 
     private readonly List<Bucket?> _buckets = [];
 
-    public BucketBuffer() : this(256) {}
+    public BucketBuffer() : this(256) { }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T CreateRef(int index)
@@ -88,7 +88,7 @@ public readonly struct BucketBuffer<T>(int bucketCapacity) : IBuffer<T>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Dispose() {}
+    public void Dispose() { }
 
     [Conditional("ENABLE_COLLECTIONS_CHECKS")]
     private void CheckElementReadAccess(int index)

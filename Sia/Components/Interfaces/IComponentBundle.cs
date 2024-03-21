@@ -1,5 +1,3 @@
 namespace Sia;
 
-public interface IComponentBundle
-{
-}
+public interface IComponentBundle;

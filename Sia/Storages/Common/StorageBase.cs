@@ -39,7 +39,7 @@ public abstract class StorageBase<T> : IStorage<T>
         else {
             ref var versionRef = ref _versions.AsSpan()[index];
             version = versionRef = (short)(-versionRef + 1);
-            while (++_firstFreeSlot < versionCount && _versions[_firstFreeSlot] > 0) {}
+            while (++_firstFreeSlot < versionCount && _versions[_firstFreeSlot] > 0) { }
         }
 
         var slot = new StorageSlot(index, version);

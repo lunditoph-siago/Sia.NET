@@ -2,7 +2,6 @@ namespace Sia;
 
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
 using System.Runtime.CompilerServices;
 
 public class StorageEntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>
@@ -52,10 +51,10 @@ public class StorageEntityHost<[DynamicallyAccessedMembers(DynamicallyAccessedMe
     public bool IsValid(scoped in StorageSlot slot)
         => Storage.IsValid(slot);
 
-    public unsafe ref byte GetByteRef(scoped in StorageSlot slot)
+    public ref byte GetByteRef(scoped in StorageSlot slot)
         => ref Unsafe.As<WithId<TEntity>, byte>(ref Storage.GetRef(slot));
 
-    public unsafe ref byte UnsafeGetByteRef(scoped in StorageSlot slot)
+    public ref byte UnsafeGetByteRef(scoped in StorageSlot slot)
         => ref Unsafe.As<WithId<TEntity>, byte>(ref Storage.UnsafeGetRef(slot));
 
     public ref WithId<TEntity> GetRef(scoped in StorageSlot slot)

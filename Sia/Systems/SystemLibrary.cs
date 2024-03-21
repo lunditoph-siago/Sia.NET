@@ -51,7 +51,7 @@ public class SystemLibrary : IAddon
                 return;
             }
             _allocatedSlots.Add(index, slot);
-            while (_allocatedSlots.ContainsKey(++_firstFreeSlot)) {}
+            while (_allocatedSlots.ContainsKey(++_firstFreeSlot)) { }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -8,7 +8,7 @@ public static partial class EntityHostExtensions
 {
     #region EntityRecorder
 
-    public unsafe static void Record<TRunner, TResult>(
+    public static unsafe void Record<TRunner, TResult>(
         this IEntityHost host, Span<TResult> span, EntityRecorder<TResult> recorder, TRunner runner)
         where TRunner : IRunner
     {
@@ -37,7 +37,7 @@ public static partial class EntityHostExtensions
         }
     }
 
-    public unsafe static void Record<TRunner, TData, TResult>(
+    public static unsafe void Record<TRunner, TData, TResult>(
         this IEntityHost host, Span<TResult> span, in TData userData, EntityRecorder<TData, TResult> recorder, TRunner runner)
         where TRunner : IRunner
     {
@@ -70,22 +70,22 @@ public static partial class EntityHostExtensions
     private static void IdEntityRecorder(in EntityRef entity, out EntityRef result)
         => result = entity;
 
-    public unsafe static void Record<TRunner>(
+    public static void Record<TRunner>(
         this IEntityHost host, Span<EntityRef> span, TRunner runner)
         where TRunner : IRunner
         => host.Record(span, IdEntityRecorder, runner);
 
     #region CurrentThreadRunner
 
-    public unsafe static void Record<TResult>(
+    public static void Record<TResult>(
         this IEntityHost host, Span<TResult> span, EntityRecorder<TResult> recorder)
         => host.Record(span, recorder, CurrentThreadRunner.Instance);
 
-    public unsafe static void Record<TData, TResult>(
+    public static void Record<TData, TResult>(
         this IEntityHost host, Span<TResult> span, in TData userData, EntityRecorder<TData, TResult> recorder)
         => host.Record(span, userData, recorder, CurrentThreadRunner.Instance);
 
-    public unsafe static void Record(
+    public static void Record(
         this IEntityHost host, Span<EntityRef> span)
         => host.Record(span, IdEntityRecorder, CurrentThreadRunner.Instance);
 
@@ -93,15 +93,15 @@ public static partial class EntityHostExtensions
     
     #region ParallelRunner
 
-    public unsafe static void RecordOnParallel<TResult>(
+    public static void RecordOnParallel<TResult>(
         this IEntityHost host, Span<TResult> span, EntityRecorder<TResult> recorder)
         => host.Record(span, recorder, ParallelRunner.Default);
 
-    public unsafe static void RecordOnParallel<TData, TResult>(
+    public static void RecordOnParallel<TData, TResult>(
         this IEntityHost host, Span<TResult> span, in TData userData, EntityRecorder<TData, TResult> recorder)
         => host.Record(span, userData, recorder, ParallelRunner.Default);
 
-    public unsafe static void RecordOnParallel(
+    public static void RecordOnParallel(
         this IEntityHost host, Span<EntityRef> span)
         => host.Record(span, IdEntityRecorder, ParallelRunner.Default);
 
@@ -111,7 +111,7 @@ public static partial class EntityHostExtensions
 
     #region ComponentRecorder
 
-    public unsafe static void RecordSlices<TRunner, C1, TResult>(
+    public static unsafe void RecordSlices<TRunner, C1, TResult>(
         this IEntityHost host, Span<TResult> span, ComponentRecorder<C1, TResult> recorder, TRunner runner)
         where TRunner : IRunner
     {
@@ -133,7 +133,7 @@ public static partial class EntityHostExtensions
         }
     }
 
-    public unsafe static void RecordSlices<TRunner, C1, C2, TResult>(
+    public static unsafe void RecordSlices<TRunner, C1, C2, TResult>(
         this IEntityHost host, Span<TResult> span, ComponentRecorder<C1, C2, TResult> recorder, TRunner runner)
         where TRunner : IRunner
     {
@@ -155,7 +155,7 @@ public static partial class EntityHostExtensions
         }
     }
 
-    public unsafe static void RecordSlices<TRunner, C1, C2, C3, TResult>(
+    public static unsafe void RecordSlices<TRunner, C1, C2, C3, TResult>(
         this IEntityHost host, Span<TResult> span, ComponentRecorder<C1, C2, C3, TResult> recorder, TRunner runner)
         where TRunner : IRunner
     {
@@ -177,7 +177,7 @@ public static partial class EntityHostExtensions
         }
     }
 
-    public unsafe static void RecordSlices<TRunner, C1, C2, C3, C4, TResult>(
+    public static unsafe void RecordSlices<TRunner, C1, C2, C3, C4, TResult>(
         this IEntityHost host, Span<TResult> span, ComponentRecorder<C1, C2, C3, C4, TResult> recorder, TRunner runner)
         where TRunner : IRunner
     {
@@ -199,7 +199,7 @@ public static partial class EntityHostExtensions
         }
     }
 
-    public unsafe static void RecordSlices<TRunner, C1, C2, C3, C4, C5, TResult>(
+    public static unsafe void RecordSlices<TRunner, C1, C2, C3, C4, C5, TResult>(
         this IEntityHost host, Span<TResult> span, ComponentRecorder<C1, C2, C3, C4, C5, TResult> recorder, TRunner runner)
         where TRunner : IRunner
     {
@@ -221,7 +221,7 @@ public static partial class EntityHostExtensions
         }
     }
 
-    public unsafe static void RecordSlices<TRunner, C1, C2, C3, C4, C5, C6, TResult>(
+    public static unsafe void RecordSlices<TRunner, C1, C2, C3, C4, C5, C6, TResult>(
         this IEntityHost host, Span<TResult> span, ComponentRecorder<C1, C2, C3, C4, C5, C6, TResult> recorder, TRunner runner)
         where TRunner : IRunner
     {
@@ -243,7 +243,7 @@ public static partial class EntityHostExtensions
         }
     }
 
-    public unsafe static void RecordSlices<TRunner, TData, C1, TResult>(
+    public static unsafe void RecordSlices<TRunner, TData, C1, TResult>(
         this IEntityHost host, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, TResult> recorder, TRunner runner)
         where TRunner : IRunner
     {
@@ -267,7 +267,7 @@ public static partial class EntityHostExtensions
         }
     }
 
-    public unsafe static void RecordSlices<TRunner, TData, C1, C2, TResult>(
+    public static unsafe void RecordSlices<TRunner, TData, C1, C2, TResult>(
         this IEntityHost host, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, TResult> recorder, TRunner runner)
         where TRunner : IRunner
     {
@@ -291,7 +291,7 @@ public static partial class EntityHostExtensions
         }
     }
 
-    public unsafe static void RecordSlices<TRunner, TData, C1, C2, C3, TResult>(
+    public static unsafe void RecordSlices<TRunner, TData, C1, C2, C3, TResult>(
         this IEntityHost host, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, TResult> recorder, TRunner runner)
         where TRunner : IRunner
     {
@@ -315,7 +315,7 @@ public static partial class EntityHostExtensions
         }
     }
 
-    public unsafe static void RecordSlices<TRunner, TData, C1, C2, C3, C4, TResult>(
+    public static unsafe void RecordSlices<TRunner, TData, C1, C2, C3, C4, TResult>(
         this IEntityHost host, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, C4, TResult> recorder, TRunner runner)
         where TRunner : IRunner
     {
@@ -339,7 +339,7 @@ public static partial class EntityHostExtensions
         }
     }
 
-    public unsafe static void RecordSlices<TRunner, TData, C1, C2, C3, C4, C5, TResult>(
+    public static unsafe void RecordSlices<TRunner, TData, C1, C2, C3, C4, C5, TResult>(
         this IEntityHost host, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, C4, C5, TResult> recorder, TRunner runner)
         where TRunner : IRunner
     {
@@ -363,7 +363,7 @@ public static partial class EntityHostExtensions
         }
     }
 
-    public unsafe static void RecordSlices<TRunner, TData, C1, C2, C3, C4, C5, C6, TResult>(
+    public static unsafe void RecordSlices<TRunner, TData, C1, C2, C3, C4, C5, C6, TResult>(
         this IEntityHost host, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, C4, C5, C6, TResult> recorder, TRunner runner)
         where TRunner : IRunner
     {
@@ -389,51 +389,51 @@ public static partial class EntityHostExtensions
 
     #region CurrentThreadRunner
 
-    public unsafe static void RecordSlices<C1, TResult>(
+    public static void RecordSlices<C1, TResult>(
         this IEntityHost host, Span<TResult> span, ComponentRecorder<C1, TResult> recorder)
         => host.RecordSlices(span, recorder, CurrentThreadRunner.Instance);
 
-    public unsafe static void RecordSlices<C1, C2, TResult>(
+    public static void RecordSlices<C1, C2, TResult>(
         this IEntityHost host, Span<TResult> span, ComponentRecorder<C1, C2, TResult> recorder)
         => host.RecordSlices(span, recorder, CurrentThreadRunner.Instance);
 
-    public unsafe static void RecordSlices<C1, C2, C3, TResult>(
+    public static void RecordSlices<C1, C2, C3, TResult>(
         this IEntityHost host, Span<TResult> span, ComponentRecorder<C1, C2, C3, TResult> recorder)
         => host.RecordSlices(span, recorder, CurrentThreadRunner.Instance);
 
-    public unsafe static void RecordSlices<C1, C2, C3, C4, TResult>(
+    public static void RecordSlices<C1, C2, C3, C4, TResult>(
         this IEntityHost host, Span<TResult> span, ComponentRecorder<C1, C2, C3, C4, TResult> recorder)
         => host.RecordSlices(span, recorder, CurrentThreadRunner.Instance);
 
-    public unsafe static void RecordSlices<C1, C2, C3, C4, C5, TResult>(
+    public static void RecordSlices<C1, C2, C3, C4, C5, TResult>(
         this IEntityHost host, Span<TResult> span, ComponentRecorder<C1, C2, C3, C4, C5, TResult> recorder)
         => host.RecordSlices(span, recorder, CurrentThreadRunner.Instance);
 
-    public unsafe static void RecordSlices<C1, C2, C3, C4, C5, C6, TResult>(
+    public static void RecordSlices<C1, C2, C3, C4, C5, C6, TResult>(
         this IEntityHost host, Span<TResult> span, ComponentRecorder<C1, C2, C3, C4, C5, C6, TResult> recorder)
         => host.RecordSlices(span, recorder, CurrentThreadRunner.Instance);
 
-    public unsafe static void RecordSlices<TData, C1, TResult>(
+    public static void RecordSlices<TData, C1, TResult>(
         this IEntityHost host, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, TResult> recorder)
         => host.RecordSlices(span, userData, recorder, CurrentThreadRunner.Instance);
 
-    public unsafe static void RecordSlices<TData, C1, C2, TResult>(
+    public static void RecordSlices<TData, C1, C2, TResult>(
         this IEntityHost host, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, TResult> recorder)
         => host.RecordSlices(span, userData, recorder, CurrentThreadRunner.Instance);
 
-    public unsafe static void RecordSlices<TData, C1, C2, C3, TResult>(
+    public static void RecordSlices<TData, C1, C2, C3, TResult>(
         this IEntityHost host, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, TResult> recorder)
         => host.RecordSlices(span, userData, recorder, CurrentThreadRunner.Instance);
 
-    public unsafe static void RecordSlices<TData, C1, C2, C3, C4, TResult>(
+    public static void RecordSlices<TData, C1, C2, C3, C4, TResult>(
         this IEntityHost host, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, C4, TResult> recorder)
         => host.RecordSlices(span, userData, recorder, CurrentThreadRunner.Instance);
 
-    public unsafe static void RecordSlices<TData, C1, C2, C3, C4, C5, TResult>(
+    public static void RecordSlices<TData, C1, C2, C3, C4, C5, TResult>(
         this IEntityHost host, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, C4, C5, TResult> recorder)
         => host.RecordSlices(span, userData, recorder, CurrentThreadRunner.Instance);
 
-    public unsafe static void RecordSlices<TData, C1, C2, C3, C4, C5, C6, TResult>(
+    public static void RecordSlices<TData, C1, C2, C3, C4, C5, C6, TResult>(
         this IEntityHost host, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, C4, C5, C6, TResult> recorder)
         => host.RecordSlices(span, userData, recorder, CurrentThreadRunner.Instance);
 
@@ -441,51 +441,51 @@ public static partial class EntityHostExtensions
 
     #region ParallelRunner
 
-    public unsafe static void RecordSlicesOnParallel<C1, TResult>(
+    public static void RecordSlicesOnParallel<C1, TResult>(
         this IEntityHost host, Span<TResult> span, ComponentRecorder<C1, TResult> recorder)
         => host.RecordSlices(span, recorder, ParallelRunner.Default);
 
-    public unsafe static void RecordSlicesOnParallel<C1, C2, TResult>(
+    public static void RecordSlicesOnParallel<C1, C2, TResult>(
         this IEntityHost host, Span<TResult> span, ComponentRecorder<C1, C2, TResult> recorder)
         => host.RecordSlices(span, recorder, ParallelRunner.Default);
 
-    public unsafe static void RecordSlicesOnParallel<C1, C2, C3, TResult>(
+    public static void RecordSlicesOnParallel<C1, C2, C3, TResult>(
         this IEntityHost host, Span<TResult> span, ComponentRecorder<C1, C2, C3, TResult> recorder)
         => host.RecordSlices(span, recorder, ParallelRunner.Default);
 
-    public unsafe static void RecordSlicesOnParallel<C1, C2, C3, C4, TResult>(
+    public static void RecordSlicesOnParallel<C1, C2, C3, C4, TResult>(
         this IEntityHost host, Span<TResult> span, ComponentRecorder<C1, C2, C3, C4, TResult> recorder)
         => host.RecordSlices(span, recorder, ParallelRunner.Default);
 
-    public unsafe static void RecordSlicesOnParallel<C1, C2, C3, C4, C5, TResult>(
+    public static void RecordSlicesOnParallel<C1, C2, C3, C4, C5, TResult>(
         this IEntityHost host, Span<TResult> span, ComponentRecorder<C1, C2, C3, C4, C5, TResult> recorder)
         => host.RecordSlices(span, recorder, ParallelRunner.Default);
 
-    public unsafe static void RecordSlicesOnParallel<C1, C2, C3, C4, C5, C6, TResult>(
+    public static void RecordSlicesOnParallel<C1, C2, C3, C4, C5, C6, TResult>(
         this IEntityHost host, Span<TResult> span, ComponentRecorder<C1, C2, C3, C4, C5, C6, TResult> recorder)
         => host.RecordSlices(span, recorder, ParallelRunner.Default);
 
-    public unsafe static void RecordSlicesOnParallel<TData, C1, TResult>(
+    public static void RecordSlicesOnParallel<TData, C1, TResult>(
         this IEntityHost host, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, TResult> recorder)
         => host.RecordSlices(span, userData, recorder, ParallelRunner.Default);
 
-    public unsafe static void RecordSlicesOnParallel<TData, C1, C2, TResult>(
+    public static void RecordSlicesOnParallel<TData, C1, C2, TResult>(
         this IEntityHost host, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, TResult> recorder)
         => host.RecordSlices(span, userData, recorder, ParallelRunner.Default);
 
-    public unsafe static void RecordSlicesOnParallel<TData, C1, C2, C3, TResult>(
+    public static void RecordSlicesOnParallel<TData, C1, C2, C3, TResult>(
         this IEntityHost host, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, TResult> recorder)
         => host.RecordSlices(span, userData, recorder, ParallelRunner.Default);
 
-    public unsafe static void RecordSlicesOnParallel<TData, C1, C2, C3, C4, TResult>(
+    public static void RecordSlicesOnParallel<TData, C1, C2, C3, C4, TResult>(
         this IEntityHost host, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, C4, TResult> recorder)
         => host.RecordSlices(span, userData, recorder, ParallelRunner.Default);
 
-    public unsafe static void RecordSlicesOnParallel<TData, C1, C2, C3, C4, C5, TResult>(
+    public static void RecordSlicesOnParallel<TData, C1, C2, C3, C4, C5, TResult>(
         this IEntityHost host, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, C4, C5, TResult> recorder)
         => host.RecordSlices(span, userData, recorder, ParallelRunner.Default);
 
-    public unsafe static void RecordSlicesOnParallel<TData, C1, C2, C3, C4, C5, C6, TResult>(
+    public static void RecordSlicesOnParallel<TData, C1, C2, C3, C4, C5, C6, TResult>(
         this IEntityHost host, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, C4, C5, C6, TResult> recorder)
         => host.RecordSlices(span, userData, recorder, ParallelRunner.Default);
     #endregion // ParallelRunner

@@ -18,5 +18,5 @@ public sealed class EntityQuery : IEntityQuery
     public void Add(IEntityHost host) => _hosts.Add(host);
     public void Remove(IEntityHost host) => _hosts.Remove(host);
 
-    public void Dispose() {}
+    public void Dispose() { }
 }

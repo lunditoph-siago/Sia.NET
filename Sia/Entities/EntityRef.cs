@@ -33,7 +33,7 @@ public readonly record struct EntityRef(scoped in StorageSlot Slot, IEntityHost 
         => Descriptor.GetOffset(componentType) != -1;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe ref TComponent Get<TComponent>()
+    public ref TComponent Get<TComponent>()
     {
         nint offset = Descriptor.GetOffset<TComponent>();
         if (offset == -1) {
@@ -45,7 +45,7 @@ public readonly record struct EntityRef(scoped in StorageSlot Slot, IEntityHost 
     }
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe ref TComponent GetOrNullRef<TComponent>()
+    public ref TComponent GetOrNullRef<TComponent>()
     {
         nint offset = Descriptor.GetOffset<TComponent>();
         if (offset == -1) {
@@ -90,7 +90,7 @@ public readonly record struct EntityRef<TEntity>(scoped in StorageSlot Slot, IEn
         => Descriptor.GetOffset(componentType) != -1;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe ref TComponent Get<TComponent>()
+    public ref TComponent Get<TComponent>()
     {
         nint offset = Descriptor.GetOffset<TComponent>();
         if (offset == -1) {
@@ -102,7 +102,7 @@ public readonly record struct EntityRef<TEntity>(scoped in StorageSlot Slot, IEn
     }
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe ref TComponent GetOrNullRef<TComponent>()
+    public ref TComponent GetOrNullRef<TComponent>()
     {
         nint offset = Descriptor.GetOffset<TComponent>();
         if (offset == -1) {
@@ -118,7 +118,7 @@ public readonly record struct EntityRef<TEntity>(scoped in StorageSlot Slot, IEn
         => Host.GetSpan(Slot);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly void Dispose()
+    public void Dispose()
         => Host.Release(Slot);
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

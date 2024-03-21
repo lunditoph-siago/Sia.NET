@@ -4,7 +4,7 @@ public sealed class CurrentThreadRunner : IRunner
 {
     public static readonly CurrentThreadRunner Instance = new();
 
-    private CurrentThreadRunner() {}
+    private CurrentThreadRunner() { }
 
     public void Run(Action action, RunnerBarrier? barrier = null)
         => action();
@@ -18,5 +18,5 @@ public sealed class CurrentThreadRunner : IRunner
     public void Run<TData>(int taskCount, in TData data, GroupAction<TData> action, RunnerBarrier? barrier = null)
         => action(data, (0, taskCount));
 
-    public void Dispose() {}
+    public void Dispose() { }
 }

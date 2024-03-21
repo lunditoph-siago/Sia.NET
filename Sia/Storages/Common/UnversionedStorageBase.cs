@@ -25,7 +25,7 @@ public abstract class UnversionedStorageBase<T> : IStorage<T>
         }
 
         Allocate(index);
-        while (_allocatedSlots.ContainsKey(++_firstFreeSlot)) {}
+        while (_allocatedSlots.ContainsKey(++_firstFreeSlot)) { }
 
         var slot = new StorageSlot(index, 1);
         _allocatedSlots.Add(index, slot);

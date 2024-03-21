@@ -11,9 +11,8 @@ public class SizedHistory<TTarget, TEvent> : IHistory<TTarget, TEvent>
     {
         public readonly EventPair<TTarget, TEvent> Current {
             get {
-                if (_index == -1) {
+                if (_index == -1)
                     throw new InvalidOperationException("Use MoveNext to move the enumerator to the first element");
-                }
                 return _history._events.Span[_index];
             }
         }
@@ -32,7 +31,7 @@ public class SizedHistory<TTarget, TEvent> : IHistory<TTarget, TEvent>
             _version = _history._version;
         }
 
-        public readonly void Dispose() {}
+        public readonly void Dispose() { }
 
         public bool MoveNext()
         {

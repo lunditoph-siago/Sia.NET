@@ -1,5 +1,3 @@
 namespace Sia;
 
-public interface IRevertableEvent : IEvent
-{
-}
+public interface IRevertableEvent : IEvent;

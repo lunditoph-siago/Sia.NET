@@ -42,10 +42,10 @@ public struct EmptyPolyList : IPolyList
     public static EmptyPolyList Default => default;
 
     public readonly void HandleHead<THandler>(in THandler handler)
-        where THandler : IGenericHandler {}
+        where THandler : IGenericHandler { }
 
     public readonly void HandleTail<THandler>(in THandler handler)
-        where THandler : IGenericHandler<IPolyList> {}
+        where THandler : IGenericHandler<IPolyList> { }
 
     public readonly void Concat<TPolyList, TResultHandler>(in TPolyList list, in TResultHandler handler)
         where TPolyList : IPolyList
@@ -62,7 +62,7 @@ public struct EmptyPolyList : IPolyList
         where TResultHandler : IGenericHandler<IPolyList>
         => false;
 
-    public override readonly string ToString() => "Empty";
+    public readonly override string ToString() => "Empty";
 }
 
 public struct PolyList<THead, TTail>(in THead head, in TTail tail) : IPolyList
@@ -120,7 +120,7 @@ public struct PolyList<THead, TTail>(in THead head, in TTail tail) : IPolyList
     }
 
     public readonly override string ToString()
-        => "Cons(" + (Head?.ToString() ?? (typeof(THead) + ":null")) + ", " + Tail + ')';
+        => "Cons(" + (Head?.ToString() ?? typeof(THead) + ":null") + ", " + Tail + ')';
 }
 
 public static class PolyList

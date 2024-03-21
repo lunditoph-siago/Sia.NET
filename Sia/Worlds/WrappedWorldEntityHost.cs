@@ -74,10 +74,10 @@ public sealed record WrappedWorldEntityHost<TEntity, TEntityHost> : IEntityHost<
     public bool IsValid(scoped in StorageSlot slot)
         => _host.IsValid(slot);
 
-    public unsafe ref byte GetByteRef(scoped in StorageSlot slot)
+    public ref byte GetByteRef(scoped in StorageSlot slot)
         => ref _host.GetByteRef(slot);
 
-    public unsafe ref byte UnsafeGetByteRef(scoped in StorageSlot slot)
+    public ref byte UnsafeGetByteRef(scoped in StorageSlot slot)
         => ref _host.UnsafeGetByteRef(slot);
 
     public ref WithId<TEntity> GetRef(scoped in StorageSlot slot)

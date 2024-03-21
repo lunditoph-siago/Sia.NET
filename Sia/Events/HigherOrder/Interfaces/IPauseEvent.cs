@@ -1,5 +1,3 @@
 namespace Sia;
 
-public interface IPauseEvent : IHigherOrderEvent
-{
-}
+public interface IPauseEvent : IHigherOrderEvent;

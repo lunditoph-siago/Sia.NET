@@ -10,7 +10,7 @@ public static partial class EntityHostExtensions
         IEntityHost Host, TData UserData, EntityHostRangeHandler<TData> Handler);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe void Handle<TRunner>(
+    public static void Handle<TRunner>(
         this IEntityHost host, EntityHostRangeHandler handler, TRunner runner, RunnerBarrier barrier)
         where TRunner : IRunner
     {
@@ -25,7 +25,7 @@ public static partial class EntityHostExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe void Handle<TRunner>(
+    public static void Handle<TRunner>(
         this IEntityHost host, EntityHostRangeHandler handler, TRunner runner)
         where TRunner : IRunner
     {
@@ -35,7 +35,7 @@ public static partial class EntityHostExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe void Handle<TRunner, TData>(
+    public static void Handle<TRunner, TData>(
         this IEntityHost host, in TData userData, EntityHostRangeHandler<TData> handler,
         TRunner runner, RunnerBarrier barrier)
         where TRunner : IRunner
@@ -51,7 +51,7 @@ public static partial class EntityHostExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe void Handle<TRunner, TData>(
+    public static void Handle<TRunner, TData>(
         this IEntityHost host, in TData userData, EntityHostRangeHandler<TData> handler, TRunner runner)
         where TRunner : IRunner
     {
@@ -61,12 +61,12 @@ public static partial class EntityHostExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe void HandleOnParallel(
+    public static void HandleOnParallel(
         this IEntityHost host, EntityHostRangeHandler handler)
         => host.Handle(handler, ParallelRunner.Default);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe void HandleOnParallel<TData>(
+    public static void HandleOnParallel<TData>(
         this IEntityHost host, in TData data, EntityHostRangeHandler<TData> handler)
         => host.Handle(data, handler, ParallelRunner.Default);
 }

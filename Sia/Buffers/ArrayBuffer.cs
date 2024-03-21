@@ -17,7 +17,7 @@ public struct ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
         }
     }
 
-    public ArrayBuffer() : this(0) {}
+    public ArrayBuffer() : this(0) { }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static int CalculateArraySize(int requiredCapacity)
@@ -56,7 +56,7 @@ public struct ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
     public readonly void Clear() => Array.Clear(_values);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly void Dispose() {}
+    public readonly void Dispose() { }
 
     [Conditional("ENABLE_COLLECTIONS_CHECKS")]
     private void CheckElementReadAccess(int index)

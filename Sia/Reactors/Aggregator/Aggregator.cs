@@ -128,6 +128,4 @@ public class Aggregator<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTyp
 }
 
 public class Aggregator<TId> : Aggregator<AggregationGroup<TId>, TId>
-    where TId : notnull, IEquatable<TId>
-{
-}
+    where TId : notnull, IEquatable<TId>;
