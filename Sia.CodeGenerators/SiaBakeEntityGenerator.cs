@@ -20,8 +20,7 @@ internal partial class SiaBakeEntityGenerator : IIncrementalGenerator
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        context.RegisterPostInitializationOutput(static context =>
-        {
+        context.RegisterPostInitializationOutput(static context => {
             context.AddSource("SiaBakeEntityAttribute.g.cs",
                 SourceText.From(SiaBakeEntityAttributeSource, Encoding.UTF8));
         });
@@ -39,19 +38,16 @@ internal partial class SiaBakeEntityGenerator : IIncrementalGenerator
 
                 var structDeclaration = syntax.TargetNode;
                 var model = syntax.SemanticModel;
-                if (structDeclaration is StructDeclarationSyntax &&
-                    model.GetDeclaredSymbol(structDeclaration, token) is INamedTypeSymbol structSymbol)
-                {
-                    // return t.structDeclaration is not null;
-                    return new CodeGenerationInfo(
+
+                return structDeclaration is StructDeclarationSyntax &&
+                       model.GetDeclaredSymbol(structDeclaration, token) is INamedTypeSymbol structSymbol
+                    ? new CodeGenerationInfo(
                         Namespace: syntax.TargetSymbol.ContainingNamespace,
                         NamedTypeSymbol: structSymbol,
                         SemanticModel: model,
                         ParentTypes: parentTypes
-                    );
-                }
-
-                return null;
+                    )
+                    : null;
             });
 
         context.RegisterSourceOutput(codeGenInfos, static (context, info) =>
@@ -60,16 +56,24 @@ internal partial class SiaBakeEntityGenerator : IIncrementalGenerator
 
             using var source = CreateFileSource(out var builder);
 
-            using (GenerateInNamespace(source, info.Namespace))
-            {
+            using (GenerateInNamespace(source, info.Namespace)) {
                 var members = GetMembersWithDefaults(info.NamedTypeSymbol, info.SemanticModel);
 
                 if (!members.Any()) return;
 
-                source.WriteLine($"public partial struct {info.NamedTypeSymbol.Name}");
+                source.WriteLine($"public partial struct {info.NamedTypeSymbol.Name} : global::Sia.IBundle");
                 source.WriteLine("{");
                 source.Indent++;
+
                 source.WriteLine($"public static {GenerateType(members)} BakedEntity => {GenerateNestedHLists(members)};");
+                source.WriteLine("");
+                source.WriteLine("public readonly void ToMany(global::Sia.IGenericHandler<global::Sia.IHList> handler)");
+                source.WriteLine("{");
+                source.Indent++;
+                source.WriteLine($"handler.Handle({GenerateNestedHLists(members)});");
+                source.Indent--;
+                source.WriteLine("}");
+
                 source.Indent--;
                 source.WriteLine("}");
             }
@@ -97,35 +101,30 @@ internal partial class SiaBakeEntityGenerator : IIncrementalGenerator
     {
         var membersWithDefaults = new List<(ISymbol, object?)>();
 
-        foreach (var member in structSymbol.GetMembers())
-        {
+        foreach (var member in structSymbol.GetMembers()) {
             object? defaultValue = null;
 
-            switch (member)
-            {
+            switch (member) {
                 case IFieldSymbol { DeclaredAccessibility: Accessibility.Public, HasConstantValue: true } field:
                     defaultValue = field.ConstantValue;
                     break;
                 case IPropertySymbol { DeclaredAccessibility: Accessibility.Public } property:
                     var propertySyntax = property.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() as PropertyDeclarationSyntax;
-                    if (propertySyntax?.Initializer != null)
-                    {
+                    if (propertySyntax?.Initializer is not null) {
                         var constantValue = semanticModel.GetConstantValue(propertySyntax.Initializer.Value);
                         if (constantValue.HasValue) defaultValue = constantValue.Value;
                     }
                     break;
             }
 
-            if (member is IFieldSymbol or IPropertySymbol)
-            {
+            if (member is IFieldSymbol or IPropertySymbol) {
                 membersWithDefaults.Add((member, defaultValue));
             }
         }
 
-        foreach (var parameter in structSymbol.Constructors.FirstOrDefault()?.Parameters ?? ImmutableArray<IParameterSymbol>.Empty)
-        {
-            if (parameter.HasExplicitDefaultValue)
-            {
+        foreach (var parameter in structSymbol.Constructors.FirstOrDefault()?.Parameters ??
+                                  ImmutableArray<IParameterSymbol>.Empty) {
+            if (parameter.HasExplicitDefaultValue) {
                 membersWithDefaults.Add((parameter, parameter.ExplicitDefaultValue));
             }
         }
@@ -137,10 +136,8 @@ internal partial class SiaBakeEntityGenerator : IIncrementalGenerator
     {
         var nestedType = new StringBuilder();
 
-        foreach (var member in members)
-        {
-            var type = member.member switch
-            {
+        foreach (var member in members) {
+            var type = member.member switch {
                 IParameterSymbol parameterSymbol => parameterSymbol.Type.ToDisplayString(),
                 IFieldSymbol fieldSymbol => fieldSymbol.Type.ToDisplayString(),
                 IPropertySymbol propertySymbol => propertySymbol.Type.ToDisplayString(),
@@ -159,10 +156,8 @@ internal partial class SiaBakeEntityGenerator : IIncrementalGenerator
     {
         var nestedHList = new StringBuilder();
 
-        foreach (var member in members)
-        {
-            var (type, defaultValue) = member.member switch
-            {
+        foreach (var member in members) {
+            var (type, defaultValue) = member.member switch {
                 IParameterSymbol param =>
                     (param.Type, param.Type.IsValueType ? $"default({param.Type})" : "null"),
                 IFieldSymbol field =>
