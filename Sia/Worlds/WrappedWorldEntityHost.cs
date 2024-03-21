@@ -5,6 +5,8 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
+using static WorldHostUtils;
+
 public sealed record WrappedWorldEntityHost<TEntity, TEntityHost> : IEntityHost<TEntity>, IReactiveEntityHost
     where TEntity : IHList
     where TEntityHost : IEntityHost<TEntity>
@@ -28,6 +30,8 @@ public sealed record WrappedWorldEntityHost<TEntity, TEntityHost> : IEntityHost<
 
     private readonly TEntityHost _host;
 
+
+
     public WrappedWorldEntityHost(World world, TEntityHost host)
     {
         World = world;
@@ -35,15 +39,19 @@ public sealed record WrappedWorldEntityHost<TEntity, TEntityHost> : IEntityHost<
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    EntityRef IEntityHost.Create() => _host.Create();
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public EntityRef Create()
     {
         var entity = _host.Create();
+        var dispatcher = World.Dispatcher;
+
         World.Count++;
         OnEntityCreated?.Invoke(entity);
-        World.Dispatcher.Send(entity, WorldEvents.Add.Instance);
+        dispatcher.Send(entity, WorldEvents.Add.Instance);
+
+        ref var data = ref _host.GetRef(entity.Slot);
+        data.HandleHead(new EntityHeadAddEventSender(entity, dispatcher));
+        data.HandleTail(new EntityTailAddEventSender(entity, dispatcher));
+
         return entity;
     }
 
@@ -51,24 +59,35 @@ public sealed record WrappedWorldEntityHost<TEntity, TEntityHost> : IEntityHost<
     public EntityRef Create(in TEntity initial)
     {
         var entity = _host.Create(initial);
+        var dispatcher = World.Dispatcher;
+
         World.Count++;
         OnEntityCreated?.Invoke(entity);
-        World.Dispatcher.Send(entity, WorldEvents.Add.Instance);
+        dispatcher.Send(entity, WorldEvents.Add.Instance);
+
+        ref var data = ref _host.GetRef(entity.Slot);
+        data.HandleHead(new EntityHeadAddEventSender(entity, dispatcher));
+        data.HandleTail(new EntityTailAddEventSender(entity, dispatcher));
+
         return entity;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Release(in StorageSlot slot)
     {
-        _host.Release(slot);
         var entity = new EntityRef(slot, this);
-
         var dispatcher = World.Dispatcher;
-        World.Count--;
+
+        ref var data = ref _host.GetRef(entity.Slot);
+        data.HandleHead(new EntityHeadRemoveEventSender(entity, dispatcher));
+        data.HandleTail(new EntityTailRemoveEventSender(entity, dispatcher));
+
         dispatcher.Send(entity, WorldEvents.Remove.Instance);
         dispatcher.UnlistenAll(entity);
 
+        World.Count--;
         OnEntityReleased?.Invoke(entity);
+        _host.Release(slot);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -93,7 +112,12 @@ public sealed record WrappedWorldEntityHost<TEntity, TEntityHost> : IEntityHost<
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public EntityRef AddBundle<TBundle>(in StorageSlot slot, in TBundle bundle)
         where TBundle : IHList
-        => _host.AddBundle(slot, bundle);
+    {
+        var e = _host.AddBundle(slot, bundle);
+        bundle.HandleHead(new EntityHeadAddEventSender(e, World.Dispatcher));
+        bundle.HandleTail(new EntityTailAddEventSender(e, World.Dispatcher));
+        return e;
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public EntityRef Remove<TComponent>(in StorageSlot slot)
