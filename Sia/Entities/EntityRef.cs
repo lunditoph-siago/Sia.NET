@@ -2,7 +2,7 @@ namespace Sia;
 
 using System.Runtime.CompilerServices;
 
-public readonly record struct EntityRef(scoped in StorageSlot Slot, IEntityHost Host) : IDisposable
+public readonly record struct EntityRef(in StorageSlot Slot, IEntityHost Host) : IDisposable
 {
     public object Boxed => Host.Box(Slot);
     public bool Valid => Host != null && Host.IsValid(Slot);

@@ -38,10 +38,10 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage managedStorage) : IEn
     public virtual EntityRef Create(in TEntity initial)
         => new(Storage.AllocateSlot(HList.Cons(Identity.Create(), initial)), this);
 
-    public virtual void Release(scoped in StorageSlot slot)
+    public virtual void Release(in StorageSlot slot)
         => Storage.Release(slot);
 
-    public virtual void MoveOut(scoped in StorageSlot slot)
+    public virtual void MoveOut(in StorageSlot slot)
         => Storage.Release(slot);
 
     public virtual EntityRef MoveIn(in HList<Identity, TEntity> data)
@@ -50,19 +50,19 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage managedStorage) : IEn
         return new(slot, this);
     }
 
-    public bool IsValid(scoped in StorageSlot slot)
+    public bool IsValid(in StorageSlot slot)
         => Storage.IsValid(slot);
 
-    public unsafe ref byte GetByteRef(scoped in StorageSlot slot)
+    public unsafe ref byte GetByteRef(in StorageSlot slot)
         => ref Unsafe.As<HList<Identity, TEntity>, byte>(ref Storage.GetRef(slot));
 
-    public unsafe ref byte UnsafeGetByteRef(scoped in StorageSlot slot)
+    public unsafe ref byte UnsafeGetByteRef(in StorageSlot slot)
         => ref Unsafe.As<HList<Identity, TEntity>, byte>(ref Storage.UnsafeGetRef(slot));
 
-    public ref HList<Identity, TEntity> GetRef(scoped in StorageSlot slot)
+    public ref HList<Identity, TEntity> GetRef(in StorageSlot slot)
         => ref Storage.GetRef(slot);
 
-    public ref HList<Identity, TEntity> UnsafeGetRef(scoped in StorageSlot slot)
+    public ref HList<Identity, TEntity> UnsafeGetRef(in StorageSlot slot)
         => ref Storage.UnsafeGetRef(slot);
 
     public virtual EntityRef Add<TComponent>(in StorageSlot slot, in TComponent initial)
@@ -88,7 +88,7 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage managedStorage) : IEn
         }
     }
 
-    public virtual unsafe EntityRef AddBundle<TBundle>(scoped in StorageSlot slot, in TBundle bundle)
+    public virtual unsafe EntityRef AddBundle<TBundle>(in StorageSlot slot, in TBundle bundle)
         where TBundle : IHList
     {
         ref var entity = ref Storage.GetRef(slot);
@@ -115,7 +115,7 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage managedStorage) : IEn
         where UEntity : IHList
         => throw new NotSupportedException("Sibling host not supported");
 
-    public object Box(scoped in StorageSlot slot)
+    public object Box(in StorageSlot slot)
         => Storage.GetRef(slot);
 
     public IEnumerator<EntityRef> GetEnumerator()
