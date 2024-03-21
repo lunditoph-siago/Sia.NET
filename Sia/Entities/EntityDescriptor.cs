@@ -1,59 +1,52 @@
 ﻿namespace Sia;
 
 using System.Collections.Frozen;
-using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
 using System.Runtime.CompilerServices;
 
-public static class EntityDescriptor<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>
+public static class EntityDescriptor<TEntity>
+    where TEntity : IHList
 {
     private delegate int GetOffsetDelegate(in TEntity entity);
 
     public static readonly FrozenDictionary<Type, IntPtr> FieldOffsets;
 
-    private const BindingFlags s_bindingFlags =
-        BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
-
-    static EntityDescriptor()
+    private unsafe struct HeadOffsetRecorder(Dictionary<Type, IntPtr> dict, int* offset) : IGenericHandler
     {
-        var dict = new Dictionary<Type, IntPtr>();
-        RegisterFields(dict, typeof(TEntity));
-        FieldOffsets = dict.ToFrozenDictionary();
-    }
-
-    private static void RegisterFields(Dictionary<Type, IntPtr> dict, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] Type type, int baseOffset = 0)
-    {
-        foreach (var member in type.GetMembers(s_bindingFlags)) {
-            if (member.MemberType != MemberTypes.Field) {
-                continue;
-            }
-
-            var fieldInfo = (FieldInfo)member;
-            var offset = GetFieldOffset(fieldInfo);
-
-            var fieldType = fieldInfo.FieldType;
-            if (fieldType.IsAssignableTo(typeof(IComponentBundle))
-                    || fieldInfo.GetCustomAttribute<ComponentBundleAttribute>() != null) {
-                RegisterFields(dict, fieldType, baseOffset + offset);
-            }
-            else if (!dict.TryAdd(fieldType, baseOffset + offset)) {
+        public readonly void Handle<T>(in T value)
+        {
+            if (!dict.TryAdd(typeof(T), *offset)) {
                 throw new InvalidDataException("Entity cannot have multiple components of the same type");
             }
+            *offset += Unsafe.SizeOf<T>();
         }
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static unsafe int GetFieldOffset(FieldInfo fieldInfo)
+    private unsafe struct TailOffsetRecorder(Dictionary<Type, IntPtr> dict, int* offset) : IGenericHandler<IHList>
     {
-        var ptr = fieldInfo.FieldHandle.Value;
-        ptr = ptr + 4 + sizeof(IntPtr);
-        ushort length = *(ushort*)ptr;
-        byte chunkSize = *(byte*)(ptr + 2);
-        return length + (chunkSize << 16);
+        public readonly void Handle<T>(in T value) where T : IHList
+        {
+            var headRecorder = new HeadOffsetRecorder(dict, offset);
+            value.HandleHead(headRecorder);
+            value.HandleTail(new TailOffsetRecorder(dict, offset));
+        }
+    }
+
+    unsafe static EntityDescriptor()
+    {
+        var dict = new Dictionary<Type, IntPtr>();
+        var defaultEntity = default(TEntity)!;
+
+        int offset = 0;
+        var headRecorder = new HeadOffsetRecorder(dict, &offset);
+        defaultEntity.HandleHead(headRecorder);
+        defaultEntity.HandleTail(new TailOffsetRecorder(dict, &offset));
+
+        FieldOffsets = dict.ToFrozenDictionary();
     }
 }
 
-public readonly struct EntityIndexer<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity, TComponent>
+public readonly struct EntityIndexer<TEntity, TComponent>
+    where TEntity : IHList
 {
     public static readonly IntPtr Offset =
         EntityDescriptor<TEntity>.FieldOffsets.TryGetValue(typeof(TComponent), out var result)
@@ -68,7 +61,8 @@ public record EntityDescriptor
         nint GetOffset<TComponent>();
     }
 
-    private class Proxy<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity> : IProxy
+    private class Proxy<TEntity> : IProxy
+        where TEntity : IHList
     {
         public static EntityDescriptor Descriptor = new(
             typeof(TEntity), Unsafe.SizeOf<TEntity>(), new Proxy<TEntity>());
@@ -80,12 +74,13 @@ public record EntityDescriptor
             => EntityIndexer<TEntity, TComponent>.Offset;
     }
 
-    public static EntityDescriptor Get<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>()
+    public static EntityDescriptor Get<TEntity>()
+        where TEntity : IHList
         => Proxy<TEntity>.Descriptor;
 
     public Type Type { get; }
     public int MemorySize { get; }
-    public FrozenDictionary<Type, nint> FieldOffsets { get; }
+    public FrozenDictionary<Type, nint> FieldOffsets => _proxy.FieldOffsets;
 
     private const int OffsetCacheSize = 256;
     private readonly (Type? Type, nint Offset)[] _offsetCache = new (Type?, nint)[OffsetCacheSize];
@@ -96,7 +91,6 @@ public record EntityDescriptor
         Type = type;
         MemorySize = memorySize;
         _proxy = proxy;
-        FieldOffsets = _proxy.FieldOffsets;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -7,7 +7,7 @@ public struct ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
 {
     public readonly int Capacity => int.MaxValue;
 
-    private T[] _values = new T[CalculateArraySize(initialCapacity)];
+    private T[] _values = new T[initialCapacity];
 
     public readonly ref T this[int index] => ref GetRef(index);
 

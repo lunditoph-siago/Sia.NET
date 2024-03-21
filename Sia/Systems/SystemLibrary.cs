@@ -77,12 +77,25 @@ public class SystemLibrary : IAddon
 
         public EntityRef Create()
             => Host.Create();
-
+        
         public void Release(in StorageSlot slot)
         {
             Remove(slot);
             Host.Release(slot);
         }
+
+        public void MoveOut(in StorageSlot slot)
+            => Host.MoveOut(slot);
+
+        public EntityRef Add<TComponent>(in StorageSlot slot, in TComponent initial)
+            => Host.Add(slot, initial);
+
+        public EntityRef AddBundle<TBundle>(in StorageSlot slot, in TBundle bundle)
+            where TBundle : IHList
+            => Host.AddBundle(slot, bundle);
+
+        public EntityRef Remove<TComponent>(in StorageSlot slot)
+            => Host.Remove<TComponent>(slot);
 
         public bool IsValid(in StorageSlot slot)
             => Host.IsValid(slot);

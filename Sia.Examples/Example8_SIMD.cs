@@ -105,7 +105,7 @@ public static class Example8_Sum
             .RegisterTo(world, scheduler);
         
         for (int i = 0; i != 1000000; ++i) {
-            world.CreateInArrayHost(Bundle.Create(
+            world.CreateInArrayHost(HList.Create(
                 new Number { Value = 1 }
             ));
         }

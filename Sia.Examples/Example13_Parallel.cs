@@ -3,7 +3,7 @@ namespace Sia_Examples;
 using System.Diagnostics;
 using Sia;
 
-public static partial class Example14_Parallel
+public static partial class Example13_Parallel
 {
     private static TimeSpan _monoThreadElapsed;
     private static TimeSpan _multiThreadElapsed;
@@ -59,7 +59,7 @@ public static partial class Example14_Parallel
             _parallelElapsed = watch.Elapsed;
         }
 
-        protected override void OnExecute(ref int num)
+        protected override void HandleSlice(ref int num)
             => num++;
     }
 
@@ -75,7 +75,7 @@ public static partial class Example14_Parallel
         
         int entityCount = 100000;
         for (int i = 0; i < entityCount; ++i) {
-            world.CreateInArrayHost(Bundle.Create(0));
+            world.CreateInArrayHost(HList.Create(0));
         }
         for (int i = 0; i != 20; ++i) {
             schduler.Tick();
