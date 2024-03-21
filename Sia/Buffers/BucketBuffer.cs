@@ -17,10 +17,8 @@ public readonly struct BucketBuffer<T>(int bucketCapacity) : IBuffer<T>
     public int Capacity => int.MaxValue;
     public int BucketCapacity { get; } = bucketCapacity;
 
-    public ref T this[int index]
-    {
-        get
-        {
+    public ref T this[int index] {
+        get {
             int bucketIndex = index / BucketCapacity;
             CheckElementReadAccess(bucketIndex);
             if (bucketIndex >= _buckets.Count) return ref Unsafe.NullRef<T>();

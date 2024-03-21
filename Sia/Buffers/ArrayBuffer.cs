@@ -10,10 +10,8 @@ public struct ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
 
     private T[] _values = new T[CalculateArraySize(initialCapacity)];
 
-    public ref T this[int index]
-    {
-        get
-        {
+    public ref T this[int index] {
+        get {
             CheckElementReadAccess(index);
             return ref index >= _values.Length ? ref Unsafe.NullRef<T>() : ref _values[index];
         }
@@ -58,7 +56,7 @@ public struct ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
     public readonly void Clear() => Array.Clear(_values);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly void Dispose() { }
+    public readonly void Dispose() {}
 
     [Conditional("ENABLE_COLLECTIONS_CHECKS")]
     private void CheckElementReadAccess(int index)
