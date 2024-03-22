@@ -51,35 +51,41 @@ internal partial class SiaBakeEntityGenerator : IIncrementalGenerator
 
                 static IEnumerable<(PropertyInfo, object?)> GetProperties(INamedTypeSymbol symbol, SemanticModel model)
                 {
-                    var members = new List<(PropertyInfo, object?)>();
+                    var members = new Dictionary<string, (PropertyInfo, object?)>();
 
                     foreach (var member in symbol.GetMembers()) {
                         switch (member) {
-                            case IFieldSymbol field:
-                                members.Add(
-                                    (new PropertyInfo(field.Name, field.Type, symbol, member.GetAttributes()),
-                                        field.HasConstantValue ? field.ConstantValue : null));
+                            case IFieldSymbol field: {
+                                var name = GetPropertyNameFromBackingField(member.Name);
+                                members[name] =
+                                    (new PropertyInfo(name, field.Type, symbol, member.GetAttributes()),
+                                        field.HasConstantValue ? field.ConstantValue : null);
                                 break;
-                            case IPropertySymbol prop:
-                                var propertySyntax = prop.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() as PropertyDeclarationSyntax;
-                                if (propertySyntax?.Initializer is not null) {
+                            }
+                            case IPropertySymbol prop: {
+                                if (prop.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is
+                                    PropertyDeclarationSyntax { Initializer: not null } propertySyntax) {
+                                    var name = GetPropertyNameFromBackingField(member.Name);
                                     var constantValue = model.GetConstantValue(propertySyntax.Initializer.Value);
-                                    members.Add(
-                                        (new PropertyInfo(prop.Name, prop.Type, symbol, member.GetAttributes()),
-                                            constantValue.HasValue ? constantValue.Value : null));
+                                    members[name] =
+                                        (new PropertyInfo(name, prop.Type, symbol, member.GetAttributes()),
+                                            constantValue.HasValue ? constantValue.Value : null);
                                 }
                                 break;
+                            }
                         }
                     }
 
-                    members.AddRange(
-                        from param in symbol.Constructors.FirstOrDefault()?.Parameters
-                                          ?? ImmutableArray<IParameterSymbol>.Empty
-                        select
-                            (new PropertyInfo(param.Name, param.Type, symbol, param.GetAttributes()),
-                                param.HasExplicitDefaultValue ? param.ExplicitDefaultValue : null));
+                    foreach (var param in symbol.Constructors.FirstOrDefault()?.Parameters ??
+                                          ImmutableArray<IParameterSymbol>.Empty)
+                    {
+                        var name = GetPropertyNameFromBackingField(param.Name);
+                        members[name] =
+                            (new PropertyInfo(name, param.Type, symbol, param.GetAttributes()),
+                                param.HasExplicitDefaultValue ? param.ExplicitDefaultValue : null);
+                    }
 
-                    return symbol.BaseType is not null ? members.Concat(GetProperties(symbol.BaseType, model)) : members;
+                    return symbol.BaseType is not null ? members.Values.Concat(GetProperties(symbol.BaseType, model)) : members.Values;
                 }
             });
 
@@ -160,7 +166,7 @@ internal partial class SiaBakeEntityGenerator : IIncrementalGenerator
 
         foreach (var property in properties) {
             var defaultValue = property.property.Type.IsValueType ? $"default({property.property.DisplayType})" : "null";
-            nestedHList.Append($"global::Sia.HList.Cons(({property.property.DisplayType}){(useField ? GetPropertyNameFromBackingField(property.property.Name) : property.defaultValue?.ToString().ToLower() ?? defaultValue)}, ");
+            nestedHList.Append($"global::Sia.HList.Cons(({property.property.DisplayType}){(useField ? property.property.Name : property.defaultValue?.ToString().ToLower() ?? defaultValue)}, ");
         }
 
         nestedHList.Append("global::Sia.EmptyHList.Default" + new string(')', properties.Length));
