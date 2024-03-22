@@ -9,6 +9,9 @@ namespace Sia_Examples
         public partial record struct Rotation([Sia] Quaternion Value);
         public partial record struct Scale([Sia] Vector3 Value);
 
+        [SiaBakeEntity]
+        public partial record struct Transform(Position Position, Rotation Rotation, Scale Scale);
+
         public readonly record struct ObjectId(int Value)
         {
             public static implicit operator ObjectId(int id)
@@ -21,29 +24,34 @@ namespace Sia_Examples
                 => new(name);
         }
 
-        public static class BundleExtensions
-        {
-            public static EntityRef AddTransformBundle(this EntityRef entity)
-                => entity.AddMany(HList.Create(
-                    new Position(),
-                    new Rotation(Quaternion.Identity),
-                    new Scale(Vector3.One)));
-
-            public static EntityRef AddObjectBundle(this EntityRef entity, ObjectId id, string name)
-                => entity.AddMany(HList.Create(
-                    new Sid<ObjectId>(id),
-                    new Name(name)));
-        }
+        [SiaBakeEntity]
+        public partial record struct GameObject(Sid<ObjectId> Id, Name Name);
 
         public record struct HP([Sia] int Value);
         
         public static class TestObject
         {
             public static EntityRef Create(World world)
-                => world.CreateInArrayHost(HList.Create(
-                    new HP(100)))
-                    .AddTransformBundle()
-                    .AddObjectBundle(new(0), "Test");
+            {
+                var transform = new Transform {
+                    Position = new Position {
+                        Value = Vector3.Zero
+                    },
+                    Rotation = new Rotation {
+                        Value = Quaternion.Identity
+                    },
+                    Scale = new Scale {
+                        Value = Vector3.One
+                    }
+                };
+                var gameObject = new GameObject {
+                    Id = new Sid<ObjectId>(0),
+                    Name = "Test"
+                };
+                return world.CreateInArrayHost(HList.Create(new HP(100)))
+                    .AddBundle(transform)
+                    .AddBundle(gameObject);
+            }
         }
     }
 
