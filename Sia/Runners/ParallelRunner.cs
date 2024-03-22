@@ -129,7 +129,7 @@ public class ParallelRunner : IRunner
 
     public int DegreeOfParallelism { get; }
 
-    private readonly BlockingCollection<IJob> _jobs = [];
+    private readonly BlockingQueue<IJob> _jobs = new();
 
     private readonly DefaultObjectPool<GroupActionJob[]> _groupActionJobArrPool;
     private readonly ConcurrentDictionary<Type, object> _genericGroupActionJobArrPools = [];
@@ -151,15 +151,14 @@ public class ParallelRunner : IRunner
 
     ~ParallelRunner()
     {
-        _jobs.CompleteAdding();
+        _jobs.Complete();
     }
 
-    protected virtual void RunWorkerThread(int id, BlockingCollection<IJob> jobs)
+    protected virtual void RunWorkerThread(int id, BlockingQueue<IJob> jobs)
     {
         Thread.CurrentThread.Name = "ParallelRunner Worker " + id;
 
-        while (!jobs.IsCompleted) {
-            var job = jobs.Take();
+        while (jobs.Dequeue(out var job)) {
             try {
                 job.Invoke();
             }
@@ -185,7 +184,7 @@ public class ParallelRunner : IRunner
             barrier.AddParticipants(1);
         }
 
-        _jobs.Add(job);
+        _jobs.Enqueue(job);
     }
 
     public unsafe void Run<TData>(in TData data, InAction<TData> action, RunnerBarrier? barrier = null)
@@ -206,7 +205,7 @@ public class ParallelRunner : IRunner
             barrier.AddParticipants(1);
         }
 
-        _jobs.Add(job);
+        _jobs.Enqueue(job);
     }
 
     public unsafe void Run(int taskCount, GroupAction action, RunnerBarrier? barrier = null)
@@ -231,7 +230,7 @@ public class ParallelRunner : IRunner
                 job.Barrier = barrier;
                 job.Range = (start, acc);
                 job.Action = action;
-                _jobs.Add(job);
+                _jobs.Enqueue(job);
             }
         }
         else {
@@ -243,7 +242,7 @@ public class ParallelRunner : IRunner
                     Range = (start, acc),
                     Action = action
                 };
-                _jobs.Add(job);
+                _jobs.Enqueue(job);
             }
         }
     }
@@ -282,7 +281,7 @@ public class ParallelRunner : IRunner
                 job.Barrier = barrier;
                 job.Data = data;
                 job.Action = action;
-                _jobs.Add(job);
+                _jobs.Enqueue(job);
             }
         }
         else {
@@ -295,14 +294,14 @@ public class ParallelRunner : IRunner
                     Data = data,
                     Action = action
                 };
-                _jobs.Add(job);
+                _jobs.Enqueue(job);
             }
         }
     }
 
     public void Dispose()
     {
-        _jobs.CompleteAdding();
+        _jobs.Complete();
         GC.SuppressFinalize(this);
     }
 }
