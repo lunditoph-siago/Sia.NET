@@ -1,110 +1,104 @@
-using System.Diagnostics.CodeAnalysis;
-
 namespace Sia;
 
 public static class WorldCommonHostExtensions
 {
     // buffer storages
 
-    public static WorldEntityHost<TEntity, BucketBufferStorage<WithId<TEntity>>> GetBucketHost<
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>(
-            this World world, int bucketCapacity = 256)
-        where TEntity : struct
-        => world.GetHost<TEntity, BucketBufferStorage<WithId<TEntity>>>(() => new(bucketCapacity));
+    public static WorldEntityHost<TEntity, BucketBufferStorage<HList<Identity, TEntity>>> GetBucketHost<TEntity>(
+        this World world, int bucketCapacity = 256)
+        where TEntity : IHList
+        => world.TryGetHost<TEntity, BucketBufferStorage<HList<Identity, TEntity>>>(out var host)
+            ? host : world.AddHost<TEntity, BucketBufferStorage<HList<Identity, TEntity>>>(
+                world => (new(bucketCapacity), new WorldEntityHostProviders.Bucket(world, bucketCapacity)));
 
-    public static EntityRef<WithId<TEntity>> CreateInBucketHost<
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>(
-            this World world, in TEntity initial, int bucketCapacity = 256)
-        where TEntity : struct
+    public static EntityRef CreateInBucketHost<TEntity>(
+        this World world, in TEntity initial, int bucketCapacity = 256)
+        where TEntity : IHList
         => world.GetBucketHost<TEntity>(bucketCapacity).Create(initial);
 
-    public static WorldEntityHost<TEntity, HashBufferStorage<WithId<TEntity>>> GetHashHost<
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>(
-            this World world)
-        where TEntity : struct
-        => world.GetHost<TEntity, HashBufferStorage<WithId<TEntity>>>();
+    public static WorldEntityHost<TEntity, HashBufferStorage<HList<Identity, TEntity>>> GetHashHost<TEntity>(
+        this World world)
+        where TEntity : IHList
+        => world.TryGetHost<TEntity, HashBufferStorage<HList<Identity, TEntity>>>(out var host)
+            ? host : world.AddHost<TEntity, HashBufferStorage<HList<Identity, TEntity>>>(
+                world => (new(), new WorldEntityHostProviders.Hash(world)));
 
-    public static EntityRef<WithId<TEntity>> CreateInHashHost<
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>(
-            this World world, in TEntity initial)
-        where TEntity : struct
+    public static EntityRef CreateInHashHost<TEntity>(
+        this World world, in TEntity initial)
+        where TEntity : IHList
         => world.GetHashHost<TEntity>().Create(initial);
 
-    public static WorldEntityHost<TEntity, ArrayBufferStorage<WithId<TEntity>>> GetArrayHost<
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>(
-            this World world, int initialCapacity = 0)
-        where TEntity : struct
-        => world.TryGetHost<WorldEntityHost<TEntity, ArrayBufferStorage<WithId<TEntity>>>>(out var host)
-            ? host : world.GetHost<TEntity, ArrayBufferStorage<WithId<TEntity>>>(() => new(initialCapacity));
+    public static WorldEntityHost<TEntity, ArrayBufferStorage<HList<Identity, TEntity>>> GetArrayHost<TEntity>(
+        this World world, int initialCapacity = 0)
+        where TEntity : IHList
+        => world.TryGetHost<TEntity, ArrayBufferStorage<HList<Identity, TEntity>>>(out var host)
+            ? host : world.AddHost<TEntity, ArrayBufferStorage<HList<Identity, TEntity>>>(
+                world => (new(initialCapacity), new WorldEntityHostProviders.Array(world, initialCapacity)));
 
-    public static EntityRef<WithId<TEntity>> CreateInArrayHost<
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>(
-            this World world, in TEntity initial, int initialCapacity = 0)
-        where TEntity : struct
+    public static EntityRef CreateInArrayHost<TEntity>(
+        this World world, in TEntity initial, int initialCapacity = 0)
+        where TEntity : IHList
         => world.GetArrayHost<TEntity>(initialCapacity).Create(initial);
 
-    public static WorldEntityHost<TEntity, SparseBufferStorage<WithId<TEntity>>> GetSparseHost<
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>(
-            this World world, int pageSize = 256)
-        where TEntity : struct
-        => world.TryGetHost<WorldEntityHost<TEntity, SparseBufferStorage<WithId<TEntity>>>>(out var host)
-            ? host : world.GetHost<TEntity, SparseBufferStorage<WithId<TEntity>>>(() => new(pageSize));
+    public static WorldEntityHost<TEntity, SparseBufferStorage<HList<Identity, TEntity>>> GetSparseHost<TEntity>(
+        this World world, int pageSize = 256)
+        where TEntity : IHList
+        => world.TryGetHost<TEntity, SparseBufferStorage<HList<Identity, TEntity>>>(out var host)
+            ? host : world.AddHost<TEntity, SparseBufferStorage<HList<Identity, TEntity>>>(
+                world => (new(pageSize), new WorldEntityHostProviders.Sparse(world, pageSize)));
 
-    public static EntityRef<WithId<TEntity>> CreateInSparseHost<
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>(
-            this World world, in TEntity initial, int pageSize = 256)
-        where TEntity : struct
+    public static EntityRef CreateInSparseHost<TEntity>(
+        this World world, in TEntity initial, int pageSize = 256)
+        where TEntity : IHList
         => world.GetSparseHost<TEntity>(pageSize).Create(initial);
     
     // unversioned buffer storages
 
-    public static WorldEntityHost<TEntity, UnversionedBucketBufferStorage<WithId<TEntity>>> GetUnversionedBucketHost<
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>(
-            this World world, int bucketCapacity = 256)
-        where TEntity : struct
-        => world.GetHost<TEntity, UnversionedBucketBufferStorage<WithId<TEntity>>>(() => new(bucketCapacity));
+    public static WorldEntityHost<TEntity, UnversionedBucketBufferStorage<HList<Identity, TEntity>>> GetUnversionedBucketHost<TEntity>(
+        this World world, int bucketCapacity = 256)
+        where TEntity : IHList
+        => world.TryGetHost<TEntity, UnversionedBucketBufferStorage<HList<Identity, TEntity>>>(out var host)
+            ? host : world.AddHost<TEntity, UnversionedBucketBufferStorage<HList<Identity, TEntity>>>(
+                world => (new(bucketCapacity), new WorldEntityHostProviders.UnversionedBucket(world, bucketCapacity)));
 
-    public static EntityRef<WithId<TEntity>> CreateUnversionedInBucketHost<
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>(
-            this World world, in TEntity initial, int bucketCapacity = 256)
-        where TEntity : struct
+    public static EntityRef CreateInUnversionedBucketHost<TEntity>(
+        this World world, in TEntity initial, int bucketCapacity = 256)
+        where TEntity : IHList
         => world.GetUnversionedBucketHost<TEntity>(bucketCapacity).Create(initial);
 
-    public static WorldEntityHost<TEntity, UnversionedHashBufferStorage<WithId<TEntity>>> GetUnversionedHashHost<
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>(
-            this World world)
-        where TEntity : struct
-        => world.GetHost<TEntity, UnversionedHashBufferStorage<WithId<TEntity>>>();
+    public static WorldEntityHost<TEntity, UnversionedHashBufferStorage<HList<Identity, TEntity>>> GetUnversionedHashHost<TEntity>(
+        this World world)
+        where TEntity : IHList
+        => world.TryGetHost<TEntity, UnversionedHashBufferStorage<HList<Identity, TEntity>>>(out var host)
+            ? host : world.AddHost<TEntity, UnversionedHashBufferStorage<HList<Identity, TEntity>>>(
+                world => (new(), new WorldEntityHostProviders.UnversionedHash(world)));
 
-    public static EntityRef<WithId<TEntity>> CreateInUnversionedHashHost<
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>(
-            this World world, in TEntity initial)
-        where TEntity : struct
+    public static EntityRef CreateInUnversionedHashHost<TEntity>(
+        this World world, in TEntity initial)
+        where TEntity : IHList
         => world.GetUnversionedHashHost<TEntity>().Create(initial);
 
-    public static WorldEntityHost<TEntity, UnversionedArrayBufferStorage<WithId<TEntity>>> GetUnversionedArrayHost<
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>(
-            this World world, int initialCapacity = 0)
-        where TEntity : struct
-        => world.TryGetHost<WorldEntityHost<TEntity, UnversionedArrayBufferStorage<WithId<TEntity>>>>(out var host)
-            ? host : world.GetHost<TEntity, UnversionedArrayBufferStorage<WithId<TEntity>>>(() => new(initialCapacity));
+    public static WorldEntityHost<TEntity, UnversionedArrayBufferStorage<HList<Identity, TEntity>>> GetUnversionedArrayHost<TEntity>(
+        this World world, int initialCapacity = 0)
+        where TEntity : IHList
+        => world.TryGetHost<TEntity, UnversionedArrayBufferStorage<HList<Identity, TEntity>>>(out var host)
+            ? host : world.AddHost<TEntity, UnversionedArrayBufferStorage<HList<Identity, TEntity>>>(
+                world => (new(initialCapacity), new WorldEntityHostProviders.UnversionedArray(world, initialCapacity)));
 
-    public static EntityRef<WithId<TEntity>> CreateInUnversionedArrayHost<
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>(
-            this World world, in TEntity initial, int initialCapacity = 0)
-        where TEntity : struct
+    public static EntityRef CreateInUnversionedArrayHost<TEntity>(
+        this World world, in TEntity initial, int initialCapacity = 0)
+        where TEntity : IHList
         => world.GetUnversionedArrayHost<TEntity>(initialCapacity).Create(initial);
 
-    public static WorldEntityHost<TEntity, UnversionedSparseBufferStorage<WithId<TEntity>>> GetUnversionedSparseHost<
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>(
-            this World world, int pageSize = 256)
-        where TEntity : struct
-        => world.TryGetHost<WorldEntityHost<TEntity, UnversionedSparseBufferStorage<WithId<TEntity>>>>(out var host)
-            ? host : world.GetHost<TEntity, UnversionedSparseBufferStorage<WithId<TEntity>>>(() => new(pageSize));
+    public static WorldEntityHost<TEntity, UnversionedSparseBufferStorage<HList<Identity, TEntity>>> GetUnversionedSparseHost<TEntity>(
+        this World world, int pageSize = 256)
+        where TEntity : IHList
+        => world.TryGetHost<TEntity, UnversionedSparseBufferStorage<HList<Identity, TEntity>>>(out var host)
+            ? host : world.AddHost<TEntity, UnversionedSparseBufferStorage<HList<Identity, TEntity>>>(
+                world => (new(pageSize), new WorldEntityHostProviders.UnversionedSparse(world, pageSize)));
 
-    public static EntityRef<WithId<TEntity>> CreateInUnversionedSparseHost<
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>(
-            this World world, in TEntity initial, int pageSize = 256)
-        where TEntity : struct
+    public static EntityRef CreateInUnversionedSparseHost<TEntity>(
+        this World world, in TEntity initial, int pageSize = 256)
+        where TEntity : IHList
         => world.GetUnversionedSparseHost<TEntity>(pageSize).Create(initial);
 }

@@ -2,7 +2,6 @@ namespace Sia;
 
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
-using System.Threading.Channels;
 using Microsoft.Extensions.ObjectPool;
 
 public class ParallelRunner : IRunner
@@ -130,7 +129,7 @@ public class ParallelRunner : IRunner
 
     public int DegreeOfParallelism { get; }
 
-    private readonly Channel<IJob> _jobChannel = Channel.CreateUnbounded<IJob>();
+    private readonly BlockingQueue<IJob> _jobs = new();
 
     private readonly DefaultObjectPool<GroupActionJob[]> _groupActionJobArrPool;
     private readonly ConcurrentDictionary<Type, object> _genericGroupActionJobArrPools = [];
@@ -143,24 +142,23 @@ public class ParallelRunner : IRunner
         DegreeOfParallelism = degreeOfParallelism;
         _groupActionJobArrPool = new(new JobArrayPolicy<GroupActionJob>(this));
 
-        var reader = _jobChannel.Reader;
         for (int i = 0; i != DegreeOfParallelism; ++i) {
             Task.Factory.StartNew(
-                () => RunWorkerThreadAsync(i, reader),
+                () => RunWorkerThread(i, _jobs),
                 CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
         }
     }
 
     ~ParallelRunner()
     {
-        _jobChannel.Writer.Complete();
+        _jobs.Complete();
     }
 
-    protected virtual async Task RunWorkerThreadAsync(int id, ChannelReader<IJob> reader)
+    protected virtual void RunWorkerThread(int id, BlockingQueue<IJob> jobs)
     {
         Thread.CurrentThread.Name = "ParallelRunner Worker " + id;
 
-        await foreach (var job in reader.ReadAllAsync()) {
+        while (jobs.Dequeue(out var job)) {
             try {
                 job.Invoke();
             }
@@ -186,7 +184,7 @@ public class ParallelRunner : IRunner
             barrier.AddParticipants(1);
         }
 
-        _jobChannel.Writer.TryWrite(job);
+        _jobs.Enqueue(job);
     }
 
     public void Run<TData>(in TData data, InAction<TData> action, RunnerBarrier? barrier = null)
@@ -207,13 +205,11 @@ public class ParallelRunner : IRunner
             barrier.AddParticipants(1);
         }
 
-        _jobChannel.Writer.TryWrite(job);
+        _jobs.Enqueue(job);
     }
 
     public void Run(int taskCount, GroupAction action, RunnerBarrier? barrier = null)
     {
-        var taskWriter = _jobChannel.Writer;
-
         var degreeOfParallelism = Math.Min(taskCount, DegreeOfParallelism);
         var div = taskCount / degreeOfParallelism;
         var remaining = taskCount % degreeOfParallelism;
@@ -234,7 +230,7 @@ public class ParallelRunner : IRunner
                 job.Barrier = barrier;
                 job.Range = (start, acc);
                 job.Action = action;
-                taskWriter.TryWrite(job);
+                _jobs.Enqueue(job);
             }
         }
         else {
@@ -246,7 +242,7 @@ public class ParallelRunner : IRunner
                     Range = (start, acc),
                     Action = action
                 };
-                taskWriter.TryWrite(job);
+                _jobs.Enqueue(job);
             }
         }
     }
@@ -254,8 +250,6 @@ public class ParallelRunner : IRunner
     public void Run<TData>(
         int taskCount, in TData data, GroupAction<TData> action, RunnerBarrier? barrier = null)
     {
-        var taskWriter = _jobChannel.Writer;
-
         var degreeOfParallelism = Math.Min(taskCount, DegreeOfParallelism);
         var div = taskCount / degreeOfParallelism;
         var remaining = taskCount % degreeOfParallelism;
@@ -287,7 +281,7 @@ public class ParallelRunner : IRunner
                 job.Barrier = barrier;
                 job.Data = data;
                 job.Action = action;
-                taskWriter.TryWrite(job);
+                _jobs.Enqueue(job);
             }
         }
         else {
@@ -300,14 +294,14 @@ public class ParallelRunner : IRunner
                     Data = data,
                     Action = action
                 };
-                taskWriter.TryWrite(job);
+                _jobs.Enqueue(job);
             }
         }
     }
 
     public void Dispose()
     {
-        _jobChannel.Writer.Complete();
+        _jobs.Complete();
         GC.SuppressFinalize(this);
     }
 }

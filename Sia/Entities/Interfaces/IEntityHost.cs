@@ -11,13 +11,19 @@ public interface IEntityHost : IEnumerable<EntityRef>, IDisposable
     ReadOnlySpan<StorageSlot> AllocatedSlots { get; }
 
     EntityRef Create();
-    void Release(scoped in StorageSlot slot);
-    bool IsValid(scoped in StorageSlot slot);
+    void Release(in StorageSlot slot);
+    void MoveOut(in StorageSlot slot);
+    bool IsValid(in StorageSlot slot);
 
-    ref byte GetByteRef(scoped in StorageSlot slot);
-    ref byte UnsafeGetByteRef(scoped in StorageSlot slot);
+    ref byte GetByteRef(in StorageSlot slot);
+    ref byte UnsafeGetByteRef(in StorageSlot slot);
 
-    object Box(scoped in StorageSlot slot);
+    EntityRef Add<TComponent>(in StorageSlot slot, in TComponent initial);
+    EntityRef AddMany<TBundle>(in StorageSlot slot, in TBundle bundle)
+        where TBundle : IHList;
+    EntityRef Remove<TComponent>(in StorageSlot slot);
+
+    object Box(in StorageSlot slot);
 }
 
 public interface IReactiveEntityHost : IEntityHost
@@ -26,12 +32,12 @@ public interface IReactiveEntityHost : IEntityHost
     event EntityHandler? OnEntityReleased;
 }
 
-public interface IEntityHost<T> : IEntityHost
-    where T : struct
+public interface IEntityHost<TEntity> : IEntityHost
+    where TEntity : IHList
 {
-    new EntityRef<WithId<T>> Create();
-    EntityRef<WithId<T>> Create(in T initial);
+    EntityRef Create(in TEntity initial);
+    EntityRef MoveIn(in HList<Identity, TEntity> data);
 
-    ref WithId<T> GetRef(scoped in StorageSlot slot);
-    ref WithId<T> UnsafeGetRef(scoped in StorageSlot slot);
+    ref HList<Identity, TEntity> GetRef(in StorageSlot slot);
+    ref HList<Identity, TEntity> UnsafeGetRef(in StorageSlot slot);
 }

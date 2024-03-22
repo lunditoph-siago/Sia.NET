@@ -101,44 +101,67 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public WorldEntityHost<TEntity, TStorage> GetHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity, TStorage>()
-        where TEntity : struct
-        where TStorage : class, IStorage<WithId<TEntity>>, new()
-        => GetHost<TEntity, TStorage>(static () => new());
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public WorldEntityHost<TEntity, TStorage> GetHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity, TStorage>(Func<TStorage> creator)
-        where TEntity : struct
-        where TStorage : class, IStorage<WithId<TEntity>>
+    public bool TryGetHost<TEntity, TStorage>([MaybeNullWhen(false)] out WorldEntityHost<TEntity, TStorage> host)
+        where TEntity : IHList
+        where TStorage : IStorage<HList<Identity, TEntity>>
     {
-        ref var host = ref _hosts.GetOrAddValueRef(
-            WorldEntityHostIndexer<WorldEntityHost<TEntity, TStorage>>.Index, out bool exists);
-        if (!exists) {
-            host = new WorldEntityHost<TEntity, TStorage>(this, creator());
-            OnEntityHostAdded?.Invoke(host);
+        ref var rawHost = ref _hosts.GetValueRefOrNullRef(
+            WorldEntityHostIndexer<WorldEntityHost<TEntity, TStorage>>.Index);
+        if (Unsafe.IsNullRef(ref rawHost)) {
+            host = null;
+            return false;
         }
-        return (WorldEntityHost<TEntity, TStorage>)host;
+        host = Unsafe.As<WorldEntityHost<TEntity, TStorage>>(rawHost);
+        return true;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public WrappedWorldEntityHost<TEntity, THost> GetCustomHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity, THost>()
-        where TEntity : struct
-        where THost : IEntityHost<TEntity>, new()
-        => GetCustomHost<TEntity, THost>(static () => new());
+    public WorldEntityHost<TEntity, TStorage> AddHost<TEntity, TStorage>(
+        Func<World, (TStorage Storage, IEntityHostProvider SiblingHostProvider)> creator)
+        where TEntity : IHList
+        where TStorage : IStorage<HList<Identity, TEntity>>
+    {
+        ref var rawHost = ref _hosts.GetOrAddValueRef(
+            WorldEntityHostIndexer<WorldEntityHost<TEntity, TStorage>>.Index, out bool exists);
+        if (exists) {
+            throw new ArgumentException("Host with the same type already exists");
+        }
+        var (storage, siblingHostProvider) = creator(this);
+        var host = new WorldEntityHost<TEntity, TStorage>(this, storage, siblingHostProvider);
+        OnEntityHostAdded?.Invoke(host);
+        rawHost = host;
+        return host;
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public WrappedWorldEntityHost<TEntity, THost> GetCustomHost<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity, THost>(Func<THost> creator)
-        where TEntity : struct
+    public bool TryGetCustomHost<TEntity, THost>([MaybeNullWhen(false)] out WrappedWorldEntityHost<TEntity, THost> host)
+        where TEntity : IHList
         where THost : IEntityHost<TEntity>
     {
-        ref var host = ref _hosts.GetOrAddValueRef(
-            WorldEntityHostIndexer<THost>.Index, out bool exists);
-        if (!exists) {
-            var newHost = new WrappedWorldEntityHost<TEntity, THost>(this, creator());
-            OnEntityHostAdded?.Invoke(newHost);
-            return newHost;
+        ref var rawHost = ref _hosts.GetValueRefOrNullRef(
+            WorldEntityHostIndexer<THost>.Index);
+        if (Unsafe.IsNullRef(ref rawHost)) {
+            host = null;
+            return false;
         }
-        return (WrappedWorldEntityHost<TEntity, THost>)host;
+        host = Unsafe.As<WrappedWorldEntityHost<TEntity, THost>>(rawHost);
+        return true;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public WrappedWorldEntityHost<TEntity, THost> AddCustomHost<TEntity, THost>(Func<World, THost> creator)
+        where TEntity : IHList
+        where THost : IEntityHost<TEntity>
+    {
+        ref var rawHost = ref _hosts.GetOrAddValueRef(
+            WorldEntityHostIndexer<THost>.Index, out bool exists);
+        if (exists) {
+            throw new ArgumentException("Host with the same type already exists");
+        }
+        var host = new WrappedWorldEntityHost<TEntity, THost>(this, creator(this));
+        OnEntityHostAdded?.Invoke(host);
+        rawHost = host;
+        return host;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -187,22 +210,7 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
         => Dispatcher.Send(target, e);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Send<TEntity, TEvent>(in EntityRef<TEntity> target, in TEvent e)
-        where TEntity : struct
-        where TEvent : IEvent
-        => Dispatcher.Send(target, e);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Modify<TCommand>(in EntityRef target, in TCommand command)
-        where TCommand : ICommand
-    {
-        command.Execute(this, target);
-        Dispatcher.Send(target, command);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Modify<TEntity, TCommand>(in EntityRef<TEntity> target, in TCommand command)
-        where TEntity : struct
         where TCommand : ICommand
     {
         command.Execute(this, target);
@@ -212,16 +220,6 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Modify<TComponent, TCommand>(
         in EntityRef target, ref TComponent component, in TCommand command)
-        where TCommand : ICommand<TComponent>
-    {
-        command.Execute(this, target, ref component);
-        Dispatcher.Send(target, command);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Modify<TEntity, TComponent, TCommand>(
-        in EntityRef<TEntity> target, ref TComponent component, in TCommand command)
-        where TEntity : struct
         where TCommand : ICommand<TComponent>
     {
         command.Execute(this, target, ref component);

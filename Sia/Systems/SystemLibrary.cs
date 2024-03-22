@@ -14,8 +14,10 @@ public class SystemLibrary : IAddon
         internal readonly HashSet<Scheduler.TaskGraphNode> _taskGraphNodes = [];
     }
 
-    private record WrappedReactiveEntityHost(IReactiveEntityHost Host) : IReactiveEntityHost
+    private class WrappedReactiveEntityHost : IReactiveEntityHost
     {
+        public IReactiveEntityHost Host { get; }
+
         public event EntityHandler? OnEntityCreated {
             add => Host.OnEntityCreated += value;
             remove => Host.OnEntityCreated -= value;
@@ -41,9 +43,15 @@ public class SystemLibrary : IAddon
 
         private readonly SparseSet<StorageSlot> _allocatedSlots = [];
         private readonly Dictionary<Identity, int> _entitySlots = [];
+
+        public WrappedReactiveEntityHost(IReactiveEntityHost host)
+        {
+            Host = host;
+            Host.OnEntityReleased += (in EntityRef e) => Remove(e.Slot);
+        }
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Add(scoped in StorageSlot slot)
+        public void Add(in StorageSlot slot)
         {
             var index = _firstFreeSlot;
             var id = Host.GetIdentity(slot);
@@ -55,7 +63,7 @@ public class SystemLibrary : IAddon
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool Remove(scoped in StorageSlot slot)
+        public bool Remove(in StorageSlot slot)
         {
             var id = Host.GetIdentity(slot);
             if (!_entitySlots.Remove(id, out int slotIndex)) {
@@ -75,22 +83,29 @@ public class SystemLibrary : IAddon
             _firstFreeSlot = 0;
         }
 
-        public EntityRef Create()
-            => Host.Create();
+        public EntityRef Create() => Host.Create();
+        public void Release(in StorageSlot slot) => Host.Release(slot);
 
-        public void Release(in StorageSlot slot)
-        {
-            Remove(slot);
-            Host.Release(slot);
-        }
+        public void MoveOut(in StorageSlot slot)
+            => Host.MoveOut(slot);
+
+        public EntityRef Add<TComponent>(in StorageSlot slot, in TComponent initial)
+            => Host.Add(slot, initial);
+
+        public EntityRef AddMany<TBundle>(in StorageSlot slot, in TBundle bundle)
+            where TBundle : IHList
+            => Host.AddMany(slot, bundle);
+
+        public EntityRef Remove<TComponent>(in StorageSlot slot)
+            => Host.Remove<TComponent>(slot);
 
         public bool IsValid(in StorageSlot slot)
             => Host.IsValid(slot);
 
-        public ref byte GetByteRef(scoped in StorageSlot slot)
+        public ref byte GetByteRef(in StorageSlot slot)
             => ref Host.GetByteRef(slot);
 
-        public ref byte UnsafeGetByteRef(scoped in StorageSlot slot)
+        public ref byte UnsafeGetByteRef(in StorageSlot slot)
             => ref Host.UnsafeGetByteRef(slot);
 
         public object Box(in StorageSlot slot)

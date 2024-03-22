@@ -80,7 +80,7 @@ public static partial class Example1_HealthDamage
     public class LocationDamageSystem()
         : SystemBase(
             matcher: Matchers.Of<Transform, Health>(),
-            trigger: EventUnion.Of<WorldEvents.Add, Transform.SetPosition>())
+            trigger: EventUnion.Of<WorldEvents.Add<Health>, Transform.SetPosition>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
@@ -109,13 +109,13 @@ public static partial class Example1_HealthDamage
     public static class Player
     {
         public static EntityRef Create(World world)
-            => world.CreateInArrayHost(Bundle.Create(
+            => world.CreateInArrayHost(HList.Create(
                 new Transform(),
                 new Health()
             ));
 
         public static EntityRef Create(World world, Vector2 position)
-            => world.CreateInArrayHost(Bundle.Create(
+            => world.CreateInArrayHost(HList.Create(
                 new Transform {
                     Position = position
                 },
