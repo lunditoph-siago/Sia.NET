@@ -14,9 +14,10 @@ internal partial class SiaBakeEntityGenerator : IIncrementalGenerator
 {
     private record CodeGenerationInfo(
         INamespaceSymbol Namespace,
-        INamedTypeSymbol NamedTypeSymbol,
-        SemanticModel SemanticModel,
-        ImmutableArray<TypeDeclarationSyntax> ParentTypes);
+        TypeDeclarationSyntax ComponentType,
+        ImmutableArray<TypeDeclarationSyntax> ParentTypes,
+        ImmutableArray<(PropertyInfo, object?)> Properties,
+        INamedTypeSymbol NamedTypeSymbol);
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -29,48 +30,79 @@ internal partial class SiaBakeEntityGenerator : IIncrementalGenerator
             .ForAttributeWithMetadataName(
                 SiaBakeEntityAttributeName,
                 static (syntaxNode, _) =>
-                    syntaxNode is StructDeclarationSyntax structDeclarationSyntax
-                    && structDeclarationSyntax.Modifiers.Any(SyntaxKind.PartialKeyword),
+                    (syntaxNode is StructDeclarationSyntax structDeclarationSyntax && structDeclarationSyntax.Modifiers.Any(SyntaxKind.PartialKeyword)) ||
+                    (syntaxNode is RecordDeclarationSyntax recordDeclarationSyntax && recordDeclarationSyntax.Modifiers.Any(SyntaxKind.PartialKeyword)),
                 static (syntax, _) =>
                     (syntax, parentTypes: GetParentTypes(syntax.TargetNode)))
             .Select(static (t, token) => {
                 var (syntax, parentTypes) = t;
-
-                var structDeclaration = syntax.TargetNode;
                 var model = syntax.SemanticModel;
+                var targetType = (TypeDeclarationSyntax)syntax.TargetNode;
 
-                return structDeclaration is StructDeclarationSyntax &&
-                       model.GetDeclaredSymbol(structDeclaration, token) is INamedTypeSymbol structSymbol
-                    ? new CodeGenerationInfo(
-                        Namespace: syntax.TargetSymbol.ContainingNamespace,
-                        NamedTypeSymbol: structSymbol,
-                        SemanticModel: model,
-                        ParentTypes: parentTypes
-                    )
-                    : null;
+                var semanticModel = syntax.SemanticModel;
+                var targetSymbol = model.GetDeclaredSymbol(targetType, token)!;
+
+                return new CodeGenerationInfo(
+                    Namespace: syntax.TargetSymbol.ContainingNamespace,
+                    ComponentType: targetType,
+                    ParentTypes: parentTypes,
+                    Properties: GetProperties(targetSymbol, semanticModel).ToImmutableArray(),
+                    NamedTypeSymbol: targetSymbol);
+
+                static IEnumerable<(PropertyInfo, object?)> GetProperties(INamedTypeSymbol symbol, SemanticModel model)
+                {
+                    var members = new List<(PropertyInfo, object?)>();
+
+                    foreach (var member in symbol.GetMembers()) {
+                        switch (member) {
+                            case IFieldSymbol field:
+                                members.Add(
+                                    (new PropertyInfo(field.Name, field.Type, symbol, member.GetAttributes()),
+                                        field.HasConstantValue ? field.ConstantValue : null));
+                                break;
+                            case IPropertySymbol prop:
+                                var propertySyntax = prop.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() as PropertyDeclarationSyntax;
+                                if (propertySyntax?.Initializer is not null) {
+                                    var constantValue = model.GetConstantValue(propertySyntax.Initializer.Value);
+                                    members.Add(
+                                        (new PropertyInfo(prop.Name, prop.Type, symbol, member.GetAttributes()),
+                                            constantValue.HasValue ? constantValue.Value : null));
+                                }
+                                break;
+                        }
+                    }
+
+                    members.AddRange(
+                        from parameter in symbol.Constructors.FirstOrDefault()?.Parameters
+                                          ?? ImmutableArray<IParameterSymbol>.Empty
+                        where parameter.HasExplicitDefaultValue
+                        select
+                            (new PropertyInfo(parameter.Name, parameter.Type, symbol, parameter.GetAttributes()),
+                                parameter.ExplicitDefaultValue));
+
+                    return symbol.BaseType is not null ? members.Concat(GetProperties(symbol.BaseType, model)) : members;
+                }
             });
 
-        context.RegisterSourceOutput(codeGenInfos, static (context, info) =>
-        {
+        context.RegisterSourceOutput(codeGenInfos, static (context, info) => {
             if (info is null) return;
 
             using var source = CreateFileSource(out var builder);
 
             using (GenerateInNamespace(source, info.Namespace)) {
-                var members = GetMembersWithDefaults(info.NamedTypeSymbol, info.SemanticModel);
+                if (!info.Properties.Any()) return;
 
-                if (!members.Any()) return;
-
-                source.WriteLine($"public partial struct {info.NamedTypeSymbol.Name} : global::Sia.IBundle");
+                source.WriteLine($"public partial {(info.ComponentType.Modifiers.Count > 0 ? $"{info.ComponentType.Keyword.Text} " : string.Empty)}struct {info.NamedTypeSymbol.Name} : global::Sia.IBundle");
                 source.WriteLine("{");
                 source.Indent++;
 
-                source.WriteLine($"public static {GenerateType(members)} BakedEntity => {GenerateNestedHLists(members)};");
+                source.WriteLine($"public static {GenerateType(info.Properties)} BakedEntity => {GenerateNestedHLists(info.Properties)};");
                 source.WriteLine("");
                 source.WriteLine("public readonly void ToHList(global::Sia.IGenericHandler<global::Sia.IHList> handler)");
                 source.WriteLine("{");
                 source.Indent++;
-                source.WriteLine($"handler.Handle({GenerateNestedHLists(members)});");
+
+                source.WriteLine($"handler.Handle({GenerateNestedHLists(info.Properties)});");
                 source.Indent--;
                 source.WriteLine("}");
 
@@ -97,80 +129,29 @@ internal partial class SiaBakeEntityGenerator : IIncrementalGenerator
         return builder.ToString();
     }
 
-    private static List<(ISymbol member, object? defaultValue)> GetMembersWithDefaults(INamedTypeSymbol structSymbol, SemanticModel semanticModel)
-    {
-        var membersWithDefaults = new List<(ISymbol, object?)>();
-
-        foreach (var member in structSymbol.GetMembers()) {
-            object? defaultValue = null;
-
-            switch (member) {
-                case IFieldSymbol { DeclaredAccessibility: Accessibility.Public, HasConstantValue: true } field:
-                    defaultValue = field.ConstantValue;
-                    break;
-                case IPropertySymbol { DeclaredAccessibility: Accessibility.Public } property:
-                    var propertySyntax = property.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() as PropertyDeclarationSyntax;
-                    if (propertySyntax?.Initializer is not null) {
-                        var constantValue = semanticModel.GetConstantValue(propertySyntax.Initializer.Value);
-                        if (constantValue.HasValue) defaultValue = constantValue.Value;
-                    }
-                    break;
-            }
-
-            if (member is IFieldSymbol or IPropertySymbol) {
-                membersWithDefaults.Add((member, defaultValue));
-            }
-        }
-
-        foreach (var parameter in structSymbol.Constructors.FirstOrDefault()?.Parameters ??
-                                  ImmutableArray<IParameterSymbol>.Empty) {
-            if (parameter.HasExplicitDefaultValue) {
-                membersWithDefaults.Add((parameter, parameter.ExplicitDefaultValue));
-            }
-        }
-
-        return membersWithDefaults;
-    }
-
-    private static string GenerateType(List<(ISymbol member, object? defaultValue)> members)
+    private static string GenerateType(ImmutableArray<(PropertyInfo property, object? defaultValue)> properties)
     {
         var nestedType = new StringBuilder();
 
-        foreach (var member in members) {
-            var type = member.member switch {
-                IParameterSymbol parameterSymbol => parameterSymbol.Type.ToDisplayString(),
-                IFieldSymbol fieldSymbol => fieldSymbol.Type.ToDisplayString(),
-                IPropertySymbol propertySymbol => propertySymbol.Type.ToDisplayString(),
-                _ => throw new ArgumentException("Unsupported symbol type", nameof(member))
-            };
-
-            nestedType.Append($"global::Sia.HList<{type}, ");
+        foreach (var property in properties) {
+            nestedType.Append($"global::Sia.HList<{property.property.DisplayType}, ");
         }
 
-        nestedType.Append("global::Sia.EmptyHList" + new string('>', members.Count));
+        nestedType.Append("global::Sia.EmptyHList" + new string('>', properties.Length));
 
         return nestedType.ToString();
     }
 
-    private static string GenerateNestedHLists(List<(ISymbol member, object? defaultValue)> members)
+    private static string GenerateNestedHLists(ImmutableArray<(PropertyInfo property, object? defaultValue)> properties)
     {
         var nestedHList = new StringBuilder();
 
-        foreach (var member in members) {
-            var (type, defaultValue) = member.member switch {
-                IParameterSymbol param =>
-                    (param.Type, param.Type.IsValueType ? $"default({param.Type})" : "null"),
-                IFieldSymbol field =>
-                    (field.Type, field.Type.IsValueType ? $"default({field.Type})" : "null"),
-                IPropertySymbol property =>
-                    (property.Type, property.Type.IsValueType ? $"default({property.Type})" : "null"),
-                _ => throw new ArgumentException("Unsupported symbol type", nameof(member))
-            };
-
-            nestedHList.Append($"global::Sia.HList.Cons(({type}){member.defaultValue ?? defaultValue}, ");
+        foreach (var property in properties) {
+            var defaultValue = property.property.Type.IsValueType ? $"default({property.property.DisplayType})" : "null";
+            nestedHList.Append($"global::Sia.HList.Cons(({property.property.DisplayType}){property.defaultValue ?? defaultValue}, ");
         }
 
-        nestedHList.Append("global::Sia.EmptyHList.Default" + new string(')', members.Count));
+        nestedHList.Append("global::Sia.EmptyHList.Default" + new string(')', properties.Length));
 
         return nestedHList.ToString();
     }
