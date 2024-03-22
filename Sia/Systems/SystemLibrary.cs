@@ -96,6 +96,10 @@ public class SystemLibrary : IAddon
             where TBundle : IHList
             => Host.AddMany(slot, bundle);
 
+        public EntityRef AddBundle<TBundle>(in StorageSlot slot, in TBundle bundle)
+            where TBundle : IBundle
+            => Host.AddBundle(slot, bundle);
+
         public EntityRef Remove<TComponent>(in StorageSlot slot)
             => Host.Remove<TComponent>(slot);
 

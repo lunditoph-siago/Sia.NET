@@ -21,6 +21,8 @@ public interface IEntityHost : IEnumerable<EntityRef>, IDisposable
     EntityRef Add<TComponent>(in StorageSlot slot, in TComponent initial);
     EntityRef AddMany<TBundle>(in StorageSlot slot, in TBundle bundle)
         where TBundle : IHList;
+    EntityRef AddBundle<TBundle>(in StorageSlot slot, in TBundle bundle)
+        where TBundle : IBundle;
     EntityRef Remove<TComponent>(in StorageSlot slot);
 
     object Box(in StorageSlot slot);

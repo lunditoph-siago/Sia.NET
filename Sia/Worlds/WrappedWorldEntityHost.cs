@@ -120,6 +120,16 @@ public sealed record WrappedWorldEntityHost<TEntity, TEntityHost> : IEntityHost<
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public EntityRef AddBundle<TBundle>(in StorageSlot slot, in TBundle bundle)
+        where TBundle : IBundle
+    {
+        var e = _host.AddBundle(slot, bundle);
+        bundle.ToHList(new EntityHeadAddEventSender(e, World.Dispatcher));
+        bundle.ToHList(new EntityTailAddEventSender(e, World.Dispatcher));
+        return e;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public EntityRef Remove<TComponent>(in StorageSlot slot)
         => _host.Remove<TComponent>(slot);
 

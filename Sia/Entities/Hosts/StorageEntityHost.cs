@@ -99,6 +99,17 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage managedStorage) : IEn
         return result;
     }
 
+    public virtual unsafe EntityRef AddBundle<TBundle>(in StorageSlot slot, in TBundle bundle)
+        where TBundle : IBundle
+    {
+        ref var entity = ref Storage.GetRef(slot);
+        EntityRef result;
+        var mover = new EntityMover(this, entity.Head, &result);
+        bundle.ToHList(mover);
+        MoveOut(slot);
+        return result;
+    }
+
     public virtual unsafe EntityRef Remove<TComponent>(in StorageSlot slot)
     {
         ref var entity = ref Storage.GetRef(slot);
