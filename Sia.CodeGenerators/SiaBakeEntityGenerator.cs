@@ -73,12 +73,11 @@ internal partial class SiaBakeEntityGenerator : IIncrementalGenerator
                     }
 
                     members.AddRange(
-                        from parameter in symbol.Constructors.FirstOrDefault()?.Parameters
+                        from param in symbol.Constructors.FirstOrDefault()?.Parameters
                                           ?? ImmutableArray<IParameterSymbol>.Empty
-                        where parameter.HasExplicitDefaultValue
                         select
-                            (new PropertyInfo(parameter.Name, parameter.Type, symbol, parameter.GetAttributes()),
-                                parameter.ExplicitDefaultValue));
+                            (new PropertyInfo(param.Name, param.Type, symbol, param.GetAttributes()),
+                                param.HasExplicitDefaultValue ? param.ExplicitDefaultValue : null));
 
                     return symbol.BaseType is not null ? members.Concat(GetProperties(symbol.BaseType, model)) : members;
                 }
@@ -92,11 +91,15 @@ internal partial class SiaBakeEntityGenerator : IIncrementalGenerator
             using (GenerateInNamespace(source, info.Namespace)) {
                 if (!info.Properties.Any()) return;
 
-                source.WriteLine($"public partial {(info.ComponentType.Modifiers.Count > 0 ? $"{info.ComponentType.Keyword.Text} " : string.Empty)}struct {info.NamedTypeSymbol.Name} : global::Sia.IBundle");
+                source.WriteLine($"public partial {info.ComponentType.Kind() switch {
+                    SyntaxKind.StructKeyword or SyntaxKind.StructDeclaration => "struct ",
+                    SyntaxKind.RecordStructDeclaration => "record struct ",
+                    _ => string.Empty
+                }}{info.NamedTypeSymbol.Name} : global::Sia.IBundle");
                 source.WriteLine("{");
                 source.Indent++;
 
-                source.WriteLine($"public static {GenerateType(info.Properties)} BakedEntity => {GenerateNestedHLists(info.Properties)};");
+                source.WriteLine($"public static {GenerateType(info.Properties)} BakedEntity => {GenerateNestedHLists(info.Properties, false)};");
                 source.WriteLine("");
                 source.WriteLine("public readonly void ToHList(global::Sia.IGenericHandler<global::Sia.IHList> handler)");
                 source.WriteLine("{");
@@ -112,6 +115,15 @@ internal partial class SiaBakeEntityGenerator : IIncrementalGenerator
 
             context.AddSource(GenerateFileName(info), builder.ToString());
         });
+    }
+
+    private static string GetPropertyNameFromBackingField(string fieldName)
+    {
+        if (fieldName.StartsWith("<") && fieldName.EndsWith(">k__BackingField"))
+        {
+            return fieldName.TrimStart('<').Split('>')[0];
+        }
+        return fieldName;
     }
 
     private static string GenerateFileName(CodeGenerationInfo info)
@@ -142,13 +154,13 @@ internal partial class SiaBakeEntityGenerator : IIncrementalGenerator
         return nestedType.ToString();
     }
 
-    private static string GenerateNestedHLists(ImmutableArray<(PropertyInfo property, object? defaultValue)> properties)
+    private static string GenerateNestedHLists(ImmutableArray<(PropertyInfo property, object? defaultValue)> properties, bool useField = true)
     {
         var nestedHList = new StringBuilder();
 
         foreach (var property in properties) {
             var defaultValue = property.property.Type.IsValueType ? $"default({property.property.DisplayType})" : "null";
-            nestedHList.Append($"global::Sia.HList.Cons(({property.property.DisplayType}){property.defaultValue ?? defaultValue}, ");
+            nestedHList.Append($"global::Sia.HList.Cons(({property.property.DisplayType}){(useField ? GetPropertyNameFromBackingField(property.property.Name) : property.defaultValue?.ToString().ToLower() ?? defaultValue)}, ");
         }
 
         nestedHList.Append("global::Sia.EmptyHList.Default" + new string(')', properties.Length));
