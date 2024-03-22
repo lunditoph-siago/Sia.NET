@@ -2,7 +2,13 @@
 
 public interface IBundle
 {
-    void ToHList(IGenericHandler handler);
+    public void HandleHead<THandler>(in THandler handler)
+        where THandler : IGenericHandler;
 
-    void ToHList(IGenericHandler<IHList> handler);
+    public void HandleTail<THandler>(in THandler handler)
+        where THandler : IGenericHandler<IHList>;
+
+    void Concat<THList, TResultHandler>(in THList list, TResultHandler handler)
+        where THList : IHList
+        where TResultHandler : IGenericHandler<IHList>;
 }

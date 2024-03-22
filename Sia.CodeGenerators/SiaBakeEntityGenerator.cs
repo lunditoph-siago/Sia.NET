@@ -105,25 +105,46 @@ internal partial class SiaBakeEntityGenerator : IIncrementalGenerator
                 source.WriteLine("{");
                 source.Indent++;
 
-                source.WriteLine($"public static {GenerateType(info.Properties)} BakedEntity => {GenerateNestedHLists(info.Properties, false)};");
+                source.WriteLine($"public static {GenerateType(info.Properties)} DefaultEntity => {GenerateNestedHLists(info.Properties, false)};");
+                source.WriteLine($"public readonly {GenerateType(info.Properties)} BakedEntity => {GenerateNestedHLists(info.Properties)};");
 
                 source.WriteLine("");
 
-                source.WriteLine("public readonly void ToHList(global::Sia.IGenericHandler<global::Sia.IHList> handler)");
+                source.WriteLine("public readonly void HandleHead<THandler>(in THandler handler)");
+                source.Indent++;
+                source.WriteLine("where THandler : global::Sia.IGenericHandler");
+                source.Indent--;
                 source.WriteLine("{");
                 source.Indent++;
 
-                source.WriteLine($"handler.Handle({GenerateNestedHLists(info.Properties)});");
+                source.WriteLine($"handler.Handle(BakedEntity.Head);");
                 source.Indent--;
                 source.WriteLine("}");
 
                 source.WriteLine("");
 
-                source.WriteLine("public readonly void ToHList(global::Sia.IGenericHandler handler)");
+                source.WriteLine("public readonly void HandleTail<THandler>(in THandler handler)");
+                source.Indent++;
+                source.WriteLine("where THandler : global::Sia.IGenericHandler<global::Sia.IHList>");
+                source.Indent--;
                 source.WriteLine("{");
                 source.Indent++;
 
-                source.WriteLine($"handler.Handle({GenerateNestedHLists(info.Properties)});");
+                source.WriteLine($"handler.Handle(BakedEntity.Tail);");
+                source.Indent--;
+                source.WriteLine("}");
+
+                source.WriteLine("");
+
+                source.WriteLine("public readonly void Concat<THList, TResultHandler>(in THList list, TResultHandler handler)");
+                source.Indent++;
+                source.WriteLine("where THList : global::Sia.IHList");
+                source.WriteLine("where TResultHandler : global::Sia.IGenericHandler<global::Sia.IHList>");
+                source.Indent--;
+                source.WriteLine("{");
+                source.Indent++;
+
+                source.WriteLine($"BakedEntity.Concat(list, handler);");
                 source.Indent--;
                 source.WriteLine("}");
 
@@ -178,7 +199,7 @@ internal partial class SiaBakeEntityGenerator : IIncrementalGenerator
 
         foreach (var property in properties) {
             var defaultValue = property.property.Type.IsValueType ? $"default({property.property.DisplayType})" : "null";
-            nestedHList.Append($"global::Sia.HList.Cons(({property.property.DisplayType}){(useField ? property.property.Name : property.defaultValue?.ToString().ToLower() ?? defaultValue)}, ");
+            nestedHList.Append($"new(({property.property.DisplayType}){(useField ? property.property.Name : property.defaultValue?.ToString().ToLower() ?? defaultValue)}, ");
         }
 
         nestedHList.Append("global::Sia.EmptyHList.Default" + new string(')', properties.Length));

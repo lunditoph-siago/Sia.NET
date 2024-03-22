@@ -105,7 +105,7 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage managedStorage) : IEn
         ref var entity = ref Storage.GetRef(slot);
         EntityRef result;
         var mover = new EntityMover(this, entity.Head, &result);
-        bundle.ToHList(mover);
+        bundle.Concat(entity.Tail, mover);
         MoveOut(slot);
         return result;
     }

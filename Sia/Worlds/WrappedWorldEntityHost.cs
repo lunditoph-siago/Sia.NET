@@ -124,8 +124,8 @@ public sealed record WrappedWorldEntityHost<TEntity, TEntityHost> : IEntityHost<
         where TBundle : IBundle
     {
         var e = _host.AddBundle(slot, bundle);
-        bundle.ToHList(new EntityHeadAddEventSender(e, World.Dispatcher));
-        bundle.ToHList(new EntityTailAddEventSender(e, World.Dispatcher));
+        bundle.HandleHead(new EntityHeadAddEventSender(e, World.Dispatcher));
+        bundle.HandleTail(new EntityTailAddEventSender(e, World.Dispatcher));
         return e;
     }
 
