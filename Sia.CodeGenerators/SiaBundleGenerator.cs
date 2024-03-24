@@ -1,4 +1,6 @@
-﻿namespace Sia.CodeGenerators;
+﻿using System.CodeDom.Compiler;
+
+namespace Sia.CodeGenerators;
 
 using System.Collections.Immutable;
 using System.Text;
@@ -10,7 +12,7 @@ using Microsoft.CodeAnalysis.Text;
 using static Common;
 
 [Generator]
-internal partial class SiaBakeEntityGenerator : IIncrementalGenerator
+internal partial class SiaBundleGenerator : IIncrementalGenerator
 {
     private record CodeGenerationInfo(
         INamespaceSymbol Namespace,
@@ -22,13 +24,13 @@ internal partial class SiaBakeEntityGenerator : IIncrementalGenerator
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         context.RegisterPostInitializationOutput(static context => {
-            context.AddSource("SiaBakeEntityAttribute.g.cs",
-                SourceText.From(SiaBakeEntityAttributeSource, Encoding.UTF8));
+            context.AddSource("SiaBundleAttribute.g.cs",
+                SourceText.From(SiaBundleAttributeSource, Encoding.UTF8));
         });
 
         var codeGenInfos = context.SyntaxProvider
             .ForAttributeWithMetadataName(
-                SiaBakeEntityAttributeName,
+                SiaBundleAttributeName,
                 static (syntaxNode, _) =>
                     (syntaxNode is StructDeclarationSyntax structDeclarationSyntax && structDeclarationSyntax.Modifiers.Any(SyntaxKind.PartialKeyword)) ||
                     (syntaxNode is RecordDeclarationSyntax recordDeclarationSyntax && recordDeclarationSyntax.Modifiers.Any(SyntaxKind.PartialKeyword)),
@@ -56,20 +58,22 @@ internal partial class SiaBakeEntityGenerator : IIncrementalGenerator
                     foreach (var member in symbol.GetMembers()) {
                         switch (member) {
                             case IFieldSymbol field: {
-                                var name = GetPropertyNameFromBackingField(member.Name);
-                                members[name] =
-                                    (new PropertyInfo(name, field.Type, symbol, member.GetAttributes()),
-                                        field.HasConstantValue ? field.ConstantValue : null);
+                                if (member is { IsStatic: false, DeclaredAccessibility: Accessibility.Public }) {
+                                    members[member.Name] =
+                                        (new PropertyInfo(member.Name, field.Type, symbol, member.GetAttributes()),
+                                            field.HasConstantValue ? field.ConstantValue : null);
+                                }
                                 break;
                             }
                             case IPropertySymbol prop: {
-                                if (prop.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is
-                                    PropertyDeclarationSyntax { Initializer: not null } propertySyntax) {
-                                    var name = GetPropertyNameFromBackingField(member.Name);
-                                    var constantValue = model.GetConstantValue(propertySyntax.Initializer.Value);
-                                    members[name] =
-                                        (new PropertyInfo(name, prop.Type, symbol, member.GetAttributes()),
-                                            constantValue.HasValue ? constantValue.Value : null);
+                                if (member is { IsStatic: false, DeclaredAccessibility: Accessibility.Public }) {
+                                    var constantValue =
+                                        prop.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is
+                                        PropertyDeclarationSyntax { Initializer: not null } propertySyntax
+                                            ? model.GetConstantValue(propertySyntax.Initializer.Value).Value : null;
+                                    members[member.Name] =
+                                        (new PropertyInfo(member.Name, prop.Type, symbol, member.GetAttributes()),
+                                            constantValue);
                                 }
                                 break;
                             }
@@ -79,9 +83,8 @@ internal partial class SiaBakeEntityGenerator : IIncrementalGenerator
                     foreach (var param in symbol.Constructors.FirstOrDefault()?.Parameters ??
                                           ImmutableArray<IParameterSymbol>.Empty)
                     {
-                        var name = GetPropertyNameFromBackingField(param.Name);
-                        members[name] =
-                            (new PropertyInfo(name, param.Type, symbol, param.GetAttributes()),
+                        members[param.Name] =
+                            (new PropertyInfo(param.Name, param.Type, symbol, param.GetAttributes()),
                                 param.HasExplicitDefaultValue ? param.ExplicitDefaultValue : null);
                     }
 
@@ -90,8 +93,6 @@ internal partial class SiaBakeEntityGenerator : IIncrementalGenerator
             });
 
         context.RegisterSourceOutput(codeGenInfos, static (context, info) => {
-            if (info is null) return;
-
             using var source = CreateFileSource(out var builder);
 
             using (GenerateInNamespace(source, info.Namespace)) {
@@ -105,48 +106,20 @@ internal partial class SiaBakeEntityGenerator : IIncrementalGenerator
                 source.WriteLine("{");
                 source.Indent++;
 
-                source.WriteLine($"public static {GenerateType(info.Properties)} DefaultEntity => {GenerateNestedHLists(info.Properties, false)};");
-                source.WriteLine($"public readonly {GenerateType(info.Properties)} BakedEntity => {GenerateNestedHLists(info.Properties)};");
+                source.WriteLine($"public static {GenerateNestedHListsType(info.Properties)} DefaultEntity => {GenerateNestedHLists(info.Properties, false)};");
+                source.WriteLine($"public readonly {GenerateNestedHListsType(info.Properties)} BakedEntity => {GenerateNestedHLists(info.Properties)};");
 
-                source.WriteLine("");
+                source.WriteLine();
 
-                source.WriteLine("public readonly void HandleHead<THandler>(in THandler handler)");
-                source.Indent++;
-                source.WriteLine("where THandler : global::Sia.IGenericHandler");
-                source.Indent--;
-                source.WriteLine("{");
-                source.Indent++;
+                GenerateHandleMethod(source, "Head", "global::Sia.IGenericHandler");
 
-                source.WriteLine($"handler.Handle(BakedEntity.Head);");
-                source.Indent--;
-                source.WriteLine("}");
+                source.WriteLine();
 
-                source.WriteLine("");
+                GenerateHandleMethod(source, "Tail", "global::Sia.IGenericHandler<global::Sia.IHList>");
 
-                source.WriteLine("public readonly void HandleTail<THandler>(in THandler handler)");
-                source.Indent++;
-                source.WriteLine("where THandler : global::Sia.IGenericHandler<global::Sia.IHList>");
-                source.Indent--;
-                source.WriteLine("{");
-                source.Indent++;
+                source.WriteLine();
 
-                source.WriteLine($"handler.Handle(BakedEntity.Tail);");
-                source.Indent--;
-                source.WriteLine("}");
-
-                source.WriteLine("");
-
-                source.WriteLine("public readonly void Concat<THList, TResultHandler>(in THList list, TResultHandler handler)");
-                source.Indent++;
-                source.WriteLine("where THList : global::Sia.IHList");
-                source.WriteLine("where TResultHandler : global::Sia.IGenericHandler<global::Sia.IHList>");
-                source.Indent--;
-                source.WriteLine("{");
-                source.Indent++;
-
-                source.WriteLine($"BakedEntity.Concat(list, handler);");
-                source.Indent--;
-                source.WriteLine("}");
+                GenerateConcatMethod(source);
 
                 source.Indent--;
                 source.WriteLine("}");
@@ -154,15 +127,6 @@ internal partial class SiaBakeEntityGenerator : IIncrementalGenerator
 
             context.AddSource(GenerateFileName(info), builder.ToString());
         });
-    }
-
-    private static string GetPropertyNameFromBackingField(string fieldName)
-    {
-        if (fieldName.StartsWith("<") && fieldName.EndsWith(">k__BackingField"))
-        {
-            return fieldName.TrimStart('<').Split('>')[0];
-        }
-        return fieldName;
     }
 
     private static string GenerateFileName(CodeGenerationInfo info)
@@ -180,7 +144,36 @@ internal partial class SiaBakeEntityGenerator : IIncrementalGenerator
         return builder.ToString();
     }
 
-    private static string GenerateType(ImmutableArray<(PropertyInfo property, object? defaultValue)> properties)
+    private static void GenerateHandleMethod(IndentedTextWriter source, string position, string handle)
+    {
+        source.WriteLine($"public readonly void Handle{position}<THandler>(in THandler handler)");
+        source.Indent++;
+        source.WriteLine($"where THandler : {handle}");
+        source.Indent--;
+        source.WriteLine("{");
+        source.Indent++;
+
+        source.WriteLine($"handler.Handle(BakedEntity.{position});");
+        source.Indent--;
+        source.WriteLine("}");
+    }
+
+    private static void GenerateConcatMethod(IndentedTextWriter source)
+    {
+        source.WriteLine("public readonly void Concat<THList, TResultHandler>(in THList list, TResultHandler handler)");
+        source.Indent++;
+        source.WriteLine("where THList : global::Sia.IHList");
+        source.WriteLine("where TResultHandler : global::Sia.IGenericHandler<global::Sia.IHList>");
+        source.Indent--;
+        source.WriteLine("{");
+        source.Indent++;
+
+        source.WriteLine($"BakedEntity.Concat(list, handler);");
+        source.Indent--;
+        source.WriteLine("}");
+    }
+
+    private static string GenerateNestedHListsType(ImmutableArray<(PropertyInfo property, object? defaultValue)> properties)
     {
         var nestedType = new StringBuilder();
 

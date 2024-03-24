@@ -44,6 +44,23 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
                 var model = syntax.SemanticModel;
                 var targetType = (TypeDeclarationSyntax)syntax.TargetNode;
 
+                var targetSymbol = model.GetDeclaredSymbol(targetType, token)!;
+                var templateAttr = syntax.Attributes[0];
+
+                return new CodeGenerationInfo(
+                    Namespace: syntax.TargetSymbol.ContainingNamespace,
+                    ParentTypes: parentTypes,
+                    TemplateType: targetType,
+                    TypeConstraints: 
+                        targetType.TypeParameterList != null
+                            ? GetTypeConstraints(targetSymbol) : null,
+                    ComponentName: templateAttr.ConstructorArguments[0].Value as string
+                        ?? throw new InvalidDataException("Invalid attribute"),
+                    Properties: GetProperties(targetSymbol).ToImmutableArray(),
+                    Immutable: templateAttr.NamedArguments.Any(
+                        p => p.Key == "Immutable" && (bool)p.Value.Value! == true)
+                );
+
                 static IEnumerable<PropertyInfo> GetProperties(INamedTypeSymbol symbol)
                 {
                     var result = symbol.GetMembers().SelectMany(member => member switch {
@@ -61,23 +78,6 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
                     });
                     return symbol.BaseType != null ? result.Concat(GetProperties(symbol.BaseType)) : result;
                 }
-
-                var targetSymbol = model.GetDeclaredSymbol(targetType, token)!;
-                var templateAttr = syntax.Attributes[0];
-
-                return new CodeGenerationInfo(
-                    Namespace: syntax.TargetSymbol.ContainingNamespace,
-                    ParentTypes: parentTypes,
-                    TemplateType: targetType,
-                    TypeConstraints: 
-                        targetType.TypeParameterList != null
-                            ? GetTypeConstraints(targetSymbol) : null,
-                    ComponentName: templateAttr.ConstructorArguments[0].Value as string
-                        ?? throw new InvalidDataException("Invalid attribute"),
-                    Properties: GetProperties(targetSymbol).ToImmutableArray(),
-                    Immutable: templateAttr.NamedArguments.Any(
-                        p => p.Key == "Immutable" && (bool)p.Value.Value! == true)
-                );
             });
         
         context.RegisterSourceOutput(codeGenInfos , static (context, info) => {
@@ -129,9 +129,9 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool IsValidTemplateMember(ISymbol symbol)
-        => !symbol.IsStatic && symbol.DeclaredAccessibility == Accessibility.Public
-            && !symbol.GetAttributes().Any(attr =>
-                attr.AttributeClass?.ToDisplayString() == SiaIgnoreAttributeName);
+        => symbol is { IsStatic: false, DeclaredAccessibility: Accessibility.Public }
+           && !symbol.GetAttributes().Any(attr =>
+               attr.AttributeClass?.ToDisplayString() == SiaIgnoreAttributeName);
     private static string GenerateFileName(CodeGenerationInfo info)
     {
         var builder = new StringBuilder();
