@@ -1,0 +1,42 @@
+name: "\U0001F41E Bug report"
+description: Report an issue with Sia
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+  - type: textarea
+    id: bug-description
+    attributes:
+      label: Describe the bug
+      placeholder: |
+        I am doing ...
+        What I expect is ...
+        What actually happening is ...
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction-steps
+    attributes:
+      label: Steps to reproduce
+      description: Please provide any reproduction steps that may need to be described.
+      placeholder: |
+        1. Fork/copy the following code.
+        2. Execute the program.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        Optional if provided reproduction. Please try not to insert an image but copy paste the log text into the template.
+
+        ````
+        <details>
+        <summary>Click to expand!</summary>
+
+        ```shell
+        // paste the log text here
+        ```
+        </details>
+        ````
