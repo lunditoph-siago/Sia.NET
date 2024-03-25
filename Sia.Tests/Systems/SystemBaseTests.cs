@@ -8,14 +8,6 @@ public partial class SystemBaseTests
 
     public partial record struct ConstData([Sia] int Value);
 
-    public partial record struct Padding1;
-
-    public partial record struct Padding2;
-
-    public partial record struct Padding3;
-
-    public partial record struct Padding4;
-
     public class AssertSystem(int expected)
         : SystemBase(matcher: Matchers.Of<VariableData>())
     {
@@ -106,22 +98,16 @@ public partial class SystemBaseTests
     public void SystemBaseMultiComponents_Trigger_Test()
     {
         using var fixture = new WorldFixture();
+        var scheduler = new Scheduler();
 
         var component = fixture.World.CreateInArrayHost(HList.Create(new VariableData(), new ConstData()));
 
-        var scheduler = new Scheduler();
-
         fixture.World.RegisterSystem<MultiComponentsUpdateContext.UpdateMultiComponentsWithTriggerSystem>(scheduler);
 
-        ref var variable = ref component.Get<VariableData>();
-
-        _ = new ConstData.View(component) {
-            Value = 1
-        };
-
+        component.Modify(new ConstData.SetValue(1));
         scheduler.Tick();
 
         // Assert
-        Assert.Equal(1, variable.Value);
+        Assert.Equal(1, new VariableData.View(component).Value);
     }
 }
