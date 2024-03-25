@@ -1,6 +1,5 @@
 ﻿using System.Numerics;
 using System.Runtime.CompilerServices;
-using Sia.Tests.Systems;
 
 namespace Sia.Tests.Components;
 
