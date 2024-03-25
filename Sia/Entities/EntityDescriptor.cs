@@ -110,10 +110,6 @@ public record EntityDescriptor
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public nint GetOffset(Type componentType)
-        => FieldOffsets.TryGetValue(componentType, out var offset) ? offset : -1;
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public nint GetOffset<TComponent>()
         => _fieldOffsetsArr[_fieldIndexGetter.GetIndex<TComponent>()];
 }
