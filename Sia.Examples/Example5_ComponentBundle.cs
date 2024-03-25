@@ -52,6 +52,33 @@ namespace Sia_Examples
                     .AddBundle(transform)
                     .AddBundle(gameObject);
             }
+
+            public static EntityRef CreateWithDynBundle(World world)
+            {
+                var transform = new Transform {
+                    Position = new Position {
+                        Value = Vector3.Zero
+                    },
+                    Rotation = new Rotation {
+                        Value = Quaternion.Identity
+                    },
+                    Scale = new Scale {
+                        Value = Vector3.One
+                    }
+                };
+                var gameObject = new GameObject {
+                    Id = new Sid<ObjectId>(0),
+                    Name = "Test"
+                };
+
+                return world.CreateInArrayHost()
+                    .AddBundle(
+                        new DynBundle()
+                            .Add(new HP(100))
+                            .AddBundle(transform)
+                            .AddBundle(gameObject)
+                            .Remove<Scale>());
+            }
         }
     }
 
@@ -60,11 +87,22 @@ namespace Sia_Examples
         public static void Run(World world)
         {
             var entity = ComponentBundle.TestObject.Create(world);
+            Console.WriteLine("Entity 1:");
             Console.WriteLine(entity.Get<ComponentBundle.Name>().Value);
             Console.WriteLine(entity.Get<ComponentBundle.HP>().Value);
             Console.WriteLine(entity.Get<ComponentBundle.Position>().Value);
             Console.WriteLine(entity.Get<ComponentBundle.Rotation>().Value);
             Console.WriteLine(entity.Get<ComponentBundle.Scale>().Value);
+
+            Console.WriteLine();
+
+            var entity2 = ComponentBundle.TestObject.CreateWithDynBundle(world);
+            Console.WriteLine("Entity 2:");
+            Console.WriteLine(entity2.Get<ComponentBundle.Name>().Value);
+            Console.WriteLine(entity2.Get<ComponentBundle.HP>().Value);
+            Console.WriteLine(entity2.Get<ComponentBundle.Position>().Value);
+            Console.WriteLine(entity2.Get<ComponentBundle.Rotation>().Value);
+            Console.WriteLine(entity2.Contains<ComponentBundle.Scale>());
         }
     }
 }
