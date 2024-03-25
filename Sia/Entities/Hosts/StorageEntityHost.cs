@@ -1,7 +1,6 @@
 namespace Sia;
 
 using System.Collections;
-using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 public class StorageEntityHost<TEntity>
@@ -25,12 +24,6 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage managedStorage) : IEn
     public ReadOnlySpan<StorageSlot> AllocatedSlots => Storage.AllocatedSlots;
 
     public TStorage Storage { get; } = managedStorage;
-
-    public bool ContainsCommon<TComponent>()
-        => Descriptor.GetOffset<TComponent>() != -1;
-
-    public bool ContainsCommon(Type componentType)
-        => Descriptor.GetOffset(componentType) != -1;
 
     public virtual EntityRef Create()
         => new(Storage.AllocateSlot(HList.Cons(Identity.Create(), default(TEntity)!)), this);
