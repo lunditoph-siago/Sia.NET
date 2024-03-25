@@ -8,8 +8,6 @@ using System.Runtime.InteropServices;
 public static class EntityDescriptor<TEntity>
     where TEntity : IHList
 {
-    private delegate int GetOffsetDelegate(in TEntity entity);
-
     public static readonly FrozenDictionary<Type, IntPtr> FieldOffsets;
     public static readonly ImmutableArray<IntPtr> FieldOffsetsArray;
 
