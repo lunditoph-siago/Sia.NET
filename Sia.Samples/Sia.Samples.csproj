@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <RustLibExtension Condition="'$(OS)' == 'Windows_NT'">.dll</RustLibExtension>
+        <RustLibExtension Condition="'$(OS)' != 'Windows_NT' and '$(Platform)' == 'x64'">.so</RustLibExtension>
+        <RustLibExtension Condition="'$(OS)' != 'Windows_NT' and '$(Platform)' == 'AnyCPU'">.dylib</RustLibExtension>
+        <RustTargetDir Condition="'$(Configuration)' == 'Release'">target/release</RustTargetDir>
+        <RustTargetDir Condition="'$(Configuration)' != 'Release'">target/debug</RustTargetDir>
+    </PropertyGroup>
+
+    <Target Name="BuildRustLibrary" BeforeTargets="PreBuildEvent">
+        <Exec Command="cargo build --release" WorkingDirectory="$(MSBuildProjectDirectory)\Internal" Condition="'$(Configuration)' == 'Release'" />
+        <Exec Command="cargo build" WorkingDirectory="$(MSBuildProjectDirectory)\Internal" Condition="'$(Configuration)' != 'Release'" />
+
+        <ItemGroup>
+            <RustLibrary Include="$(MSBuildProjectDirectory)\Internal\$(RustTargetDir)\sia_native$(RustLibExtension)" />
+            <DestinationFiles Include="$(OutputPath)Sia.Samples.Native$(RustLibExtension)" />
+        </ItemGroup>
+
+        <Copy SourceFiles="@(RustLibrary)" DestinationFiles="@(DestinationFiles)"  />
+    </Target>
+
+</Project>

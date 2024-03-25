@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sia.CodeGenerators", "Sia.C
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sia.Tests", "Sia.Tests\Sia.Tests.csproj", "{474D6C7F-9F35-4F85-8B7F-6BC7D767CFBD}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sia.Samples", "Sia.Samples\Sia.Samples.csproj", "{C68F3C83-BFEC-4AC7-B103-D1C03E7855D5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -36,5 +38,9 @@ Global
 		{474D6C7F-9F35-4F85-8B7F-6BC7D767CFBD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{474D6C7F-9F35-4F85-8B7F-6BC7D767CFBD}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{474D6C7F-9F35-4F85-8B7F-6BC7D767CFBD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C68F3C83-BFEC-4AC7-B103-D1C03E7855D5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C68F3C83-BFEC-4AC7-B103-D1C03E7855D5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C68F3C83-BFEC-4AC7-B103-D1C03E7855D5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C68F3C83-BFEC-4AC7-B103-D1C03E7855D5}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

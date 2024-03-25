@@ -60,6 +60,7 @@ project.lock.json
 [Rr]eleases/
 x64/
 x86/
+target/
 build/
 bld/
 [Bb]in/
