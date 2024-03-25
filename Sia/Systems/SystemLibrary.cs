@@ -221,6 +221,10 @@ public class SystemLibrary : IAddon
 
             _query.OnEntityHostAdded += OnEntityHostAdded;
             _query.OnEntityHostRemoved += OnEntityHostRemoved;
+
+            foreach (var host in _query.Hosts) {
+                OnEntityHostAdded(host);
+            }
         }
 
         private void OnEntityHostAdded(IEntityHost host)
@@ -235,6 +239,10 @@ public class SystemLibrary : IAddon
             var onEntityCreated = CreateEntityHandler(wrappedHost, out var listener);
             reactiveHost.OnEntityCreated += onEntityCreated;
             _hostMap[reactiveHost] = new(wrappedHost, onEntityCreated, listener);
+
+            foreach (var entity in host) {
+                onEntityCreated(entity);
+            }
         }
 
         private EntityHandler CreateEntityHandler(WrappedReactiveEntityHost host, out IEventListener? resultListener)
