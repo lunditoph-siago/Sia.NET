@@ -100,14 +100,14 @@ public partial class SystemBaseTests
         using var fixture = new WorldFixture();
         var scheduler = new Scheduler();
 
-        var component = fixture.World.CreateInArrayHost(HList.Create(new VariableData(), new ConstData()));
+        var entity = fixture.World.CreateInArrayHost(HList.Create(new VariableData(), new ConstData()));
 
         fixture.World.RegisterSystem<MultiComponentsUpdateContext.UpdateMultiComponentsWithTriggerSystem>(scheduler);
 
-        component.Modify(new ConstData.SetValue(1));
+        entity.Modify(new ConstData.SetValue(1));
         scheduler.Tick();
 
         // Assert
-        Assert.Equal(1, new VariableData.View(component).Value);
+        Assert.Equal(1, new VariableData.View(entity).Value);
     }
 }
