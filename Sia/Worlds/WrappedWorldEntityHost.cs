@@ -30,8 +30,6 @@ public sealed record WrappedWorldEntityHost<TEntity, TEntityHost> : IEntityHost<
 
     private readonly TEntityHost _host;
 
-
-
     public WrappedWorldEntityHost(World world, TEntityHost host)
     {
         World = world;
@@ -110,22 +108,12 @@ public sealed record WrappedWorldEntityHost<TEntity, TEntityHost> : IEntityHost<
         => _host.Add(slot, initial);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public EntityRef AddMany<TBundle>(in StorageSlot slot, in TBundle bundle)
-        where TBundle : IHList
+    public EntityRef AddMany<TList>(in StorageSlot slot, in TList list)
+        where TList : IHList
     {
-        var e = _host.AddMany(slot, bundle);
-        bundle.HandleHead(new EntityHeadAddEventSender(e, World.Dispatcher));
-        bundle.HandleTail(new EntityTailAddEventSender(e, World.Dispatcher));
-        return e;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public EntityRef AddBundle<TBundle>(in StorageSlot slot, in TBundle bundle)
-        where TBundle : IBundle
-    {
-        var e = _host.AddBundle(slot, bundle);
-        bundle.HandleHead(new EntityHeadAddEventSender(e, World.Dispatcher));
-        bundle.HandleTail(new EntityTailAddEventSender(e, World.Dispatcher));
+        var e = _host.AddMany(slot, list);
+        list.HandleHead(new EntityHeadAddEventSender(e, World.Dispatcher));
+        list.HandleTail(new EntityTailAddEventSender(e, World.Dispatcher));
         return e;
     }
 
