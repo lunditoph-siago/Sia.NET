@@ -19,8 +19,8 @@ public interface IEntityHost : IEnumerable<EntityRef>, IDisposable
     ref byte UnsafeGetByteRef(in StorageSlot slot);
 
     EntityRef Add<TComponent>(in StorageSlot slot, in TComponent initial);
-    EntityRef AddMany<TBundle>(in StorageSlot slot, in TBundle bundle)
-        where TBundle : IHList;
+    EntityRef AddMany<TList>(in StorageSlot slot, in TList list)
+        where TList : IHList;
     EntityRef Remove<TComponent>(in StorageSlot slot);
 
     object Box(in StorageSlot slot);
