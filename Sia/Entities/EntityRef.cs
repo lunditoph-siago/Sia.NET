@@ -48,6 +48,24 @@ public readonly record struct EntityRef(in StorageSlot Slot, IEntityHost Host) :
         where TBundle : IHList
         => Host.AddMany(Slot, bundle);
 
+#pragma warning disable CS8500 // This takes the address of, gets the size of, or declares a pointer to a managed type
+
+    private unsafe struct BundleAdder(EntityRef* entity) : IGenericHandler<IHList>
+    {
+        public readonly void Handle<T>(in T value) where T : IHList
+            => *entity = (*entity).AddMany(value);
+    }
+
+    public unsafe EntityRef AddBundle<TBundle>(in TBundle bundle)
+        where TBundle : IBundle
+    {
+        EntityRef entity = this;
+        bundle.ToHList(new BundleAdder(&entity));
+        return entity;
+    }
+
+#pragma warning restore CS8500 // This takes the address of, gets the size of, or declares a pointer to a managed type
+
     public EntityRef Remove<TComponent>()
         => Host.Remove<TComponent>(Slot);
 
