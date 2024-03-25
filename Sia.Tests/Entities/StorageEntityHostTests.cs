@@ -1,5 +1,6 @@
 ﻿using System.Numerics;
-using TransformEntity = Sia.HList<System.Numerics.Vector3, Sia.HList<System.Numerics.Quaternion, Sia.HList<float, Sia.EmptyHList>>>;
+using Sia.Tests.Components;
+using TransformEntity = Sia.HList<Sia.Tests.Components.Position, Sia.HList<Sia.Tests.Components.Rotation, Sia.HList<Sia.Tests.Components.Scale, Sia.EmptyHList>>>;
 
 namespace Sia.Tests.Entities;
 
@@ -22,15 +23,15 @@ public class StorageEntityHostTests
         var factory = new StorageEntityHost<TransformEntity, TStorage>(storage);
 
         // Act
-        var e1 = factory.Create(Components.Transform.Baked);
+        var e1 = factory.Create(Components.Transform.BakedEntity);
         var e2 = factory.Create();
         var e3 = factory.Create();
 
         // Assert
-        Assert.Equal(Vector3.Zero, e1.Get<Vector3>());
-        Assert.Equal(Quaternion.Identity, e1.Get<Quaternion>());
-        Assert.Equal(1.0f, e1.Get<float>());
-        Assert.Equal(Vector3.Zero, e2.Get<Vector3>());
-        Assert.Equal(Vector3.Zero, e3.Get<Vector3>());
+        Assert.Equal(Vector3.Zero, e1.Get<Position>());
+        Assert.Equal(Quaternion.Identity, e1.Get<Rotation>());
+        Assert.Equal(1.0f, e1.Get<Scale>());
+        Assert.Equal(Vector3.Zero, e2.Get<Position>());
+        Assert.Equal(Vector3.Zero, e3.Get<Position>());
     }
 }
