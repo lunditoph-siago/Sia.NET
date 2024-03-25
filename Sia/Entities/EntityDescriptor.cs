@@ -1,7 +1,9 @@
 ﻿namespace Sia;
 
 using System.Collections.Frozen;
+using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 public static class EntityDescriptor<TEntity>
     where TEntity : IHList
@@ -9,37 +11,51 @@ public static class EntityDescriptor<TEntity>
     private delegate int GetOffsetDelegate(in TEntity entity);
 
     public static readonly FrozenDictionary<Type, IntPtr> FieldOffsets;
+    public static readonly ImmutableArray<IntPtr> FieldOffsetsArray;
 
-    private unsafe struct HeadOffsetRecorder(Dictionary<Type, IntPtr> dict, IntPtr entityPtr) : IRefGenericHandler
+    private unsafe struct HeadOffsetRecorder(
+        Dictionary<Type, IntPtr> dict, List<IntPtr> list, IntPtr entityPtr)
+        : IRefGenericHandler
     {
         public readonly void Handle<T>(ref T value)
         {
             var compPtr = (IntPtr)Unsafe.AsPointer(ref value);
-            if (!dict.TryAdd(typeof(T), compPtr - entityPtr)) {
+            var offset = compPtr - entityPtr;
+            if (!dict.TryAdd(typeof(T), offset)) {
                 throw new InvalidDataException("Entity cannot have multiple components of the same type");
             }
+            var index = EntityComponentIndexer<TEntity, T>.Index;
+            if (index >= list.Count) {
+                CollectionsMarshal.SetCount(list, index + 1);
+            }
+            list[index] = offset;
         }
     }
 
-    private unsafe struct TailOffsetRecorder(Dictionary<Type, IntPtr> dict, IntPtr entityPtr) : IRefGenericHandler<IHList>
+    private unsafe struct TailOffsetRecorder(
+        Dictionary<Type, IntPtr> dict, List<IntPtr> list, IntPtr entityPtr)
+        : IRefGenericHandler<IHList>
     {
         public readonly void Handle<T>(ref T value) where T : IHList
         {
-            value.HandleHeadRef(new HeadOffsetRecorder(dict, entityPtr));
-            value.HandleTailRef(new TailOffsetRecorder(dict, entityPtr));
+            value.HandleHeadRef(new HeadOffsetRecorder(dict, list, entityPtr));
+            value.HandleTailRef(new TailOffsetRecorder(dict, list, entityPtr));
         }
     }
 
     unsafe static EntityDescriptor()
     {
         var dict = new Dictionary<Type, IntPtr>();
+        var list = new List<IntPtr>();
+
         var defaultEntity = default(TEntity)!;
         var entityPtr = (IntPtr)Unsafe.AsPointer(ref defaultEntity);
 
-        defaultEntity.HandleHeadRef(new HeadOffsetRecorder(dict, entityPtr));
-        defaultEntity.HandleTailRef(new TailOffsetRecorder(dict, entityPtr));
+        defaultEntity.HandleHeadRef(new HeadOffsetRecorder(dict, list, entityPtr));
+        defaultEntity.HandleTailRef(new TailOffsetRecorder(dict, list, entityPtr));
 
         FieldOffsets = dict.ToFrozenDictionary();
+        FieldOffsetsArray = [..list];
     }
 }
 
@@ -53,42 +69,44 @@ public readonly struct EntityIndexer<TEntity, TComponent>
 
 public record EntityDescriptor
 {
-    private interface IProxy
+    private interface IFieldIndexGetter
     {
-        public FrozenDictionary<Type, nint> FieldOffsets { get; }
-        nint GetOffset<TComponent>();
+        int GetIndex<TComponent>();
     }
 
-    private class Proxy<TEntity> : IProxy
-        where TEntity : IHList
+    private class FieldIndexGetter<TEntity> : IFieldIndexGetter
     {
-        public static EntityDescriptor Descriptor = new(
-            typeof(TEntity), Unsafe.SizeOf<TEntity>(), new Proxy<TEntity>());
-        
-        public FrozenDictionary<Type, nint> FieldOffsets => EntityDescriptor<TEntity>.FieldOffsets;
+        public static FieldIndexGetter<TEntity> Instance = new();
+
+        private FieldIndexGetter() {}
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public nint GetOffset<TComponent>()
-            => EntityIndexer<TEntity, TComponent>.Offset;
+        public int GetIndex<TComponent>()
+            => EntityComponentIndexer<TEntity, TComponent>.Index;
     }
 
     public static EntityDescriptor Get<TEntity>()
         where TEntity : IHList
-        => Proxy<TEntity>.Descriptor;
+        => new(typeof(TEntity), Unsafe.SizeOf<TEntity>(),
+            EntityDescriptor<TEntity>.FieldOffsets, EntityDescriptor<TEntity>.FieldOffsetsArray,
+            FieldIndexGetter<TEntity>.Instance);
 
     public Type Type { get; }
     public int MemorySize { get; }
-    public FrozenDictionary<Type, nint> FieldOffsets => _proxy.FieldOffsets;
+    public FrozenDictionary<Type, nint> FieldOffsets { get; }
 
-    private const int OffsetCacheSize = 256;
-    private readonly (Type? Type, nint Offset)[] _offsetCache = new (Type?, nint)[OffsetCacheSize];
-    private readonly IProxy _proxy;
+    private readonly ImmutableArray<nint> _fieldOffsetsArr;
+    private readonly IFieldIndexGetter _fieldIndexGetter;
 
-    private EntityDescriptor(Type type, int memorySize, IProxy proxy)
+    private EntityDescriptor(
+        Type type, int memorySize, FrozenDictionary<Type, nint> fieldOffsets, ImmutableArray<nint> fieldOffsetsArr,
+        IFieldIndexGetter fieldIndexGetter)
     {
         Type = type;
         MemorySize = memorySize;
-        _proxy = proxy;
+        FieldOffsets = fieldOffsets;
+        _fieldOffsetsArr = fieldOffsetsArr;
+        _fieldIndexGetter = fieldIndexGetter;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -97,15 +115,5 @@ public record EntityDescriptor
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public nint GetOffset<TComponent>()
-    {
-        ref var entry = ref _offsetCache[TypeIndexer<TComponent>.Index % OffsetCacheSize];
-        var type = typeof(TComponent);
-
-        if (entry.Type != type) {
-            entry.Type = type;
-            entry.Offset = _proxy.GetOffset<TComponent>();
-        }
-
-        return entry.Offset;
-    }
+        => _fieldOffsetsArr[_fieldIndexGetter.GetIndex<TComponent>()];
 }
