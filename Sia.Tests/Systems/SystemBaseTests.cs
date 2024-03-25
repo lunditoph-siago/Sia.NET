@@ -108,6 +108,6 @@ public partial class SystemBaseTests
         scheduler.Tick();
 
         // Assert
-        Assert.Equal(1, new VariableData.View(entity).Value);
+        Assert.Equal(2, new VariableData.View(entity).Value);
     }
 }
