@@ -9,33 +9,45 @@ public readonly record struct EntityRef(in StorageSlot Slot, IEntityHost Host) :
     public EntityDescriptor Descriptor => Host.Descriptor;
     
     public bool Contains<TComponent>()
-        => Descriptor.GetOffset<TComponent>() != -1;
+    {
+        try {
+            Descriptor.GetOffset<TComponent>();
+            return true;
+        }
+        catch {
+            return false;
+        }
+    }
 
     public bool Contains(Type componentType)
-        => Descriptor.GetOffset(componentType) != -1;
+        => Descriptor.FieldOffsets.ContainsKey(componentType);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe ref TComponent Get<TComponent>()
     {
-        nint offset = Descriptor.GetOffset<TComponent>();
-        if (offset == -1) {
+        try {
+            nint offset = Descriptor.GetOffset<TComponent>();
+            ref var byteRef = ref Host.GetByteRef(Slot);
+            return ref Unsafe.As<byte, TComponent>(
+                ref Unsafe.AddByteOffset(ref byteRef, offset));
+        }
+        catch {
             throw new ComponentNotFoundException("Component not found: " + typeof(TComponent));
         }
-        ref var byteRef = ref Host.GetByteRef(Slot);
-        return ref Unsafe.As<byte, TComponent>(
-            ref Unsafe.AddByteOffset(ref byteRef, offset));
     }
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe ref TComponent GetOrNullRef<TComponent>()
     {
-        nint offset = Descriptor.GetOffset<TComponent>();
-        if (offset == -1) {
+        try {
+            nint offset = Descriptor.GetOffset<TComponent>();
+            ref var byteRef = ref Host.GetByteRef(Slot);
+            return ref Unsafe.As<byte, TComponent>(
+                ref Unsafe.AddByteOffset(ref byteRef, offset));
+        }
+        catch {
             return ref Unsafe.NullRef<TComponent>();
         }
-        ref var byteRef = ref Host.GetByteRef(Slot);
-        return ref Unsafe.As<byte, TComponent>(
-            ref Unsafe.AddByteOffset(ref byteRef, offset));
     }
 
     public EntityRef Add<TComponent>()
