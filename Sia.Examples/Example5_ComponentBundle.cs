@@ -9,7 +9,7 @@ namespace Sia_Examples
         public partial record struct Rotation([Sia] Quaternion Value);
         public partial record struct Scale([Sia] Vector3 Value);
 
-        [SiaBakeEntity]
+        [SiaBundle]
         public partial record struct Transform(Position Position, Rotation Rotation, Scale Scale);
 
         public readonly record struct ObjectId(int Value)
@@ -24,7 +24,7 @@ namespace Sia_Examples
                 => new(name);
         }
 
-        [SiaBakeEntity]
+        [SiaBundle]
         public partial record struct GameObject(Sid<ObjectId> Id, Name Name);
 
         public record struct HP([Sia] int Value);

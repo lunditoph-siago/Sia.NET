@@ -34,18 +34,27 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
 
         var codeGenInfos = context.SyntaxProvider.ForAttributeWithMetadataName(
             SiaTemplateAttributeName,
-            static (syntaxNode, token) => true,
+            static (syntaxNode, token) =>
+                ((TypeDeclarationSyntax)syntaxNode).Modifiers.Any(SyntaxKind.PartialKeyword),
             static (syntax, token) =>
                 (syntax, ParentTypes: GetParentTypes(syntax.TargetNode)))
-            .Where(static t => t.ParentTypes.All(
-                static typeDecl => typeDecl.Modifiers.Any(SyntaxKind.PartialKeyword)))
             .Select(static (t, token) => {
                 var (syntax, parentTypes) = t;
                 var model = syntax.SemanticModel;
                 var targetType = (TypeDeclarationSyntax)syntax.TargetNode;
-
                 var targetSymbol = model.GetDeclaredSymbol(targetType, token)!;
                 var templateAttr = syntax.Attributes[0];
+
+                static IEnumerable<PropertyInfo> GetProperties(INamedTypeSymbol symbol)
+                    => symbol.GetMembers()
+                        .Where(IsValidTemplateMember)
+                        .Select<ISymbol, PropertyInfo?>(member => member switch {
+                            IFieldSymbol fieldSymbol => new(fieldSymbol.Name, fieldSymbol.Type, fieldSymbol.GetAttributes()),
+                            IPropertySymbol propSymbol => new(propSymbol.Name, propSymbol.Type, propSymbol.GetAttributes()),
+                            _ => null
+                        })
+                        .Where(c => c != null)
+                        .Concat(symbol.BaseType != null ? GetProperties(symbol.BaseType) : [])!;;
 
                 return new CodeGenerationInfo(
                     Namespace: syntax.TargetSymbol.ContainingNamespace,
@@ -60,24 +69,6 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
                     Immutable: templateAttr.NamedArguments.Any(
                         p => p.Key == "Immutable" && (bool)p.Value.Value! == true)
                 );
-
-                static IEnumerable<PropertyInfo> GetProperties(INamedTypeSymbol symbol)
-                {
-                    var result = symbol.GetMembers().SelectMany(member => member switch {
-                        IFieldSymbol fieldSymbol =>
-                            IsValidTemplateMember(fieldSymbol)
-                                ? ImmutableArray.Create(
-                                    new PropertyInfo(fieldSymbol.Name, fieldSymbol.Type, symbol, member.GetAttributes()))
-                                : Enumerable.Empty<PropertyInfo>(),
-                        IPropertySymbol propSymbol =>
-                            IsValidTemplateMember(propSymbol)
-                                ? ImmutableArray.Create(
-                                    new PropertyInfo(propSymbol.Name, propSymbol.Type, symbol, member.GetAttributes()))
-                                : Enumerable.Empty<PropertyInfo>(),
-                        _ => []
-                    });
-                    return symbol.BaseType != null ? result.Concat(GetProperties(symbol.BaseType)) : result;
-                }
             });
         
         context.RegisterSourceOutput(codeGenInfos , static (context, info) => {

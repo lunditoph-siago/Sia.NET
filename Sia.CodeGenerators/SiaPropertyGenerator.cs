@@ -59,8 +59,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
                             ParameterSyntax paramSyntax =>
                                 GetNodeType(syntax.SemanticModel, paramSyntax.Type!, token),
                             _ => throw new InvalidDataException("Invalid syntax")
-                        },
-                        targetSymbol, syntax.Attributes)
+                        }, syntax.Attributes)
                 );
             }).Collect();
         

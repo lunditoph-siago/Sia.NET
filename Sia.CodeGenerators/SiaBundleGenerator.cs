@@ -1,8 +1,9 @@
-﻿using System.CodeDom.Compiler;
+﻿namespace Sia.CodeGenerators;
 
-namespace Sia.CodeGenerators;
-
+using System.CodeDom.Compiler;
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices.ComTypes;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -14,11 +15,16 @@ using static Common;
 [Generator]
 internal partial class SiaBundleGenerator : IIncrementalGenerator
 {
+    private record ComponentInfo(string Name, ITypeSymbol Type)
+    {
+        public string DisplayType { get; } = GetDisplayType(Type);
+    }
+
     private record CodeGenerationInfo(
         INamespaceSymbol Namespace,
-        TypeDeclarationSyntax ComponentType,
+        TypeDeclarationSyntax BundleType,
         ImmutableArray<TypeDeclarationSyntax> ParentTypes,
-        ImmutableArray<(PropertyInfo, object?)> Properties,
+        ImmutableArray<ComponentInfo> Components,
         INamedTypeSymbol NamedTypeSymbol);
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
@@ -32,102 +38,54 @@ internal partial class SiaBundleGenerator : IIncrementalGenerator
             .ForAttributeWithMetadataName(
                 SiaBundleAttributeName,
                 static (syntaxNode, _) =>
-                    (syntaxNode is StructDeclarationSyntax structDeclarationSyntax && structDeclarationSyntax.Modifiers.Any(SyntaxKind.PartialKeyword)) ||
-                    (syntaxNode is RecordDeclarationSyntax recordDeclarationSyntax && recordDeclarationSyntax.Modifiers.Any(SyntaxKind.PartialKeyword)),
+                    ((TypeDeclarationSyntax)syntaxNode).Modifiers.Any(SyntaxKind.PartialKeyword),
                 static (syntax, _) =>
                     (syntax, parentTypes: GetParentTypes(syntax.TargetNode)))
             .Select(static (t, token) => {
                 var (syntax, parentTypes) = t;
                 var model = syntax.SemanticModel;
                 var targetType = (TypeDeclarationSyntax)syntax.TargetNode;
-
-                var semanticModel = syntax.SemanticModel;
                 var targetSymbol = model.GetDeclaredSymbol(targetType, token)!;
+
+                static IEnumerable<ComponentInfo> GetComponents(INamedTypeSymbol symbol)
+                    => symbol.GetMembers()
+                        .Where(IsValidBundleElement)
+                        .Select<ISymbol, ComponentInfo?>(member => member switch {
+                            IFieldSymbol field => new(field.Name, field.Type),
+                            IPropertySymbol prop => new(prop.Name, prop.Type),
+                            _ => null
+                        })
+                        .Where(c => c != null)
+                        .Concat(symbol.BaseType != null ? GetComponents(symbol.BaseType) : [])!;
 
                 return new CodeGenerationInfo(
                     Namespace: syntax.TargetSymbol.ContainingNamespace,
-                    ComponentType: targetType,
+                    BundleType: targetType,
                     ParentTypes: parentTypes,
-                    Properties: GetProperties(targetSymbol, semanticModel).ToImmutableArray(),
+                    Components: GetComponents(targetSymbol).ToImmutableArray(),
                     NamedTypeSymbol: targetSymbol);
-
-                static IEnumerable<(PropertyInfo, object?)> GetProperties(INamedTypeSymbol symbol, SemanticModel model)
-                {
-                    var members = new Dictionary<string, (PropertyInfo, object?)>();
-
-                    foreach (var member in symbol.GetMembers()) {
-                        switch (member) {
-                            case IFieldSymbol field: {
-                                if (member is { IsStatic: false, DeclaredAccessibility: Accessibility.Public }) {
-                                    members[member.Name] =
-                                        (new PropertyInfo(member.Name, field.Type, symbol, member.GetAttributes()),
-                                            field.HasConstantValue ? field.ConstantValue : null);
-                                }
-                                break;
-                            }
-                            case IPropertySymbol prop: {
-                                if (member is { IsStatic: false, DeclaredAccessibility: Accessibility.Public }) {
-                                    var constantValue =
-                                        prop.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is
-                                        PropertyDeclarationSyntax { Initializer: not null } propertySyntax
-                                            ? model.GetConstantValue(propertySyntax.Initializer.Value).Value : null;
-                                    members[member.Name] =
-                                        (new PropertyInfo(member.Name, prop.Type, symbol, member.GetAttributes()),
-                                            constantValue);
-                                }
-                                break;
-                            }
-                        }
-                    }
-
-                    foreach (var param in symbol.Constructors.FirstOrDefault()?.Parameters ??
-                                          ImmutableArray<IParameterSymbol>.Empty)
-                    {
-                        members[param.Name] =
-                            (new PropertyInfo(param.Name, param.Type, symbol, param.GetAttributes()),
-                                param.HasExplicitDefaultValue ? param.ExplicitDefaultValue : null);
-                    }
-
-                    return symbol.BaseType is not null ? members.Values.Concat(GetProperties(symbol.BaseType, model)) : members.Values;
-                }
             });
 
         context.RegisterSourceOutput(codeGenInfos, static (context, info) => {
             using var source = CreateFileSource(out var builder);
 
             using (GenerateInNamespace(source, info.Namespace)) {
-                if (!info.Properties.Any()) return;
-
-                source.WriteLine($"public partial {info.ComponentType.Kind() switch {
-                    SyntaxKind.StructKeyword or SyntaxKind.StructDeclaration => "struct ",
-                    SyntaxKind.RecordStructDeclaration => "record struct ",
-                    _ => string.Empty
-                }}{info.NamedTypeSymbol.Name} : global::Sia.IBundle");
-                source.WriteLine("{");
-                source.Indent++;
-
-                source.WriteLine($"public static {GenerateNestedHListsType(info.Properties)} DefaultEntity => {GenerateNestedHLists(info.Properties, false)};");
-                source.WriteLine($"public readonly {GenerateNestedHListsType(info.Properties)} BakedEntity => {GenerateNestedHLists(info.Properties)};");
-
-                source.WriteLine();
-
-                GenerateHandleMethod(source, "Head", "global::Sia.IGenericHandler");
-
-                source.WriteLine();
-
-                GenerateHandleMethod(source, "Tail", "global::Sia.IGenericHandler<global::Sia.IHList>");
-
-                source.WriteLine();
-
-                GenerateConcatMethod(source);
-
-                source.Indent--;
-                source.WriteLine("}");
+                using (GenerateInPartialTypes(source, info.ParentTypes)) {
+                    using (GenerateInBundleType(source, info.BundleType)) {
+                        GenerateBakedProperty(source, info);
+                        source.WriteLine();
+                        GenerateToHListMethod(source, info);
+                    }
+                }
             }
 
             context.AddSource(GenerateFileName(info), builder.ToString());
         });
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool IsValidBundleElement(ISymbol symbol)
+        => !symbol.IsStatic && symbol.DeclaredAccessibility == Accessibility.Public;
 
     private static string GenerateFileName(CodeGenerationInfo info)
     {
@@ -140,63 +98,62 @@ internal partial class SiaBundleGenerator : IIncrementalGenerator
         }
         builder.Append(info.NamedTypeSymbol.Name);
         builder.Append('.');
-        builder.Append("BakedEntity.g.cs");
+        builder.Append("Bundle.g.cs");
         return builder.ToString();
     }
 
-    private static void GenerateHandleMethod(IndentedTextWriter source, string position, string handle)
+    private static IDisposable GenerateInBundleType(IndentedTextWriter source, TypeDeclarationSyntax bundleType)
     {
-        source.WriteLine($"public readonly void Handle{position}<THandler>(in THandler handler)");
-        source.Indent++;
-        source.WriteLine($"where THandler : {handle}");
-        source.Indent--;
+        switch (bundleType.Kind()) {
+            case SyntaxKind.StructConstraint:
+                source.Write("partial struct ");
+                break;
+            case SyntaxKind.RecordStructDeclaration:
+                source.Write("partial record struct ");
+                break;
+            default:
+                throw new InvalidDataException("Invalid bundle type");
+        }
+        WriteType(source, bundleType);
+        source.WriteLine(" : global::Sia.IBundle");
         source.WriteLine("{");
         source.Indent++;
-
-        source.WriteLine($"handler.Handle(BakedEntity.{position});");
-        source.Indent--;
-        source.WriteLine("}");
+        return new EnclosingDisposable(source, 1);
     }
 
-    private static void GenerateConcatMethod(IndentedTextWriter source)
+    private static void GenerateBakedProperty(IndentedTextWriter source, CodeGenerationInfo info)
     {
-        source.WriteLine("public readonly void Concat<THList, TResultHandler>(in THList list, TResultHandler handler)");
-        source.Indent++;
-        source.WriteLine("where THList : global::Sia.IHList");
-        source.WriteLine("where TResultHandler : global::Sia.IGenericHandler<global::Sia.IHList>");
-        source.Indent--;
-        source.WriteLine("{");
-        source.Indent++;
-
-        source.WriteLine($"BakedEntity.Concat(list, handler);");
-        source.Indent--;
-        source.WriteLine("}");
+        source.Write("public readonly ");
+        GenerateHListType(source, info);
+        source.Write(" Baked => ");
+        GenerateHListValue(source, info);
+        source.WriteLine(';');
     }
 
-    private static string GenerateNestedHListsType(ImmutableArray<(PropertyInfo property, object? defaultValue)> properties)
+    private static void GenerateToHListMethod(IndentedTextWriter source, CodeGenerationInfo info)
     {
-        var nestedType = new StringBuilder();
+        source.WriteLine("public void ToHList(global::Sia.IGenericHandler<global::Sia.IHList> handler) => handler.Handle(Baked);");
+    }
 
-        foreach (var property in properties) {
-            nestedType.Append($"global::Sia.HList<{property.property.DisplayType}, ");
+    private static void GenerateHListType(IndentedTextWriter source, CodeGenerationInfo info)
+    {
+        foreach (var component in info.Components) {
+            source.Write("global::Sia.HList<");
+            source.Write(component.DisplayType);
+            source.Write(", ");
         }
-
-        nestedType.Append("global::Sia.EmptyHList" + new string('>', properties.Length));
-
-        return nestedType.ToString();
+        source.Write("global::Sia.EmptyHList");
+        source.Write(new string('>', info.Components.Length));
     }
 
-    private static string GenerateNestedHLists(ImmutableArray<(PropertyInfo property, object? defaultValue)> properties, bool useField = true)
+    private static void GenerateHListValue(IndentedTextWriter source, CodeGenerationInfo info)
     {
-        var nestedHList = new StringBuilder();
-
-        foreach (var property in properties) {
-            var defaultValue = property.property.Type.IsValueType ? $"default({property.property.DisplayType})" : "null";
-            nestedHList.Append($"new(({property.property.DisplayType}){(useField ? property.property.Name : property.defaultValue?.ToString().ToLower() ?? defaultValue)}, ");
+        foreach (var component in info.Components) {
+            source.Write("new(");
+            source.Write(component.Name);
+            source.Write(", ");
         }
-
-        nestedHList.Append("global::Sia.EmptyHList.Default" + new string(')', properties.Length));
-
-        return nestedHList.ToString();
+        source.Write("global::Sia.EmptyHList.Default");
+        source.Write(new string(')', info.Components.Length));
     }
 }
