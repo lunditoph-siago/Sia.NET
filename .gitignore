@@ -43,6 +43,9 @@ project.lock.json
 .DS_Store
 *.pyc
 
+# Rust
+Cargo.lock
+
 # Visual Studio Code
 .vscode
 .devcontainer
