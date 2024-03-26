@@ -7,3 +7,5 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
+winit="0.29"
+wgpu="0.19"
