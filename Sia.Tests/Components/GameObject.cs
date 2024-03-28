@@ -1,5 +1,7 @@
 ﻿namespace Sia.Tests.Components;
 
+using Sia.Reactors;
+
 public readonly record struct ObjectId(int Value)
 {
     public static implicit operator ObjectId(int id)

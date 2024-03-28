@@ -1,6 +1,7 @@
-﻿using System.Numerics;
+﻿namespace Sia.Tests.Components;
 
-namespace Sia.Tests.Components;
+using System.Numerics;
+using Sia.Reactors;
 
 public class BundleTests
 {

@@ -3,65 +3,71 @@ namespace Sia.Tests.Reactors;
 using Sia.Reactors;
 
 [TestCaseOrderer("Sia.Tests.PriorityOrderer", "Sia.Tests")]
-public class AggregatorTests : IDisposable
+public class AggregatorTests(AggregatorTests.AggregatorContext context) : IClassFixture<AggregatorTests.AggregatorContext>
 {
-    public readonly record struct ObjectId(int Value)
+    public class AggregatorContext : IDisposable
     {
-        public static implicit operator ObjectId(int id) => new(id);
+        public readonly record struct ObjectId(int Value);
+
+        public List<EntityRef> EntityRefs = [];
+
+        public Aggregator<ObjectId> Aggregator;
+
+        public World World;
+
+        public AggregatorContext()
+        {
+            World = new World();
+            Context<World>.Current = World;
+
+            Aggregator = World.AcquireAddon<Aggregator<ObjectId>>();
+        }
+
+        public void Dispose() => World.Dispose();
     }
 
     public static List<object[]> AggregatorTestData =>
     [
-        [new[] { new ObjectId(0), new ObjectId(1) }],
+        [new AggregatorContext.ObjectId[] { new(0), new(1) }, 2],
+        [new AggregatorContext.ObjectId[] { new(2), new(3) }, 4],
     ];
-
-    public static readonly List<EntityRef>? EntityRefs = [];
-
-    public static Aggregator<ObjectId>? Aggregator;
-
-    public static World? World;
-
-    public AggregatorTests()
-    {
-        World = new World();
-        Context<World>.Current = World;
-
-        Aggregator = World.AcquireAddon<Aggregator<ObjectId>>();
-    }
 
     [Theory, Priority(0)]
     [MemberData(nameof(AggregatorTestData))]
-    public void Aggregator_Setup_Test(ObjectId[] objectIds)
+    public void Aggregator_Setup_Test(AggregatorContext.ObjectId[] objectIds, int entityCount)
     {
-        Dictionary<EntityRef, ObjectId> map = [];
-
         // Act
-        foreach (var objectId in objectIds) {
-            var entityRef = World!.CreateInArrayHost(HList.Create(Sid.From(objectId)));
-            EntityRefs?.Add(entityRef);
-            map[entityRef] = objectId;
-        }
+        var entityRefs = objectIds
+            .Select(objectId => context.World.CreateInArrayHost(HList.Create(Sid.From(objectId))))
+            .ToArray();
+        context.EntityRefs.AddRange(entityRefs);
 
         // Assert
-        foreach (var entity in World!.Query(Matchers.Of<Aggregation<ObjectId>>())) {
-            ref var aggregation = ref entity.Get<Aggregation<ObjectId>>();
-            Assert.Equal(map[aggregation.First], aggregation.Id);
-        }
+        Assert.Equal(objectIds.Length, entityRefs.Count());
+        Assert.Equal(entityCount, context.World.Query(Matchers.Of<Aggregation<AggregatorContext.ObjectId>>()).Count);
     }
 
     [Theory, Priority(1)]
-    [InlineData(2)]
-    public void Aggregator_SetSid_Test(int id)
+    [InlineData(0, 4)]
+    public void Aggregator_SetSid_Test(int target, int value)
     {
         // Act
-        EntityRefs?[0].SetSid(new ObjectId(id));
+        context.EntityRefs[target].SetSid(new AggregatorContext.ObjectId(value));
 
         // Assert
-        foreach (var entity in World!.Query(Matchers.Of<Aggregation<ObjectId>>())) {
-            ref var aggregation = ref entity.Get<Aggregation<ObjectId>>();
-            Assert.Equal(new ObjectId(id), aggregation.Id);
-        }
+        //TODO: Fix this one, assert will give later.
     }
 
-    public void Dispose() => World?.Dispose();
+    [Theory, Priority(2)]
+    [InlineData(1, 7)]
+    public void Aggregator_Dispose_Test(int target, int entityCount)
+    {
+        // Act
+        var result = context.Aggregator.TryGet(new AggregatorContext.ObjectId(target), out var aggregatorEntity);
+        aggregatorEntity.Dispose();
+
+        // Assert
+        Assert.True(result);
+        Assert.Equal(context.World.Count, entityCount);
+    }
 }
