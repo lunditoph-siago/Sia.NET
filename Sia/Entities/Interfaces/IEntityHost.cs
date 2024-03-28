@@ -18,6 +18,9 @@ public interface IEntityHost : IEnumerable<EntityRef>, IDisposable
     ref byte GetByteRef(in StorageSlot slot);
     ref byte UnsafeGetByteRef(in StorageSlot slot);
 
+    void GetHList<THandler>(in StorageSlot slot, in THandler handler)
+        where THandler : IRefGenericHandler<IHList>;
+
     EntityRef Add<TComponent>(in StorageSlot slot, in TComponent initial);
     EntityRef AddMany<TList>(in StorageSlot slot, in TList list)
         where TList : IHList;

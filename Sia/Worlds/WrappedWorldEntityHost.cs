@@ -143,6 +143,10 @@ public sealed record WrappedWorldEntityHost<TEntity, TEntityHost> : IEntityHost<
 
     public ref HList<Identity, TEntity> UnsafeGetRef(in StorageSlot slot)
         => ref _host.UnsafeGetRef(slot);
+
+    public void GetHList<THandler>(in StorageSlot slot, in THandler handler)
+        where THandler : IRefGenericHandler<IHList>
+        => _host.GetHList(slot, handler);
     
     public object Box(in StorageSlot slot)
         => _host.Box(slot);
