@@ -97,4 +97,11 @@ public class WorldEntityHost<TEntity, TStorage>(
         bundle.HandleTail(new EntityTailAddEventSender(e, World.Dispatcher));
         return e;
     }
+
+    public override EntityRef Remove<TComponent>(in StorageSlot slot)
+    {
+        var e = base.Remove<TComponent>(slot);
+        World.Dispatcher.Send(e, WorldEvents.Remove<TComponent>.Instance);
+        return e;
+    }
 }
