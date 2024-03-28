@@ -1,4 +1,4 @@
-namespace Sia;
+namespace Sia.Reactors;
 
 // SID: Sia Identifier
 public record struct Sid<TId>(TId Value)

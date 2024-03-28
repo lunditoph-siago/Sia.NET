@@ -1,4 +1,4 @@
-namespace Sia;
+namespace Sia.Reactors;
 
 using System.Diagnostics.CodeAnalysis;
 

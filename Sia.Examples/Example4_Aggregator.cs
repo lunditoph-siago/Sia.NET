@@ -1,6 +1,7 @@
 namespace Sia_Examples;
 
 using Sia;
+using Sia.Reactors;
 
 public static partial class Example4_Aggregator
 {
@@ -13,7 +14,7 @@ public static partial class Example4_Aggregator
     public sealed class ComponentCountSystem()
         : SystemBase(
             matcher: Matchers.Of<Aggregation<ObjectId>>(),
-            trigger: EventUnion.Of<Aggregation.EntityAdded, Aggregation.EntityRemoved>())
+            trigger: EventUnion.Of<Aggregation<ObjectId>.EntityAdded, Aggregation<ObjectId>.EntityRemoved>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
@@ -70,8 +71,8 @@ public static partial class Example4_Aggregator
         e1.SetSid(new ObjectId(2));
         scheduler.Tick();
 
-        var aggr = aggregator.Find(1);
-        aggr!.Value.Dispose();
+        aggregator.TryGet(1, out var aggrEntity);
+        aggrEntity.Dispose();
 
         Console.WriteLine(world.Count);
     }
