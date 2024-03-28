@@ -1,4 +1,4 @@
-namespace Sia;
+namespace Sia.Reactors;
 
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
@@ -18,14 +18,8 @@ public class Mapper<TId> : ReactorBase<TypeUnion<Sid<TId>>>, IReadOnlyDictionary
 
     public override void OnInitialize(World world)
     {
-        world.Dispatcher.Listen<Sid<TId>.SetValue>(OnEntityIdChanged);
         base.OnInitialize(world);
-    }
-
-    public override void OnUninitialize(World world)
-    {
-        base.OnUninitialize(world);
-        world.Dispatcher.Unlisten<Sid<TId>.SetValue>(OnEntityIdChanged);
+        Listen<Sid<TId>.SetValue>(OnEntityIdChanged);
     }
 
     private bool OnEntityIdChanged(in EntityRef entity, in Sid<TId>.SetValue e)
@@ -51,9 +45,6 @@ public class Mapper<TId> : ReactorBase<TypeUnion<Sid<TId>>>, IReadOnlyDictionary
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void AddMap(in EntityRef entity, in TId id)
     {
-        if (id.Equals(default)) {
-            return;
-        }
         _maps[id] = entity;
     }
 

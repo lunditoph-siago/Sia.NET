@@ -1,5 +1,6 @@
 using System.Numerics;
 using Sia;
+using Sia.Reactors;
 
 namespace Sia_Examples
 {

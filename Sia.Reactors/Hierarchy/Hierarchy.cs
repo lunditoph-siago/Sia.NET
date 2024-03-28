@@ -1,20 +1,23 @@
-namespace Sia;
+namespace Sia.Reactors;
 
 using System.Collections;
 using System.Runtime.CompilerServices;
 
-public class Hierarchy<TTag> : ReactorBase<TypeUnion<Node<TTag>>>, IEnumerable<EntityRef>
+public class Hierarchy<TTag> : ReactorBase<TypeUnion<Node<TTag>>>
 {
-    public IReadOnlySet<EntityRef> Root => _root;
+    public IReadOnlyDictionary<Identity, EntityRef> Nodes => _nodes;
+    public IReadOnlySet<Identity> Root => _root;
 
-    private readonly HashSet<EntityRef> _root = [];
-    private readonly Stack<HashSet<EntityRef>> _childrenPool = new();
+    private readonly EntityMap _nodes = [];
+    private readonly HashSet<Identity> _root = [];
+    private readonly Stack<HashSet<Identity>> _childrenPool = new();
 
     public override void OnInitialize(World world)
     {
         base.OnInitialize(world);
         
         Listen((in EntityRef entity, in Node<TTag>.SetParent cmd) => {
+            var id = entity.Id;
             ref var node = ref entity.Get<Node<TTag>>();
 
             var parent = node.Parent;
@@ -24,14 +27,14 @@ public class Hierarchy<TTag> : ReactorBase<TypeUnion<Node<TTag>>>, IEnumerable<E
                 RemoveFromParent(entity, previousParent.Value);
 
                 if (parent == null) {
-                    _root.Add(entity);
+                    _root.Add(id);
                 }
                 else {
                     AddToParent(entity, parent.Value);
                 }
             }
             else if (parent != null) {
-                _root.Remove(entity);
+                _root.Remove(id);
                 AddToParent(entity, parent.Value);
             }
 
@@ -42,17 +45,20 @@ public class Hierarchy<TTag> : ReactorBase<TypeUnion<Node<TTag>>>, IEnumerable<E
     protected override void OnEntityAdded(in EntityRef entity)
     {
         ref var node = ref entity.Get<Node<TTag>>();
+        _nodes[entity.Id] = entity;
+
         var parent = node.Parent;
         if (parent != null) {
             AddToParent(entity, parent.Value);
         }
         else {
-            _root.Add(entity);
+            _root.Add(entity.Id);
         }
     }
 
     protected override void OnEntityRemoved(in EntityRef entity)
     {
+        var id = entity.Id;
         ref var node = ref entity.Get<Node<TTag>>();
 
         var parent = node.Parent;
@@ -60,44 +66,48 @@ public class Hierarchy<TTag> : ReactorBase<TypeUnion<Node<TTag>>>, IEnumerable<E
             RemoveFromParent(entity, parent.Value);
         }
         else {
-            _root.Remove(entity);
+            _root.Remove(id);
         }
 
         var children = node._children;
         if (children != null) {
             foreach (var child in children) {
-                child.Dispose();
+                _nodes[child].Dispose();
             }
             children.Clear();
             _childrenPool.Push(children);
         }
+
+        _nodes.Remove(id);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void AddToParent(in EntityRef entity, in EntityRef parent)
+    private void AddToParent(in EntityRef entity, Identity parent)
     {
-        ref var parentNode = ref parent.Get<Node<TTag>>();
+        var parentEntity = _nodes[parent];
+        ref var parentNode = ref parentEntity.Get<Node<TTag>>();
         ref var children = ref parentNode._children;
+
         children ??= _childrenPool.TryPop(out var pooled) ? pooled : [];
-        children.Add(entity);
+        children.Add(entity.Id);
+
+        World.Send(parentEntity, new Node<TTag>.ChildAdded(entity));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void RemoveFromParent(in EntityRef entity, in EntityRef parent)
+    private void RemoveFromParent(in EntityRef entity, in Identity parent)
     {
-        ref var parentNode = ref parent.Get<Node<TTag>>();
+        var parentEntity = _nodes[parent];
+        ref var parentNode = ref parentEntity.Get<Node<TTag>>();
         ref var children = ref parentNode._children;
-        children!.Remove(entity);
+
+        children!.Remove(entity.Id);
 
         if (children.Count == 0) {
             _childrenPool.Push(children);
             children = null;
         }
+
+        World.Send(parentEntity, new Node<TTag>.ChildRemoved(entity));
     }
-
-    public IEnumerator<EntityRef> GetEnumerator()
-        => _root.GetEnumerator();
-
-    IEnumerator IEnumerable.GetEnumerator()
-        => GetEnumerator();
 }

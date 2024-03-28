@@ -1,6 +1,7 @@
 namespace Sia_Examples;
 
 using Sia;
+using Sia.Reactors;
 
 public static partial class Example6_Hierarchy
 {
@@ -11,14 +12,15 @@ public static partial class Example6_Hierarchy
     {
         public static EntityRef Create(World world, string name, EntityRef? parent = null)
             => world.CreateInArrayHost(HList.Create(
-                new Node<TestTag>(parent),
-                 new Name(name)
+                new Node<TestTag>(parent?.Id),
+                new Name(name)
             ));
     }
 
     public static void Run(World world)
     {
-        world.AcquireAddon<Hierarchy<TestTag>>();
+        var hierarchy = world.AcquireAddon<Hierarchy<TestTag>>();
+        var nodes = hierarchy.Nodes;
 
         var e1 = TestNode.Create(world, "test1");
         var e2 = TestNode.Create(world, "test2", e1);
@@ -26,14 +28,14 @@ public static partial class Example6_Hierarchy
         var e4 = TestNode.Create(world, "test4", e3);
 
         foreach (var child in e1.Get<Node<TestTag>>().Children) {
-            Console.WriteLine(child.Get<Name>().Value);
+            Console.WriteLine(nodes[child].Get<Name>().Value);
         }
 
         Console.WriteLine("===");
-        world.Modify(e4, new Node<TestTag>.SetParent(e1));
+        world.Modify(e4, new Node<TestTag>.SetParent(e1.Id));
 
         foreach (var child in e1.Get<Node<TestTag>>().Children) {
-            Console.WriteLine(child.Get<Name>().Value);
+            Console.WriteLine(nodes[child].Get<Name>().Value);
         }
 
         e4.Dispose();

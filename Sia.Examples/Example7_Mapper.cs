@@ -1,6 +1,7 @@
 namespace Sia_Examples;
 
 using Sia;
+using Sia.Reactors;
 
 public static partial class Example7_Mapper
 {
