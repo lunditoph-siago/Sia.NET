@@ -6,11 +6,11 @@ public class HListTests
 {
     public class MockHandler : IGenericHandler
     {
-        public List<object> HandledValues { get; } = new();
+        public List<object> HandledValues { get; } = [];
 
         public void Handle<T>(in T value)
         {
-            HandledValues.Add(value);
+            HandledValues.Add(value!);
         }
     }
 

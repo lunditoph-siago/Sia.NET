@@ -1,5 +1,7 @@
 namespace Sia.Tests.Reactors;
 
+using Sia.Reactors;
+
 [TestCaseOrderer("Sia.Tests.PriorityOrderer", "Sia.Tests")]
 public class AggregatorTests : IDisposable
 {
@@ -31,18 +33,19 @@ public class AggregatorTests : IDisposable
     [MemberData(nameof(AggregatorTestData))]
     public void Aggregator_Setup_Test(ObjectId[] objectIds)
     {
+        Dictionary<EntityRef, ObjectId> map = [];
+
         // Act
-        foreach (var objectId in objectIds)
-        {
+        foreach (var objectId in objectIds) {
             var entityRef = World!.CreateInArrayHost(HList.Create(Sid.From(objectId)));
             EntityRefs?.Add(entityRef);
+            map[entityRef] = objectId;
         }
 
         // Assert
-        foreach (var entity in World!.Query(Matchers.Of<Aggregation<ObjectId>>()))
-        {
+        foreach (var entity in World!.Query(Matchers.Of<Aggregation<ObjectId>>())) {
             ref var aggregation = ref entity.Get<Aggregation<ObjectId>>();
-            Assert.Equal(new ObjectId(1), aggregation.Id);
+            Assert.Equal(map[aggregation.First], aggregation.Id);
         }
     }
 
@@ -54,8 +57,7 @@ public class AggregatorTests : IDisposable
         EntityRefs?[0].SetSid(new ObjectId(id));
 
         // Assert
-        foreach (var entity in World!.Query(Matchers.Of<Aggregation<ObjectId>>()))
-        {
+        foreach (var entity in World!.Query(Matchers.Of<Aggregation<ObjectId>>())) {
             ref var aggregation = ref entity.Get<Aggregation<ObjectId>>();
             Assert.Equal(new ObjectId(id), aggregation.Id);
         }

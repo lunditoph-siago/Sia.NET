@@ -1,5 +1,7 @@
 namespace Sia.Tests.Reactors;
 
+using Sia.Reactors;
+
 [TestCaseOrderer("Sia.Tests.PriorityOrderer", "Sia.Tests")]
 public class MapperTests : IDisposable
 {
@@ -31,8 +33,7 @@ public class MapperTests : IDisposable
     [MemberData(nameof(MapperTestData))]
     public void Mapper_Setup_Test(ObjectId[] objectIds)
     {
-        foreach (var objectId in objectIds)
-        {
+        foreach (var objectId in objectIds) {
             // Act
             var entityRef = World!.CreateInArrayHost(HList.Create(Sid.From(objectId)));
             EntityRefs?.Add(entityRef);
@@ -43,8 +44,7 @@ public class MapperTests : IDisposable
     }
 
     [Fact, Priority(1)]
-    public void Mapper_SetSid_Test()
-    {
+    public void Mapper_SetSid_Test() {
         // Act
         var id = ObjectId.Create();
         EntityRefs?.First().SetSid(id);
