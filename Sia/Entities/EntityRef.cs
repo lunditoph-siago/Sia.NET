@@ -7,6 +7,8 @@ public readonly record struct EntityRef(in StorageSlot Slot, IEntityHost Host) :
     public object Boxed => Host.Box(Slot);
     public bool Valid => Host != null && Host.IsValid(Slot);
     public EntityDescriptor Descriptor => Host.Descriptor;
+
+    public Identity Id => Get<Identity>();
     
     public bool Contains<TComponent>()
     {
