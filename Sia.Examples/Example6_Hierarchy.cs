@@ -38,6 +38,20 @@ public static partial class Example6_Hierarchy
             Console.WriteLine(nodes[child].Get<Name>().Value);
         }
 
+        Console.WriteLine("Before SetIsSelfEnabled:");
+        Console.WriteLine(e2.Get<Node<TestTag>>().IsEnabled);
+        Console.WriteLine(e3.Get<Node<TestTag>>().IsEnabled);
+        Console.WriteLine(e4.Get<Node<TestTag>>().IsEnabled);
+
+        _ = new Node<TestTag>.View(e1) {
+            IsSelfEnabled = false
+        };
+
+        Console.WriteLine("After SetIsSelfEnabled:");
+        Console.WriteLine(e2.Get<Node<TestTag>>().IsEnabled);
+        Console.WriteLine(e3.Get<Node<TestTag>>().IsEnabled);
+        Console.WriteLine(e4.Get<Node<TestTag>>().IsEnabled);
+
         e4.Dispose();
         Console.WriteLine(world.Count);
 
