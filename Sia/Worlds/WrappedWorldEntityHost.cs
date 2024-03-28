@@ -105,7 +105,11 @@ public sealed record WrappedWorldEntityHost<TEntity, TEntityHost> : IEntityHost<
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public EntityRef Add<TComponent>(in StorageSlot slot, in TComponent initial)
-        => _host.Add(slot, initial);
+    {
+        var e = _host.Add(slot, initial);
+        World.Dispatcher.Send(e, WorldEvents.Add<TComponent>.Instance);
+        return e;
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public EntityRef AddMany<TList>(in StorageSlot slot, in TList list)
@@ -119,7 +123,11 @@ public sealed record WrappedWorldEntityHost<TEntity, TEntityHost> : IEntityHost<
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public EntityRef Remove<TComponent>(in StorageSlot slot)
-        => _host.Remove<TComponent>(slot);
+    {
+        var e = _host.Remove<TComponent>(slot);
+        World.Dispatcher.Send(e, WorldEvents.Remove<TComponent>.Instance);
+        return e;
+    }
 
     public bool IsValid(in StorageSlot slot)
         => _host.IsValid(slot);
