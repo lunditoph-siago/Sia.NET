@@ -108,6 +108,10 @@ public class SystemLibrary : IAddon
         public ref byte UnsafeGetByteRef(in StorageSlot slot)
             => ref Host.UnsafeGetByteRef(slot);
 
+        public void GetHList<THandler>(in StorageSlot slot, in THandler handler)
+            where THandler : IRefGenericHandler<IHList>
+            => Host.GetHList(slot, handler);
+
         public object Box(in StorageSlot slot)
             => Host.Box(slot);
 

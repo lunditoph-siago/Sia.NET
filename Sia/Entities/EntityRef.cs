@@ -83,6 +83,10 @@ public readonly record struct EntityRef(in StorageSlot Slot, IEntityHost Host) :
     public EntityRef Remove<TComponent>()
         => Host.Remove<TComponent>(Slot);
 
+    public void GetHList<THandler>(in StorageSlot slot, in THandler handler)
+        where THandler : IRefGenericHandler<IHList>
+        => Host.GetHList(slot, handler);
+
     public Span<byte> AsSpan()
         => Host.GetSpan(Slot);
 

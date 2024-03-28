@@ -58,6 +58,10 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage managedStorage) : IEn
     public ref HList<Identity, TEntity> UnsafeGetRef(in StorageSlot slot)
         => ref Storage.UnsafeGetRef(slot);
 
+    public void GetHList<THandler>(in StorageSlot slot, in THandler handler)
+        where THandler : IRefGenericHandler<IHList>
+        => handler.Handle(ref Storage.GetRef(slot));
+
     public virtual EntityRef Add<TComponent>(in StorageSlot slot, in TComponent initial)
     {
         var host = GetSiblingHost<HList<TComponent, TEntity>>();
