@@ -8,8 +8,12 @@ public readonly record struct EntityRef(in StorageSlot Slot, IEntityHost Host) :
     public bool Valid => Host != null && Host.IsValid(Slot);
     public EntityDescriptor Descriptor => Host.Descriptor;
 
-    public Identity Id => Get<Identity>();
+    public readonly Identity Id {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => Unsafe.As<byte, Identity>(ref Host.GetByteRef(Slot));
+    }
     
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Contains<TComponent>()
     {
         try {
@@ -21,6 +25,7 @@ public readonly record struct EntityRef(in StorageSlot Slot, IEntityHost Host) :
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Contains(Type componentType)
         => Descriptor.FieldOffsets.ContainsKey(componentType);
 
