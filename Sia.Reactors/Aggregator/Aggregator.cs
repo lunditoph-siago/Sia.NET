@@ -22,7 +22,7 @@ public abstract class AggregatorBase<TId> : ReactorBase<TypeUnion<Sid<TId>>>
 
         _aggregationQuery = world.Query<TypeUnion<Aggregation<TId>>>();
         _aggregationQuery.OnEntityHostAdded += host => {
-            host.OnEntityReleased += OnAggregationCreated;
+            host.OnEntityCreated += OnAggregationCreated;
             host.OnEntityReleased += OnAggregationReleased;
         };
         
