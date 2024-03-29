@@ -9,6 +9,10 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
 
     public event Action<IReactiveEntityHost>? OnEntityHostAdded;
     public event Action<IReactiveEntityHost>? OnEntityHostRemoved;
+
+    public event Action<IAddon>? OnAddonCreated;
+    public event Action<IAddon>? OnAddonRemoved;
+
     public event Action<World>? OnDisposed;
 
     public int Count { get; internal set; }
@@ -236,6 +240,7 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
         }
         var newAddon = CreateAddon<TAddon>();
         addon = newAddon;
+        OnAddonCreated?.Invoke(newAddon);
         return newAddon;
     }
 
@@ -249,6 +254,7 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
         }
         var newAddon = CreateAddon<TAddon>();
         addon = newAddon;
+        OnAddonCreated?.Invoke(newAddon);
         return newAddon;
     }
 
@@ -270,9 +276,11 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
         if (addon == null) {
             return false;
         }
+        var removedAddon = addon;
         addon.OnUninitialize(this);
         addon = null;
         _addonCount--;
+        OnAddonRemoved?.Invoke(removedAddon);
         return true;
     }
 
@@ -348,10 +356,12 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
             var addon = _addons[i];
             if (addon != null) {
                 addon.OnUninitialize(this);
+                _addons[i] = null;
+                _addonCount--;
+                OnAddonRemoved?.Invoke(addon);
                 addonAcc++;
             }
         }
-        _addonCount = 0;
     }
 
     private void Dispose(bool disposing)
