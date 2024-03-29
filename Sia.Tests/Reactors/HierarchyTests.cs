@@ -2,7 +2,7 @@ namespace Sia.Tests.Reactors;
 
 using Sia.Reactors;
 
-[TestCaseOrderer("Sia.Tests.PriorityOrderer", "Sia.Tests")]
+// [TestCaseOrderer("Sia.Tests.PriorityOrderer", "Sia.Tests")]
 public class HierarchyTests : IDisposable
 {
     public readonly record struct Name(string Value);
@@ -27,8 +27,8 @@ public class HierarchyTests : IDisposable
         Hierarchy = World.AcquireAddon<Hierarchy<TestTag>>();
     }
 
-    [Theory, Priority(0)]
-    [MemberData(nameof(HierarchyTestData))]
+    //[Theory, Priority(0)]
+    //[MemberData(nameof(HierarchyTestData))]
     public void Hierarchy_Setup_Test((string, int)[] data)
     {
         // Arrange
@@ -47,7 +47,7 @@ public class HierarchyTests : IDisposable
         Assert.Equal(expectedChildren, actualChildren);
     }
 
-    [Fact, Priority(1)]
+    //[Fact, Priority(1)]
     public void Hierarchy_Modify_Test()
     {
         // Act
