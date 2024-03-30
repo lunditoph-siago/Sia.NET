@@ -3,55 +3,57 @@ namespace Sia.Tests.Reactors;
 using Sia.Reactors;
 
 [TestCaseOrderer("Sia.Tests.PriorityOrderer", "Sia.Tests")]
-public class MapperTests : IDisposable
+public class MapperTests(MapperTests.MapperContext context) : IClassFixture<MapperTests.MapperContext>
 {
-    public readonly record struct ObjectId(Guid Value)
+    public class MapperContext : IDisposable
     {
-        public static ObjectId Create() => new(Guid.NewGuid());
+        public readonly record struct ObjectId(Guid Value);
+
+        public List<EntityRef> EntityRefs = [];
+
+        public Mapper<ObjectId> Mapper;
+
+        public World World;
+
+        public MapperContext()
+        {
+            World = new World();
+            Context<World>.Current = World;
+
+            Mapper = World.AcquireAddon<Mapper<ObjectId>>();
+        }
+
+        public void Dispose() => World.Dispose();
     }
 
     public static List<object[]> MapperTestData =>
     [
-        [new[] { ObjectId.Create(), ObjectId.Create() }],
+        [new MapperContext.ObjectId[] { new(Guid.NewGuid()), new(Guid.NewGuid()) }],
     ];
-
-    public static readonly List<EntityRef>? EntityRefs = [];
-
-    public static Mapper<ObjectId>? Mapper;
-
-    public static World? World;
-
-    public MapperTests()
-    {
-        World = new World();
-        Context<World>.Current = World;
-
-        Mapper = World.AcquireAddon<Mapper<ObjectId>>();
-    }
 
     [Theory, Priority(0)]
     [MemberData(nameof(MapperTestData))]
-    public void Mapper_Setup_Test(ObjectId[] objectIds)
+    public void Mapper_Setup_Test(MapperContext.ObjectId[] objectIds)
     {
         foreach (var objectId in objectIds) {
             // Act
-            var entityRef = World!.CreateInArrayHost(HList.Create(Sid.From(objectId)));
-            EntityRefs?.Add(entityRef);
+            var entityRef = context.World.CreateInArrayHost(HList.Create(Sid.From(objectId)));
+            context.EntityRefs.Add(entityRef);
 
             // Assert
-            Assert.True(entityRef == Mapper?[objectId]);
+            Assert.True(entityRef == context.Mapper[objectId]);
         }
     }
 
-    [Fact, Priority(1)]
-    public void Mapper_SetSid_Test() {
+    [Theory, Priority(1)]
+    [InlineData(0)]
+    public void Mapper_SetSid_Test(int target)
+    {
         // Act
-        var id = ObjectId.Create();
-        EntityRefs?.First().SetSid(id);
+        var id = new MapperContext.ObjectId(Guid.NewGuid());
+        context.EntityRefs[target].SetSid(id);
 
         // Assert
-        Assert.True(Mapper?[id] == EntityRefs?.First());
+        Assert.True(context.Mapper[id] == context.EntityRefs[target]);
     }
-
-    public void Dispose() => World?.Dispose();
 }
