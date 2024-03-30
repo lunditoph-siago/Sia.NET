@@ -7,8 +7,6 @@ using System.Runtime.InteropServices;
 public abstract class AggregatorBase<TId> : ReactorBase<TypeUnion<Sid<TId>>>
     where TId : notnull, IEquatable<TId>
 {
-    public bool AutoCreateAggregation { get; set; } = false;
-
     [AllowNull]
     private IReactiveEntityQuery _aggregationQuery;
     private readonly Dictionary<TId, EntityRef> _aggrs = [];
