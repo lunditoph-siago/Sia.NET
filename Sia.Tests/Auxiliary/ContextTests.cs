@@ -24,7 +24,7 @@ public class ContextTests
     }
 
     [Fact]
-    public async Task ContextValue_ValueAssign_Test()
+    public async Task Context_ValueAssign_Test()
     {
         // Arrange
         const string valueForThread1 = "ThreadValue1";
@@ -51,7 +51,7 @@ public class ContextTests
     }
 
     [Fact]
-    public void ContextValue_IJobAssign_Test()
+    public void Context_IJobAssign_Test()
     {
         // Arrange
         const string valueForThread1 = "ThreadValue1";
