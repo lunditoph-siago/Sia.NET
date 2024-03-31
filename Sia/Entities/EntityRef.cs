@@ -27,7 +27,7 @@ public readonly record struct EntityRef(in StorageSlot Slot, IEntityHost Host) :
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Contains(Type componentType)
-        => Descriptor.FieldOffsets.ContainsKey(componentType);
+        => Descriptor.Offsets.ContainsKey(componentType);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe ref TComponent Get<TComponent>()

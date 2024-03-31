@@ -139,7 +139,7 @@ public static class Matchers
     {
         public bool Match(IEntityHost host)
         {
-            var offsets = host.Descriptor.FieldOffsets;
+            var offsets = host.Descriptor.Offsets;
             foreach (var compType in Types.Types) {
                 if (!offsets.ContainsKey(compType)) {
                     return false;
@@ -153,7 +153,7 @@ public static class Matchers
     {
         public bool Match(IEntityHost host)
         {
-            var offsets = host.Descriptor.FieldOffsets;
+            var offsets = host.Descriptor.Offsets;
             foreach (var compType in Types.Types) {
                 if (offsets.ContainsKey(compType)) {
                     return false;
@@ -168,7 +168,7 @@ public static class Matchers
     {
         public bool Match(IEntityHost host)
         {
-            var offsets = host.Descriptor.FieldOffsets;
+            var offsets = host.Descriptor.Offsets;
             foreach (var compType in InclusiveTypes.Types) {
                 if (!offsets.ContainsKey(compType)) {
                     return false;
@@ -208,7 +208,7 @@ public static class Matchers
             if (!Left.Match(host)) {
                 return false;
             }
-            var offsets = host.Descriptor.FieldOffsets;
+            var offsets = host.Descriptor.Offsets;
             foreach (var compType in Right.Types) {
                 if (!offsets.ContainsKey(compType)) {
                     return false;
@@ -225,7 +225,7 @@ public static class Matchers
             if (!Left.Match(host)) {
                 return false;
             }
-            var offsets = host.Descriptor.FieldOffsets;
+            var offsets = host.Descriptor.Offsets;
             foreach (var compType in Right.Types) {
                 if (offsets.ContainsKey(compType)) {
                     return false;
@@ -243,7 +243,7 @@ public static class Matchers
             if (!Inner.Match(host)) {
                 return false;
             }
-            var offsets = host.Descriptor.FieldOffsets;
+            var offsets = host.Descriptor.Offsets;
             foreach (var compType in WithTypes.Types) {
                 if (!offsets.ContainsKey(compType)) {
                     return false;
