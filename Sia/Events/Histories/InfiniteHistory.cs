@@ -6,28 +6,20 @@ public class InfiniteHistory<TTarget, TEvent> : IHistory<TTarget, TEvent>
     where TTarget : notnull
     where TEvent : IEvent
 {
-    public Dispatcher<TTarget, TEvent> Dispatcher { get; }
     public EventPair<TTarget, TEvent>? Last { get; private set; }
 
     public EventPair<TTarget, TEvent> this[int index] => _list[index];
     public int Count => _list.Count;
 
     private readonly List<EventPair<TTarget, TEvent>> _list = [];
-    private readonly Dispatcher<TTarget, TEvent>.Listener<TEvent> _listener;
 
     private bool _disposed;
 
-    public InfiniteHistory(Dispatcher<TTarget, TEvent> dispatcher)
+    public void Record(in TTarget target, in TEvent e)
     {
-        Dispatcher = dispatcher;
-
-        _listener = (in TTarget target, in TEvent e) => {
-            var pair = new EventPair<TTarget, TEvent>(target, e);
-            Last = pair;
-            _list.Add(pair);
-            return false;
-        };
-        Dispatcher.Listen(_listener);
+        var pair = new EventPair<TTarget, TEvent>(target, e);
+        Last = pair;
+        _list.Add(pair);
     }
 
     public bool Contains(EventPair<TTarget, TEvent> item)
@@ -56,7 +48,6 @@ public class InfiniteHistory<TTarget, TEvent> : IHistory<TTarget, TEvent>
         if (disposing) {
             _list.Clear();
         }
-        Dispatcher.Unlisten(_listener);
     }
 
     ~InfiniteHistory()

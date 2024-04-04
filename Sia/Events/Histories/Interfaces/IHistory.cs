@@ -4,6 +4,6 @@ public interface IHistory<TTarget, TEvent> : IReadOnlyList<EventPair<TTarget, TE
     where TTarget : notnull
     where TEvent : IEvent
 {
-    Dispatcher<TTarget, TEvent> Dispatcher { get; }
     EventPair<TTarget, TEvent>? Last { get; }
+    void Record(in TTarget target, in TEvent e);
 }
