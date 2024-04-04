@@ -9,9 +9,11 @@ public interface IEventSender<in TEvent> : IEventSender<EntityRef, TEvent>
 
 public interface IEventSender : IEventSender<IEvent> {}
 
-public class Dispatcher<TEvent> : Dispatcher<EntityRef, TEvent>
+public class Dispatcher<TEvent> : Dispatcher<EntityRef, Identity, TEvent>
     where TEvent : IEvent
 {
+    protected override Identity GetKey(in EntityRef target)
+        => target.Id;
 }
 
 public class Dispatcher : Dispatcher<IEvent> {}
@@ -35,22 +37,5 @@ public class EventQueue<TEvent>(IEventSender<EntityRef, TEvent> receiver)
 
 public class EventQueue(IEventSender<EntityRef, IEvent> receiver)
     : EventQueue<EntityRef, IEvent>(receiver), IEventSender
-{
-}
-
-public interface IHistory<TEvent> : IHistory<EntityRef, TEvent>
-    where TEvent : IEvent
-{
-}
-
-public class InfiniteHistory<TEvent>(Dispatcher<EntityRef, TEvent> dispatcher)
-    : InfiniteHistory<EntityRef, TEvent>(dispatcher), IHistory<TEvent>
-    where TEvent : IEvent
-{
-}
-
-public class SizedHistory<TEvent>(Dispatcher<EntityRef, TEvent> dispatcher, int capacity)
-    : SizedHistory<EntityRef, TEvent>(dispatcher, capacity), IHistory<TEvent>
-    where TEvent : IEvent
 {
 }
