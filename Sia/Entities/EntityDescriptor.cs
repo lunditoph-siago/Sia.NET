@@ -3,15 +3,15 @@
 using System.Collections.Frozen;
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 
-public record struct ComponentInfo(Type Type, IntPtr Offset);
+public record struct ComponentInfo(Type Type, IntPtr Offset, int TypeIndex);
 
 public static class EntityDescriptor<TEntity>
     where TEntity : IHList
 {
     public static readonly ImmutableArray<ComponentInfo> Components;
     public static readonly FrozenDictionary<Type, IntPtr> Offsets;
+    public static readonly ImmutableArray<nint> OffsetSlots;
 
     private unsafe struct HeadOffsetRecorder(
         List<ComponentInfo> components, Dictionary<Type, IntPtr> offsets, IntPtr entityPtr)
@@ -24,11 +24,7 @@ public static class EntityDescriptor<TEntity>
             if (!offsets.TryAdd(typeof(T), offset)) {
                 throw new InvalidDataException("Entity cannot have multiple components of the same type");
             }
-            var index = EntityComponentIndexer<TEntity, T>.Index;
-            if (index >= components.Count) {
-                CollectionsMarshal.SetCount(components, index + 1);
-            }
-            components[index] = new(typeof(T), offset);
+            components.Add(new(typeof(T), offset, EntityComponentIndexer<TEntity, T>.Index));
         }
     }
 
@@ -56,6 +52,12 @@ public static class EntityDescriptor<TEntity>
 
         Offsets = offsets.ToFrozenDictionary();
         Components = [..components];
+
+        var slots = new nint[Components.Select(info => info.TypeIndex).Max() + 1];
+        foreach (var info in Components) {
+            slots[info.TypeIndex] = info.Offset;
+        }
+        OffsetSlots = slots.ToImmutableArray();
     }
 }
 
@@ -90,6 +92,7 @@ public record EntityDescriptor
         => new(typeof(TEntity), Unsafe.SizeOf<TEntity>(),
             EntityDescriptor<TEntity>.Components,
             EntityDescriptor<TEntity>.Offsets,
+            EntityDescriptor<TEntity>.OffsetSlots,
             FieldIndexGetter<TEntity>.Instance);
 
     public Type Type { get; }
@@ -97,21 +100,24 @@ public record EntityDescriptor
 
     public ImmutableArray<ComponentInfo> Components { get; }
     public FrozenDictionary<Type, nint> Offsets { get; }
+    public ImmutableArray<nint> OffsetSlots { get; }
 
     private readonly IFieldIndexGetter _fieldIndexGetter;
 
     private EntityDescriptor(
-        Type type, int memorySize, ImmutableArray<ComponentInfo> components, FrozenDictionary<Type, nint> fieldOffsets,
+        Type type, int memorySize, ImmutableArray<ComponentInfo> components,
+        FrozenDictionary<Type, nint> offsets, ImmutableArray<nint> offsetSlots,
         IFieldIndexGetter fieldIndexGetter)
     {
         Type = type;
         MemorySize = memorySize;
         Components = components;
-        Offsets = fieldOffsets;
+        Offsets = offsets;
+        OffsetSlots = offsetSlots;
         _fieldIndexGetter = fieldIndexGetter;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public nint GetOffset<TComponent>()
-        => Components[_fieldIndexGetter.GetIndex<TComponent>()].Offset;
+        => OffsetSlots[_fieldIndexGetter.GetIndex<TComponent>()];
 }
