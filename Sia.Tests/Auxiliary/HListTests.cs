@@ -26,7 +26,7 @@ public class HListTests
 
     [Theory]
     [InlineData(1)]
-    public void PolyList_HandleHead_Test(int value)
+    public void HList_HandleHead_Test(int value)
     {
         // Arrange
         var list = HList.Create(value);
@@ -40,7 +40,7 @@ public class HListTests
     }
 
     [Fact]
-    public void PolyList_ConsTwoHLists_Test()
+    public void HList_ConsTwoHLists_Test()
     {
         // Arrange
         var list1 = HList.Create("Mock", 1.0f);
