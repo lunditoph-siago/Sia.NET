@@ -1,5 +1,6 @@
 namespace Sia;
 
+using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
@@ -206,6 +207,35 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
             host.Dispose();
         }
         _hosts.Clear();
+    }
+
+    public int ClearEmptyHosts()
+    {
+        int[]? hostsToRemove = null;
+        int count = 0;
+
+        foreach (var (key, host) in _hosts) {
+            if (host.Count == 0) {
+                hostsToRemove ??= ArrayPool<int>.Shared.Rent(_hosts.Count);
+                hostsToRemove[count] = key;
+                count++;
+            }
+        }
+
+        if (hostsToRemove != null) {
+            try {
+                for (int i = 0; i != count; ++i) {
+                    _hosts.Remove(hostsToRemove[i], out var host);
+                    OnEntityHostRemoved?.Invoke(host!);
+                    host!.Dispose();
+                }
+            }
+            finally {
+                ArrayPool<int>.Shared.Return(hostsToRemove);
+            }
+        }
+
+        return count;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
