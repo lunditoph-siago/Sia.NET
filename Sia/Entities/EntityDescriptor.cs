@@ -57,7 +57,7 @@ public static class EntityDescriptor<TEntity>
         foreach (var info in Components) {
             slots[info.TypeIndex] = info.Offset;
         }
-        OffsetSlots = slots.ToImmutableArray();
+        OffsetSlots = [.. slots];
     }
 }
 
@@ -118,6 +118,6 @@ public record EntityDescriptor
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public nint GetOffset<TComponent>()
+    public ComponentOffset<TComponent> GetOffset<TComponent>()
         => OffsetSlots[_fieldIndexGetter.GetIndex<TComponent>()];
 }

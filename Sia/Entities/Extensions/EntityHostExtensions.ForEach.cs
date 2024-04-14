@@ -109,7 +109,7 @@ public static partial class EntityHostExtensions
 
                 for (int i = from; i != to; ++i) {
                     ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
-                    handler(ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)));
+                    handler(ref c1Offset.Get(ref byteRef));
                 }
             }, runner);
 
@@ -128,8 +128,8 @@ public static partial class EntityHostExtensions
                 for (int i = from; i != to; ++i) {
                     ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
                     handler(
-                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
-                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)));
+                        ref c1Offset.Get(ref byteRef),
+                        ref c2Offset.Get(ref byteRef));
                 }
             }, runner);
 
@@ -149,9 +149,9 @@ public static partial class EntityHostExtensions
                 for (int i = from; i != to; ++i) {
                     ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
                     handler(
-                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
-                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
-                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)));
+                        ref c1Offset.Get(ref byteRef),
+                        ref c2Offset.Get(ref byteRef),
+                        ref c3Offset.Get(ref byteRef));
                 }
             }, runner);
 
@@ -172,10 +172,10 @@ public static partial class EntityHostExtensions
                 for (int i = from; i != to; ++i) {
                     ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
                     handler(
-                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
-                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
-                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)),
-                        ref Unsafe.As<byte, C4>(ref Unsafe.AddByteOffset(ref byteRef, c4Offset)));
+                        ref c1Offset.Get(ref byteRef),
+                        ref c2Offset.Get(ref byteRef),
+                        ref c3Offset.Get(ref byteRef),
+                        ref c4Offset.Get(ref byteRef));
                 }
             }, runner);
 
@@ -197,11 +197,11 @@ public static partial class EntityHostExtensions
                 for (int i = from; i != to; ++i) {
                     ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
                     handler(
-                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
-                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
-                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)),
-                        ref Unsafe.As<byte, C4>(ref Unsafe.AddByteOffset(ref byteRef, c4Offset)),
-                        ref Unsafe.As<byte, C5>(ref Unsafe.AddByteOffset(ref byteRef, c5Offset)));
+                        ref c1Offset.Get(ref byteRef),
+                        ref c2Offset.Get(ref byteRef),
+                        ref c3Offset.Get(ref byteRef),
+                        ref c4Offset.Get(ref byteRef),
+                        ref c5Offset.Get(ref byteRef));
                 }
             }, runner);
 
@@ -224,12 +224,12 @@ public static partial class EntityHostExtensions
                 for (int i = from; i != to; ++i) {
                     ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
                     handler(
-                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
-                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
-                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)),
-                        ref Unsafe.As<byte, C4>(ref Unsafe.AddByteOffset(ref byteRef, c4Offset)),
-                        ref Unsafe.As<byte, C5>(ref Unsafe.AddByteOffset(ref byteRef, c5Offset)),
-                        ref Unsafe.As<byte, C6>(ref Unsafe.AddByteOffset(ref byteRef, c6Offset)));
+                        ref c1Offset.Get(ref byteRef),
+                        ref c2Offset.Get(ref byteRef),
+                        ref c3Offset.Get(ref byteRef),
+                        ref c4Offset.Get(ref byteRef),
+                        ref c5Offset.Get(ref byteRef),
+                        ref c6Offset.Get(ref byteRef));
                 }
             }, runner);
 
@@ -249,7 +249,7 @@ public static partial class EntityHostExtensions
 
                 for (int i = from; i != to; ++i) {
                     ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
-                    handler(userData, ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)));
+                    handler(userData, ref c1Offset.Get(ref byteRef));
                 }
             }, runner);
 
@@ -271,8 +271,8 @@ public static partial class EntityHostExtensions
                 for (int i = from; i != to; ++i) {
                     ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
                     handler(userData,
-                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
-                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)));
+                        ref c1Offset.Get(ref byteRef),
+                        ref c2Offset.Get(ref byteRef));
                 }
             }, runner);
 
@@ -295,9 +295,9 @@ public static partial class EntityHostExtensions
                 for (int i = from; i != to; ++i) {
                     ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
                     handler(userData,
-                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
-                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
-                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)));
+                        ref c1Offset.Get(ref byteRef),
+                        ref c2Offset.Get(ref byteRef),
+                        ref c3Offset.Get(ref byteRef));
                 }
             }, runner);
 
@@ -321,10 +321,10 @@ public static partial class EntityHostExtensions
                 for (int i = from; i != to; ++i) {
                     ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
                     handler(userData,
-                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
-                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
-                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)),
-                        ref Unsafe.As<byte, C4>(ref Unsafe.AddByteOffset(ref byteRef, c4Offset)));
+                        ref c1Offset.Get(ref byteRef),
+                        ref c2Offset.Get(ref byteRef),
+                        ref c3Offset.Get(ref byteRef),
+                        ref c4Offset.Get(ref byteRef));
                 }
             }, runner);
 
@@ -349,11 +349,11 @@ public static partial class EntityHostExtensions
                 for (int i = from; i != to; ++i) {
                     ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
                     handler(userData,
-                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
-                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
-                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)),
-                        ref Unsafe.As<byte, C4>(ref Unsafe.AddByteOffset(ref byteRef, c4Offset)),
-                        ref Unsafe.As<byte, C5>(ref Unsafe.AddByteOffset(ref byteRef, c5Offset)));
+                        ref c1Offset.Get(ref byteRef),
+                        ref c2Offset.Get(ref byteRef),
+                        ref c3Offset.Get(ref byteRef),
+                        ref c4Offset.Get(ref byteRef),
+                        ref c5Offset.Get(ref byteRef));
                 }
             }, runner);
 
@@ -379,12 +379,12 @@ public static partial class EntityHostExtensions
                 for (int i = from; i != to; ++i) {
                     ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
                     handler(userData,
-                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
-                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
-                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)),
-                        ref Unsafe.As<byte, C4>(ref Unsafe.AddByteOffset(ref byteRef, c4Offset)),
-                        ref Unsafe.As<byte, C5>(ref Unsafe.AddByteOffset(ref byteRef, c5Offset)),
-                        ref Unsafe.As<byte, C6>(ref Unsafe.AddByteOffset(ref byteRef, c6Offset)));
+                        ref c1Offset.Get(ref byteRef),
+                        ref c2Offset.Get(ref byteRef),
+                        ref c3Offset.Get(ref byteRef),
+                        ref c4Offset.Get(ref byteRef),
+                        ref c5Offset.Get(ref byteRef),
+                        ref c6Offset.Get(ref byteRef));
                 }
             }, runner);
 
@@ -536,7 +536,7 @@ public static partial class EntityHostExtensions
                     ref readonly var slot = ref slots[i];
                     ref var byteRef = ref host.UnsafeGetByteRef(slot);
 
-                    if (filter(ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)))) {
+                    if (filter(ref c1Offset.Get(ref byteRef))) {
                         handler(new(slot, host));
                     }
                 }
@@ -560,8 +560,8 @@ public static partial class EntityHostExtensions
                     ref var byteRef = ref host.UnsafeGetByteRef(slot);
 
                     if (filter(
-                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
-                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)))) {
+                        ref c1Offset.Get(ref byteRef),
+                        ref c2Offset.Get(ref byteRef))) {
                         handler(new(slot, host));
                     }
                 }
@@ -586,9 +586,9 @@ public static partial class EntityHostExtensions
                     ref var byteRef = ref host.UnsafeGetByteRef(slot);
 
                     if (filter(
-                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
-                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
-                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)))) {
+                        ref c1Offset.Get(ref byteRef),
+                        ref c2Offset.Get(ref byteRef),
+                        ref c3Offset.Get(ref byteRef))) {
                         handler(new(slot, host));
                     }
                 }
@@ -614,10 +614,10 @@ public static partial class EntityHostExtensions
                     ref var byteRef = ref host.UnsafeGetByteRef(slot);
 
                     if (filter(
-                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
-                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
-                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)),
-                        ref Unsafe.As<byte, C4>(ref Unsafe.AddByteOffset(ref byteRef, c4Offset)))) {
+                        ref c1Offset.Get(ref byteRef),
+                        ref c2Offset.Get(ref byteRef),
+                        ref c3Offset.Get(ref byteRef),
+                        ref c4Offset.Get(ref byteRef))) {
                         handler(new(slot, host));
                     }
                 }
@@ -644,11 +644,11 @@ public static partial class EntityHostExtensions
                     ref var byteRef = ref host.UnsafeGetByteRef(slot);
 
                     if (filter(
-                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
-                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
-                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)),
-                        ref Unsafe.As<byte, C4>(ref Unsafe.AddByteOffset(ref byteRef, c4Offset)),
-                        ref Unsafe.As<byte, C5>(ref Unsafe.AddByteOffset(ref byteRef, c5Offset)))) {
+                        ref c1Offset.Get(ref byteRef),
+                        ref c2Offset.Get(ref byteRef),
+                        ref c3Offset.Get(ref byteRef),
+                        ref c4Offset.Get(ref byteRef),
+                        ref c5Offset.Get(ref byteRef))) {
                         handler(new(slot, host));
                     }
                 }
@@ -676,12 +676,12 @@ public static partial class EntityHostExtensions
                     ref var byteRef = ref host.UnsafeGetByteRef(slot);
 
                     if (filter(
-                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
-                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
-                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)),
-                        ref Unsafe.As<byte, C4>(ref Unsafe.AddByteOffset(ref byteRef, c4Offset)),
-                        ref Unsafe.As<byte, C5>(ref Unsafe.AddByteOffset(ref byteRef, c5Offset)),
-                        ref Unsafe.As<byte, C6>(ref Unsafe.AddByteOffset(ref byteRef, c6Offset)))) {
+                        ref c1Offset.Get(ref byteRef),
+                        ref c2Offset.Get(ref byteRef),
+                        ref c3Offset.Get(ref byteRef),
+                        ref c4Offset.Get(ref byteRef),
+                        ref c5Offset.Get(ref byteRef),
+                        ref c6Offset.Get(ref byteRef))) {
                         handler(new(slot, host));
                     }
                 }
@@ -706,7 +706,7 @@ public static partial class EntityHostExtensions
                     ref readonly var slot = ref slots[i];
                     ref var byteRef = ref host.UnsafeGetByteRef(slot);
                     
-                    if (filter(userData, ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)))) {
+                    if (filter(userData, ref c1Offset.Get(ref byteRef))) {
                         handler(userData, new(slot, host));
                     }
                 }
@@ -733,8 +733,8 @@ public static partial class EntityHostExtensions
                     ref var byteRef = ref host.UnsafeGetByteRef(slot);
 
                     if (filter(userData,
-                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
-                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)))) {
+                        ref c1Offset.Get(ref byteRef),
+                        ref c2Offset.Get(ref byteRef))) {
                         handler(userData, new(slot, host));
                     }
                 }
@@ -762,9 +762,9 @@ public static partial class EntityHostExtensions
                     ref var byteRef = ref host.UnsafeGetByteRef(slot);
 
                     if (filter(userData,
-                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
-                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
-                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)))) {
+                        ref c1Offset.Get(ref byteRef),
+                        ref c2Offset.Get(ref byteRef),
+                        ref c3Offset.Get(ref byteRef))) {
                         handler(userData, new(slot, host));
                     }
                 }
@@ -793,10 +793,10 @@ public static partial class EntityHostExtensions
                     ref var byteRef = ref host.UnsafeGetByteRef(slot);
 
                     if (filter(userData,
-                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
-                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
-                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)),
-                        ref Unsafe.As<byte, C4>(ref Unsafe.AddByteOffset(ref byteRef, c4Offset)))) {
+                        ref c1Offset.Get(ref byteRef),
+                        ref c2Offset.Get(ref byteRef),
+                        ref c3Offset.Get(ref byteRef),
+                        ref c4Offset.Get(ref byteRef))) {
                         handler(userData, new(slot, host));
                     }
                 }
@@ -826,11 +826,11 @@ public static partial class EntityHostExtensions
                     ref var byteRef = ref host.UnsafeGetByteRef(slot);
 
                     if (filter(userData,
-                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
-                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
-                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)),
-                        ref Unsafe.As<byte, C4>(ref Unsafe.AddByteOffset(ref byteRef, c4Offset)),
-                        ref Unsafe.As<byte, C5>(ref Unsafe.AddByteOffset(ref byteRef, c5Offset)))) {
+                        ref c1Offset.Get(ref byteRef),
+                        ref c2Offset.Get(ref byteRef),
+                        ref c3Offset.Get(ref byteRef),
+                        ref c4Offset.Get(ref byteRef),
+                        ref c5Offset.Get(ref byteRef))) {
                         handler(userData, new(slot, host));
                     }
                 }
@@ -861,12 +861,12 @@ public static partial class EntityHostExtensions
                     ref var byteRef = ref host.UnsafeGetByteRef(slot);
 
                     if (filter(userData,
-                        ref Unsafe.As<byte, C1>(ref Unsafe.AddByteOffset(ref byteRef, c1Offset)),
-                        ref Unsafe.As<byte, C2>(ref Unsafe.AddByteOffset(ref byteRef, c2Offset)),
-                        ref Unsafe.As<byte, C3>(ref Unsafe.AddByteOffset(ref byteRef, c3Offset)),
-                        ref Unsafe.As<byte, C4>(ref Unsafe.AddByteOffset(ref byteRef, c4Offset)),
-                        ref Unsafe.As<byte, C5>(ref Unsafe.AddByteOffset(ref byteRef, c5Offset)),
-                        ref Unsafe.As<byte, C6>(ref Unsafe.AddByteOffset(ref byteRef, c6Offset)))) {
+                        ref c1Offset.Get(ref byteRef),
+                        ref c2Offset.Get(ref byteRef),
+                        ref c3Offset.Get(ref byteRef),
+                        ref c4Offset.Get(ref byteRef),
+                        ref c5Offset.Get(ref byteRef),
+                        ref c6Offset.Get(ref byteRef))) {
                         handler(userData, new(slot, host));
                     }
                 }
