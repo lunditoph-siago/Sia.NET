@@ -57,14 +57,14 @@ public unsafe static class Tests
         var desc = EntityDescriptor.Get<TestEntity>();
         Console.WriteLine("Component offsets:");
 
-        var offset = desc.GetOffset<Position>();
-        Console.WriteLine("\tPosition: " + offset + ", Value: " + Unsafe.AsRef<Position>((void*)(ptr + offset)));
+        var positionOffset = desc.GetOffset<Position>();
+        Console.WriteLine("\tPosition: " + positionOffset + ", Value: " + Unsafe.AsRef<Position>((void*)(ptr + positionOffset)));
 
-        offset = desc.GetOffset<Rotation>();
-        Console.WriteLine("\tRotation: " + offset + ", Value: " + Unsafe.AsRef<Rotation>((void*)(ptr + offset)));
+        var rotationOffset = desc.GetOffset<Rotation>();
+        Console.WriteLine("\tRotation: " + rotationOffset + ", Value: " + Unsafe.AsRef<Rotation>((void*)(ptr + rotationOffset)));
 
-        offset = desc.GetOffset<Scale>();
-        Console.WriteLine("\tScale: " + offset + ", Value: " + *(Scale*)(ptr + offset));
+        var scaleOffset = desc.GetOffset<Scale>();
+        Console.WriteLine("\tScale: " + scaleOffset + ", Value: " + *(Scale*)(ptr + scaleOffset));
     }
 
     private static void TestScheduler()
