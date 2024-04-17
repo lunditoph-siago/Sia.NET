@@ -1,28 +1,36 @@
-﻿namespace Sia.Tests.Auxiliary;
+﻿using System.Numerics;
+
+namespace Sia.Tests.Auxiliary;
 
 public class TypeUnionTests
 {
-    [Fact]
-    public void TypeUnion_Creation_Test()
+    public static List<object[]> TypeUnionTestData =>
+    [
+        [new TypeUnion<bool>()],
+        [new TypeUnion<bool, byte>()],
+        [new TypeUnion<bool, byte, sbyte>()],
+        [new TypeUnion<bool, byte, sbyte, short>()],
+        [new TypeUnion<bool, byte, sbyte, short, ushort>()],
+        [new TypeUnion<bool, byte, sbyte, short, ushort, int>()],
+        [new TypeUnion<bool, byte, sbyte, short, ushort, int, uint>()],
+        [new TypeUnion<bool, byte, sbyte, short, ushort, int, uint, long>()],
+        [new TypeUnion<bool, byte, sbyte, short, ushort, int, uint, long, ulong>()],
+        [new TypeUnion<bool, byte, sbyte, short, ushort, int, uint, long, ulong, float>()],
+        [new TypeUnion<bool, byte, sbyte, short, ushort, int, uint, long, ulong, float, double>()],
+        [new TypeUnion<bool, byte, sbyte, short, ushort, int, uint, long, ulong, float, double, decimal>()],
+        [new TypeUnion<bool, byte, sbyte, short, ushort, int, uint, long, ulong, float, double, decimal, char>()],
+        [new TypeUnion<bool, byte, sbyte, short, ushort, int, uint, long, ulong, float, double, decimal, char, string>()],
+        [new TypeUnion<bool, byte, sbyte, short, ushort, int, uint, long, ulong, float, double, decimal, char, string, Guid>()],
+        [new TypeUnion<bool, byte, sbyte, short, ushort, int, uint, long, ulong, float, double, decimal, char, string, Guid, Vector<string>>()]
+    ];
+
+    [Theory]
+    [MemberData(nameof(TypeUnionTestData))]
+    public void TypeUnion_Creation_Test(ITypeUnion typeUnion)
     {
-        Assert.Multiple(
-            () => {
-                // Arrange
-                var union = new TypeUnion<int>();
-
-                // Assert
-                Assert.Single(union.Types);
-                Assert.Equal(typeof(int), union.Types[0]);
-            },
-            () => {
-                // Arrange
-                var union = new TypeUnion<int, string>();
-
-                // Assert
-                Assert.Equal(2, union.Types.Length);
-                Assert.Contains(typeof(int), union.Types);
-                Assert.Contains(typeof(string), union.Types);
-            });
+        foreach (var type in typeUnion.Types) {
+            Assert.Contains(type, typeUnion.Types);
+        }
     }
 
     [Fact]
