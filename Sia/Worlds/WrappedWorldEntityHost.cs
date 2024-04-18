@@ -11,7 +11,7 @@ public sealed record WrappedWorldEntityHost<TEntity, TEntityHost> : IEntityHost<
     where TEntity : IHList
     where TEntityHost : IEntityHost<TEntity>
 {
-    public event Action? OnDisposed {
+    public event Action<IEntityHost>? OnDisposed {
         add => _host.OnDisposed += value;
         remove => _host.OnDisposed -= value;
     }

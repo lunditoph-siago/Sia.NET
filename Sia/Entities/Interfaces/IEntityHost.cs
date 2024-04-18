@@ -2,7 +2,7 @@ namespace Sia;
 
 public interface IEntityHost : IEnumerable<EntityRef>, IDisposable
 {
-    event Action? OnDisposed;
+    event Action<IEntityHost>? OnDisposed;
 
     EntityDescriptor Descriptor { get; }
 
