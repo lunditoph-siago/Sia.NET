@@ -28,7 +28,7 @@ public class SystemLibrary : IAddon
             remove => Host.OnEntityReleased -= value;
         }
 
-        public event Action? OnDisposed {
+        public event Action<IEntityHost>? OnDisposed {
             add => Host.OnDisposed += value;
             remove => Host.OnDisposed -= value;
         }

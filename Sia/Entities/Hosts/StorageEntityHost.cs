@@ -15,7 +15,7 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage managedStorage) : IEn
     where TEntity : IHList
     where TStorage : IStorage<HList<Identity, TEntity>>
 {
-    public event Action? OnDisposed;
+    public event Action<IEntityHost>? OnDisposed;
 
     public EntityDescriptor Descriptor { get; } = EntityDescriptor.Get<HList<Identity, TEntity>>();
 
@@ -126,7 +126,7 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage managedStorage) : IEn
     public void Dispose()
     {
         Storage.Dispose();
-        OnDisposed?.Invoke();
+        OnDisposed?.Invoke(this);
         GC.SuppressFinalize(this);
     }
 }
