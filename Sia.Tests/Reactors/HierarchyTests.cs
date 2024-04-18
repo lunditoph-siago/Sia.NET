@@ -47,7 +47,7 @@ public class HierarchyTests(HierarchyTests.HierarchyContext context) : IClassFix
 
         // Act
         var actualChildren = context.EntityRefs.First().Get<Node<HierarchyContext.TestTag>>().Children
-            .Select(child => context.Hierarchy.Nodes[child].Get<HierarchyContext.Name>().Value);
+            .Select(child => context.World[child].Get<HierarchyContext.Name>().Value);
         var expectedChildren = hierarchies.Where(value => value.Item2 == 0).Select(value => value.Item1);
 
         // Assert
@@ -65,7 +65,7 @@ public class HierarchyTests(HierarchyTests.HierarchyContext context) : IClassFix
         // Assert
         Assert.True(
             context.EntityRefs[0].Get<Node<HierarchyContext.TestTag>>().Children
-                .Select(child => context.Hierarchy.Nodes[child].Get<HierarchyContext.Name>().Value)
+                .Select(child => context.World[child].Get<HierarchyContext.Name>().Value)
                 .Any());
     }
 }

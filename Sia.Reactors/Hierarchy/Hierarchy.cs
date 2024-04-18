@@ -4,16 +4,16 @@ using System.Runtime.CompilerServices;
 
 public class Hierarchy<TTag> : ReactorBase<TypeUnion<Node<TTag>>>
 {
-    public IReadOnlyDictionary<Identity, EntityRef> Nodes => _nodes;
     public IReadOnlySet<Identity> Root => _root;
 
-    private readonly EntityMap _nodes = [];
     private readonly HashSet<Identity> _root = [];
     private readonly Stack<HashSet<Identity>> _childrenPool = new();
 
     public override void OnInitialize(World world)
     {
         base.OnInitialize(world);
+
+        World.IndexHosts(Matcher);
         
         Listen((in EntityRef entity, in Node<TTag>.SetParent cmd) => {
             var id = entity.Id;
@@ -46,7 +46,7 @@ public class Hierarchy<TTag> : ReactorBase<TypeUnion<Node<TTag>>>
         Listen((in EntityRef entity, in Node<TTag>.SetIsSelfEnabled cmd) => {
             ref var node = ref entity.Get<Node<TTag>>();
             SetIsEnabledRecursively(entity, ref node,
-                node.Parent == null || Nodes[node.Parent.Value].Get<Node<TTag>>().IsEnabled);
+                node.Parent == null || World[node.Parent.Value].Get<Node<TTag>>().IsEnabled);
         });
     }
 
@@ -63,7 +63,7 @@ public class Hierarchy<TTag> : ReactorBase<TypeUnion<Node<TTag>>>
 
         if (node._children != null) {
             foreach (var childId in node._children) {
-                var child = Nodes[childId];
+                var child = World[childId];
                 ref var childNode = ref child.Get<Node<TTag>>();
                 SetIsEnabledRecursively(child, ref childNode, enabled);
             }
@@ -73,8 +73,6 @@ public class Hierarchy<TTag> : ReactorBase<TypeUnion<Node<TTag>>>
     protected override void OnEntityAdded(in EntityRef entity)
     {
         ref var node = ref entity.Get<Node<TTag>>();
-        _nodes[entity.Id] = entity;
-
         var parentId = node.Parent;
         if (parentId != null) {
             AddToParent(entity, parentId.Value);
@@ -100,19 +98,17 @@ public class Hierarchy<TTag> : ReactorBase<TypeUnion<Node<TTag>>>
         var children = node._children;
         if (children != null) {
             foreach (var child in children) {
-                _nodes[child].Dispose();
+                World[child].Dispose();
             }
             children.Clear();
             _childrenPool.Push(children);
         }
-
-        _nodes.Remove(id);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private EntityRef AddToParent(in EntityRef entity, Identity parentId)
     {
-        var parentEntity = _nodes[parentId];
+        var parentEntity = World[parentId];
         ref var parentNode = ref parentEntity.Get<Node<TTag>>();
         ref var children = ref parentNode._children;
 
@@ -126,7 +122,7 @@ public class Hierarchy<TTag> : ReactorBase<TypeUnion<Node<TTag>>>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void RemoveFromParent(in EntityRef entity, in Identity parentId)
     {
-        var parentEntity = _nodes[parentId];
+        var parentEntity = World[parentId];
         ref var parentNode = ref parentEntity.Get<Node<TTag>>();
         ref var children = ref parentNode._children;
 
