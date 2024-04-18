@@ -450,7 +450,7 @@ public static partial class EntityHostExtensions
         this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2, C3, C4, C5, C6> handler)
         => host.ForSlice(userData, handler, CurrentThreadRunner.Instance);
     
-    #endregion // ParallelRunner
+    #endregion // CurrentThreadRunner
 
     #region ParallelRunner
 
