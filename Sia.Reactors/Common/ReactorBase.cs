@@ -58,6 +58,8 @@ public abstract class ReactorBase : IAddon
 public abstract class ReactorBase<TTypeUnion> : ReactorBase
     where TTypeUnion : ITypeUnion, new()
 {
+    protected IEntityMatcher Matcher { get; } = Matchers.From<TTypeUnion>();
+
     [AllowNull]
     protected IReactiveEntityQuery Query { get; private set; }
 
@@ -65,7 +67,7 @@ public abstract class ReactorBase<TTypeUnion> : ReactorBase
     {
         base.OnInitialize(world);
 
-        Query = world.Query<TTypeUnion>();
+        Query = world.Query(Matcher);
         Query.OnEntityHostAdded += OnEntityHostAdded;
 
         foreach (var host in Query.Hosts) {
