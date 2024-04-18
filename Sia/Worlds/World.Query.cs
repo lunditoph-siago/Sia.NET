@@ -1,5 +1,7 @@
 namespace Sia;
 
+using System.Runtime.CompilerServices;
+
 public partial class World
 {
     public sealed class EntityQuery : IReactiveEntityQuery
@@ -80,5 +82,59 @@ public partial class World
             World = null!;
             Matcher = null!;
         }
+    }
+
+    public IReadOnlyDictionary<IEntityMatcher, EntityQuery> Queries => _queries;
+
+    internal readonly Dictionary<IEntityMatcher, EntityQuery> _queries = [];
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Query<TTypeUnion>(EntityHandler handler)
+        where TTypeUnion : ITypeUnion, new()
+        => Query(Matchers.From<TTypeUnion>(), handler);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Query(IEntityMatcher matcher, EntityHandler handler)
+    {
+        foreach (var host in _hosts.ValueSpan) {
+            if (host.Count != 0 && matcher.Match(host)) {
+                foreach (var entity in host) {
+                    handler(entity);
+                }
+            }
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Query<TData>(IEntityMatcher matcher, in TData data, EntityHandler<TData> handler)
+    {
+        var hosts = _hosts.UnsafeRawValues;
+        for (int i = 0; i != hosts.Count; ++i) {
+            var host = hosts[i];
+            if (host.Count != 0 && matcher.Match(host)) {
+                foreach (var entity in host) {
+                    handler(data, entity);
+                }
+            }
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public IReactiveEntityQuery Query<TTypeUnion>()
+        where TTypeUnion : ITypeUnion, new()
+        => Query(Matchers.From<TTypeUnion>());
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public IReactiveEntityQuery Query(IEntityMatcher matcher)
+    {
+        if (matcher == Matchers.Any) {
+            return this;
+        }
+        if (_queries.TryGetValue(matcher, out var query)) {
+            return query;
+        }
+        query = new(this, matcher);
+        _queries.Add(matcher, query);
+        return query;
     }
 }
