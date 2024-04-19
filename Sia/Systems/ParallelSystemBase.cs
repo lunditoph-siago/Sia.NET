@@ -9,7 +9,11 @@ public abstract class ParallelSystemBase<C1>(
     public IRunner Runner { get; } = runner ?? ParallelRunner.Default;
 
     public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
-        => query.ForSlice<IRunner, C1>(HandleSlice, Runner);
+    {
+        var barrier = RunnerBarrier.Get();
+        query.ForSlice<IRunner, C1>(HandleSlice, Runner, barrier);
+        barrier.WaitAndReturn();
+    }
 
     protected abstract void HandleSlice(ref C1 c1);
 }
@@ -23,7 +27,11 @@ public abstract class ParallelSystemBase<C1, C2>(
     public IRunner Runner { get; } = runner ?? ParallelRunner.Default;
 
     public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
-        => query.ForSlice<IRunner, C1, C2>(OnExecute, Runner);
+    {
+        var barrier = RunnerBarrier.Get();
+        query.ForSlice<IRunner, C1, C2>(OnExecute, Runner, barrier);
+        barrier.WaitAndReturn();
+    }
 
     protected abstract void OnExecute(ref C1 c1, ref C2 c2);
 }
@@ -37,7 +45,11 @@ public abstract class ParallelSystemBase<C1, C2, C3>(
     public IRunner Runner { get; } = runner ?? ParallelRunner.Default;
 
     public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
-        => query.ForSlice<IRunner, C1, C2, C3>(OnExecute, Runner);
+    {
+        var barrier = RunnerBarrier.Get();
+        query.ForSlice<IRunner, C1, C2, C3>(OnExecute, Runner, barrier);
+        barrier.WaitAndReturn();
+    }
 
     protected abstract void OnExecute(ref C1 c1, ref C2 c2, ref C3 c3);
 }
@@ -51,7 +63,11 @@ public abstract class ParallelSystemBase<C1, C2, C3, C4>(
     public IRunner Runner { get; } = runner ?? ParallelRunner.Default;
 
     public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
-        => query.ForSlice<IRunner, C1, C2, C3, C4>(OnExecute, Runner);
+    {
+        var barrier = RunnerBarrier.Get();
+        query.ForSlice<IRunner, C1, C2, C3, C4>(OnExecute, Runner, barrier);
+        barrier.WaitAndReturn();
+    }
 
     protected abstract void OnExecute(ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4);
 }
@@ -65,7 +81,11 @@ public abstract class ParallelSystemBase<C1, C2, C3, C4, C5>(
     public IRunner Runner { get; } = runner ?? ParallelRunner.Default;
 
     public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
-        => query.ForSlice<IRunner, C1, C2, C3, C4, C5>(OnExecute, Runner);
+    {
+        var barrier = RunnerBarrier.Get();
+        query.ForSlice<IRunner, C1, C2, C3, C4, C5>(OnExecute, Runner, barrier);
+        barrier.WaitAndReturn();
+    }
 
     protected abstract void OnExecute(ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4, ref C5 c5);
 }
@@ -79,7 +99,11 @@ public abstract class ParallelSystemBase<C1, C2, C3, C4, C5, C6>(
     public IRunner Runner { get; } = runner ?? ParallelRunner.Default;
 
     public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
-        => query.ForSlice<IRunner, C1, C2, C3, C4, C5, C6>(OnExecute, Runner);
+    {
+        var barrier = RunnerBarrier.Get();
+        query.ForSlice<IRunner, C1, C2, C3, C4, C5, C6>(OnExecute, Runner, barrier);
+        barrier.WaitAndReturn();
+    }
 
     protected abstract void OnExecute(ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4, ref C5 c5, ref C6 c6);
 }

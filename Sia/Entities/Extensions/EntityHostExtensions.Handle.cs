@@ -11,7 +11,7 @@ public static partial class EntityHostExtensions
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void Handle<TRunner>(
-        this IEntityHost host, EntityHostRangeHandler handler, TRunner runner, RunnerBarrier barrier)
+        this IEntityHost host, EntityHostRangeHandler handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
         var count = host.Count;
@@ -25,19 +25,9 @@ public static partial class EntityHostExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe void Handle<TRunner>(
-        this IEntityHost host, EntityHostRangeHandler handler, TRunner runner)
-        where TRunner : IRunner
-    {
-        var barrier = RunnerBarrier.Get();
-        host.Handle(handler, runner, barrier);
-        barrier.WaitAndReturn();
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void Handle<TRunner, TData>(
         this IEntityHost host, in TData userData, EntityHostRangeHandler<TData> handler,
-        TRunner runner, RunnerBarrier barrier)
+        TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
         var count = host.Count;
@@ -50,23 +40,39 @@ public static partial class EntityHostExtensions
             barrier);
     }
 
+    #region CurrentThreadRunner
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe void Handle<TRunner, TData>(
-        this IEntityHost host, in TData userData, EntityHostRangeHandler<TData> handler, TRunner runner)
-        where TRunner : IRunner
-    {
-        var barrier = RunnerBarrier.Get();
-        host.Handle(userData, handler, runner, barrier);
-        barrier.WaitAndReturn();
-    }
+    public static unsafe void Handle(
+        this IEntityHost host, EntityHostRangeHandler handler)
+        => host.Handle(handler, CurrentThreadRunner.Instance, barrier: null);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static unsafe void Handle<TData>(
+        this IEntityHost host, in TData data, EntityHostRangeHandler<TData> handler)
+        => host.Handle(data, handler, CurrentThreadRunner.Instance, barrier: null);
+
+    #endregion // CurrentThreadRunner
+
+    #region ParallelRunner
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void HandleOnParallel(
         this IEntityHost host, EntityHostRangeHandler handler)
-        => host.Handle(handler, ParallelRunner.Default);
+    {
+        var barrier = RunnerBarrier.Get();
+        host.Handle(handler, ParallelRunner.Default, barrier);
+        barrier.WaitAndReturn();
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void HandleOnParallel<TData>(
         this IEntityHost host, in TData data, EntityHostRangeHandler<TData> handler)
-        => host.Handle(data, handler, ParallelRunner.Default);
+    {
+        var barrier = RunnerBarrier.Get();
+        host.Handle(data, handler, ParallelRunner.Default, barrier);
+        barrier.WaitAndReturn();
+    }
+    
+    #endregion // ParallelRunner
 }
