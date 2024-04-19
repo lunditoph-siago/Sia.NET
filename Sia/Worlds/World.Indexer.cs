@@ -11,7 +11,9 @@ public partial class World
     public void IndexHosts(IEntityMatcher matcher)
     {
         var query = Query(matcher);
-        _indexerQueries.Add(query);
+        if (!_indexerQueries.Add(query)) {
+            return;
+        }
 
         query.OnEntityHostAdded += IndexHost;
         query.OnEntityHostRemoved += UnindexHost;
