@@ -56,7 +56,7 @@ public static partial class EntityHostExtensions
         where TRunner : IRunner
     {
         var barrier = RunnerBarrier.Get();
-        host.Handle(userData, handler, runner);
+        host.Handle(userData, handler, runner, barrier);
         barrier.WaitAndReturn();
     }
 
