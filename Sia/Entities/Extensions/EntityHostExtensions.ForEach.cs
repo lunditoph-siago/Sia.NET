@@ -8,7 +8,7 @@ public static partial class EntityHostExtensions
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void ForEach<TRunner>(
-        this IEntityHost host, EntityHandler handler, TRunner runner)
+        this IEntityHost host, EntityHandler handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => host.Handle(handler,
             static (IEntityHost host, in EntityHandler handler, int from, int to) => {
@@ -16,11 +16,11 @@ public static partial class EntityHostExtensions
                 for (int i = from; i != to; ++i) {
                     handler(new(slosts[i], host));
                 }
-            }, runner);
+            }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void ForEach<TRunner, TData>(
-        this IEntityHost host, in TData userData, EntityHandler<TData> handler, TRunner runner)
+        this IEntityHost host, in TData userData, EntityHandler<TData> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => host.Handle((userData, handler),
             static (IEntityHost host, in (TData, EntityHandler<TData>) entry, int from, int to) => {
@@ -30,43 +30,43 @@ public static partial class EntityHostExtensions
                 for (int i = from; i != to; ++i) {
                     handler(data, new(slosts[i], host));
                 }
-            }, runner);
+            }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void ForEach<TRunner>(
-        this IEntityHost host, SimpleEntityHandler handler, TRunner runner)
+        this IEntityHost host, SimpleEntityHandler handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => host.ForEach(handler,
             static (in SimpleEntityHandler handler, in EntityRef entity)
-                => handler(entity), runner);
+                => handler(entity), runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void ForEach<TRunner, TData>(
-        this IEntityHost host, in TData userData, SimpleEntityHandler<TData> handler, TRunner runner)
+        this IEntityHost host, in TData userData, SimpleEntityHandler<TData> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => host.ForEach((handler, userData),
             static (in (SimpleEntityHandler<TData>, TData) data, in EntityRef entity)
-                => data.Item1(data.Item2, entity), runner);
+                => data.Item1(data.Item2, entity), runner, barrier);
 
     #region CurrentThreadRunner
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void ForEach(this IEntityHost host, EntityHandler handler)
-        => host.ForEach(handler, CurrentThreadRunner.Instance);
+        => host.ForEach(handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void ForEach<TData>(
         this IEntityHost host, in TData data, EntityHandler<TData> handler)
-        => host.ForEach(data, handler, CurrentThreadRunner.Instance);
+        => host.ForEach(data, handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void ForEach(this IEntityHost host, SimpleEntityHandler handler)
-        => host.ForEach(handler, CurrentThreadRunner.Instance);
+        => host.ForEach(handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void ForEach<TData>(
         this IEntityHost host, in TData data, SimpleEntityHandler<TData> handler)
-        => host.ForEach(data, handler, CurrentThreadRunner.Instance);
+        => host.ForEach(data, handler, CurrentThreadRunner.Instance, barrier: null);
     
     #endregion // CurrentThreadRunner
 
@@ -74,21 +74,37 @@ public static partial class EntityHostExtensions
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void ForEachOnParallel(this IEntityHost host, EntityHandler handler)
-        => host.ForEach(handler, ParallelRunner.Default);
+    {
+        var barrier = RunnerBarrier.Get();
+        host.ForEach(handler, ParallelRunner.Default, barrier);
+        barrier.WaitAndReturn();
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void ForEachOnParallel<TData>(
         this IEntityHost host, in TData data, EntityHandler<TData> handler)
-        => host.ForEach(data, handler, ParallelRunner.Default);
+    {
+        var barrier = RunnerBarrier.Get();
+        host.ForEach(data, handler, ParallelRunner.Default, barrier);
+        barrier.WaitAndReturn();
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void ForEachOnParallel(this IEntityHost host, SimpleEntityHandler handler)
-        => host.ForEach(handler, ParallelRunner.Default);
+    {
+        var barrier = RunnerBarrier.Get();
+        host.ForEach(handler, ParallelRunner.Default, barrier);
+        barrier.WaitAndReturn();
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void ForEachOnParallel<TData>(
         this IEntityHost host, in TData data, SimpleEntityHandler<TData> handler)
-        => host.ForEach(data, handler, ParallelRunner.Default);
+    {
+        var barrier = RunnerBarrier.Get();
+        host.ForEach(data, handler, ParallelRunner.Default, barrier);
+        barrier.WaitAndReturn();
+    }
     
     #endregion // ParallelRunner
 
@@ -98,7 +114,7 @@ public static partial class EntityHostExtensions
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSlice<TRunner, C1>(
-        this IEntityHost host, ComponentHandler<C1> handler, TRunner runner)
+        this IEntityHost host, ComponentHandler<C1> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => host.Handle(handler,
             static (IEntityHost host, in ComponentHandler<C1> handler, int from, int to) => {
@@ -111,11 +127,11 @@ public static partial class EntityHostExtensions
                     ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
                     handler(ref c1Offset.Get(ref byteRef));
                 }
-            }, runner);
+            }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSlice<TRunner, C1, C2>(
-        this IEntityHost host, ComponentHandler<C1, C2> handler, TRunner runner)
+        this IEntityHost host, ComponentHandler<C1, C2> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => host.Handle(handler,
             static (IEntityHost host, in ComponentHandler<C1, C2> handler, int from, int to) => {
@@ -131,11 +147,11 @@ public static partial class EntityHostExtensions
                         ref c1Offset.Get(ref byteRef),
                         ref c2Offset.Get(ref byteRef));
                 }
-            }, runner);
+            }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSlice<TRunner, C1, C2, C3>(
-        this IEntityHost host, ComponentHandler<C1, C2, C3> handler, TRunner runner)
+        this IEntityHost host, ComponentHandler<C1, C2, C3> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => host.Handle(handler,
             static (IEntityHost host, in ComponentHandler<C1, C2, C3> handler, int from, int to) => {
@@ -153,11 +169,11 @@ public static partial class EntityHostExtensions
                         ref c2Offset.Get(ref byteRef),
                         ref c3Offset.Get(ref byteRef));
                 }
-            }, runner);
+            }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSlice<TRunner, C1, C2, C3, C4>(
-        this IEntityHost host, ComponentHandler<C1, C2, C3, C4> handler, TRunner runner)
+        this IEntityHost host, ComponentHandler<C1, C2, C3, C4> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => host.Handle(handler,
             static (IEntityHost host, in ComponentHandler<C1, C2, C3, C4> handler, int from, int to) => {
@@ -177,11 +193,11 @@ public static partial class EntityHostExtensions
                         ref c3Offset.Get(ref byteRef),
                         ref c4Offset.Get(ref byteRef));
                 }
-            }, runner);
+            }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSlice<TRunner, C1, C2, C3, C4, C5>(
-        this IEntityHost host, ComponentHandler<C1, C2, C3, C4, C5> handler, TRunner runner)
+        this IEntityHost host, ComponentHandler<C1, C2, C3, C4, C5> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => host.Handle(handler,
             static (IEntityHost host, in ComponentHandler<C1, C2, C3, C4, C5> handler, int from, int to) => {
@@ -203,11 +219,11 @@ public static partial class EntityHostExtensions
                         ref c4Offset.Get(ref byteRef),
                         ref c5Offset.Get(ref byteRef));
                 }
-            }, runner);
+            }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSlice<TRunner, C1, C2, C3, C4, C5, C6>(
-        this IEntityHost host, ComponentHandler<C1, C2, C3, C4, C5, C6> handler, TRunner runner)
+        this IEntityHost host, ComponentHandler<C1, C2, C3, C4, C5, C6> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => host.Handle(handler,
             static (IEntityHost host, in ComponentHandler<C1, C2, C3, C4, C5, C6> handler, int from, int to) => {
@@ -231,11 +247,11 @@ public static partial class EntityHostExtensions
                         ref c5Offset.Get(ref byteRef),
                         ref c6Offset.Get(ref byteRef));
                 }
-            }, runner);
+            }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSlice<TRunner, TData, C1>(
-        this IEntityHost host, in TData userData, DataComponentHandler<TData, C1> handler, TRunner runner)
+        this IEntityHost host, in TData userData, DataComponentHandler<TData, C1> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => host.Handle((handler, userData),
             static (IEntityHost host, in (DataComponentHandler<TData, C1>, TData) data, int from, int to) => {
@@ -251,11 +267,11 @@ public static partial class EntityHostExtensions
                     ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
                     handler(userData, ref c1Offset.Get(ref byteRef));
                 }
-            }, runner);
+            }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSlice<TRunner, TData, C1, C2>(
-        this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2> handler, TRunner runner)
+        this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => host.Handle((handler, userData),
             static (IEntityHost host, in (DataComponentHandler<TData, C1, C2>, TData) data, int from, int to) => {
@@ -274,11 +290,11 @@ public static partial class EntityHostExtensions
                         ref c1Offset.Get(ref byteRef),
                         ref c2Offset.Get(ref byteRef));
                 }
-            }, runner);
+            }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSlice<TRunner, TData, C1, C2, C3>(
-        this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2, C3> handler, TRunner runner)
+        this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2, C3> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => host.Handle((handler, userData),
             static (IEntityHost host, in (DataComponentHandler<TData, C1, C2, C3>, TData) data, int from, int to) => {
@@ -299,11 +315,11 @@ public static partial class EntityHostExtensions
                         ref c2Offset.Get(ref byteRef),
                         ref c3Offset.Get(ref byteRef));
                 }
-            }, runner);
+            }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSlice<TRunner, TData, C1, C2, C3, C4>(
-        this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2, C3, C4> handler, TRunner runner)
+        this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2, C3, C4> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => host.Handle((handler, userData),
             static (IEntityHost host, in (DataComponentHandler<TData, C1, C2, C3, C4>, TData) data, int from, int to) => {
@@ -326,11 +342,11 @@ public static partial class EntityHostExtensions
                         ref c3Offset.Get(ref byteRef),
                         ref c4Offset.Get(ref byteRef));
                 }
-            }, runner);
+            }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSlice<TRunner, TData, C1, C2, C3, C4, C5>(
-        this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2, C3, C4, C5> handler, TRunner runner)
+        this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2, C3, C4, C5> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => host.Handle((handler, userData),
             static (IEntityHost host, in (DataComponentHandler<TData, C1, C2, C3, C4, C5>, TData) data, int from, int to) => {
@@ -355,11 +371,11 @@ public static partial class EntityHostExtensions
                         ref c4Offset.Get(ref byteRef),
                         ref c5Offset.Get(ref byteRef));
                 }
-            }, runner);
+            }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSlice<TRunner, TData, C1, C2, C3, C4, C5, C6>(
-        this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2, C3, C4, C5, C6> handler, TRunner runner)
+        this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2, C3, C4, C5, C6> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => host.Handle((handler, userData),
             static (IEntityHost host, in (DataComponentHandler<TData, C1, C2, C3, C4, C5, C6>, TData) data, int from, int to) => {
@@ -386,69 +402,69 @@ public static partial class EntityHostExtensions
                         ref c5Offset.Get(ref byteRef),
                         ref c6Offset.Get(ref byteRef));
                 }
-            }, runner);
+            }, runner, barrier);
 
     #region CurrentThreadRunner
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSlice<C1>(
         this IEntityHost host, ComponentHandler<C1> handler)
-        => host.ForSlice(handler, CurrentThreadRunner.Instance);
+        => host.ForSlice(handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSlice<C1, C2>(
         this IEntityHost host, ComponentHandler<C1, C2> handler)
-        => host.ForSlice(handler, CurrentThreadRunner.Instance);
+        => host.ForSlice(handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSlice<C1, C2, C3>(
         this IEntityHost host, ComponentHandler<C1, C2, C3> handler)
-        => host.ForSlice(handler, CurrentThreadRunner.Instance);
+        => host.ForSlice(handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSlice<C1, C2, C3, C4>(
         this IEntityHost host, ComponentHandler<C1, C2, C3, C4> handler)
-        => host.ForSlice(handler, CurrentThreadRunner.Instance);
+        => host.ForSlice(handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSlice<C1, C2, C3, C4, C5>(
         this IEntityHost host, ComponentHandler<C1, C2, C3, C4, C5> handler)
-        => host.ForSlice(handler, CurrentThreadRunner.Instance);
+        => host.ForSlice(handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSlice<C1, C2, C3, C4, C5, C6>(
         this IEntityHost host, ComponentHandler<C1, C2, C3, C4, C5, C6> handler)
-        => host.ForSlice(handler, CurrentThreadRunner.Instance);
+        => host.ForSlice(handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSlice<TData, C1>(
         this IEntityHost host, in TData userData, DataComponentHandler<TData, C1> handler)
-        => host.ForSlice(userData, handler, CurrentThreadRunner.Instance);
+        => host.ForSlice(userData, handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSlice<TData, C1, C2>(
         this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2> handler)
-        => host.ForSlice(userData, handler, CurrentThreadRunner.Instance);
+        => host.ForSlice(userData, handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSlice<TData, C1, C2, C3>(
         this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2, C3> handler)
-        => host.ForSlice(userData, handler, CurrentThreadRunner.Instance);
+        => host.ForSlice(userData, handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSlice<TData, C1, C2, C3, C4>(
         this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2, C3, C4> handler)
-        => host.ForSlice(userData, handler, CurrentThreadRunner.Instance);
+        => host.ForSlice(userData, handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSlice<TData, C1, C2, C3, C4, C5>(
         this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2, C3, C4, C5> handler)
-        => host.ForSlice(userData, handler, CurrentThreadRunner.Instance);
+        => host.ForSlice(userData, handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSlice<TData, C1, C2, C3, C4, C5, C6>(
         this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2, C3, C4, C5, C6> handler)
-        => host.ForSlice(userData, handler, CurrentThreadRunner.Instance);
+        => host.ForSlice(userData, handler, CurrentThreadRunner.Instance, barrier: null);
     
     #endregion // CurrentThreadRunner
 
@@ -457,62 +473,110 @@ public static partial class EntityHostExtensions
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSliceOnParallel<C1>(
         this IEntityHost host, ComponentHandler<C1> handler)
-        => host.ForSlice(handler, ParallelRunner.Default);
+    {
+        var barrier = RunnerBarrier.Get();
+        host.ForSlice(handler, ParallelRunner.Default, barrier);
+        barrier.WaitAndReturn();
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSliceOnParallel<C1, C2>(
         this IEntityHost host, ComponentHandler<C1, C2> handler)
-        => host.ForSlice(handler, ParallelRunner.Default);
+    {
+        var barrier = RunnerBarrier.Get();
+        host.ForSlice(handler, ParallelRunner.Default, barrier);
+        barrier.WaitAndReturn();
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSliceOnParallel<C1, C2, C3>(
         this IEntityHost host, ComponentHandler<C1, C2, C3> handler)
-        => host.ForSlice(handler, ParallelRunner.Default);
+    {
+        var barrier = RunnerBarrier.Get();
+        host.ForSlice(handler, ParallelRunner.Default, barrier);
+        barrier.WaitAndReturn();
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSliceOnParallel<C1, C2, C3, C4>(
         this IEntityHost host, ComponentHandler<C1, C2, C3, C4> handler)
-        => host.ForSlice(handler, ParallelRunner.Default);
+    {
+        var barrier = RunnerBarrier.Get();
+        host.ForSlice(handler, ParallelRunner.Default, barrier);
+        barrier.WaitAndReturn();
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSliceOnParallel<C1, C2, C3, C4, C5>(
         this IEntityHost host, ComponentHandler<C1, C2, C3, C4, C5> handler)
-        => host.ForSlice(handler, ParallelRunner.Default);
+    {
+        var barrier = RunnerBarrier.Get();
+        host.ForSlice(handler, ParallelRunner.Default, barrier);
+        barrier.WaitAndReturn();
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSliceOnParallel<C1, C2, C3, C4, C5, C6>(
         this IEntityHost host, ComponentHandler<C1, C2, C3, C4, C5, C6> handler)
-        => host.ForSlice(handler, ParallelRunner.Default);
+    {
+        var barrier = RunnerBarrier.Get();
+        host.ForSlice(handler, ParallelRunner.Default, barrier);
+        barrier.WaitAndReturn();
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSliceOnParallel<TData, C1>(
         this IEntityHost host, in TData userData, DataComponentHandler<TData, C1> handler)
-        => host.ForSlice(userData, handler, ParallelRunner.Default);
+    {
+        var barrier = RunnerBarrier.Get();
+        host.ForSlice(userData, handler, ParallelRunner.Default, barrier);
+        barrier.WaitAndReturn();
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSliceOnParallel<TData, C1, C2>(
         this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2> handler)
-        => host.ForSlice(userData, handler, ParallelRunner.Default);
+    {
+        var barrier = RunnerBarrier.Get();
+        host.ForSlice(userData, handler, ParallelRunner.Default, barrier);
+        barrier.WaitAndReturn();
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSliceOnParallel<TData, C1, C2, C3>(
         this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2, C3> handler)
-        => host.ForSlice(userData, handler, ParallelRunner.Default);
+    {
+        var barrier = RunnerBarrier.Get();
+        host.ForSlice(userData, handler, ParallelRunner.Default, barrier);
+        barrier.WaitAndReturn();
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSliceOnParallel<TData, C1, C2, C3, C4>(
         this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2, C3, C4> handler)
-        => host.ForSlice(userData, handler, ParallelRunner.Default);
+    {
+        var barrier = RunnerBarrier.Get();
+        host.ForSlice(userData, handler, ParallelRunner.Default, barrier);
+        barrier.WaitAndReturn();
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSliceOnParallel<TData, C1, C2, C3, C4, C5>(
         this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2, C3, C4, C5> handler)
-        => host.ForSlice(userData, handler, ParallelRunner.Default);
+    {
+        var barrier = RunnerBarrier.Get();
+        host.ForSlice(userData, handler, ParallelRunner.Default, barrier);
+        barrier.WaitAndReturn();
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void ForSliceOnParallel<TData, C1, C2, C3, C4, C5, C6>(
         this IEntityHost host, in TData userData, DataComponentHandler<TData, C1, C2, C3, C4, C5, C6> handler)
-        => host.ForSlice(userData, handler, ParallelRunner.Default);
+    {
+        var barrier = RunnerBarrier.Get();
+        host.ForSlice(userData, handler, ParallelRunner.Default, barrier);
+        barrier.WaitAndReturn();
+    }
     
     #endregion // ParallelRunner
 
@@ -522,7 +586,7 @@ public static partial class EntityHostExtensions
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void Filter<TRunner, C1>(
-        this IEntityHost host, ComponentFilter<C1> filter, EntityHandler handler, TRunner runner)
+        this IEntityHost host, ComponentFilter<C1> filter, EntityHandler handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => host.Handle((filter, handler),
             static (IEntityHost host, in (ComponentFilter<C1>, EntityHandler) fs, int from, int to) => {
@@ -540,11 +604,11 @@ public static partial class EntityHostExtensions
                         handler(new(slot, host));
                     }
                 }
-            }, runner);
+            }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void Filter<TRunner, C1, C2>(
-        this IEntityHost host, ComponentFilter<C1, C2> filter, EntityHandler handler, TRunner runner)
+        this IEntityHost host, ComponentFilter<C1, C2> filter, EntityHandler handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => host.Handle((filter, handler),
             static (IEntityHost host, in (ComponentFilter<C1, C2>, EntityHandler) fs, int from, int to) => {
@@ -565,11 +629,11 @@ public static partial class EntityHostExtensions
                         handler(new(slot, host));
                     }
                 }
-            }, runner);
+            }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void Filter<TRunner, C1, C2, C3>(
-        this IEntityHost host, ComponentFilter<C1, C2, C3> filter, EntityHandler handler, TRunner runner)
+        this IEntityHost host, ComponentFilter<C1, C2, C3> filter, EntityHandler handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => host.Handle((filter, handler),
             static (IEntityHost host, in (ComponentFilter<C1, C2, C3>, EntityHandler) fs, int from, int to) => {
@@ -592,11 +656,11 @@ public static partial class EntityHostExtensions
                         handler(new(slot, host));
                     }
                 }
-            }, runner);
+            }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void Filter<TRunner, C1, C2, C3, C4>(
-        this IEntityHost host, ComponentFilter<C1, C2, C3, C4> filter, EntityHandler handler, TRunner runner)
+        this IEntityHost host, ComponentFilter<C1, C2, C3, C4> filter, EntityHandler handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => host.Handle((filter, handler),
             static (IEntityHost host, in (ComponentFilter<C1, C2, C3, C4>, EntityHandler) fs, int from, int to) => {
@@ -621,11 +685,11 @@ public static partial class EntityHostExtensions
                         handler(new(slot, host));
                     }
                 }
-            }, runner);
+            }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void Filter<TRunner, C1, C2, C3, C4, C5>(
-        this IEntityHost host, ComponentFilter<C1, C2, C3, C4, C5> filter, EntityHandler handler, TRunner runner)
+        this IEntityHost host, ComponentFilter<C1, C2, C3, C4, C5> filter, EntityHandler handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => host.Handle((filter, handler),
             static (IEntityHost host, in (ComponentFilter<C1, C2, C3, C4, C5>, EntityHandler) fs, int from, int to) => {
@@ -652,11 +716,11 @@ public static partial class EntityHostExtensions
                         handler(new(slot, host));
                     }
                 }
-            }, runner);
+            }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void Filter<TRunner, C1, C2, C3, C4, C5, C6>(
-        this IEntityHost host, ComponentFilter<C1, C2, C3, C4, C5, C6> filter, EntityHandler handler, TRunner runner)
+        this IEntityHost host, ComponentFilter<C1, C2, C3, C4, C5, C6> filter, EntityHandler handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => host.Handle((filter, handler),
             static (IEntityHost host, in (ComponentFilter<C1, C2, C3, C4, C5, C6>, EntityHandler) fs, int from, int to) => {
@@ -685,11 +749,11 @@ public static partial class EntityHostExtensions
                         handler(new(slot, host));
                     }
                 }
-            }, runner);
+            }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void Filter<TRunner, TData, C1>(
-        this IEntityHost host, in TData userData, DataComponentFilter<TData, C1> filter, EntityHandler<TData> handler, TRunner runner)
+        this IEntityHost host, in TData userData, DataComponentFilter<TData, C1> filter, EntityHandler<TData> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => host.Handle((filter, handler, userData),
             static (IEntityHost host, in (DataComponentFilter<TData, C1>, EntityHandler<TData>, TData) data, int from, int to) => {
@@ -710,11 +774,11 @@ public static partial class EntityHostExtensions
                         handler(userData, new(slot, host));
                     }
                 }
-            }, runner);
+            }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void Filter<TRunner, TData, C1, C2>(
-        this IEntityHost host, in TData userData, DataComponentFilter<TData, C1, C2> filter, EntityHandler<TData> handler, TRunner runner)
+        this IEntityHost host, in TData userData, DataComponentFilter<TData, C1, C2> filter, EntityHandler<TData> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => host.Handle((filter, handler, userData),
             static (IEntityHost host, in (DataComponentFilter<TData, C1, C2>, EntityHandler<TData>, TData) data, int from, int to) => {
@@ -738,11 +802,11 @@ public static partial class EntityHostExtensions
                         handler(userData, new(slot, host));
                     }
                 }
-            }, runner);
+            }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void Filter<TRunner, TData, C1, C2, C3>(
-        this IEntityHost host, in TData userData, DataComponentFilter<TData, C1, C2, C3> filter, EntityHandler<TData> handler, TRunner runner)
+        this IEntityHost host, in TData userData, DataComponentFilter<TData, C1, C2, C3> filter, EntityHandler<TData> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => host.Handle((filter, handler, userData),
             static (IEntityHost host, in (DataComponentFilter<TData, C1, C2, C3>, EntityHandler<TData>, TData) data, int from, int to) => {
@@ -768,11 +832,11 @@ public static partial class EntityHostExtensions
                         handler(userData, new(slot, host));
                     }
                 }
-            }, runner);
+            }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void Filter<TRunner, TData, C1, C2, C3, C4>(
-        this IEntityHost host, in TData userData, DataComponentFilter<TData, C1, C2, C3, C4> filter, EntityHandler<TData> handler, TRunner runner)
+        this IEntityHost host, in TData userData, DataComponentFilter<TData, C1, C2, C3, C4> filter, EntityHandler<TData> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => host.Handle((filter, handler, userData),
             static (IEntityHost host, in (DataComponentFilter<TData, C1, C2, C3, C4>, EntityHandler<TData>, TData) data, int from, int to) => {
@@ -800,11 +864,11 @@ public static partial class EntityHostExtensions
                         handler(userData, new(slot, host));
                     }
                 }
-            }, runner);
+            }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void Filter<TRunner, TData, C1, C2, C3, C4, C5>(
-        this IEntityHost host, in TData userData, DataComponentFilter<TData, C1, C2, C3, C4, C5> filter, EntityHandler<TData> handler, TRunner runner)
+        this IEntityHost host, in TData userData, DataComponentFilter<TData, C1, C2, C3, C4, C5> filter, EntityHandler<TData> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => host.Handle((filter, handler, userData),
             static (IEntityHost host, in (DataComponentFilter<TData, C1, C2, C3, C4, C5>, EntityHandler<TData>, TData) data, int from, int to) => {
@@ -834,11 +898,11 @@ public static partial class EntityHostExtensions
                         handler(userData, new(slot, host));
                     }
                 }
-            }, runner);
+            }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void Filter<TRunner, TData, C1, C2, C3, C4, C5, C6>(
-        this IEntityHost host, in TData userData, DataComponentFilter<TData, C1, C2, C3, C4, C5, C6> filter, EntityHandler<TData> handler, TRunner runner)
+        this IEntityHost host, in TData userData, DataComponentFilter<TData, C1, C2, C3, C4, C5, C6> filter, EntityHandler<TData> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => host.Handle((filter, handler, userData),
             static (IEntityHost host, in (DataComponentFilter<TData, C1, C2, C3, C4, C5, C6>, EntityHandler<TData>, TData) data, int from, int to) => {
@@ -870,133 +934,181 @@ public static partial class EntityHostExtensions
                         handler(userData, new(slot, host));
                     }
                 }
-            }, runner);
+            }, runner, barrier);
 
     #region CurrentThreadRunner
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void Filter<C1>(
         this IEntityHost host, ComponentFilter<C1> filter, EntityHandler handler)
-        => host.Filter(filter, handler, CurrentThreadRunner.Instance);
+        => host.Filter(filter, handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void Filter<C1, C2>(
         this IEntityHost host, ComponentFilter<C1, C2> filter, EntityHandler handler)
-        => host.Filter(filter, handler, CurrentThreadRunner.Instance);
+        => host.Filter(filter, handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void Filter<C1, C2, C3>(
         this IEntityHost host, ComponentFilter<C1, C2, C3> filter, EntityHandler handler)
-        => host.Filter(filter, handler, CurrentThreadRunner.Instance);
+        => host.Filter(filter, handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void Filter<C1, C2, C3, C4>(
         this IEntityHost host, ComponentFilter<C1, C2, C3, C4> filter, EntityHandler handler)
-        => host.Filter(filter, handler, CurrentThreadRunner.Instance);
+        => host.Filter(filter, handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void Filter<C1, C2, C3, C4, C5>(
         this IEntityHost host, ComponentFilter<C1, C2, C3, C4, C5> filter, EntityHandler handler)
-        => host.Filter(filter, handler, CurrentThreadRunner.Instance);
+        => host.Filter(filter, handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void Filter<C1, C2, C3, C4, C5, C6>(
         this IEntityHost host, ComponentFilter<C1, C2, C3, C4, C5, C6> filter, EntityHandler handler)
-        => host.Filter(filter, handler, CurrentThreadRunner.Instance);
+        => host.Filter(filter, handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void Filter<TData, C1>(
         this IEntityHost host, in TData userData, DataComponentFilter<TData, C1> filter, EntityHandler<TData> handler)
-        => host.Filter(userData, filter, handler, CurrentThreadRunner.Instance);
+        => host.Filter(userData, filter, handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void Filter<TData, C1, C2>(
         this IEntityHost host, in TData userData, DataComponentFilter<TData, C1, C2> filter, EntityHandler<TData> handler)
-        => host.Filter(userData, filter, handler, CurrentThreadRunner.Instance);
+        => host.Filter(userData, filter, handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void Filter<TData, C1, C2, C3>(
         this IEntityHost host, in TData userData, DataComponentFilter<TData, C1, C2, C3> filter, EntityHandler<TData> handler)
-        => host.Filter(userData, filter, handler, CurrentThreadRunner.Instance);
+        => host.Filter(userData, filter, handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void Filter<TData, C1, C2, C3, C4>(
         this IEntityHost host, in TData userData, DataComponentFilter<TData, C1, C2, C3, C4> filter, EntityHandler<TData> handler)
-        => host.Filter(userData, filter, handler, CurrentThreadRunner.Instance);
+        => host.Filter(userData, filter, handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void Filter<TData, C1, C2, C3, C4, C5>(
         this IEntityHost host, in TData userData, DataComponentFilter<TData, C1, C2, C3, C4, C5> filter, EntityHandler<TData> handler)
-        => host.Filter(userData, filter, handler, CurrentThreadRunner.Instance);
+        => host.Filter(userData, filter, handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void Filter<TData, C1, C2, C3, C4, C5, C6>(
         this IEntityHost host, in TData userData, DataComponentFilter<TData, C1, C2, C3, C4, C5, C6> filter, EntityHandler<TData> handler)
-        => host.Filter(userData, filter, handler, CurrentThreadRunner.Instance);
+        => host.Filter(userData, filter, handler, CurrentThreadRunner.Instance, barrier: null);
     
-    #endregion // ParallelRunner
+    #endregion // CurrentThreadRunner
 
     #region ParallelRunner
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void FilterOnParallel<C1>(
         this IEntityHost host, ComponentFilter<C1> filter, EntityHandler handler)
-        => host.Filter(filter, handler, ParallelRunner.Default);
+    {
+        var barrier = RunnerBarrier.Get();
+        host.Filter(filter, handler, ParallelRunner.Default, barrier);
+        barrier.WaitAndReturn();
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void FilterOnParallel<C1, C2>(
         this IEntityHost host, ComponentFilter<C1, C2> filter, EntityHandler handler)
-        => host.Filter(filter, handler, ParallelRunner.Default);
+    {
+        var barrier = RunnerBarrier.Get();
+        host.Filter(filter, handler, ParallelRunner.Default, barrier);
+        barrier.WaitAndReturn();
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void FilterOnParallel<C1, C2, C3>(
         this IEntityHost host, ComponentFilter<C1, C2, C3> filter, EntityHandler handler)
-        => host.Filter(filter, handler, ParallelRunner.Default);
+    {
+        var barrier = RunnerBarrier.Get();
+        host.Filter(filter, handler, ParallelRunner.Default, barrier);
+        barrier.WaitAndReturn();
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void FilterOnParallel<C1, C2, C3, C4>(
         this IEntityHost host, ComponentFilter<C1, C2, C3, C4> filter, EntityHandler handler)
-        => host.Filter(filter, handler, ParallelRunner.Default);
+    {
+        var barrier = RunnerBarrier.Get();
+        host.Filter(filter, handler, ParallelRunner.Default, barrier);
+        barrier.WaitAndReturn();
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void FilterOnParallel<C1, C2, C3, C4, C5>(
         this IEntityHost host, ComponentFilter<C1, C2, C3, C4, C5> filter, EntityHandler handler)
-        => host.Filter(filter, handler, ParallelRunner.Default);
+    {
+        var barrier = RunnerBarrier.Get();
+        host.Filter(filter, handler, ParallelRunner.Default, barrier);
+        barrier.WaitAndReturn();
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void FilterOnParallel<C1, C2, C3, C4, C5, C6>(
         this IEntityHost host, ComponentFilter<C1, C2, C3, C4, C5, C6> filter, EntityHandler handler)
-        => host.Filter(filter, handler, ParallelRunner.Default);
+    {
+        var barrier = RunnerBarrier.Get();
+        host.Filter(filter, handler, ParallelRunner.Default, barrier);
+        barrier.WaitAndReturn();
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void FilterOnParallel<TData, C1>(
         this IEntityHost host, in TData userData, DataComponentFilter<TData, C1> filter, EntityHandler<TData> handler)
-        => host.Filter(userData, filter, handler, ParallelRunner.Default);
+    {
+        var barrier = RunnerBarrier.Get();
+        host.Filter(userData, filter, handler, ParallelRunner.Default, barrier);
+        barrier.WaitAndReturn();
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void FilterOnParallel<TData, C1, C2>(
         this IEntityHost host, in TData userData, DataComponentFilter<TData, C1, C2> filter, EntityHandler<TData> handler)
-        => host.Filter(userData, filter, handler, ParallelRunner.Default);
+    {
+        var barrier = RunnerBarrier.Get();
+        host.Filter(userData, filter, handler, ParallelRunner.Default, barrier);
+        barrier.WaitAndReturn();
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void FilterOnParallel<TData, C1, C2, C3>(
         this IEntityHost host, in TData userData, DataComponentFilter<TData, C1, C2, C3> filter, EntityHandler<TData> handler)
-        => host.Filter(userData, filter, handler, ParallelRunner.Default);
+    {
+        var barrier = RunnerBarrier.Get();
+        host.Filter(userData, filter, handler, ParallelRunner.Default, barrier);
+        barrier.WaitAndReturn();
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void FilterOnParallel<TData, C1, C2, C3, C4>(
         this IEntityHost host, in TData userData, DataComponentFilter<TData, C1, C2, C3, C4> filter, EntityHandler<TData> handler)
-        => host.Filter(userData, filter, handler, ParallelRunner.Default);
+    {
+        var barrier = RunnerBarrier.Get();
+        host.Filter(userData, filter, handler, ParallelRunner.Default, barrier);
+        barrier.WaitAndReturn();
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void FilterOnParallel<TData, C1, C2, C3, C4, C5>(
         this IEntityHost host, in TData userData, DataComponentFilter<TData, C1, C2, C3, C4, C5> filter, EntityHandler<TData> handler)
-        => host.Filter(userData, filter, handler, ParallelRunner.Default);
+    {
+        var barrier = RunnerBarrier.Get();
+        host.Filter(userData, filter, handler, ParallelRunner.Default, barrier);
+        barrier.WaitAndReturn();
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void FilterOnParallel<TData, C1, C2, C3, C4, C5, C6>(
         this IEntityHost host, in TData userData, DataComponentFilter<TData, C1, C2, C3, C4, C5, C6> filter, EntityHandler<TData> handler)
-        => host.Filter(userData, filter, handler, ParallelRunner.Default);
+    {
+        var barrier = RunnerBarrier.Get();
+        host.Filter(userData, filter, handler, ParallelRunner.Default, barrier);
+        barrier.WaitAndReturn();
+    }
     
     #endregion // ParallelRunner
 

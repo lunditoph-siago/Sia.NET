@@ -30,7 +30,7 @@ public static partial class EntityQueryExtensions
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void Handle<TRunner>(
-        this IEntityQuery query, EntityHostRangeHandler handler, TRunner runner, RunnerBarrier barrier)
+        this IEntityQuery query, EntityHostRangeHandler handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
         var count = query.Count;
@@ -67,19 +67,9 @@ public static partial class EntityQueryExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe void Handle<TRunner>(
-        this IEntityQuery query, EntityHostRangeHandler handler, TRunner runner)
-        where TRunner : IRunner
-    {
-        var barrier = RunnerBarrier.Get();
-        query.Handle(handler, runner, barrier);
-        barrier.WaitAndReturn();
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void Handle<TRunner, TData>(
         this IEntityQuery query, in TData userData, EntityHostRangeHandler<TData> handler,
-        TRunner runner, RunnerBarrier barrier)
+        TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
         var count = query.Count;
@@ -125,27 +115,17 @@ public static partial class EntityQueryExtensions
         runner.Run(count, data, Action, barrier);
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe void Handle<TRunner, TData>(
-        this IEntityQuery query, in TData userData, EntityHostRangeHandler<TData> handler, TRunner runner)
-        where TRunner : IRunner
-    {
-        var barrier = RunnerBarrier.Get();
-        query.Handle(userData, handler, runner, barrier);
-        barrier.WaitAndReturn();
-    }
-
     #region CurrentThreadRunner
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void Handle(
         this IEntityQuery query, EntityHostRangeHandler handler)
-        => query.Handle(handler, CurrentThreadRunner.Instance);
+        => query.Handle(handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void Handle<TData>(
         this IEntityQuery query, in TData data, EntityHostRangeHandler<TData> handler)
-        => query.Handle(data, handler, CurrentThreadRunner.Instance);
+        => query.Handle(data, handler, CurrentThreadRunner.Instance, barrier: null);
 
     #endregion // CurrentThreadRunner
 
@@ -154,12 +134,20 @@ public static partial class EntityQueryExtensions
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void HandleOnParallel(
         this IEntityQuery query, EntityHostRangeHandler handler)
-        => query.Handle(handler, ParallelRunner.Default);
+    {
+        var barrier = RunnerBarrier.Get();
+        query.Handle(handler, ParallelRunner.Default, barrier);
+        barrier.WaitAndReturn();
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void HandleOnParallel<TData>(
         this IEntityQuery query, in TData data, EntityHostRangeHandler<TData> handler)
-        => query.Handle(data, handler, ParallelRunner.Default);
+    {
+        var barrier = RunnerBarrier.Get();
+        query.Handle(data, handler, ParallelRunner.Default, barrier);
+        barrier.WaitAndReturn();
+    }
     
     #endregion // ParallelRunner
 }
