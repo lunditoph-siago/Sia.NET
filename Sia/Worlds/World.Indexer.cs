@@ -4,6 +4,9 @@ public partial class World
 {
     public EntityRef this[Identity id] => _indexedEntities[id];
 
+    public IReadOnlyDictionary<Identity, EntityRef> IndexedEntities => _indexedEntities;
+    public IReadOnlySet<IReactiveEntityHost> IndexedHosts => _indexedHosts;
+
     private readonly Dictionary<Identity, EntityRef> _indexedEntities = [];
     private readonly HashSet<IReactiveEntityHost> _indexedHosts = [];
     private readonly HashSet<IReactiveEntityQuery> _indexerQueries = [];
