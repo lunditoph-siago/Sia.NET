@@ -32,4 +32,7 @@ public interface IStorage<T> : IStorage
 
     ref T GetRef(scoped in StorageSlot slot);
     ref T UnsafeGetRef(scoped in StorageSlot slot);
+
+    void CreateSiblingStorage<U>(IStorageHandler<U> handler)
+        where U : struct;
 }

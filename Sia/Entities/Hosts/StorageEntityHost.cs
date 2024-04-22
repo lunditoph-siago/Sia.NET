@@ -109,7 +109,7 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage storage) : IEntityHos
 #pragma warning restore CS8500 // This takes the address of, gets the size of, or declares a pointer to a managed type
 
     protected virtual IEntityHost<UEntity> GetSiblingHost<UEntity>()
-        where UEntity : struct, IHList
+        where UEntity : IHList
         => throw new NotSupportedException("Sibling host not supported");
 
     public object Box(in StorageSlot slot)

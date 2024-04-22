@@ -7,9 +7,10 @@ using System.Runtime.CompilerServices;
 
 using static WorldHostUtils;
 
-public sealed record WrappedWorldEntityHost<TEntity, TEntityHost> : IEntityHost<TEntity>, IReactiveEntityHost
+public sealed record WrappedWorldEntityHost<TEntity, TEntityHost>(World World)
+    : IEntityHost<TEntity>, IReactiveEntityHost
     where TEntity : IHList
-    where TEntityHost : IEntityHost<TEntity>
+    where TEntityHost : IEntityHost<TEntity>, new()
 {
     public event Action<IEntityHost>? OnDisposed {
         add => _host.OnDisposed += value;
@@ -19,22 +20,16 @@ public sealed record WrappedWorldEntityHost<TEntity, TEntityHost> : IEntityHost<
     public event EntityHandler? OnEntityCreated;
     public event EntityHandler? OnEntityReleased;
 
+    public Type InnerEntityType => _host.InnerEntityType;
     public EntityDescriptor Descriptor => _host.Descriptor;
 
-    public World World { get; }
     public TEntityHost InnerHost => _host;
 
     public int Capacity => _host.Capacity;
     public int Count => _host.Count;
     public ReadOnlySpan<StorageSlot> AllocatedSlots => _host.AllocatedSlots;
 
-    private readonly TEntityHost _host;
-
-    public WrappedWorldEntityHost(World world, TEntityHost host)
-    {
-        World = world;
-        _host = host;
-    }
+    private readonly TEntityHost _host = new();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public EntityRef Create()
