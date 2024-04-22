@@ -7,26 +7,6 @@ public struct TypeProxy<T>
     public static TypeProxy<T> Default => default;
 }
 
-public interface IGenericHandler
-{
-    public void Handle<T>(in T value);
-}
-
-public interface IGenericHandler<TBase>
-{
-    public void Handle<T>(in T value) where T : TBase;
-}
-
-public interface IRefGenericHandler
-{
-    public void Handle<T>(ref T value);
-}
-
-public interface IRefGenericHandler<TBase>
-{
-    public void Handle<T>(ref T value) where T : TBase;
-}
-
 public interface IHList
 {
     public void HandleHead<THandler>(in THandler handler)
