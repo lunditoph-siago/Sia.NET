@@ -11,7 +11,7 @@ public class StorageEntityHost<TEntity>
         => new(storage);
 }
 
-public class StorageEntityHost<TEntity, TStorage>(TStorage managedStorage) : IEntityHost<TEntity>
+public class StorageEntityHost<TEntity, TStorage>(TStorage storage) : IEntityHost<TEntity>
     where TEntity : IHList
     where TStorage : IStorage<HList<Identity, TEntity>>
 {
@@ -23,7 +23,7 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage managedStorage) : IEn
     public int Count => Storage.Count;
     public ReadOnlySpan<StorageSlot> AllocatedSlots => Storage.AllocatedSlots;
 
-    public TStorage Storage { get; } = managedStorage;
+    public TStorage Storage { get; } = storage;
 
     public virtual EntityRef Create()
         => new(Storage.AllocateSlot(HList.Cons(Identity.Create(), default(TEntity)!)), this);
@@ -109,7 +109,7 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage managedStorage) : IEn
 #pragma warning restore CS8500 // This takes the address of, gets the size of, or declares a pointer to a managed type
 
     protected virtual IEntityHost<UEntity> GetSiblingHost<UEntity>()
-        where UEntity : IHList
+        where UEntity : struct, IHList
         => throw new NotSupportedException("Sibling host not supported");
 
     public object Box(in StorageSlot slot)
