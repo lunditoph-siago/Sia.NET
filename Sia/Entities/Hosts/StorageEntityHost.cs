@@ -17,6 +17,7 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage storage) : IEntityHos
 {
     public event Action<IEntityHost>? OnDisposed;
 
+    public Type InnerEntityType => typeof(TEntity);
     public EntityDescriptor Descriptor { get; } = EntityDescriptor.Get<HList<Identity, TEntity>>();
 
     public int Capacity => Storage.Capacity;
