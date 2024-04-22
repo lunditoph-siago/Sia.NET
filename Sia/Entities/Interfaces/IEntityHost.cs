@@ -4,6 +4,7 @@ public interface IEntityHost : IEnumerable<EntityRef>, IDisposable
 {
     event Action<IEntityHost>? OnDisposed;
 
+    Type InnerEntityType { get; }
     EntityDescriptor Descriptor { get; }
 
     int Capacity { get; }

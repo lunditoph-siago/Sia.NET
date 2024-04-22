@@ -33,6 +33,7 @@ public class SystemLibrary : IAddon
             remove => Host.OnDisposed -= value;
         }
 
+        public Type InnerEntityType => Host.InnerEntityType;
         public EntityDescriptor Descriptor => Host.Descriptor;
 
         public int Capacity => Host.Capacity;
