@@ -14,10 +14,9 @@ public partial class World
 
     private readonly SparseSet<IReactiveEntityHost> _hosts = [];
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool TryGetHost<TEntity, TStorage>([MaybeNullWhen(false)] out WorldEntityHost<TEntity, TStorage> host)
         where TEntity : IHList
-        where TStorage : IStorage<HList<Identity, TEntity>>
+        where TStorage : IStorage<HList<Identity, TEntity>>, new()
     {
         ref var rawHost = ref _hosts.GetValueRefOrNullRef(
             WorldEntityHostIndexer<WorldEntityHost<TEntity, TStorage>>.Index);
@@ -29,28 +28,39 @@ public partial class World
         return true;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public WorldEntityHost<TEntity, TStorage> AddHost<TEntity, TStorage>(
-        Func<World, (TStorage Storage, IEntityHostProvider SiblingHostProvider)> creator)
+    public WorldEntityHost<TEntity, TStorage> AddHost<TEntity, TStorage>()
         where TEntity : IHList
-        where TStorage : IStorage<HList<Identity, TEntity>>
+        where TStorage : IStorage<HList<Identity, TEntity>>, new()
     {
         ref var rawHost = ref _hosts.GetOrAddValueRef(
             WorldEntityHostIndexer<WorldEntityHost<TEntity, TStorage>>.Index, out bool exists);
         if (exists) {
             throw new ArgumentException("Host with the same type already exists");
         }
-        var (storage, siblingHostProvider) = creator(this);
-        var host = new WorldEntityHost<TEntity, TStorage>(this, storage, siblingHostProvider);
+        var host = new WorldEntityHost<TEntity, TStorage>(this);
         OnEntityHostAdded?.Invoke(host);
         rawHost = host;
         return host;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public WorldEntityHost<TEntity, TStorage> AcquireHost<TEntity, TStorage>()
+        where TEntity : IHList
+        where TStorage : IStorage<HList<Identity, TEntity>>, new()
+    {
+        ref var rawHost = ref _hosts.GetOrAddValueRef(
+            WorldEntityHostIndexer<WorldEntityHost<TEntity, TStorage>>.Index, out bool exists);
+        if (exists) {
+            return Unsafe.As<WorldEntityHost<TEntity, TStorage>>(rawHost);
+        }
+        var host = new WorldEntityHost<TEntity, TStorage>(this);
+        OnEntityHostAdded?.Invoke(host);
+        rawHost = host;
+        return host;
+    }
+
     public bool TryGetCustomHost<TEntity, THost>([MaybeNullWhen(false)] out WrappedWorldEntityHost<TEntity, THost> host)
         where TEntity : IHList
-        where THost : IEntityHost<TEntity>
+        where THost : IEntityHost<TEntity>, new()
     {
         ref var rawHost = ref _hosts.GetValueRefOrNullRef(
             WorldEntityHostIndexer<THost>.Index);
@@ -62,23 +72,34 @@ public partial class World
         return true;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public WrappedWorldEntityHost<TEntity, THost> AddCustomHost<TEntity, THost>(Func<World, THost> creator)
+    public WrappedWorldEntityHost<TEntity, THost> AddCustomHost<TEntity, THost>()
         where TEntity : IHList
-        where THost : IEntityHost<TEntity>
+        where THost : IEntityHost<TEntity>, new()
     {
         ref var rawHost = ref _hosts.GetOrAddValueRef(
             WorldEntityHostIndexer<THost>.Index, out bool exists);
         if (exists) {
             throw new ArgumentException("Host with the same type already exists");
         }
-        var host = new WrappedWorldEntityHost<TEntity, THost>(this, creator(this));
+        var host = new WrappedWorldEntityHost<TEntity, THost>(this);
         OnEntityHostAdded?.Invoke(host);
         rawHost = host;
         return host;
     }
+    
+    public THost UnsafeAddRawHost<THost>(THost host)
+        where THost : IReactiveEntityHost
+    {
+        ref var rawHost = ref _hosts.GetOrAddValueRef(
+            WorldEntityHostIndexer<THost>.Index, out bool exists);
+        if (exists) {
+            throw new ArgumentException("Host with the same type already exists: " + typeof(THost));
+        }
+        rawHost = host;
+        OnEntityHostAdded?.Invoke(host);
+        return host;
+    }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool ReleaseHost<THost>()
         where THost : IEntityHost
     {
@@ -90,7 +111,6 @@ public partial class World
         return false;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool TryGetHost<THost>([MaybeNullWhen(false)] out THost host)
         where THost : IEntityHost
     {
@@ -102,7 +122,6 @@ public partial class World
         return false;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool ConainsHost<THost>()
         where THost : IEntityHost
         => _hosts.ContainsKey(WorldEntityHostIndexer<THost>.Index);

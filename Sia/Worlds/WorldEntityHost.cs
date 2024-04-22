@@ -1,22 +1,41 @@
+#pragma warning disable CS8500 // This takes the address of, gets the size of, or declares a pointer to a managed type
+
 namespace Sia;
 
 using System.Runtime.CompilerServices;
 
 using static WorldHostUtils;
 
-public class WorldEntityHost<TEntity, TStorage>(
-    World world, TStorage storage, IEntityHostProvider siblingHostProvider)
+public class WorldEntityHost<TEntity, TStorage>(World world, TStorage storage)
     : StorageEntityHost<TEntity, TStorage>(storage), IReactiveEntityHost
     where TEntity : IHList
-    where TStorage : IStorage<HList<Identity, TEntity>>
+    where TStorage : IStorage<HList<Identity, TEntity>>, new()
 {
+    private unsafe readonly struct SiblingHostCreator<UEntity>(World world, IEntityHost<UEntity>* host)
+        : IStorageHandler<HList<Identity, UEntity>>
+        where UEntity : IHList
+    {
+        public void Handle<UStorage>(UStorage storage)
+            where UStorage : IStorage<HList<Identity, UEntity>>, new()
+        {
+            *host = world.TryGetHost<WorldEntityHost<UEntity, UStorage>>(out var found)
+                ? found : world.UnsafeAddRawHost(new WorldEntityHost<UEntity, UStorage>(world, storage));
+        }
+    }
+
     public event EntityHandler? OnEntityCreated;
     public event EntityHandler? OnEntityReleased;
 
     public World World { get; } = world;
 
-    protected override IEntityHost<UEntity> GetSiblingHost<UEntity>()
-        => siblingHostProvider.GetHost<UEntity>();
+    public WorldEntityHost(World world) : this(world, new()) {}
+
+    protected unsafe override IEntityHost<UEntity> GetSiblingHost<UEntity>()
+    {
+        IEntityHost<UEntity>? host = null;
+        Storage.CreateSiblingStorage(new SiblingHostCreator<UEntity>(World, &host));
+        return host!;
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public override EntityRef Create()
