@@ -7,7 +7,7 @@ using System.Text;
 
 public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
 {
-    private static readonly byte[] Dividor = Encoding.Unicode.GetBytes("+");
+    private static readonly byte[] Dividor = Encoding.Unicode.GetBytes(";");
 
     public static void Serialize<TBufferWriter>(ref TBufferWriter writer, IEntityHost host)
         where TBufferWriter : IBufferWriter<byte>
