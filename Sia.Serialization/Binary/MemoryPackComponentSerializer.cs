@@ -24,7 +24,6 @@ public readonly struct MemoryPackComponentSerializer() : IComponentSerializer
         catch (MemoryPackSerializationException) {
             return false;
         }
-        
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
