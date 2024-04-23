@@ -2,9 +2,13 @@ namespace Sia_Examples;
 
 using System.Buffers;
 using System.Text;
+using MemoryPack;
 using MemoryPack.Compression;
 using Sia;
 using Sia.Serialization.Binary;
+
+[MemoryPackable]
+public partial record struct C1(string Value);
 
 public static class Example15_Serialization
 {
@@ -12,7 +16,7 @@ public static class Example15_Serialization
     {
         var compressor = new BrotliCompressor();
 
-        world.CreateInArrayHost(HList.Create(0, "asdf"));
+        world.CreateInArrayHost(HList.Create(new C1("?"), 0, "asdf"));
         world.CreateInSparseHost(HList.Create(0, "asdf", 1324f, Math.PI));
         world.CreateInUnversionedHashHost(HList.Create(0, "asdf", 1324f, Math.PI));
 
