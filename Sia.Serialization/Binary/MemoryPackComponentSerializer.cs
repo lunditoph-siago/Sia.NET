@@ -13,20 +13,33 @@ public readonly struct MemoryPackComponentSerializer() : IComponentSerializer
         MemoryPackReaderOptionalStatePool.Rent(MemoryPackSerializerOptions.Default);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Serialize<TBufferWriter, TComponent>(
+    public bool Serialize<TBufferWriter, TComponent>(
         ref TBufferWriter writer, in TComponent component) where TBufferWriter : IBufferWriter<byte>
     {
         var mpWriter = new MemoryPackWriter<TBufferWriter>(ref writer, _writerState);
-        MemoryPackSerializer.Serialize(ref mpWriter, component);
+        try {
+            MemoryPackSerializer.Serialize(ref mpWriter, component);
+            return true;
+        }
+        catch (MemoryPackSerializationException) {
+            return false;
+        }
+        
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Deserialize<TComponent>(
+    public bool Deserialize<TComponent>(
         ref ReadOnlySequence<byte> buffer, ref TComponent component)
     {
         var mpReader = new MemoryPackReader(buffer, _readerState);
-        mpReader.ReadValue(ref component!);
-        buffer = buffer.Slice(mpReader.Consumed);
+        try {
+            mpReader.ReadValue(ref component!);
+            buffer = buffer.Slice(mpReader.Consumed);
+            return true;
+        }
+        catch (MemoryPackSerializationException) {
+            return false;
+        }
     }
 
     public void Dispose()

@@ -4,10 +4,10 @@ using System.Buffers;
 
 public interface IComponentSerializer : IDisposable
 {
-    void Serialize<TBufferWriter, TComponent>(
+    bool Serialize<TBufferWriter, TComponent>(
         ref TBufferWriter writer, in TComponent component)
         where TBufferWriter : IBufferWriter<byte>;
 
-    void Deserialize<TComponent>(
+    bool Deserialize<TComponent>(
         ref ReadOnlySequence<byte> buffer, ref TComponent component);
 }
