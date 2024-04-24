@@ -1,6 +1,6 @@
 namespace Sia;
 
-public class DynBundle : IBundle
+public record DynBundle : IBundle
 {
     private class BundleImpl<THList>(in THList list) : IBundle
         where THList : IHList
@@ -41,11 +41,11 @@ public class DynBundle : IBundle
             => _list.Concat(value, new BundleCreator(result));
     }
 
-    private unsafe struct BundleAdder(IBundle* result) : IGenericHandler<IHList>
+    private unsafe struct BundleAdder(IBundle prevBundle, IBundle* result) : IGenericHandler<IHList>
     {
         public readonly void Handle<T>(in T value)
             where T : IHList
-            => (*result).ToHList(new ComponentConcater<T>(result, value));
+            => prevBundle.ToHList(new ComponentConcater<T>(result, value));
     }
 
     private unsafe struct ComponentRemover<TComponent>(IBundle* result)
@@ -62,36 +62,40 @@ public class DynBundle : IBundle
 
     public unsafe DynBundle Add<TComponent>(in TComponent initial)
     {
-        fixed (IBundle* bundlePtr = &_bundleImpl) {
+        var bundle = new DynBundle();
+        fixed (IBundle* bundlePtr = &bundle._bundleImpl) {
             _bundleImpl.ToHList(new ComponentAdder<TComponent>(bundlePtr, initial));
         }
-        return this;
+        return bundle;
     }
 
     public unsafe DynBundle AddMany<THList>(in THList list)
         where THList : IHList
     {
-        fixed (IBundle* bundlePtr = &_bundleImpl) {
+        var bundle = new DynBundle();
+        fixed (IBundle* bundlePtr = &bundle._bundleImpl) {
             _bundleImpl.ToHList(new ComponentConcater<THList>(bundlePtr, list));
         }
-        return this;
+        return bundle;
     }
 
-    public unsafe DynBundle AddBundle<TBundle>(in TBundle bundle)
+    public unsafe DynBundle AddBundle<TBundle>(in TBundle other)
         where TBundle : IBundle
     {
-        fixed (IBundle* bundlePtr = &_bundleImpl) {
-            bundle.ToHList(new BundleAdder(bundlePtr));
+        var bundle = new DynBundle();
+        fixed (IBundle* bundlePtr = &bundle._bundleImpl) {
+            other.ToHList(new BundleAdder(_bundleImpl, bundlePtr));
         }
-        return this;
+        return bundle;
     }
 
     public unsafe DynBundle Remove<TComponent>()
     {
-        fixed (IBundle* bundlePtr = &_bundleImpl) {
+        var bundle = new DynBundle();
+        fixed (IBundle* bundlePtr = &bundle._bundleImpl) {
             _bundleImpl.ToHList(new ComponentRemover<TComponent>(bundlePtr));
         }
-        return this;
+        return bundle;
     }
 
 #pragma warning restore CS8500 // This takes the address of, gets the size of, or declares a pointer to a managed type
