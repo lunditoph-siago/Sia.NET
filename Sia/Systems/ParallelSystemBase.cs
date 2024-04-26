@@ -1,10 +1,9 @@
 namespace Sia;
 
 public abstract class ParallelSystemBase<C1>(
-    SystemChain? children = null, IEntityMatcher? matcher = null,
-    IEventUnion? trigger = null, IEventUnion? filter = null,
-    IRunner? runner = null)
-    : SystemBase(children, matcher ?? Matchers.Of<C1>(), trigger, filter)
+    IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null,
+    SystemChain? children = null, IRunner? runner = null)
+    : SystemBase(matcher ?? Matchers.Of<C1>(), trigger, filter, children)
 {
     public IRunner Runner { get; } = runner ?? ParallelRunner.Default;
 
@@ -19,10 +18,9 @@ public abstract class ParallelSystemBase<C1>(
 }
 
 public abstract class ParallelSystemBase<C1, C2>(
-    SystemChain? children = null, IEntityMatcher? matcher = null,
-    IEventUnion? trigger = null, IEventUnion? filter = null,
-    IRunner? runner = null)
-    : SystemBase(children, matcher ?? Matchers.Of<C1, C2>(), trigger, filter)
+    IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null,
+    SystemChain? children = null, IRunner? runner = null)
+    : SystemBase(matcher ?? Matchers.Of<C1, C2>(), trigger, filter, children)
 {
     public IRunner Runner { get; } = runner ?? ParallelRunner.Default;
 
@@ -37,10 +35,9 @@ public abstract class ParallelSystemBase<C1, C2>(
 }
 
 public abstract class ParallelSystemBase<C1, C2, C3>(
-    SystemChain? children = null, IEntityMatcher? matcher = null,
-    IEventUnion? trigger = null, IEventUnion? filter = null,
-    IRunner? runner = null)
-    : SystemBase(children, matcher ?? Matchers.Of<C1, C2, C3>(), trigger, filter)
+    IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null,
+    SystemChain? children = null, IRunner? runner = null)
+    : SystemBase(matcher ?? Matchers.Of<C1, C2, C3>(), trigger, filter, children)
 {
     public IRunner Runner { get; } = runner ?? ParallelRunner.Default;
 
@@ -55,10 +52,9 @@ public abstract class ParallelSystemBase<C1, C2, C3>(
 }
 
 public abstract class ParallelSystemBase<C1, C2, C3, C4>(
-    SystemChain? children = null, IEntityMatcher? matcher = null,
-    IEventUnion? trigger = null, IEventUnion? filter = null,
-    IRunner? runner = null)
-    : SystemBase(children, matcher ?? Matchers.Of<C1, C2, C3, C4>(), trigger, filter)
+    IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null,
+    SystemChain? children = null, IRunner? runner = null)
+    : SystemBase(matcher ?? Matchers.Of<C1, C2, C3, C4>(), trigger, filter, children)
 {
     public IRunner Runner { get; } = runner ?? ParallelRunner.Default;
 
@@ -73,10 +69,9 @@ public abstract class ParallelSystemBase<C1, C2, C3, C4>(
 }
 
 public abstract class ParallelSystemBase<C1, C2, C3, C4, C5>(
-    SystemChain? children = null, IEntityMatcher? matcher = null,
-    IEventUnion? trigger = null, IEventUnion? filter = null,
-    IRunner? runner = null)
-    : SystemBase(children, matcher ?? Matchers.Of<C1, C2, C3, C4, C5>(), trigger, filter)
+    IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null,
+    SystemChain? children = null, IRunner? runner = null)
+    : SystemBase(matcher ?? Matchers.Of<C1, C2, C3, C4, C5>(), trigger, filter, children)
 {
     public IRunner Runner { get; } = runner ?? ParallelRunner.Default;
 
@@ -91,12 +86,11 @@ public abstract class ParallelSystemBase<C1, C2, C3, C4, C5>(
 }
 
 public abstract class ParallelSystemBase<C1, C2, C3, C4, C5, C6>(
-    SystemChain? children = null, IEntityMatcher? matcher = null,
-    IEventUnion? trigger = null, IEventUnion? filter = null,
-    IRunner? runner = null)
-    : SystemBase(children, matcher ?? Matchers.Of<C1, C2, C3, C4, C5>(), trigger, filter)
+    IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null,
+    SystemChain? children = null, IRunner? runner = null)
+    : SystemBase(matcher ?? Matchers.Of<C1, C2, C3, C4, C5>(), trigger, filter, children)
 {
-    public IRunner Runner { get; } = runner ?? ParallelRunner.Default;
+   public IRunner Runner { get; } = runner ?? ParallelRunner.Default;
 
     public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
     {

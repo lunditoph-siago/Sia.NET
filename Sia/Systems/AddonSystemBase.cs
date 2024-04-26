@@ -1,9 +1,9 @@
 namespace Sia;
 
 public abstract class AddonSystemBase(
-    SystemChain? children = null, IEntityMatcher? matcher = null,
-    IEventUnion? trigger = null, IEventUnion? filter = null)
-    : SystemBase(children, matcher, trigger, filter)
+    IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null,
+    SystemChain? children = null)
+    : SystemBase(matcher, trigger, filter, children)
 {
     private readonly Dictionary<Type, Action<World>> _addonRemovers = [];
 
