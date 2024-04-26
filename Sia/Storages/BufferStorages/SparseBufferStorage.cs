@@ -6,6 +6,6 @@ public sealed class SparseBufferStorage<T>(int pageSize)
 {
     public SparseBufferStorage() : this(256) {}
 
-    public override void CreateSiblingStorage<U>(IStorageHandler<U> handler)
-        => handler.Handle<SparseBufferStorage<U>>(new(pageSize));
+    public override void GetSiblingStorageType<U>(IStorageTypeHandler<U> handler)
+        => handler.Handle<SparseBufferStorage<U>>();
 }

@@ -11,16 +11,14 @@ public class WorldEntityHost<TEntity, TStorage>(World world, TStorage storage)
     where TEntity : IHList
     where TStorage : IStorage<HList<Identity, TEntity>>, new()
 {
-    private unsafe readonly struct SiblingHostCreator<UEntity>(World world, IEntityHost<UEntity>* host)
-        : IStorageHandler<HList<Identity, UEntity>>
+    private unsafe readonly struct SiblingHostGetter<UEntity>(World world, IEntityHost<UEntity>* host)
+        : IStorageTypeHandler<HList<Identity, UEntity>>
         where UEntity : IHList
     {
-        public void Handle<UStorage>(UStorage storage)
+        public void Handle<UStorage>()
             where UStorage : IStorage<HList<Identity, UEntity>>, new()
-        {
-            *host = world.TryGetHost<WorldEntityHost<UEntity, UStorage>>(out var found)
-                ? found : world.UnsafeAddRawHost(new WorldEntityHost<UEntity, UStorage>(world, storage));
-        }
+            => *host = world.TryGetHost<WorldEntityHost<UEntity, UStorage>>(out var found)
+                ? found : world.UnsafeAddRawHost(new WorldEntityHost<UEntity, UStorage>(world, new()));
     }
 
     public event EntityHandler? OnEntityCreated;
@@ -33,7 +31,7 @@ public class WorldEntityHost<TEntity, TStorage>(World world, TStorage storage)
     protected unsafe override IEntityHost<UEntity> GetSiblingHost<UEntity>()
     {
         IEntityHost<UEntity>? host = null;
-        Storage.CreateSiblingStorage(new SiblingHostCreator<UEntity>(World, &host));
+        Storage.GetSiblingStorageType(new SiblingHostGetter<UEntity>(World, &host));
         return host!;
     }
 

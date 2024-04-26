@@ -6,6 +6,6 @@ public sealed class UnversionedBucketBufferStorage<T>(int bucketCapacity)
 {
     public UnversionedBucketBufferStorage() : this(256) {}
 
-    public override void CreateSiblingStorage<U>(IStorageHandler<U> handler)
-        => handler.Handle<UnversionedBucketBufferStorage<U>>(new(bucketCapacity));
+    public override void GetSiblingStorageType<U>(IStorageTypeHandler<U> handler)
+        => handler.Handle<UnversionedBucketBufferStorage<U>>();
 }

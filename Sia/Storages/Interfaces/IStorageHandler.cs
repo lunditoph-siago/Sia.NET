@@ -1,8 +1,8 @@
 namespace Sia;
 
-public interface IStorageHandler<TElement>
+public interface IStorageTypeHandler<TElement>
     where TElement : struct
 {
-    void Handle<TStorage>(TStorage stroage)
+    void Handle<TStorage>()
         where TStorage : IStorage<TElement>, new();
 }

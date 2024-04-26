@@ -6,6 +6,6 @@ public sealed class ArrayBufferStorage<T>(int initialCapacity)
 {
     public ArrayBufferStorage() : this(0) {}
 
-    public override void CreateSiblingStorage<U>(IStorageHandler<U> handler)
-        => handler.Handle<ArrayBufferStorage<U>>(new(initialCapacity));
+    public override void GetSiblingStorageType<U>(IStorageTypeHandler<U> handler)
+        => handler.Handle<ArrayBufferStorage<U>>();
 }
