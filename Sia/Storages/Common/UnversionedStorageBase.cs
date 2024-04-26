@@ -59,7 +59,7 @@ public abstract class UnversionedStorageBase<T> : IStorage<T>
     protected abstract void Release(int slot);
     protected abstract ref T GetRef(int slot);
 
-    public virtual void CreateSiblingStorage<U>(IStorageHandler<U> handler)
+    public virtual void GetSiblingStorageType<U>(IStorageTypeHandler<U> handler)
         where U : struct
         => throw new NotImplementedException("CreateSiblingStorage not implemented for this storage");
 

@@ -82,9 +82,9 @@ public abstract class StorageBase<T> : IStorage<T>
     public ref T UnsafeGetRef(scoped in StorageSlot slot)
         => ref GetRef(slot.Index);
 
-    public virtual void CreateSiblingStorage<U>(IStorageHandler<U> handler)
+    public virtual void GetSiblingStorageType<U>(IStorageTypeHandler<U> handler)
         where U : struct
-        => throw new NotImplementedException("CreateSiblingStorage not implemented for this storage");
+        => throw new NotImplementedException("GetSiblingStorageType not implemented for this storage");
 
     protected abstract void Allocate(int slot);
     protected abstract void Release(int slot);

@@ -6,6 +6,6 @@ public sealed class UnversionedArrayBufferStorage<T>(int initialCapacity)
 {
     public UnversionedArrayBufferStorage() : this(0) {}
 
-    public override void CreateSiblingStorage<U>(IStorageHandler<U> handler)
-        => handler.Handle<UnversionedArrayBufferStorage<U>>(new(initialCapacity));
+    public override void GetSiblingStorageType<U>(IStorageTypeHandler<U> handler)
+        => handler.Handle<UnversionedArrayBufferStorage<U>>();
 }
