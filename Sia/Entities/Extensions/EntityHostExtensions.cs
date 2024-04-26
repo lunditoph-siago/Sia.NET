@@ -8,14 +8,29 @@ public static partial class EntityHostExtensions
     {
         public readonly EntityRef Current {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => new(_slots[_slotIndex], host);
+            get => new(_slot, host);
         }
 
         private int _slotIndex = -1;
         private readonly ReadOnlySpan<StorageSlot> _slots = host.AllocatedSlots;
+        private StorageSlot _slot;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool MoveNext() => ++_slotIndex < _slots.Length;
+        public bool MoveNext()
+        {
+            if (_slotIndex >= 0) {
+                var currSlot = _slots[_slotIndex];
+                if (currSlot != _slot) {
+                    _slot = currSlot;
+                    return true;
+                }
+            }
+            if (++_slotIndex >= _slots.Length) {
+                _slot = _slots[_slotIndex];
+                return true;
+            }
+            return false;
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Reset()
