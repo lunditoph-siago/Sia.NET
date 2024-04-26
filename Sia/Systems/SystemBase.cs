@@ -9,6 +9,8 @@ public abstract class SystemBase(
     public IEventUnion? Trigger { get; init; } = trigger;
     public IEventUnion? Filter { get; init; } = filter;
 
+    public SystemBase(SystemChain? children) : this(null, null, null, children) {}
+
     public virtual void Initialize(World world, Scheduler scheduler) {}
     public virtual void Uninitialize(World world, Scheduler scheduler) {}
     public virtual void Execute(World world, Scheduler scheduler, IEntityQuery query) {}
