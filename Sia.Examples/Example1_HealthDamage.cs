@@ -71,7 +71,7 @@ public static partial class Example1_HealthDamage
 
     public class HealthSystems()
         : SystemBase(
-            children: SystemChain.Empty
+            SystemChain.Empty
                 .Add<HealthUpdateSystem>()
                 .Add<DeathSystem>());
 
@@ -101,7 +101,7 @@ public static partial class Example1_HealthDamage
     [BeforeSystem<HealthSystems>]
     public class GameplaySystems()
         : SystemBase(
-            children: SystemChain.Empty
+            SystemChain.Empty
                 .Add<LocationDamageSystem>());
 
     public static class Player
