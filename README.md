@@ -47,8 +47,7 @@ public static partial class Example1_HealthDamage
     }
 
     public class HealthUpdateSystem()
-        : SystemBase(
-            matcher: Matchers.Of<Health>())
+        : SystemBase(Matchers.Of<Health>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
@@ -66,8 +65,7 @@ public static partial class Example1_HealthDamage
 
     [AfterSystem<HealthUpdateSystem>]
     public class DeathSystem()
-        : SystemBase(
-            matcher: Matchers.Of<Health>())
+        : SystemBase(Matchers.Of<Health>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
@@ -88,8 +86,8 @@ public static partial class Example1_HealthDamage
 
     public class LocationDamageSystem()
         : SystemBase(
-            matcher: Matchers.Of<Transform, Health>(),
-            trigger: EventUnion.Of<WorldEvents.Add<Health>, Transform.SetPosition>())
+            Matchers.Of<Transform, Health>(),
+            EventUnion.Of<WorldEvents.Add<Health>, Transform.SetPosition>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {

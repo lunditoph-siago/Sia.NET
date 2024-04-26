@@ -69,8 +69,8 @@ public static partial class Example3_MoveRotator
     [AfterSystem<MoverUpdateSystem>]
     public sealed class PositionChangePrintSystem()
         : SystemBase(
-            matcher: Matchers.Of<Position>(),
-            trigger: EventUnion.Of<Position.SetValue>())
+            Matchers.Of<Position>(),
+            EventUnion.Of<Position.SetValue>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
@@ -79,8 +79,7 @@ public static partial class Example3_MoveRotator
     }
 
     public sealed class MoverUpdateSystem()
-        : SystemBase(
-            matcher: Matchers.Of<Mover, Position, Rotation>())
+        : SystemBase(Matchers.Of<Mover, Position, Rotation>())
     {
         private Frame _frame = null!;
 
@@ -104,8 +103,7 @@ public static partial class Example3_MoveRotator
 
     [AfterSystem<MoverUpdateSystem>]
     public sealed class RotatorUpdateSystem()
-        : SystemBase(
-            matcher: Matchers.Of<Rotator, Rotation>())
+        : SystemBase(Matchers.Of<Rotator, Rotation>())
     {
         private Frame _frame = null!;
 
@@ -129,8 +127,7 @@ public static partial class Example3_MoveRotator
     }
 
     public sealed class MoverRandomDestroySystem()
-        : SystemBase(
-            matcher: Matchers.Of<Mover, Position>())
+        : SystemBase(Matchers.Of<Mover, Position>())
     {
         private readonly ConcurrentStack<EntityRef> _entitiesToDestroy = [];
 
