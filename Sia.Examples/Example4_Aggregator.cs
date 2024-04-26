@@ -13,8 +13,8 @@ public static partial class Example4_Aggregator
 
     public sealed class ComponentCountSystem()
         : SystemBase(
-            matcher: Matchers.Of<Aggregation<ObjectId>>(),
-            trigger: EventUnion.Of<Aggregation<ObjectId>.EntityAdded, Aggregation<ObjectId>.EntityRemoved>())
+            Matchers.Of<Aggregation<ObjectId>>(),
+            EventUnion.Of<Aggregation<ObjectId>.EntityAdded, Aggregation<ObjectId>.EntityRemoved>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {

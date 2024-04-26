@@ -14,8 +14,7 @@ public static class Example8_Sum
     }
 
     public class SumSystem()
-        : SystemBase(
-            matcher: Matchers.Of<Number>())
+        : SystemBase(Matchers.Of<Number>())
     {
         private int _acc = 0;
 
@@ -38,8 +37,7 @@ public static class Example8_Sum
     }
 
     public class RecordSumSystem()
-        : SystemBase(
-            matcher: Matchers.Of<Number>())
+        : SystemBase(Matchers.Of<Number>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
@@ -60,8 +58,7 @@ public static class Example8_Sum
     }
 
     public class VectorizedSumSystem()
-        : SystemBase(
-            matcher: Matchers.Of<Number>())
+        : SystemBase(Matchers.Of<Number>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {

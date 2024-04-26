@@ -9,7 +9,7 @@ public partial class SystemBaseTests
     public partial record struct ConstData([Sia] int Value);
 
     public class AssertSystem(int expected)
-        : SystemBase(matcher: Matchers.Of<VariableData>())
+        : SystemBase(Matchers.Of<VariableData>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
@@ -26,8 +26,8 @@ public partial class SystemBaseTests
     {
         public class UpdateSingleComponentSystem()
             : SystemBase(
-                children: SystemChain.Empty.Add<AssertSystem>(() => new(2)),
-                matcher: Matchers.Of<VariableData>())
+                Matchers.Of<VariableData>(),
+                children: SystemChain.Empty.Add<AssertSystem>(() => new(2)))
         {
             public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
             {
@@ -41,8 +41,8 @@ public partial class SystemBaseTests
     {
         public class UpdateMultiComponentsSystem()
             : SystemBase(
-                children: SystemChain.Empty.Add<AssertSystem>(() => new(2)),
-                matcher: Matchers.Of<VariableData, ConstData>())
+                Matchers.Of<VariableData, ConstData>(),
+                children: SystemChain.Empty.Add<AssertSystem>(() => new(2)))
         {
             public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
             {
@@ -53,8 +53,8 @@ public partial class SystemBaseTests
 
         public class UpdateMultiComponentsWithTriggerSystem()
             : SystemBase(
-                matcher: Matchers.Of<VariableData, ConstData>(),
-                trigger: EventUnion.Of<ConstData.SetValue>())
+                Matchers.Of<VariableData, ConstData>(),
+                EventUnion.Of<ConstData.SetValue>())
         {
             public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
             {

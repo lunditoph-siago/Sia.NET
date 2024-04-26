@@ -5,8 +5,7 @@ using Sia;
 public static class Example10_DuplicateSystem
 {
     public class PrintSystem(string text)
-        : SystemBase(
-            matcher: Matchers.Any)
+        : SystemBase(Matchers.Any)
     {
         private readonly string _text = text;
 

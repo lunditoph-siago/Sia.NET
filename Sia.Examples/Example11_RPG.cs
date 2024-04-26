@@ -123,8 +123,8 @@ public static partial class Example11_RPG
 
     public class DeadCharacterDestroySystem()
         : SystemBase(
-            matcher: Matchers.Of<Character>(),
-            trigger: EventUnion.Of<Character.SetHP>())
+            Matchers.Of<Character>(),
+            EventUnion.Of<Character.SetHP>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {

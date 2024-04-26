@@ -21,8 +21,7 @@ public static class Example2_HealthRecover
     }
 
     public class HPAutoRecoverSystem()
-        : SystemBase(
-            matcher: Matchers.Of<HP>())
+        : SystemBase(Matchers.Of<HP>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
@@ -42,8 +41,8 @@ public static class Example2_HealthRecover
 
     public class DamageDisplaySystem()
         : SystemBase(
-            matcher: Matchers.Of<HP, Name>(),
-            trigger: EventUnion.Of<HP.Damage>())
+            Matchers.Of<HP, Name>(),
+            EventUnion.Of<HP.Damage>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
@@ -55,8 +54,8 @@ public static class Example2_HealthRecover
 
     public class KillSystem()
         : SystemBase(
-            matcher: Matchers.Of<HP>(),
-            trigger: EventUnion.Of<HP.Kill>(),
+            Matchers.Of<HP>(),
+            EventUnion.Of<HP.Kill>(),
             filter: EventUnion.Of<HOEvents.Cancel<HP.Kill>>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
