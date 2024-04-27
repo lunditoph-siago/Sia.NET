@@ -97,7 +97,7 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
                             
                             if (properties.Length != 0) {
                                 source.WriteLine();
-                                SiaPropertyGenerator.GenerateViewTypeMainDecl(source, compName, templateType.TypeParameterList);
+                                SiaPropertyGenerator.GenerateViewMainDecl(source, compName, templateType.TypeParameterList);
 
                                 foreach (var propInfo in properties) {
                                     source.WriteLine();
@@ -105,7 +105,7 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
                                         source, propInfo, compName, templateType.TypeParameterList);
 
                                     source.WriteLine();
-                                    SiaPropertyGenerator.GenerateViewTypeProperty(source, propInfo);
+                                    SiaPropertyGenerator.GenerateViewProperty(source, propInfo);
                                 }
                             }
                         }
