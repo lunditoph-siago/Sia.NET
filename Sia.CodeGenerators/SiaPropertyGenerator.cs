@@ -80,11 +80,8 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
                             source.WriteLine();
                         }
 
-                        GeneratePropertyCommands(
+                        GenerateProperty(
                             source, info.Property, compTypeStr, compTypeParams);
-                        
-                        source.WriteLine();
-                        GenerateViewProperty(source, info.Property);
                     }
                 }
 
@@ -125,9 +122,10 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         return builder.ToString();
     }
 
-    public static void GeneratePropertyCommands(
+    public static void GenerateProperty(
         IndentedTextWriter source, PropertyInfo info,
-        string componentType, TypeParameterListSyntax? componentTypeParams = null)
+        string componentType, TypeParameterListSyntax? componentTypeParams = null,
+        List<string>? generatedCommands = null)
     {
         if (info.GetArgument("NoCommands", false)) {
             return;
@@ -135,6 +133,11 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         if (info.GetArgument("GenerateSetCommand", true)) {
             GenerateSetCommand(
                 source, info, componentType, componentTypeParams);
+
+            source.WriteLine();
+            GenerateViewProperty(source, info);
+
+            generatedCommands?.Add("Set" + info.Name);
         }
 
         var immutableType = info.ImmutableContainerType;
@@ -153,6 +156,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
             if (info.GetArgument("GenerateAddItemCommand", true)) {
                 source.WriteLine();
                 var command = "Add" + itemName;
+                generatedCommands?.Add(command);
                 GenerateImmutableContainerCommand(
                     source, info, componentType, componentTypeParams, command,
                     $"{keyType} Key, {valueType} Value",
@@ -166,6 +170,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
             if (info.GetArgument("GenerateSetItemCommand", true)) {
                 source.WriteLine();
                 var command = "Set" + itemName;
+                generatedCommands?.Add(command);
                 GenerateImmutableContainerCommand(
                     source, info, componentType, componentTypeParams, command,
                     $"{keyType} Key, {valueType} Value",
@@ -179,6 +184,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
             if (info.GetArgument("GenerateRemoveItemCommand", true)) {
                 source.WriteLine();
                 var command = "Remove" + itemName;
+                generatedCommands?.Add(command);
                 GenerateImmutableContainerCommand(
                     source, info, componentType, componentTypeParams, command,
                     $"{keyType} Key",
@@ -197,6 +203,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
             if (info.GetArgument("GenerateAddItemCommand", true)) {
                 source.WriteLine();
                 var command = "Enqueue" + itemName;
+                generatedCommands?.Add(command);
                 GenerateImmutableContainerCommand(
                     source, info, componentType, componentTypeParams, command,
                     $"{valueType} Value",
@@ -215,6 +222,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
             if (info.GetArgument("GenerateAddItemCommand", true)) {
                 source.WriteLine();
                 var command = "Push" + itemName;
+                generatedCommands?.Add(command);
                 GenerateImmutableContainerCommand(
                     source, info, componentType, componentTypeParams, command,
                     $"{valueType} Value",
@@ -234,6 +242,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
             if (info.GetArgument("GenerateAddItemCommand", true)) {
                 source.WriteLine();
                 var command = "Add" + itemName;
+                generatedCommands?.Add(command);
                 GenerateImmutableContainerCommand(
                     source, info, componentType, componentTypeParams, command,
                     $"{valueType} Value",
@@ -247,6 +256,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
             if (immutableType != "HashSet" && info.GetArgument("GenerateSetItemCommand", true)) {
                 source.WriteLine();
                 var command = "Set" + itemName;
+                generatedCommands?.Add(command);
                 GenerateImmutableContainerCommand(
                     source, info, componentType, componentTypeParams, command,
                     $"int Index, {valueType} Value",
@@ -260,6 +270,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
             if (info.GetArgument("GenerateRemoveItemCommand", true)) {
                 source.WriteLine();
                 var command = "Remove" + itemName;
+                generatedCommands?.Add(command);
                 GenerateImmutableContainerCommand(
                     source, info, componentType, componentTypeParams, command,
                     $"{valueType} Value",
