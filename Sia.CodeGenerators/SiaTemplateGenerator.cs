@@ -92,21 +92,23 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
 
                             GenerateResetCommand(source,
                                 templateType: templateType,
-                                componentName: compName,
-                                properties: properties);
+                                componentName: compName);
                             
                             if (properties.Length != 0) {
                                 source.WriteLine();
-                                SiaPropertyGenerator.GenerateViewMainDecl(source, compName, templateType.TypeParameterList);
+                                SiaPropertyGenerator.GenerateViewMainDecl(
+                                    source, compName, templateType.TypeParameterList);
+                                
+                                var commands = new List<string>();
 
-                                foreach (var propInfo in properties) {
+                                foreach (var prop in properties) {
                                     source.WriteLine();
-                                    SiaPropertyGenerator.GeneratePropertyCommands(
-                                        source, propInfo, compName, templateType.TypeParameterList);
-
-                                    source.WriteLine();
-                                    SiaPropertyGenerator.GenerateViewProperty(source, propInfo);
+                                    SiaPropertyGenerator.GenerateProperty(
+                                        source, prop, compName, templateType.TypeParameterList, commands);
                                 }
+
+                                source.WriteLine();
+                                GenerateHandleCommandTypesMethod(source, templateType, compName, commands);
                             }
                         }
                     }
@@ -137,7 +139,7 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
         return builder.ToString();
     }
 
-    private static IDisposable GenerateInComponentType(
+    private static EnclosingDisposable GenerateInComponentType(
         IndentedTextWriter source, CodeGenerationInfo info)
     {
         var templateType = info.TemplateType;
@@ -166,7 +168,7 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
             index++;
         }
 
-        source.Write(") : global::Sia.IConstructable<");
+        source.Write(") : global::Sia.IGeneratedByTemplate<");
         source.Write(info.ComponentName);
         WriteTypeParameters(source, templateType);
         source.Write(", ");
@@ -229,7 +231,7 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
     }
 
     public static void GenerateResetCommand(
-        IndentedTextWriter source, TypeDeclarationSyntax templateType, string componentName, ImmutableArray<PropertyInfo> properties)
+        IndentedTextWriter source, TypeDeclarationSyntax templateType, string componentName)
     {
         source.Write("public readonly record struct Reset(");
         WriteType(source, templateType);
@@ -243,8 +245,30 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
         source.Write(componentName);
         WriteTypeParameters(source, templateType);
         source.WriteLine(">() = new(Value);");
+        source.Indent--;
 
-        source.Indent -= 2;
+        source.Indent--;
+        source.WriteLine("}");
+    }
+
+    public static void GenerateHandleCommandTypesMethod(
+        IndentedTextWriter source, TypeDeclarationSyntax templateType, string componentName, List<string> commands)
+    {
+        source.Write("public static void HandleCommandTypes(global::Sia.IGenericTypeHandler<global::Sia.ICommand<");
+        source.Write(componentName);
+        WriteTypeParameters(source, templateType);
+        source.WriteLine(">> handler)");
+
+        source.WriteLine("{");
+        source.Indent++;
+
+        foreach (var command in commands) {
+            source.Write("handler.Handle<");
+            source.Write(command);
+            source.WriteLine(">();");
+        }
+
+        source.Indent--;
         source.WriteLine("}");
     }
 }
