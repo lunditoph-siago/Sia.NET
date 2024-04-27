@@ -67,22 +67,24 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage storage) : IEntityHos
     {
         var host = GetSiblingHost<HList<TComponent, TEntity>>();
         ref var entity = ref Storage.GetRef(slot);
-        var newEntity = host.MoveIn(HList.Cons(entity.Head, HList.Cons(initial, entity.Tail)));
+        var newData = HList.Cons(entity.Head, HList.Cons(initial, entity.Tail));
         MoveOut(slot);
-        return newEntity;
+        return host.MoveIn(newData);
     }
 
 #pragma warning disable CS8500 // This takes the address of, gets the size of, or declares a pointer to a managed type
 
     private unsafe struct EntityMover(
-        StorageEntityHost<TEntity, TStorage> host, Identity id, EntityRef* result)
+        StorageEntityHost<TEntity, TStorage> host, StorageSlot slot, Identity id, EntityRef* result)
         : IGenericHandler<IHList>
     {
         public readonly void Handle<TNewEntity>(in TNewEntity entity)
             where TNewEntity : IHList
         {
             var siblingHost = host.GetSiblingHost<TNewEntity>();
-            *result = siblingHost.MoveIn(HList.Cons(id, entity));
+            var newData = HList.Cons(id, entity);
+            host.MoveOut(slot);
+            *result = siblingHost.MoveIn(newData);
         }
     }
 
@@ -91,9 +93,8 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage storage) : IEntityHos
     {
         ref var entity = ref Storage.GetRef(slot);
         EntityRef result;
-        var mover = new EntityMover(this, entity.Head, &result);
+        var mover = new EntityMover(this, slot, entity.Head, &result);
         list.Concat(entity.Tail, mover);
-        MoveOut(slot);
         return result;
     }
 
@@ -101,9 +102,8 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage storage) : IEntityHos
     {
         ref var entity = ref Storage.GetRef(slot);
         EntityRef result;
-        var mover = new EntityMover(this, entity.Head, &result);
+        var mover = new EntityMover(this, slot, entity.Head, &result);
         entity.Tail.Remove(TypeProxy<TComponent>.Default, mover);
-        MoveOut(slot);
         return result;
     }
 
