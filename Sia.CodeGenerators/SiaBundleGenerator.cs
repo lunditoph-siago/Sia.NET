@@ -3,7 +3,6 @@
 using System.CodeDom.Compiler;
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices.ComTypes;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -105,7 +104,7 @@ internal partial class SiaBundleGenerator : IIncrementalGenerator
     private static IDisposable GenerateInBundleType(IndentedTextWriter source, TypeDeclarationSyntax bundleType)
     {
         switch (bundleType.Kind()) {
-            case SyntaxKind.StructConstraint:
+            case SyntaxKind.StructDeclaration:
                 source.Write("partial struct ");
                 break;
             case SyntaxKind.RecordStructDeclaration:
