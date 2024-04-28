@@ -26,3 +26,4 @@ Invoke(Example12_Addon.Run);
 Invoke(Example13_Parallel.Run);
 Invoke(Example14_RunnerWithContext.Run);
 Invoke(Example15_Serialization.Run);
+Invoke(Example16_EventSystem.Run);
