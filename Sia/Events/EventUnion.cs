@@ -1,4 +1,3 @@
-
 namespace Sia;
 
 public class EventUnion<T1>
