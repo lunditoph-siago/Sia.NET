@@ -9,7 +9,7 @@ public abstract record Test
 }
 
 [SiaTemplate("TestObject")]
-public partial record TestTemplate<T> : Test
+public record TestTemplate<T> : Test
 {
     public T? Value { get; set; }
 

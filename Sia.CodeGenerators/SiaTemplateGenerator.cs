@@ -34,8 +34,7 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
 
         var codeGenInfos = context.SyntaxProvider.ForAttributeWithMetadataName(
             SiaTemplateAttributeName,
-            static (syntaxNode, token) =>
-                ((TypeDeclarationSyntax)syntaxNode).Modifiers.Any(SyntaxKind.PartialKeyword),
+            static (syntaxNode, token) => true,
             static (syntax, token) =>
                 (syntax, ParentTypes: GetParentTypes(syntax.TargetNode)))
             .Select(static (t, token) => {
