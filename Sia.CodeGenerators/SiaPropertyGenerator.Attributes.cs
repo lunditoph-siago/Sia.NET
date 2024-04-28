@@ -22,7 +22,7 @@ internal partial class SiaPropertyGenerator
             public bool GenerateSetItemCommand { get; set; } = true;
             public bool GenerateRemoveItemCommand { get; set; } = true;
 
-            public string Item { get; set; } = "";
+            public string? Item { get; set; } = null;
         }
         """;
 }

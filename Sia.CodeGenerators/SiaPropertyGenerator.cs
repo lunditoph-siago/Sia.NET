@@ -143,8 +143,8 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         var immutableType = info.ImmutableContainerType;
         if (immutableType == null) { return; }
 
-        var itemName = info.GetArgument("Item", "");
-        if (itemName == "") { return; }
+        var itemName = info.GetArgument<string?>("Item", null);
+        if (itemName == null) { return; }
 
         string? keyType, valueType;
 
