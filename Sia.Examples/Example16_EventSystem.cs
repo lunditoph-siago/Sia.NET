@@ -1,11 +1,19 @@
 namespace Sia_Examples;
 
+using System.Collections.Immutable;
 using Sia;
 
 public static partial class Example16_EventSystem
 {
     [SiaTemplate(nameof(Position))]
     public record RPosition(int X, int Y);
+
+    [SiaTemplate(nameof(Tags))]
+    public record RTags
+    {
+        [Sia(Item = "")]
+        public ImmutableArray<string> List { get; init; } = [];
+    }
 
     public partial record struct Position
     {
@@ -111,6 +119,31 @@ public static partial class Example16_EventSystem
         }
     }
 
+    public class TagsTemplateEventSystem : TemplateEventSystemBase<Tags, RTags>
+    {
+        protected override void HandleEvent<TEvent>(in Identity id, in Tags snapshot, in TEvent e)
+        {
+            switch (e) {
+                case Tags.Add(string tag):
+                    Console.WriteLine("Tag added: " + tag);
+                    Console.WriteLine("\tPrevious tags: " + string.Join(", ", snapshot.List));
+                    break;
+                case Tags.Remove(string tag):
+                    Console.WriteLine("Tag removed: " + tag);
+                    Console.WriteLine("\tPrevious tags: " + string.Join(", ", snapshot.List));
+                    break;
+                case Tags.Set(int index, string tag):
+                    Console.WriteLine("Tag set: " + tag + ", index: " + index);
+                    Console.WriteLine("\tPrevious tags: " + string.Join(", ", snapshot.List));
+                    break;
+                case Tags.SetList(var list):
+                    Console.WriteLine("Tags changed: " + string.Join(", ", list));
+                    Console.WriteLine("\tPrevious tags: " + string.Join(", ", snapshot.List));
+                    break;
+            }
+        }
+    }
+
     public static void Run(World world)
     {
         var scheduler = new Scheduler();
@@ -119,22 +152,31 @@ public static partial class Example16_EventSystem
             .Add<TestTemplateEventSystem>()
             .Add<TestEventSystem>()
             .Add<TestSnapshotEventSystem>()
+            .Add<TagsTemplateEventSystem>()
             .RegisterTo(world, scheduler);
 
-        var e = world.CreateInArrayHost(HList.Create(new Position(1, 1)));
+        var e = world.CreateInArrayHost(HList.Create(
+            new Position(1, 1), new Tags([])));
+
         var pos = new Position.View(e);
+        var tags = new Tags.View(e);
 
         e.Send(new Position.MoveUp(5));
         e.Send(new Position.MoveLeft(5));
+        tags.Add("Test");
         scheduler.Tick();
 
         e.Modify(new Position.TestCommand());
+        tags.Remove("Test");
         scheduler.Tick();
 
         pos.X += 10;
+        tags.List = ["a", "b", "c"];
+        tags.Set(1, "d");
         scheduler.Tick();
 
         pos.Y += 5;
+        tags.List = [];
         scheduler.Tick();
 
         e.Remove<Position>();
