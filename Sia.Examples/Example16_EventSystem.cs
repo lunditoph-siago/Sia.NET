@@ -34,8 +34,8 @@ public static partial class Example16_EventSystem
             RecordEvent<Position.MoveRight>();
         }
 
-        private ref Position Get(in Identity id)
-            => ref World[id].Get<Position>();
+        private Position.View Get(in Identity id)
+            => new(World[id]);
 
         protected override void HandleEvent<TEvent>(in Identity id, in TEvent e)
         {
