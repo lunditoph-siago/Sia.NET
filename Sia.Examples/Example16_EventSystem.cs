@@ -67,7 +67,7 @@ public static partial class Example16_EventSystem
             base.Initialize(world, scheduler);
 
             RecordEvent<WorldEvents.Add<Position>>();
-            RecordRemovalEvent<WorldEvents.Add<Position>>();
+            RecordRemovalEvent<WorldEvents.Remove<Position>>();
             RecordEvent<Position.TestCommand>();
         }
 
