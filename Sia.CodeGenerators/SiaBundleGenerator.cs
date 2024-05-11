@@ -101,7 +101,7 @@ internal partial class SiaBundleGenerator : IIncrementalGenerator
         return builder.ToString();
     }
 
-    private static IDisposable GenerateInBundleType(IndentedTextWriter source, TypeDeclarationSyntax bundleType)
+    private static EnclosingDisposable GenerateInBundleType(IndentedTextWriter source, TypeDeclarationSyntax bundleType)
     {
         switch (bundleType.Kind()) {
             case SyntaxKind.StructDeclaration:
