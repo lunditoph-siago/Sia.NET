@@ -1,5 +1,7 @@
 namespace Sia;
 
-public interface IEventUnion : IStaticTypeUnion
+public interface IEventUnion
 {
+    ITypeUnion EventTypes { get; }
+    static abstract void HandleEventTypes(IGenericTypeHandler<IEvent> handler);
 }

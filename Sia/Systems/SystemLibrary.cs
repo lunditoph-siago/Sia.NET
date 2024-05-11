@@ -429,8 +429,12 @@ public class SystemLibrary : IAddon
             }
         }
         else {
-            var filterTypes = filter?.Types.ToFrozenSet() ?? FrozenSet<Type>.Empty;
-            var triggerTypes = trigger?.Types.Except(filterTypes).ToFrozenSet() ?? FrozenSet<Type>.Empty;
+            var filterTypes = filter?.EventTypes.TypeSet ?? FrozenSet<Type>.Empty;
+            var triggerTypes = 
+                (filter != null
+                    ? trigger?.EventTypes.Types.Except(filter.EventTypes.TypeSet).ToFrozenSet()
+                    : trigger?.EventTypes.TypeSet)
+                ?? FrozenSet<Type>.Empty;
 
             if (triggerTypes.Count == 0) {
                 throw new InvalidSystemConfigurationException(
