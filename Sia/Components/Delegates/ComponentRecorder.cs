@@ -13,3 +13,17 @@ public delegate void DataComponentRecorder<TData, C1, C2, C3, TResult>(in TData 
 public delegate void DataComponentRecorder<TData, C1, C2, C3, C4, TResult>(in TData data, ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4, out TResult result);
 public delegate void DataComponentRecorder<TData, C1, C2, C3, C4, C5, TResult>(in TData data, ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4, ref C5 c5, out TResult result);
 public delegate void DataComponentRecorder<TData, C1, C2, C3, C4, C5, C6, TResult>(in TData data, ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4, ref C5 c5, ref C6 c6, out TResult result);
+
+public delegate void ComponentRecorderWithEntity<C1, TResult>(in EntityRef entity, ref C1 c1, out TResult result);
+public delegate void ComponentRecorderWithEntity<C1, C2, TResult>(in EntityRef entity, ref C1 c1, ref C2 c2, out TResult result);
+public delegate void ComponentRecorderWithEntity<C1, C2, C3, TResult>(in EntityRef entity, ref C1 c1, ref C2 c2, ref C3 c3, out TResult result);
+public delegate void ComponentRecorderWithEntity<C1, C2, C3, C4, TResult>(in EntityRef entity, ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4, out TResult result);
+public delegate void ComponentRecorderWithEntity<C1, C2, C3, C4, C5, TResult>(in EntityRef entity, ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4, ref C5 c5, out TResult result);
+public delegate void ComponentRecorderWithEntity<C1, C2, C3, C4, C5, C6, TResult>(in EntityRef entity, ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4, ref C5 c5, ref C6 c6, out TResult result);
+
+public delegate void DataComponentRecorderWithEntity<TData, C1, TResult>(in EntityRef entity, in TData data, ref C1 c1, out TResult result);
+public delegate void DataComponentRecorderWithEntity<TData, C1, C2, TResult>(in EntityRef entity, in TData data, ref C1 c1, ref C2 c2, out TResult result);
+public delegate void DataComponentRecorderWithEntity<TData, C1, C2, C3, TResult>(in EntityRef entity, in TData data, ref C1 c1, ref C2 c2, ref C3 c3, out TResult result);
+public delegate void DataComponentRecorderWithEntity<TData, C1, C2, C3, C4, TResult>(in EntityRef entity, in TData data, ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4, out TResult result);
+public delegate void DataComponentRecorderWithEntity<TData, C1, C2, C3, C4, C5, TResult>(in EntityRef entity, in TData data, ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4, ref C5 c5, out TResult result);
+public delegate void DataComponentRecorderWithEntity<TData, C1, C2, C3, C4, C5, C6, TResult>(in EntityRef entity, in TData data, ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4, ref C5 c5, ref C6 c6, out TResult result);
