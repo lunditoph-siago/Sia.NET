@@ -4,8 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using CommunityToolkit.HighPerformance;
 
-public abstract class EventSystemBase(
-    SystemChain? children = null)
+public abstract class EventSystemBase(SystemChain? children = null)
     : SystemBase(Matchers.Any, children: children)
 {
     private interface IEventCache
@@ -28,6 +27,14 @@ public abstract class EventSystemBase(
         public void Clear() => List.Clear();
     }
 
+    private readonly struct EventRecorder(EventSystemBase sys)
+        : IGenericTypeHandler<IEvent>
+    {
+        public void Handle<T>()
+            where T : IEvent
+            => sys.RecordEvent<T>();
+    }
+
     protected event Action? OnUninitialize;
 
     public World World { get; private set; } = null!;
@@ -47,8 +54,7 @@ public abstract class EventSystemBase(
     public override void Uninitialize(World world, Scheduler scheduler)
         => OnUninitialize?.Invoke();
 
-    protected abstract void HandleEvent<TEvent>(
-        in Identity id, in TEvent e)
+    protected abstract void HandleEvent<TEvent>(in Identity id, in TEvent e)
         where TEvent : IEvent;
 
     protected void RecordEvent<TEvent>()
@@ -78,6 +84,10 @@ public abstract class EventSystemBase(
         OnUninitialize += () => World.Dispatcher.Unlisten<TEvent>(EventListener);
     }
 
+    protected void RecordEvents<TEventUnion>()
+        where TEventUnion : IEventUnion
+        => TEventUnion.HandleEventTypes(new EventRecorder(this));
+
     public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
     {
         (_eventCaches, _eventCachesBack) = (_eventCachesBack, _eventCaches);
@@ -95,8 +105,7 @@ public abstract class EventSystemBase(
     }
 }
 
-public abstract class SnapshotEventSystemBase<TSnapshot>(
-    SystemChain? children = null)
+public abstract class SnapshotEventSystemBase<TSnapshot>(SystemChain? children = null)
     : SystemBase(Matchers.Any, children: children)
 {
     private interface IEventCache
@@ -235,9 +244,28 @@ public abstract class SnapshotEventSystemBase<TSnapshot>(
     }
 }
 
-public abstract class TemplateEventSystemBase<TComponent, TTemplate, TSnapshot>(
-    SystemChain? children = null)
+public abstract class ComponentEventSystemBase<TComponent, TSnapshot>(SystemChain? children = null)
     : SnapshotEventSystemBase<TSnapshot>(children)
+{
+    public override void Initialize(World world, Scheduler scheduler)
+    {
+        base.Initialize(world, scheduler);
+        World.IndexHosts(Matchers.Of<TComponent>());
+
+        RecordEvent<WorldEvents.Add<TComponent>>();
+        RecordRemovalEvent<WorldEvents.Remove<TComponent>>();
+    }
+}
+
+public abstract class ComponentEventSystemBase<TComponent>(SystemChain? children = null)
+    : ComponentEventSystemBase<TComponent, TComponent>(children)
+{
+    protected override TComponent Snapshot<TEvent>(in EntityRef entity, in TEvent e)
+        => entity.Get<TComponent>();
+}
+
+public abstract class TemplateEventSystemBase<TComponent, TTemplate, TSnapshot>(SystemChain? children = null)
+    : ComponentEventSystemBase<TSnapshot>(children)
     where TComponent : IGeneratedByTemplate<TComponent, TTemplate>
 {
     private readonly struct CommandRecorder(
@@ -252,16 +280,11 @@ public abstract class TemplateEventSystemBase<TComponent, TTemplate, TSnapshot>(
     public override void Initialize(World world, Scheduler scheduler)
     {
         base.Initialize(world, scheduler);
-        World.IndexHosts(Matchers.Of<TComponent>());
-
-        RecordEvent<WorldEvents.Add<TComponent>>();
-        RecordRemovalEvent<WorldEvents.Remove<TComponent>>();
         TComponent.HandleCommandTypes(new CommandRecorder(this));
     }
 }
 
-public abstract class TemplateEventSystemBase<TComponent, TTemplate>(
-    SystemChain? children = null)
+public abstract class TemplateEventSystemBase<TComponent, TTemplate>(SystemChain? children = null)
     : TemplateEventSystemBase<TComponent, TTemplate, TComponent?>(children)
     where TComponent : IGeneratedByTemplate<TComponent, TTemplate>
 {

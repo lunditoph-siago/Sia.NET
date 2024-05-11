@@ -8,6 +8,15 @@ public static partial class Example16_EventSystem
     [SiaTemplate(nameof(Position))]
     public record RPosition(int X, int Y);
 
+    public partial record struct Position
+    {
+        public readonly record struct TestCommand : ICommand
+        {
+            public void Execute(World world, in EntityRef target)
+                => target.Get<Position>().X++;
+        }
+    }
+
     [SiaTemplate(nameof(Tags))]
     public record RTags
     {
@@ -15,18 +24,13 @@ public static partial class Example16_EventSystem
         public ImmutableArray<string> List { get; init; } = [];
     }
 
-    public partial record struct Position
+    [SiaEvents]
+    public partial struct MoveEvents
     {
         public readonly record struct MoveUp(int Count) : IEvent;
         public readonly record struct MoveDown(int Count) : IEvent;
         public readonly record struct MoveLeft(int Count) : IEvent;
         public readonly record struct MoveRight(int Count) : IEvent;
-
-        public readonly record struct TestCommand : ICommand
-        {
-            public void Execute(World world, in EntityRef target)
-                => target.Get<Position>().X++;
-        }
     }
 
     public class TestEventSystem : EventSystemBase
@@ -35,32 +39,28 @@ public static partial class Example16_EventSystem
         {
             base.Initialize(world, scheduler);
             world.IndexHosts(Matchers.Of<Position>());
-
-            RecordEvent<Position.MoveUp>();
-            RecordEvent<Position.MoveDown>();
-            RecordEvent<Position.MoveLeft>();
-            RecordEvent<Position.MoveRight>();
+            RecordEvents<MoveEvents>();
         }
-
-        private Position.View Get(in Identity id)
-            => new(World[id]);
 
         protected override void HandleEvent<TEvent>(in Identity id, in TEvent e)
         {
+            Position.View Get(in Identity id)
+                => new(World[id]);
+
             switch (e) {
-                case Position.MoveUp(int count):
+                case MoveEvents.MoveUp(int count):
                     Console.WriteLine("Move Up!");
                     Get(id).Y += count;
                     break;
-                case Position.MoveDown(int count):
+                case MoveEvents.MoveDown(int count):
                     Console.WriteLine("Move Down!");
                     Get(id).Y -= count;
                     break;
-                case Position.MoveLeft(int count):
+                case MoveEvents.MoveLeft(int count):
                     Console.WriteLine("Move Left!");
                     Get(id).X -= count;
                     break;
-                case Position.MoveRight(int count):
+                case MoveEvents.MoveRight(int count):
                     Console.WriteLine("Move Right!");
                     Get(id).X += count;
                     break;
@@ -73,9 +73,6 @@ public static partial class Example16_EventSystem
         public override void Initialize(World world, Scheduler scheduler)
         {
             base.Initialize(world, scheduler);
-
-            RecordEvent<WorldEvents.Add<Position>>();
-            RecordRemovalEvent<WorldEvents.Remove<Position>>();
             RecordEvent<Position.TestCommand>();
         }
 
@@ -161,8 +158,8 @@ public static partial class Example16_EventSystem
         var pos = new Position.View(e);
         var tags = new Tags.View(e);
 
-        e.Send(new Position.MoveUp(5));
-        e.Send(new Position.MoveLeft(5));
+        e.Send(new MoveEvents.MoveUp(5));
+        e.Send(new MoveEvents.MoveLeft(5));
         tags.Add("Test");
         scheduler.Tick();
 
