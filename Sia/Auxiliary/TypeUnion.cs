@@ -4,20 +4,25 @@ using System.Collections.Frozen;
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 
-internal static class TypeUnionHelper
+public static class TypeUnionHelper
 {
+    public static IComparer<Type> TypeComparer { get; }
+        = Comparer<Type>.Create((a, b) =>
+            a.GetHashCode().CompareTo(b.GetHashCode()));
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ImmutableArray<Type> CreateSortedArray(Span<Type> types)
     {
-        var set = new SortedSet<Type>(
-            Comparer<Type>.Create((a, b) =>
-                a.GetHashCode().CompareTo(b.GetHashCode())));
+        var set = new SortedSet<Type>(TypeComparer);
         foreach (var type in types) {
             set.Add(type);
         }
         return [..set];
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ImmutableArray<Type> CreateSortedArray(IEnumerable<Type> types)
+        => [..new SortedSet<Type>(types, TypeComparer)];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int CalculateHash(ImmutableArray<Type> types)
@@ -62,9 +67,16 @@ public class TypeUnion : ITypeUnion
 
     private readonly int _hashCode;
 
-    public TypeUnion(ImmutableArray<Type> types)
+    public TypeUnion(IEnumerable<Type> types)
     {
-        Types = types;
+        Types = TypeUnionHelper.CreateSortedArray(types);
+        TypeSet = types.ToFrozenSet();
+        _hashCode = TypeUnionHelper.CalculateHash(Types);
+    }
+
+    public TypeUnion(params Type[] types)
+    {
+        Types = TypeUnionHelper.CreateSortedArray(types.AsSpan());
         TypeSet = types.ToFrozenSet();
         _hashCode = TypeUnionHelper.CalculateHash(Types);
     }
