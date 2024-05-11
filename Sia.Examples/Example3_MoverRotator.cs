@@ -91,13 +91,11 @@ public static partial class Example3_MoveRotator
 
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
-            query.ForSliceOnParallel(_frame,
-                static (in Frame frame, ref Mover mover, ref Position pos, ref Rotation rot) => {
+            query.ForSlice(_frame,
+                static (in EntityRef entity, in Frame frame, ref Mover mover, ref Position pos, ref Rotation rot) => {
                     pos.Value += Vector3.Transform(Vector3.UnitZ, rot.Value) * mover.Speed * frame.Delta;
+                    entity.Send(new Position.SetValue(pos.Value));
                 });
-            foreach (var entity in query) {
-                world.Send(entity, PureEvent<Position.SetValue>.Instance);
-            }
         }
     }
 
@@ -115,14 +113,12 @@ public static partial class Example3_MoveRotator
 
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
-            query.ForSliceOnParallel(_frame,
-                static (in Frame frame, ref Rotator rotator, ref Rotation rot) => {
+            query.ForSlice(_frame,
+                static (in EntityRef entity, in Frame frame, ref Rotator rotator, ref Rotation rot) => {
                     var newRot = rot.Value.ToEulerAngles() + rotator.AngularSpeed * frame.Delta;
                     rot.Value = newRot.ToQuaternion();
+                    entity.Send(new Rotation.SetValue(rot.Value));
                 });
-            foreach (var entity in query) {
-                world.Send(entity, PureEvent<Rotation.SetValue>.Instance);
-            }
         }
     }
 
