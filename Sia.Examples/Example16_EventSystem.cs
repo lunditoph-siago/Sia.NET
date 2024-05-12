@@ -25,7 +25,7 @@ public static partial class Example16_EventSystem
     }
 
     [SiaEvents]
-    public partial struct MoveEvents
+    public partial class MoveEvents
     {
         public readonly record struct MoveUp(int Count) : IEvent;
         public readonly record struct MoveDown(int Count) : IEvent;

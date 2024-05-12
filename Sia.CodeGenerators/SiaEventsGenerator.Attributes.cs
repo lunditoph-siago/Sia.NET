@@ -11,7 +11,7 @@ internal partial class SiaEventsGenerator
         namespace Sia;
 
         [{{Common.GeneratedCodeAttribute}}]
-        [global::System.AttributeUsage(global::System.AttributeTargets.Struct, Inherited = false, AllowMultiple = false)]
+        [global::System.AttributeUsage(global::System.AttributeTargets.Struct | global::System.AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
         internal sealed class SiaEventsAttribute : global::System.Attribute;
         """;
 }

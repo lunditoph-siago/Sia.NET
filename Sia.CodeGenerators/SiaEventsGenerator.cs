@@ -97,6 +97,12 @@ internal partial class SiaEventsGenerator : IIncrementalGenerator
             case SyntaxKind.RecordStructDeclaration:
                 source.Write("partial record struct ");
                 break;
+            case SyntaxKind.ClassDeclaration:
+                source.Write("partial class ");
+                break;
+            case SyntaxKind.RecordDeclaration:
+                source.Write("partial record ");
+                break;
             default:
                 throw new InvalidDataException("Invalid component type");
         }
