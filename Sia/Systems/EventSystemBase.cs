@@ -156,6 +156,15 @@ public abstract class SnapshotEventSystemBase<TSnapshot>(SystemChain? children =
     protected abstract void HandleEvent<TEvent>(
         in Identity id, in TSnapshot snapshot, in TEvent e)
         where TEvent : IEvent;
+    
+    protected void RecordFor<TComponent>()
+    {
+        RecordOnAdded<TComponent>();
+        RecordRemovalEvent<WorldEvents.Remove<TComponent>>();
+    }
+    
+    protected void RecordOnAdded<TComponent>()
+        => RecordEvent<WorldEvents.Add<TComponent>>();
 
     protected void RecordEvent<TEvent>()
         where TEvent : IEvent
