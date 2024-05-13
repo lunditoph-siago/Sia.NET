@@ -73,6 +73,7 @@ public static partial class Example16_EventSystem
         public override void Initialize(World world, Scheduler scheduler)
         {
             base.Initialize(world, scheduler);
+            RecordFor<Position>();
             RecordEvent<Position.TestCommand>();
         }
 
