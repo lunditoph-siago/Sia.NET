@@ -128,6 +128,9 @@ public static partial class Example1_HealthDamage
         var handle = SystemChain.Empty
             .Add<HealthSystems>()
             .Add<GameplaySystems>()
+            .Add((ref Health health) => Console.WriteLine("Heath: " + health.Value),
+                trigger: EventUnion.Of<Health.SetValue>())
+            .Add((ref Transform transform) => Console.WriteLine("Position: " + transform.Position))
             .RegisterTo(world, game.Scheduler);
         
         var player = Player.Create(world, new(1, 1));
