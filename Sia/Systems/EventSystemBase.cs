@@ -20,8 +20,13 @@ public abstract class EventSystemBase(SystemChain? children = null)
 
         public void Handle(EventSystemBase module, int index, in Identity id)
         {
-            ref var entity = ref List.AsSpan()[index];
-            module.HandleEvent(id, entity);
+            ref var evt = ref List.AsSpan()[index];
+            try {
+                module.HandleEvent(id, evt);
+            }
+            catch (Exception e) {
+                module.HandleException(id, evt, e);
+            }
         }
 
         public void Clear() => List.Clear();
@@ -56,6 +61,9 @@ public abstract class EventSystemBase(SystemChain? children = null)
 
     protected abstract void HandleEvent<TEvent>(in Identity id, in TEvent e)
         where TEvent : IEvent;
+    
+    protected virtual void HandleException<TEvent>(in Identity id, in TEvent e, Exception exception)
+        => Console.Error.WriteLine(exception);
 
     protected void RecordEvent<TEvent>()
         where TEvent : IEvent
@@ -93,14 +101,17 @@ public abstract class EventSystemBase(SystemChain? children = null)
         (_eventCaches, _eventCachesBack) = (_eventCachesBack, _eventCaches);
         (_events, _eventsBack) = (_eventsBack, _events);
 
-        foreach (var (id, cache, index) in _events) {
-            cache.Handle(this, index, id);
+        try {
+            foreach (var (id, cache, index) in _events) {
+                cache.Handle(this, index, id);
+            }
         }
+        finally {
+            _events.Clear();
 
-        _events.Clear();
-
-        foreach (var cache in _eventCaches.Values) {
-            cache.Clear();
+            foreach (var cache in _eventCaches.Values) {
+                cache.Clear();
+            }
         }
     }
 }
@@ -122,7 +133,12 @@ public abstract class SnapshotEventSystemBase<TSnapshot>(SystemChain? children =
         public void Handle(SnapshotEventSystemBase<TSnapshot> module, int index, in Identity id)
         {
             ref var entry = ref List.AsSpan()[index];
-            module.HandleEvent(id, entry.Item1, entry.Item2);
+            try {
+                module.HandleEvent(id, entry.Item1, entry.Item2);
+            }
+            catch (Exception e) {
+                module.HandleException(id, entry.Item1, entry.Item2, e);
+            }
         }
 
         public void Clear() => List.Clear();
@@ -156,6 +172,11 @@ public abstract class SnapshotEventSystemBase<TSnapshot>(SystemChain? children =
     protected abstract void HandleEvent<TEvent>(
         in Identity id, in TSnapshot snapshot, in TEvent e)
         where TEvent : IEvent;
+
+    protected virtual void HandleException<TEvent>(
+        in Identity id, in TSnapshot snapshot, in TEvent e, Exception exception)
+        where TEvent : IEvent
+        => Console.Error.WriteLine(exception);
     
     protected void RecordFor<TComponent>()
     {
