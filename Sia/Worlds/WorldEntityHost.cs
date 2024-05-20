@@ -46,8 +46,7 @@ public class WorldEntityHost<TEntity, TStorage>(World world, TStorage storage)
         dispatcher.Send(entity, WorldEvents.Add.Instance);
 
         ref var data = ref Storage.GetRef(entity.Slot);
-        data.HandleHead(new EntityHeadAddEventSender(entity, dispatcher));
-        data.HandleTail(new EntityTailAddEventSender(entity, dispatcher));
+        new EntityAddEventSender(entity, dispatcher).Handle(data);
 
         return entity;
     }
@@ -63,8 +62,7 @@ public class WorldEntityHost<TEntity, TStorage>(World world, TStorage storage)
         dispatcher.Send(entity, WorldEvents.Add.Instance);
 
         ref var data = ref Storage.GetRef(entity.Slot);
-        data.HandleHead(new EntityHeadAddEventSender(entity, dispatcher));
-        data.HandleTail(new EntityTailAddEventSender(entity, dispatcher));
+        new EntityAddEventSender(entity, dispatcher).Handle(data);
 
         return entity;
     }
@@ -76,8 +74,7 @@ public class WorldEntityHost<TEntity, TStorage>(World world, TStorage storage)
         var dispatcher = World.Dispatcher;
 
         ref var data = ref Storage.GetRef(entity.Slot);
-        data.HandleHead(new EntityHeadRemoveEventSender(entity, dispatcher));
-        data.HandleTail(new EntityTailRemoveEventSender(entity, dispatcher));
+        new EntityRemoveEventSender(entity, dispatcher).Handle(data);
 
         dispatcher.Send(entity, WorldEvents.Remove.Instance);
         dispatcher.UnlistenAll(entity);
@@ -110,8 +107,7 @@ public class WorldEntityHost<TEntity, TStorage>(World world, TStorage storage)
     public override EntityRef AddMany<TBundle>(in StorageSlot slot, in TBundle bundle)
     {
         var e = base.AddMany(slot, bundle);
-        bundle.HandleHead(new EntityHeadAddEventSender(e, World.Dispatcher));
-        bundle.HandleTail(new EntityTailAddEventSender(e, World.Dispatcher));
+        new EntityAddEventSender(e, World.Dispatcher).Handle(bundle);
         return e;
     }
 

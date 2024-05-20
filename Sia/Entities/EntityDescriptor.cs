@@ -13,29 +13,31 @@ public static class EntityDescriptor<TEntity>
     public static readonly FrozenDictionary<Type, IntPtr> Offsets;
     public static readonly ImmutableArray<nint> OffsetSlots;
 
-    private unsafe struct HeadOffsetRecorder(
-        List<ComponentInfo> components, Dictionary<Type, IntPtr> offsets, IntPtr entityPtr)
-        : IRefGenericHandler
-    {
-        public readonly void Handle<T>(ref T value)
-        {
-            var compPtr = (IntPtr)Unsafe.AsPointer(ref value);
-            var offset = compPtr - entityPtr;
-            if (!offsets.TryAdd(typeof(T), offset)) {
-                throw new InvalidDataException("Entity cannot have multiple components of the same type");
-            }
-            components.Add(new(typeof(T), offset, EntityComponentIndexer<TEntity, T>.Index));
-        }
-    }
-
-    private unsafe struct TailOffsetRecorder(
+    private unsafe struct OffsetRecorder(
         List<ComponentInfo> components, Dictionary<Type, IntPtr> offsets, IntPtr entityPtr)
         : IRefGenericHandler<IHList>
     {
+        private unsafe struct HeadRecorder(
+            List<ComponentInfo> components, Dictionary<Type, IntPtr> offsets, IntPtr entityPtr)
+            : IRefGenericHandler
+        {
+            public readonly void Handle<T>(ref T value)
+            {
+                var compPtr = (IntPtr)Unsafe.AsPointer(ref value);
+                var offset = compPtr - entityPtr;
+                if (!offsets.TryAdd(typeof(T), offset)) {
+                    throw new InvalidDataException("Entity cannot have multiple components of the same type");
+                }
+                components.Add(new(typeof(T), offset, EntityComponentIndexer<TEntity, T>.Index));
+            }
+        }
+
+        private HeadRecorder _headRecorder = new(components, offsets, entityPtr);
+
         public readonly void Handle<T>(ref T value) where T : IHList
         {
-            value.HandleHeadRef(new HeadOffsetRecorder(components, offsets, entityPtr));
-            value.HandleTailRef(new TailOffsetRecorder(components, offsets, entityPtr));
+            value.HandleHeadRef(_headRecorder);
+            value.HandleTailRef(this);
         }
     }
 
@@ -47,9 +49,7 @@ public static class EntityDescriptor<TEntity>
         var defaultEntity = default(TEntity)!;
         var entityPtr = (IntPtr)Unsafe.AsPointer(ref defaultEntity);
 
-        defaultEntity.HandleHeadRef(new HeadOffsetRecorder(components, offsets, entityPtr));
-        defaultEntity.HandleTailRef(new TailOffsetRecorder(components, offsets, entityPtr));
-
+        new OffsetRecorder(components, offsets, entityPtr).Handle(ref defaultEntity);
         Offsets = offsets.ToFrozenDictionary();
         Components = [..components];
 
