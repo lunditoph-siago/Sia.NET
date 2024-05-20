@@ -1,38 +1,40 @@
+using Microsoft.VisualBasic;
+
 namespace Sia;
 
 internal static class WorldHostUtils
 {
-    public struct EntityHeadAddEventSender(EntityRef entity, WorldDispatcher dispatcher) : IGenericHandler
+    public struct EntityAddEventSender(EntityRef entity, WorldDispatcher dispatcher) : IGenericHandler<IHList>
     {
-        public readonly void Handle<T>(in T value)
+        private struct HeadSender(EntityRef entity, WorldDispatcher dispatcher) : IGenericHandler
         {
-            dispatcher.Send(entity, WorldEvents.Add<T>.Instance);
+            public readonly void Handle<T>(in T value)
+                => dispatcher.Send(entity, WorldEvents.Add<T>.Instance);
         }
-    }
 
-    public struct EntityTailAddEventSender(EntityRef entity, WorldDispatcher dispatcher) : IGenericHandler<IHList>
-    {
+        private HeadSender _headSender = new(entity, dispatcher);
+
         public readonly void Handle<T>(in T value) where T : IHList
         {
-            value.HandleHead(new EntityHeadAddEventSender(entity, dispatcher));
-            value.HandleTail(new EntityTailAddEventSender(entity, dispatcher));
+            value.HandleHead(_headSender);
+            value.HandleTail(this);
         }
     }
 
-    public struct EntityHeadRemoveEventSender(EntityRef entity, WorldDispatcher dispatcher) : IGenericHandler
+    public struct EntityRemoveEventSender(EntityRef entity, WorldDispatcher dispatcher) : IGenericHandler<IHList>
     {
-        public readonly void Handle<T>(in T value)
+        private struct HeadSender(EntityRef entity, WorldDispatcher dispatcher) : IGenericHandler
         {
-            dispatcher.Send(entity, WorldEvents.Remove<T>.Instance);
+            public readonly void Handle<T>(in T value)
+                => dispatcher.Send(entity, WorldEvents.Remove<T>.Instance);
         }
-    }
 
-    public struct EntityTailRemoveEventSender(EntityRef entity, WorldDispatcher dispatcher) : IGenericHandler<IHList>
-    {
+        private HeadSender _headSender = new(entity, dispatcher);
+
         public readonly void Handle<T>(in T value) where T : IHList
         {
-            value.HandleHead(new EntityHeadRemoveEventSender(entity, dispatcher));
-            value.HandleTail(new EntityTailRemoveEventSender(entity, dispatcher));
+            value.HandleHead(_headSender);
+            value.HandleTail(this);
         }
     }
 }

@@ -9,41 +9,44 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
     where THostHeaderSerializer : IHostHeaderSerializer
     where TComponentSerializer : IComponentSerializer, new()
 {
-    private unsafe readonly struct ComponentSerializationHandler<TBufferWriter>(
-        TComponentSerializer serializer, TBufferWriter* writer) : IGenericHandler
-        where TBufferWriter : IBufferWriter<byte>
-    {
-        public void Handle<T>(in T value)
-            => serializer.Serialize(ref *writer, value);
-    }
-
-    private unsafe readonly struct EntitySerializationHandler<TBufferWriter>(
+    private unsafe struct EntitySerializationHandler<TBufferWriter>(
         TComponentSerializer serializer, TBufferWriter* writer) : IRefGenericHandler<IHList>
         where TBufferWriter : IBufferWriter<byte>
     {
-        public void Handle<T>(ref T value)
+        private unsafe struct HeadHandler(
+            TComponentSerializer serializer, TBufferWriter* writer) : IGenericHandler
+        {
+            public void Handle<T>(in T value)
+                => serializer.Serialize(ref *writer, value);
+        }
+
+        private HeadHandler _headHandler = new(serializer, writer);
+
+        public readonly void Handle<T>(ref T value)
             where T : IHList
         {
-            value.HandleHead(new ComponentSerializationHandler<TBufferWriter>(serializer, writer));
-            value.HandleTailRef(new EntitySerializationHandler<TBufferWriter>(serializer, writer));
+            value.HandleHead(_headHandler);
+            value.HandleTailRef(this);
         }
     }
 
-    private unsafe readonly struct ComponentDeserializationHandler(
-        TComponentSerializer serializer, ReadOnlySequence<byte>* buffer) : IRefGenericHandler
-    {
-        public void Handle<T>(ref T component)
-            => serializer.Deserialize(ref *buffer, ref component);
-    }
-
-    private unsafe readonly struct EntityDeserializationHandler(
+    private unsafe struct EntityDeserializationHandler(
         TComponentSerializer serializer, ReadOnlySequence<byte>* buffer) : IRefGenericHandler<IHList>
     {
-        public void Handle<T>(ref T value)
+        private unsafe struct HeadHandler(
+            TComponentSerializer serializer, ReadOnlySequence<byte>* buffer) : IRefGenericHandler
+        {
+            public void Handle<T>(ref T component)
+                => serializer.Deserialize(ref *buffer, ref component);
+        }
+
+        private HeadHandler _headHandler = new(serializer, buffer);
+
+        public readonly void Handle<T>(ref T value)
             where T : IHList
         {
-            value.HandleHeadRef(new ComponentDeserializationHandler(serializer, buffer));
-            value.HandleTailRef(new EntityDeserializationHandler(serializer, buffer));
+            value.HandleHeadRef(_headHandler);
+            value.HandleTailRef(this);
         }
     }
 
