@@ -7,8 +7,6 @@ Modern ECS framework for .NET
 ## Example
 
 ```C#
-namespace Sia_Examples;
-
 using System.Numerics;
 using Sia;
 
@@ -57,7 +55,6 @@ public static partial class Example1_HealthDamage
                 ref var health = ref entity.Get<Health>();
                 if (health.Debuff != 0) {
                     entity.Modify(new Health.Damage(health.Debuff * game.DeltaTime));
-                    Console.WriteLine($"Damage: HP {health.Value}");
                 }
             }
         }
@@ -97,11 +94,9 @@ public static partial class Example1_HealthDamage
 
                 if (pos.X == 1 && pos.Y == 1) {
                     entity.Modify(new Health.Damage(10));
-                    Console.WriteLine($"Damage: HP {health.Value}");
                 }
                 if (pos.X == 1 && pos.Y == 2) {
                     health.Debuff = 100;
-                    Console.WriteLine("Debuff!");
                 }
             }
         }
@@ -112,6 +107,17 @@ public static partial class Example1_HealthDamage
         : SystemBase(
             SystemChain.Empty
                 .Add<LocationDamageSystem>());
+    
+    [AfterSystem<HealthSystems>]
+    [AfterSystem<GameplaySystems>]
+    public class MonitorSystems()
+        : SystemBase(
+            SystemChain.Empty
+                .Add((ref Health health) => Console.WriteLine("Damage: HP " + health.Value),
+                    trigger: EventUnion.Of<Health.Damage>())
+                .Add((ref Health health) => Console.WriteLine("Set Debuff: " + health.Debuff),
+                    trigger: EventUnion.Of<Health.SetDebuff>())
+                .Add((ref Transform transform) => Console.WriteLine("Position: " + transform.Position)));
 
     public static class Player
     {
@@ -140,9 +146,6 @@ public static partial class Example1_HealthDamage
         var handle = SystemChain.Empty
             .Add<HealthSystems>()
             .Add<GameplaySystems>()
-            .Add((ref Health health) => Console.WriteLine("Heath: " + health.Value),
-                trigger: EventUnion.Of<Health.SetValue>())
-            .Add((ref Transform transform) => Console.WriteLine("Position: " + transform.Position))
             .RegisterTo(world, game.Scheduler);
         
         var player = Player.Create(world, new(1, 1));
