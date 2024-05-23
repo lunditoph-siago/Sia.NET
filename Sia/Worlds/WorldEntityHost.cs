@@ -73,9 +73,7 @@ public class WorldEntityHost<TEntity, TStorage>(World world, TStorage storage)
         var entity = new EntityRef(slot, this);
         var dispatcher = World.Dispatcher;
 
-        ref var data = ref Storage.GetRef(entity.Slot);
         TEntity.HandleTypes(new EntityRemoveEventSender(entity, dispatcher));
-
         dispatcher.Send(entity, WorldEvents.Remove.Instance);
         dispatcher.UnlistenAll(entity);
 
