@@ -157,7 +157,7 @@ public static partial class Example1_HealthDamage
         game.Update(0.5f);
 
         game.Scheduler.CreateTask(() => {
-            Console.WriteLine("Callback invoked after health and gameplay systems");
+            Console.WriteLine("Callback invoked after systems");
             return true; // remove task
         }, handle.SystemTaskNodes);
     
