@@ -8,8 +8,8 @@ public partial class SystemBaseTests
 
     public partial record struct ConstData([Sia] int Value);
 
-    public class AssertSystem(int expected)
-        : SystemBase(Matchers.Of<VariableData>())
+    public class AssertSystem(int expected) : SystemBase(
+        Matchers.Of<VariableData>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {

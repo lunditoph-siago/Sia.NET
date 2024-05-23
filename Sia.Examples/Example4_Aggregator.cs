@@ -11,10 +11,9 @@ public static partial class Example4_Aggregator
             => new(id);
     }
 
-    public sealed class ComponentCountSystem()
-        : SystemBase(
-            Matchers.Of<Aggregation<ObjectId>>(),
-            EventUnion.Of<Aggregation<ObjectId>.EntityAdded, Aggregation<ObjectId>.EntityRemoved>())
+    public sealed class ComponentCountSystem() : SystemBase(
+        Matchers.Of<Aggregation<ObjectId>>(),
+        EventUnion.Of<Aggregation<ObjectId>.EntityAdded, Aggregation<ObjectId>.EntityRemoved>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {

@@ -20,8 +20,8 @@ public static class Example2_HealthRecover
         public sealed class Kill : SingletonEvent<Kill>, ICancellableEvent;
     }
 
-    public class HPAutoRecoverSystem()
-        : SystemBase(Matchers.Of<HP>())
+    public class HPAutoRecoverSystem() : SystemBase(
+        Matchers.Of<HP>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
@@ -39,10 +39,9 @@ public static class Example2_HealthRecover
         }
     }
 
-    public class DamageDisplaySystem()
-        : SystemBase(
-            Matchers.Of<HP, Name>(),
-            EventUnion.Of<HP.Damage>())
+    public class DamageDisplaySystem() : SystemBase(
+        Matchers.Of<HP, Name>(),
+        EventUnion.Of<HP.Damage>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
@@ -52,11 +51,10 @@ public static class Example2_HealthRecover
         }
     }
 
-    public class KillSystem()
-        : SystemBase(
-            Matchers.Of<HP>(),
-            EventUnion.Of<HP.Kill>(),
-            filter: EventUnion.Of<HOEvents.Cancel<HP.Kill>>())
+    public class KillSystem() : SystemBase(
+        Matchers.Of<HP>(),
+        EventUnion.Of<HP.Kill>(),
+        filter: EventUnion.Of<HOEvents.Cancel<HP.Kill>>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {

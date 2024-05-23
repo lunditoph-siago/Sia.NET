@@ -12,8 +12,8 @@ public class ParallelSystemBaseTests
     }
 
     [AfterSystem<UpdateSingleComponentSystem>]
-    public class AssertSystem(int expected)
-        : SystemBase(Matchers.Of<VariableData>())
+    public class AssertSystem(int expected) : SystemBase(
+        Matchers.Of<VariableData>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
