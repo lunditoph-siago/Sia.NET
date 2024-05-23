@@ -37,8 +37,8 @@ public static partial class Example1_HealthDamage
         }
     }
 
-    public class HealthUpdateSystem()
-        : SystemBase(Matchers.Of<Health>())
+    public class HealthUpdateSystem() : SystemBase(
+        Matchers.Of<Health>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
@@ -54,8 +54,8 @@ public static partial class Example1_HealthDamage
     }
 
     [AfterSystem<HealthUpdateSystem>]
-    public class DeathSystem()
-        : SystemBase(Matchers.Of<Health>())
+    public class DeathSystem() : SystemBase(
+        Matchers.Of<Health>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
@@ -68,16 +68,14 @@ public static partial class Example1_HealthDamage
         }
     }
 
-    public class HealthSystems()
-        : SystemBase(
-            SystemChain.Empty
-                .Add<HealthUpdateSystem>()
-                .Add<DeathSystem>());
+    public class HealthSystems() : SystemBase(
+        SystemChain.Empty
+            .Add<HealthUpdateSystem>()
+            .Add<DeathSystem>());
 
-    public class LocationDamageSystem()
-        : SystemBase(
-            Matchers.Of<Transform, Health>(),
-            EventUnion.Of<WorldEvents.Add<Health>, Transform.SetPosition>())
+    public class LocationDamageSystem() : SystemBase(
+        Matchers.Of<Transform, Health>(),
+        EventUnion.Of<WorldEvents.Add<Health>, Transform.SetPosition>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
@@ -96,21 +94,19 @@ public static partial class Example1_HealthDamage
     }
 
     [BeforeSystem<HealthSystems>]
-    public class GameplaySystems()
-        : SystemBase(
-            SystemChain.Empty
-                .Add<LocationDamageSystem>());
+    public class GameplaySystems() : SystemBase(
+        SystemChain.Empty
+            .Add<LocationDamageSystem>());
     
     [AfterSystem<HealthSystems>]
     [AfterSystem<GameplaySystems>]
-    public class MonitorSystems()
-        : SystemBase(
-            SystemChain.Empty
-                .Add((ref Health health) => Console.WriteLine("Damage: HP " + health.Value),
-                    trigger: EventUnion.Of<Health.Damage>())
-                .Add((ref Health health) => Console.WriteLine("Set Debuff: " + health.Debuff),
-                    trigger: EventUnion.Of<Health.SetDebuff>())
-                .Add((ref Transform transform) => Console.WriteLine("Position: " + transform.Position)));
+    public class MonitorSystems() : SystemBase(
+        SystemChain.Empty
+            .Add((ref Health health) => Console.WriteLine("Damage: HP " + health.Value),
+                trigger: EventUnion.Of<Health.Damage>())
+            .Add((ref Health health) => Console.WriteLine("Set Debuff: " + health.Debuff),
+                trigger: EventUnion.Of<Health.SetDebuff>())
+            .Add((ref Transform transform) => Console.WriteLine("Position: " + transform.Position)));
 
     public static class Player
     {

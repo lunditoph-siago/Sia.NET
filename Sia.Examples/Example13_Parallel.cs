@@ -9,8 +9,8 @@ public static partial class Example13_Parallel
     private static TimeSpan _multiThreadElapsed;
     private static TimeSpan _parallelElapsed;
 
-    public sealed class MonoThreadUpdateSystem()
-        : SystemBase(Matchers.Of<int>())
+    public sealed class MonoThreadUpdateSystem() : SystemBase(
+        Matchers.Of<int>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
@@ -26,8 +26,8 @@ public static partial class Example13_Parallel
         }
     }
 
-    public sealed class MultiThreadUpdateSystem()
-        : SystemBase(Matchers.Of<int>())
+    public sealed class MultiThreadUpdateSystem() : SystemBase(
+        Matchers.Of<int>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
@@ -43,8 +43,7 @@ public static partial class Example13_Parallel
         }
     }
 
-    public sealed class ParallelUpdateSystem()
-        : ParallelSystemBase<int>()
+    public sealed class ParallelUpdateSystem() : ParallelSystemBase<int>()
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
