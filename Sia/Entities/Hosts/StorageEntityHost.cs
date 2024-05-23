@@ -102,8 +102,23 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage storage) : IEntityHos
     {
         ref var entity = ref Storage.GetRef(slot);
         EntityRef result;
+
         var mover = new EntityMover(this, slot, entity.Head, &result);
         entity.Tail.Remove(TypeProxy<TComponent>.Default, mover);
+        return result;
+    }
+
+    public virtual unsafe EntityRef RemoveMany<TList>(in StorageSlot slot)
+        where TList : IHList
+    {
+        ref var entity = ref Storage.GetRef(slot);
+        EntityRef result;
+
+        var mover = new EntityMover(this, slot, entity.Head, &result);
+        new DynBundle()
+            .AddMany(entity.Tail)
+            .RemoveMany<TList>()
+            .ToHList(mover);
         return result;
     }
 

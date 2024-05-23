@@ -70,7 +70,7 @@ public sealed record WrappedWorldEntityHost<TEntity, TEntityHost>(World World)
         var dispatcher = World.Dispatcher;
 
         ref var data = ref _host.GetRef(entity.Slot);
-        new EntityRemoveEventSender(entity, dispatcher).Handle(data);
+        TEntity.HandleTypes(new EntityRemoveEventSender(entity, dispatcher));
 
         dispatcher.Send(entity, WorldEvents.Remove.Instance);
         dispatcher.UnlistenAll(entity);
@@ -117,6 +117,15 @@ public sealed record WrappedWorldEntityHost<TEntity, TEntityHost>(World World)
     {
         var e = _host.Remove<TComponent>(slot);
         World.Dispatcher.Send(e, WorldEvents.Remove<TComponent>.Instance);
+        return e;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public EntityRef RemoveMany<TList>(in StorageSlot slot)
+        where TList : IHList
+    {
+        var e = _host.RemoveMany<TList>(slot);
+        TList.HandleTypes(new EntityRemoveEventSender(e, World.Dispatcher));
         return e;
     }
 

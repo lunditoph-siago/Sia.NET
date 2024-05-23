@@ -76,6 +76,8 @@ internal partial class SiaBundleGenerator : IIncrementalGenerator
                         GenerateToHListMethod(source, info);
                         source.WriteLine();
                         GenerateHandleHListTypeMethod(source, info);
+                        source.WriteLine();
+                        GenerateStaticHandleHListTypeMethod(source, info);
                     }
                 }
             }
@@ -116,7 +118,7 @@ internal partial class SiaBundleGenerator : IIncrementalGenerator
                 throw new InvalidDataException("Invalid bundle type");
         }
         WriteType(source, bundleType);
-        source.WriteLine(" : global::Sia.IBundle");
+        source.WriteLine(" : global::Sia.IStaticBundle");
         source.WriteLine("{");
         source.Indent++;
         return new EnclosingDisposable(source, 1);
@@ -145,9 +147,16 @@ internal partial class SiaBundleGenerator : IIncrementalGenerator
         source.WriteLine("public void HandleHListType<THandler>(in THandler handler)");
         source.Indent++;
         source.WriteLine("where THandler : global::Sia.IGenericTypeHandler<global::Sia.IHList>");
-        source.WriteLine("=>");
+        source.Write("=> StaticHandleHListType(handler);");
+        source.Indent--;
+    }
 
-        source.Write("handler.Handle<");
+    private static void GenerateStaticHandleHListTypeMethod(IndentedTextWriter source, CodeGenerationInfo info)
+    {
+        source.WriteLine("public static void StaticHandleHListType<THandler>(in THandler handler)");
+        source.Indent++;
+        source.WriteLine("where THandler : global::Sia.IGenericTypeHandler<global::Sia.IHList>");
+        source.Write("=> handler.Handle<");
         GenerateHListType(source, info);
         source.WriteLine(">();");
         source.Indent--;

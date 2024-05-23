@@ -74,7 +74,7 @@ public class WorldEntityHost<TEntity, TStorage>(World world, TStorage storage)
         var dispatcher = World.Dispatcher;
 
         ref var data = ref Storage.GetRef(entity.Slot);
-        new EntityRemoveEventSender(entity, dispatcher).Handle(data);
+        TEntity.HandleTypes(new EntityRemoveEventSender(entity, dispatcher));
 
         dispatcher.Send(entity, WorldEvents.Remove.Instance);
         dispatcher.UnlistenAll(entity);
@@ -115,6 +115,14 @@ public class WorldEntityHost<TEntity, TStorage>(World world, TStorage storage)
     {
         var e = base.Remove<TComponent>(slot);
         World.Dispatcher.Send(e, WorldEvents.Remove<TComponent>.Instance);
+        return e;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public override EntityRef RemoveMany<TList>(in StorageSlot slot)
+    {
+        var e = base.RemoveMany<TList>(slot);
+        TList.HandleTypes(new EntityRemoveEventSender(e, World.Dispatcher));
         return e;
     }
 }
