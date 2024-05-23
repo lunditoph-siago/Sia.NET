@@ -7,8 +7,13 @@ public record DynBundle : IBundle
     {
         private readonly THList _list = list;
 
-        public void ToHList(IGenericHandler<IHList> handler)
+        public void ToHList<THandler>(in THandler handler)
+            where THandler : IGenericHandler<IHList>
             => handler.Handle(_list);
+
+        public void HandleHListType<THandler>(in THandler handler)
+            where THandler : IGenericTypeHandler<IHList>
+            => handler.Handle<THList>();
     }
 
 #pragma warning disable CS8500 // This takes the address of, gets the size of, or declares a pointer to a managed type
@@ -100,6 +105,11 @@ public record DynBundle : IBundle
 
 #pragma warning restore CS8500 // This takes the address of, gets the size of, or declares a pointer to a managed type
 
-    public void ToHList(IGenericHandler<IHList> handler)
+    public void ToHList<THandler>(in THandler handler)
+        where THandler : IGenericHandler<IHList>
         => _bundleImpl.ToHList(handler);
+
+    public void HandleHListType<THandler>(in THandler handler)
+        where THandler : IGenericTypeHandler<IHList>
+        => _bundleImpl.HandleHListType(handler);
 }

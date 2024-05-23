@@ -2,5 +2,9 @@
 
 public interface IBundle
 {
-    void ToHList(IGenericHandler<IHList> handler);
+    void ToHList<THandler>(in THandler handler)
+        where THandler : IGenericHandler<IHList>;
+
+    void HandleHListType<THandler>(in THandler handler)
+        where THandler : IGenericTypeHandler<IHList>;
 }
