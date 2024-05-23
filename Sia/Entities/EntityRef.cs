@@ -63,8 +63,8 @@ public readonly record struct EntityRef(in StorageSlot Slot, IEntityHost Host) :
     public EntityRef Add<TComponent>(in TComponent initial)
         => Host.Add(Slot, initial);
 
-    public EntityRef AddMany<TBundle>(in TBundle bundle)
-        where TBundle : IHList
+    public EntityRef AddMany<TList>(in TList bundle)
+        where TList : IHList
         => Host.AddMany(Slot, bundle);
 
 #pragma warning disable CS8500 // This takes the address of, gets the size of, or declares a pointer to a managed type
@@ -87,6 +87,36 @@ public readonly record struct EntityRef(in StorageSlot Slot, IEntityHost Host) :
 
     public EntityRef Remove<TComponent>()
         => Host.Remove<TComponent>(Slot);
+
+    public EntityRef RemoveMany<TList>()
+        where TList : IHList
+        => Host.RemoveMany<TList>(Slot);
+
+#pragma warning disable CS8500 // This takes the address of, gets the size of, or declares a pointer to a managed type
+
+    private unsafe struct BundleRemover(EntityRef* entity) : IGenericTypeHandler<IHList>
+    {
+        public readonly void Handle<T>() where T : IHList
+            => *entity = (*entity).RemoveMany<T>();
+    }
+
+    public unsafe EntityRef RemoveBundle<TBundle>()
+        where TBundle : IStaticBundle
+    {
+        EntityRef entity = this;
+        TBundle.StaticHandleHListType(new BundleRemover(&entity));
+        return entity;
+    }
+
+    public unsafe EntityRef RemoveBundle<TBundle>(in TBundle bundle)
+        where TBundle : IBundle
+    {
+        EntityRef entity = this;
+        bundle.HandleHListType(new BundleRemover(&entity));
+        return entity;
+    }
+
+#pragma warning restore CS8500 // This takes the address of, gets the size of, or declares a pointer to a managed type
 
     public void GetHList<THandler>(in THandler handler)
         where THandler : IRefGenericHandler<IHList>

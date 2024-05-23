@@ -34,7 +34,7 @@ public interface IHList
     
     virtual static void HandleTypes<THandler>(in THandler handler)
         where THandler : IGenericTypeHandler
-    {}
+        => throw new NotImplementedException();
 }
 
 public struct EmptyHList : IHList
@@ -152,7 +152,7 @@ public static class HList
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static HList<THead, EmptyHList> Create<THead>(in THead head) =>
-        new HList<THead, EmptyHList>(head, EmptyHList.Default);
+        new(head, EmptyHList.Default);
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static HList<THead, TTail> Cons<THead, TTail>(in THead head, in TTail tail)
