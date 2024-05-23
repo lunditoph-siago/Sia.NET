@@ -92,6 +92,28 @@ public record DynBundle : IBundle
         _bundleImpl = new BundleImpl<EmptyHList>(EmptyHList.Default);
     }
 
+    public unsafe DynBundle(params IBundle[] bundles)
+    {
+        IBundleImpl impl = new BundleImpl<EmptyHList>(EmptyHList.Default);
+
+        foreach (var bundle in bundles) {
+            bundle.ToHList(new BundleAdder(impl, &impl));
+        }
+
+        _bundleImpl = impl;
+    }
+
+    public unsafe DynBundle(IEnumerable<IBundle> bundles)
+    {
+        IBundleImpl impl = new BundleImpl<EmptyHList>(EmptyHList.Default);
+
+        foreach (var bundle in bundles) {
+            bundle.ToHList(new BundleAdder(impl, &impl));
+        }
+
+        _bundleImpl = impl;
+    }
+
     private DynBundle(IBundleImpl bundleImpl)
     {
         _bundleImpl = bundleImpl;
