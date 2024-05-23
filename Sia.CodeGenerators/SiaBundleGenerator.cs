@@ -74,6 +74,8 @@ internal partial class SiaBundleGenerator : IIncrementalGenerator
                         GenerateBakedProperty(source, info);
                         source.WriteLine();
                         GenerateToHListMethod(source, info);
+                        source.WriteLine();
+                        GenerateHandleHListTypeMethod(source, info);
                     }
                 }
             }
@@ -131,7 +133,24 @@ internal partial class SiaBundleGenerator : IIncrementalGenerator
 
     private static void GenerateToHListMethod(IndentedTextWriter source, CodeGenerationInfo info)
     {
-        source.WriteLine("public void ToHList(global::Sia.IGenericHandler<global::Sia.IHList> handler) => handler.Handle(Baked);");
+        source.WriteLine("public void ToHList<THandler>(in THandler handler)");
+        source.Indent++;
+        source.WriteLine("where THandler : global::Sia.IGenericHandler<global::Sia.IHList>");
+        source.WriteLine("=> handler.Handle(Baked);");
+        source.Indent--;
+    }
+
+    private static void GenerateHandleHListTypeMethod(IndentedTextWriter source, CodeGenerationInfo info)
+    {
+        source.WriteLine("public void HandleHListType<THandler>(in THandler handler)");
+        source.Indent++;
+        source.WriteLine("where THandler : global::Sia.IGenericTypeHandler<global::Sia.IHList>");
+        source.WriteLine("=>");
+
+        source.Write("handler.Handle<");
+        GenerateHListType(source, info);
+        source.WriteLine(">();");
+        source.Indent--;
     }
 
     private static void GenerateHListType(IndentedTextWriter source, CodeGenerationInfo info)
