@@ -104,6 +104,8 @@ namespace Sia_Examples
             Console.WriteLine(entity2.Get<ComponentBundle.Position>().Value);
             Console.WriteLine(entity2.Get<ComponentBundle.Rotation>().Value);
             Console.WriteLine(entity2.Contains<ComponentBundle.Scale>());
+
+            Console.WriteLine(entity2.RemoveBundle<ComponentBundle.GameObject>().Boxed);
         }
     }
 }
