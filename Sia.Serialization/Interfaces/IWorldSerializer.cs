@@ -7,5 +7,5 @@ public interface IWorldSerializer
     abstract static void Serialize<TBufferWriter>(ref TBufferWriter writer, World world)
         where TBufferWriter : IBufferWriter<byte>;
 
-    abstract static World Deserialize(ref ReadOnlySequence<byte> buffer);
+    abstract static void Deserialize(ref ReadOnlySequence<byte> buffer, World world);
 }

@@ -4,6 +4,8 @@ namespace Sia.Serialization.Binary;
 
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> : IWorldSerializer
     where THostHeaderSerializer : IHostHeaderSerializer
@@ -36,8 +38,20 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
         private unsafe struct HeadHandler(
             TComponentSerializer serializer, ReadOnlySequence<byte>* buffer) : IRefGenericHandler
         {
+            private readonly Dictionary<Identity, Identity> _idMap = [];
+
             public void Handle<T>(ref T component)
-                => serializer.Deserialize(ref *buffer, ref component);
+            {
+                serializer.Deserialize(ref *buffer, ref component);
+                if (component is IRelation || component is Identity) {
+                    ref var target = ref Unsafe.As<T, Identity>(ref component);
+                    ref var mapped = ref CollectionsMarshal.GetValueRefOrAddDefault(_idMap, target, out bool exists);
+                    if (!exists) {
+                        mapped = Identity.Create();
+                    }
+                    target = mapped;
+                }
+            }
         }
 
         private HeadHandler _headHandler = new(serializer, buffer);
@@ -76,10 +90,9 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
         }
     }
 
-    public static unsafe World Deserialize(ref ReadOnlySequence<byte> buffer)
+    public static unsafe void Deserialize(ref ReadOnlySequence<byte> buffer, World world)
     {
         using var serializer = new TComponentSerializer();
-        var world = new World();
         Span<byte> intSpan = stackalloc byte[4];
 
         fixed (ReadOnlySequence<byte>* bufferPtr = &buffer) {
@@ -100,8 +113,6 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
                 }
             }
         }
-
-        return world;
     }
 }
 
