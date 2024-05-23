@@ -38,10 +38,10 @@ public static class Example15_Serialization
         Console.WriteLine();
         Console.WriteLine("Compression rate: " + (float)compressedLength / decompressedLength);
 
-        var newWorld = BinaryWorldSerializer.Deserialize(ref seq);
+        BinaryWorldSerializer.Deserialize(ref seq, world);
 
         Console.WriteLine();
-        foreach (var e in newWorld) {
+        foreach (var e in world) {
             Console.WriteLine(e.Boxed);
         }
     }
