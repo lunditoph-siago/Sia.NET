@@ -29,3 +29,13 @@ public interface IRefGenericHandler<TBase>
 {
     public void Handle<T>(ref T value) where T : TBase;
 }
+
+public interface IGenericPredicate
+{
+    public bool Predicate<T>(in T value);
+}
+
+public interface IGenericPredicate<TBase>
+{
+    public bool Predicate<T>(in T value) where T : TBase;
+}
