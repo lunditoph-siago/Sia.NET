@@ -32,23 +32,18 @@ public readonly record struct EntityRef(in StorageSlot Slot, IEntityHost Host) :
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe ref TComponent Get<TComponent>()
     {
-        try {
-            nint offset = Descriptor.GetOffset<TComponent>();
-            ref var byteRef = ref Host.GetByteRef(Slot);
-            return ref Unsafe.As<byte, TComponent>(
-                ref Unsafe.AddByteOffset(ref byteRef, offset));
-        }
-        catch {
-            throw new ComponentNotFoundException("Component not found: " + typeof(TComponent));
-        }
+        ref var byteRef = ref Host.GetByteRef(Slot);
+        nint offset = Descriptor.GetOffset<TComponent>();
+        return ref Unsafe.As<byte, TComponent>(
+            ref Unsafe.AddByteOffset(ref byteRef, offset));
     }
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe ref TComponent GetOrNullRef<TComponent>()
     {
+        ref var byteRef = ref Host.GetByteRef(Slot);
         try {
             nint offset = Descriptor.GetOffset<TComponent>();
-            ref var byteRef = ref Host.GetByteRef(Slot);
             return ref Unsafe.As<byte, TComponent>(
                 ref Unsafe.AddByteOffset(ref byteRef, offset));
         }
