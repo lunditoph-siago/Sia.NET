@@ -181,11 +181,15 @@ public abstract class SnapshotEventSystemBase<TSnapshot>(SystemChain? children =
     protected void RecordFor<TComponent>()
     {
         RecordOnAdded<TComponent>();
+        RecordOnSet<TComponent>();
         RecordRemovalEvent<WorldEvents.Remove<TComponent>>();
     }
     
     protected void RecordOnAdded<TComponent>()
         => RecordEvent<WorldEvents.Add<TComponent>>();
+
+    protected void RecordOnSet<TComponent>()
+        => RecordEvent<WorldEvents.Set<TComponent>>();
 
     protected void RecordEvent<TEvent>()
         where TEvent : IEvent
@@ -281,9 +285,7 @@ public abstract class ComponentEventSystemBase<TComponent, TSnapshot>(SystemChai
     {
         base.Initialize(world, scheduler);
         World.IndexHosts(Matchers.Of<TComponent>());
-
-        RecordEvent<WorldEvents.Add<TComponent>>();
-        RecordRemovalEvent<WorldEvents.Remove<TComponent>>();
+        RecordFor<TComponent>();
     }
 }
 
