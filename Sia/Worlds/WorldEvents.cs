@@ -6,5 +6,6 @@ public static class WorldEvents
     public class Remove : SingletonEvent<Remove> {}
 
     public class Add<TComponent> : SingletonEvent<Add<TComponent>> {}
+    public class Set<TComponent> : SingletonEvent<Set<TComponent>> {}
     public class Remove<TComponent> : SingletonEvent<Remove<TComponent>> {}
 }

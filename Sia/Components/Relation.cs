@@ -30,6 +30,18 @@ public static class RelationExtensions
         where TRelation : IRelation<TArgument>
         => entity.Add(new Relation<TRelation, TArgument>(target.Id, arg));
 
+    public static EntityRef Set<TRelation>(this EntityRef entity, EntityRef target)
+        where TRelation : IRelation
+        => entity.Set(new Relation<TRelation>(target.Id));
+
+    public static EntityRef Set<TRelation, TArgument>(this EntityRef entity, Identity target, TArgument arg)
+        where TRelation : IRelation<TArgument>
+        => entity.Set(new Relation<TRelation, TArgument>(target, arg));
+
+    public static EntityRef Set<TRelation, TArgument>(this EntityRef entity, EntityRef target, TArgument arg)
+        where TRelation : IRelation<TArgument>
+        => entity.Set(new Relation<TRelation, TArgument>(target.Id, arg));
+
     public static EntityRef Get<TRelation>(this EntityRef entity, World world)
         where TRelation : IRelation
         => world[entity.Get<Relation<TRelation>>().Target];

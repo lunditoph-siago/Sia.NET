@@ -105,6 +105,13 @@ public class WorldEntityHost<TEntity, TStorage>(World world, TStorage storage)
         return e;
     }
 
+    public override EntityRef Set<TComponent>(in StorageSlot slot, in TComponent value)
+    {
+        var e = base.Set(slot, value);
+        World.Dispatcher.Send(e, WorldEvents.Set<TComponent>.Instance);
+        return e;
+    }
+
     public override EntityRef Remove<TComponent>(in StorageSlot slot)
     {
         var e = base.Remove<TComponent>(slot);
