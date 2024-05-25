@@ -65,6 +65,9 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage storage) : IEntityHos
 
     public virtual EntityRef Add<TComponent>(in StorageSlot slot, in TComponent initial)
     {
+        if (EntityIndexer<TEntity, TComponent>.Offset != -1) {
+            EntityExceptionHelper.ThrowComponentExisted<TComponent>();
+        }
         var host = GetSiblingHost<HList<TComponent, TEntity>>();
         ref var entity = ref Storage.GetRef(slot);
         var newData = HList.Cons(entity.Head, HList.Cons(initial, entity.Tail));
@@ -88,24 +91,75 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage storage) : IEntityHos
         }
     }
 
+    private struct EntityComponentChecker : IGenericTypeHandler
+    {
+        public static EntityComponentChecker Instance = new();
+
+        public readonly void Handle<T>()
+        {
+            if (EntityIndexer<TEntity, T>.Offset != -1) {
+                EntityExceptionHelper.ThrowComponentExisted<T>();
+            }
+        }
+    }
+
     public virtual unsafe EntityRef AddMany<TList>(in StorageSlot slot, in TList list)
         where TList : IHList
     {
-        ref var entity = ref Storage.GetRef(slot);
+        TList.HandleTypes(EntityComponentChecker.Instance);
         EntityRef result;
+        ref var entity = ref Storage.GetRef(slot);
         var mover = new EntityMover(this, slot, entity.Head, &result);
-        list.Concat(entity.Tail, mover);
+        entity.Tail.Concat(list, mover);
         return result;
     }
 
     public virtual unsafe EntityRef Remove<TComponent>(in StorageSlot slot)
     {
+        if (EntityIndexer<TEntity, TComponent>.Offset == -1) {
+            return new(slot, this);
+        }
         ref var entity = ref Storage.GetRef(slot);
         EntityRef result;
-
         var mover = new EntityMover(this, slot, entity.Head, &result);
         entity.Tail.Remove(TypeProxy<TComponent>.Default, mover);
         return result;
+    }
+
+    private readonly struct EntityComponentPredicate<TList> : IGenericPredicate
+        where TList : IHList
+    {
+        public static EntityComponentPredicate<TList> Instance = new();
+
+        private struct TypeCollector(HashSet<Type> set) : IGenericTypeHandler
+        {
+            public readonly void Handle<T>()
+                => set.Add(typeof(T));
+        }
+
+        private readonly HashSet<Type> _types = [];
+
+        public EntityComponentPredicate()
+            => TList.HandleTypes(new TypeCollector(_types));
+
+        public readonly bool Predicate<T>(in T value)
+            => _types.Contains(typeof(T));
+    }
+
+    private unsafe struct FilteredHListMover(
+        StorageEntityHost<TEntity, TStorage> host, StorageSlot slot, Identity id, EntityRef* result)
+        : IGenericHandler<IHList>
+    {
+        public readonly void Handle<T>(in T value) where T : IHList
+        {
+            if (typeof(T) == typeof(TEntity)) {
+                *result = new(slot, host);
+                return;
+            }
+            var siblingHost = host.GetSiblingHost<T>();
+            host.MoveOut(slot);
+            *result = siblingHost.MoveIn(HList.Cons(id, value));
+        }
     }
 
     public virtual unsafe EntityRef RemoveMany<TList>(in StorageSlot slot)
@@ -113,12 +167,9 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage storage) : IEntityHos
     {
         ref var entity = ref Storage.GetRef(slot);
         EntityRef result;
-
-        var mover = new EntityMover(this, slot, entity.Head, &result);
-        new DynBundle()
-            .AddMany(entity.Tail)
-            .RemoveMany<TList>()
-            .ToHList(mover);
+        entity.Tail.Filter(
+            EntityComponentPredicate<TList>.Instance,
+            new FilteredHListMover(this, slot, entity.Head, &result));
         return result;
     }
 
