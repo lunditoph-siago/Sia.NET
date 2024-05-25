@@ -155,7 +155,7 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage storage) : IEntityHos
             => TList.HandleTypes(new TypeCollector(_types));
 
         public readonly bool Predicate<T>(in T value)
-            => _types.Contains(typeof(T));
+            => !_types.Contains(typeof(T));
     }
 
     private unsafe struct FilteredHListMover(
