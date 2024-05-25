@@ -43,7 +43,7 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
             public void Handle<T>(ref T component)
             {
                 serializer.Deserialize(ref *buffer, ref component);
-                if (component is IRelation || component is Identity) {
+                if (component is IRelationComponent || component is Identity) {
                     ref var target = ref Unsafe.As<T, Identity>(ref component);
                     ref var mapped = ref CollectionsMarshal.GetValueRefOrAddDefault(_idMap, target, out bool exists);
                     if (!exists) {
