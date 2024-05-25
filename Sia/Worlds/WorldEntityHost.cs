@@ -45,9 +45,7 @@ public class WorldEntityHost<TEntity, TStorage>(World world, TStorage storage)
         OnEntityCreated?.Invoke(entity);
         dispatcher.Send(entity, WorldEvents.Add.Instance);
 
-        ref var data = ref Storage.GetRef(entity.Slot);
-        new EntityAddEventSender(entity, dispatcher).Handle(data);
-
+        TEntity.HandleTypes(new EntityAddEventSender(entity, dispatcher));
         return entity;
     }
 
@@ -61,9 +59,7 @@ public class WorldEntityHost<TEntity, TStorage>(World world, TStorage storage)
         OnEntityCreated?.Invoke(entity);
         dispatcher.Send(entity, WorldEvents.Add.Instance);
 
-        ref var data = ref Storage.GetRef(entity.Slot);
-        new EntityAddEventSender(entity, dispatcher).Handle(data);
-
+        TEntity.HandleTypes(new EntityAddEventSender(entity, dispatcher));
         return entity;
     }
 
@@ -102,10 +98,10 @@ public class WorldEntityHost<TEntity, TStorage>(World world, TStorage storage)
         return e;
     }
 
-    public override EntityRef AddMany<TBundle>(in StorageSlot slot, in TBundle bundle)
+    public override EntityRef AddMany<TList>(in StorageSlot slot, in TList list)
     {
-        var e = base.AddMany(slot, bundle);
-        new EntityAddEventSender(e, World.Dispatcher).Handle(bundle);
+        var e = base.AddMany(slot, list);
+        TList.HandleTypes(new EntityAddEventSender(e, World.Dispatcher));
         return e;
     }
 
