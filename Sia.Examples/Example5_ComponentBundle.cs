@@ -68,7 +68,7 @@ namespace Sia_Examples
 
             var entity2 = world.CreateInArrayHost()
                 .AddBundle(new ComponentBundle.TestObjectBundle())
-                .Remove<Scale>();
+                .Remove<ComponentBundle.Scale>();
 
             Console.WriteLine("Entity 2:");
             Console.WriteLine(entity2.Get<ComponentBundle.Name>().Value);
