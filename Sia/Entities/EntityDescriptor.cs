@@ -28,7 +28,7 @@ public static class EntityDescriptor<TEntity>
                 if (!offsets.TryAdd(typeof(T), offset)) {
                     throw new InvalidDataException("Entity cannot have multiple components of the same type");
                 }
-                components.Add(new(typeof(T), offset, EntityComponentIndexer<TEntity, T>.Index));
+                components.Add(new(typeof(T), offset, InternalEntityComponentIndexer<TEntity, T>.Index));
             }
         }
 
@@ -43,6 +43,13 @@ public static class EntityDescriptor<TEntity>
 
     unsafe static EntityDescriptor()
     {
+        if (typeof(TEntity) == typeof(EmptyHList)) {
+            Components = [];
+            Offsets = new Dictionary<Type, IntPtr>().ToFrozenDictionary();
+            OffsetSlots = [];
+            return;
+        }
+
         var components = new List<ComponentInfo>();
         var offsets = new Dictionary<Type, IntPtr>();
 
@@ -84,7 +91,7 @@ public record EntityDescriptor
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int GetIndex<TComponent>()
-            => EntityComponentIndexer<TEntity, TComponent>.Index;
+            => InternalEntityComponentIndexer<TEntity, TComponent>.Index;
     }
 
     public static EntityDescriptor Get<TEntity>()
