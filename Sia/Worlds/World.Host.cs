@@ -58,35 +58,6 @@ public partial class World
         return host;
     }
 
-    public bool TryGetCustomHost<TEntity, THost>([MaybeNullWhen(false)] out WrappedWorldEntityHost<TEntity, THost> host)
-        where TEntity : IHList
-        where THost : IEntityHost<TEntity>, new()
-    {
-        ref var rawHost = ref _hosts.GetValueRefOrNullRef(
-            WorldEntityHostIndexer<THost>.Index);
-        if (Unsafe.IsNullRef(ref rawHost)) {
-            host = null;
-            return false;
-        }
-        host = Unsafe.As<WrappedWorldEntityHost<TEntity, THost>>(rawHost);
-        return true;
-    }
-
-    public WrappedWorldEntityHost<TEntity, THost> AddCustomHost<TEntity, THost>()
-        where TEntity : IHList
-        where THost : IEntityHost<TEntity>, new()
-    {
-        ref var rawHost = ref _hosts.GetOrAddValueRef(
-            WorldEntityHostIndexer<THost>.Index, out bool exists);
-        if (exists) {
-            throw new ArgumentException("Host with the same type already exists");
-        }
-        var host = new WrappedWorldEntityHost<TEntity, THost>(this);
-        OnEntityHostAdded?.Invoke(host);
-        rawHost = host;
-        return host;
-    }
-    
     public THost UnsafeAddRawHost<THost>(THost host)
         where THost : IReactiveEntityHost
     {
