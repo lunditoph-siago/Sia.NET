@@ -95,6 +95,7 @@ public class WorldEntityHost<TEntity, TStorage>(World world, TStorage storage)
     {
         var e = base.Add(slot, initial);
         World.Dispatcher.Send(e, WorldEvents.Add<TComponent>.Instance);
+        World.Dispatcher.Send(e, WorldEvents.Set<TComponent>.Instance);
         return e;
     }
 
