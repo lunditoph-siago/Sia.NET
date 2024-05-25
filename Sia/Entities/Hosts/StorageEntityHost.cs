@@ -65,7 +65,7 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage storage) : IEntityHos
 
     public virtual EntityRef Add<TComponent>(in StorageSlot slot, in TComponent initial)
     {
-        if (EntityIndexer<TEntity, TComponent>.Offset != -1) {
+        if (EntityIndexer<HList<Identity, TEntity>, TComponent>.Offset != -1) {
             EntityExceptionHelper.ThrowComponentExisted<TComponent>();
         }
         var host = GetSiblingHost<HList<TComponent, TEntity>>();
@@ -97,7 +97,7 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage storage) : IEntityHos
 
         public readonly void Handle<T>()
         {
-            if (EntityIndexer<TEntity, T>.Offset != -1) {
+            if (EntityIndexer<HList<Identity, TEntity>, T>.Offset != -1) {
                 EntityExceptionHelper.ThrowComponentExisted<T>();
             }
         }
@@ -114,9 +114,21 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage storage) : IEntityHos
         return result;
     }
 
+    public virtual unsafe EntityRef Set<TComponent>(in StorageSlot slot, in TComponent value)
+    {
+        var offset = EntityIndexer<HList<Identity, TEntity>, TComponent>.Offset;
+        if (offset == -1) {
+            return Add(slot, value);
+        }
+        Unsafe.As<HList<Identity, TEntity>, TComponent>(
+            ref Unsafe.AddByteOffset(ref GetRef(slot), offset))
+            = value;
+        return new(slot, this);
+    }
+
     public virtual unsafe EntityRef Remove<TComponent>(in StorageSlot slot)
     {
-        if (EntityIndexer<TEntity, TComponent>.Offset == -1) {
+        if (EntityIndexer<HList<Identity, TEntity>, TComponent>.Offset == -1) {
             return new(slot, this);
         }
         ref var entity = ref Storage.GetRef(slot);

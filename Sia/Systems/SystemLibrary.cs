@@ -97,6 +97,9 @@ public class SystemLibrary : IAddon
             where TList : IHList
             => Host.AddMany(slot, bundle);
 
+        public EntityRef Set<TComponent>(in StorageSlot slot, in TComponent initial)
+            => Host.Set(slot, initial);
+
         public EntityRef Remove<TComponent>(in StorageSlot slot)
             => Host.Remove<TComponent>(slot);
 

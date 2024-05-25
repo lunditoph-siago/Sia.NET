@@ -85,6 +85,9 @@ public readonly record struct EntityRef(in StorageSlot Slot, IEntityHost Host) :
 
 #pragma warning restore CS8500 // This takes the address of, gets the size of, or declares a pointer to a managed type
 
+    public EntityRef Set<TComponent>(in TComponent value)
+        => Host.Set(Slot, value);
+
     public EntityRef Remove<TComponent>()
         => Host.Remove<TComponent>(Slot);
 

@@ -25,6 +25,8 @@ public interface IEntityHost : IEnumerable<EntityRef>, IDisposable
     EntityRef Add<TComponent>(in StorageSlot slot, in TComponent initial);
     EntityRef AddMany<TList>(in StorageSlot slot, in TList list)
         where TList : IHList;
+    EntityRef Set<TComponent>(in StorageSlot slot, in TComponent value);
+
     EntityRef Remove<TComponent>(in StorageSlot slot);
     EntityRef RemoveMany<TList>(in StorageSlot slot)
         where TList : IHList;
