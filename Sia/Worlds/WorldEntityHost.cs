@@ -116,7 +116,9 @@ public class WorldEntityHost<TEntity, TStorage>(World world, TStorage storage)
     public override EntityRef Remove<TComponent>(in StorageSlot slot)
     {
         var e = base.Remove<TComponent>(slot);
-        World.Dispatcher.Send(e, WorldEvents.Remove<TComponent>.Instance);
+        if (e.Host != this) {
+            World.Dispatcher.Send(e, WorldEvents.Remove<TComponent>.Instance);
+        }
         return e;
     }
 
@@ -124,7 +126,7 @@ public class WorldEntityHost<TEntity, TStorage>(World world, TStorage storage)
     public override EntityRef RemoveMany<TList>(in StorageSlot slot)
     {
         var e = base.RemoveMany<TList>(slot);
-        TList.HandleTypes(new EntityRemoveEventSender(e, World.Dispatcher));
+        TList.HandleTypes(new ExEntityRemoveEventSender(e, Descriptor, World.Dispatcher));
         return e;
     }
 }

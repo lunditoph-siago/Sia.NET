@@ -18,4 +18,15 @@ internal static class WorldHostUtils
         public readonly void Handle<T>()
             => dispatcher.Send(entity, WorldEvents.Remove<T>.Instance);
     }
+
+    public struct ExEntityRemoveEventSender(
+        EntityRef entity, EntityDescriptor prevDesc, WorldDispatcher dispatcher) : IGenericTypeHandler
+    {
+        public readonly void Handle<T>()
+        {
+            if (prevDesc.Offsets.ContainsKey(typeof(T))) {
+                dispatcher.Send(entity, WorldEvents.Remove<T>.Instance);
+            }
+        }
+    }
 }
