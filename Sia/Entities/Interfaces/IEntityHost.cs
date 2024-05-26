@@ -4,7 +4,7 @@ public interface IEntityHost : IEnumerable<Entity>, IDisposable
 {
     event Action<IEntityHost>? OnDisposed;
 
-    Type InnerEntityType { get; }
+    Type EntityType { get; }
     EntityDescriptor Descriptor { get; }
 
     int Capacity { get; }
@@ -16,8 +16,12 @@ public interface IEntityHost : IEnumerable<Entity>, IDisposable
     void MoveOut(in StorageSlot slot);
     bool IsValid(in StorageSlot slot);
 
+    Entity GetEntity(in StorageSlot slot);
+
     ref byte GetByteRef(in StorageSlot slot);
+    ref byte GetByteRef(in StorageSlot slot, out Entity entity);
     ref byte UnsafeGetByteRef(in StorageSlot slot);
+    ref byte UnsafeGetByteRef(in StorageSlot slot, out Entity entity);
 
     void GetHList<THandler>(in StorageSlot slot, in THandler handler)
         where THandler : IRefGenericHandler<IHList>;
@@ -44,8 +48,10 @@ public interface IEntityHost<TEntity> : IEntityHost
     where TEntity : IHList
 {
     Entity Create(in TEntity initial);
-    void MoveIn(in HList<Entity, TEntity> data);
+    void MoveIn(Entity entity, in TEntity data);
 
-    ref HList<Entity, TEntity> GetRef(in StorageSlot slot);
-    ref HList<Entity, TEntity> UnsafeGetRef(in StorageSlot slot);
+    ref TEntity GetRef(in StorageSlot slot);
+    ref TEntity GetRef(in StorageSlot slot, out Entity entity);
+    ref TEntity UnsafeGetRef(in StorageSlot slot);
+    ref TEntity UnsafeGetRef(in StorageSlot slot, out Entity entity);
 }

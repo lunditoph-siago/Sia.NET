@@ -66,7 +66,7 @@ public class WorldEntityHost<TEntity, TStorage>(World world, TStorage storage)
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public override void Release(in StorageSlot slot)
     {
-        ref var entity = ref GetRef(slot).Head;
+        var entity = GetEntity(slot);
         var dispatcher = World.Dispatcher;
 
         TEntity.HandleTypes(new EntityRemoveEventSender(entity, dispatcher));

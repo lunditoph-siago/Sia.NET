@@ -36,7 +36,7 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
             public void Handle<T>(ref T component)
             {
                 var t = typeof(T);
-                if (t == typeof(Entity) || component is IRelationComponent) {
+                if (component is IRelationComponent) {
                     serializer.Serialize(ref *writer, Unsafe.As<T, Entity>(ref component).Id);
                     if (component is IArgumentRelationComponent argComp) {
                         argComp.HandleRelation(new GenericSerializer<TBufferWriter>(serializer, writer));
@@ -60,32 +60,20 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
 
     private unsafe struct EntityDeserializationHandler(
         TComponentSerializer serializer, ReadOnlySequence<byte>* buffer,
-        Dictionary<EntityId, Entity> idMap, List<(Entity, EntityId, int)> relations) : IRefGenericHandler<IHList>
+        List<(Entity, EntityId, int)> relations) : IRefGenericHandler<IHList>
     {
         private unsafe struct HeadHandler(
             TComponentSerializer serializer, ReadOnlySequence<byte>* buffer,
-            Dictionary<EntityId, Entity> idMap, List<(Entity, EntityId, int)> relations) : IRefGenericHandler
+            List<(Entity, EntityId, int)> relations) : IRefGenericHandler
         {
-            private Entity? entity;
             private int counter;
 
             public void Handle<T>(ref T component)
             {
-                var t = typeof(T);
-                if (t == typeof(Entity)) {
-                    entity = Unsafe.As<T, Entity>(ref component);
+                if (component is IRelationComponent) {
                     EntityId id = default;
                     serializer.Deserialize(ref *buffer, ref id);
-                    idMap[id] = entity;
-                }
-                else if (component is IRelationComponent) {
-                    if (entity == null) {
-                        throw new InvalidDataException("Entity component must appear before any relation component");
-                    }
-
-                    EntityId id = default;
-                    serializer.Deserialize(ref *buffer, ref id);
-                    relations.Add((entity, id, counter));
+                    relations.Add((null!, id, counter));
 
                     if (component is IArgumentRelationComponent argComp) {
                         argComp.HandleRelation(new GenericDeserializer(serializer, buffer));
@@ -99,7 +87,7 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
             }
         }
 
-        private HeadHandler _headHandler = new(serializer, buffer, idMap, relations);
+        private HeadHandler _headHandler = new(serializer, buffer, relations);
 
         public void Handle<T>(ref T value)
             where T : IHList
@@ -129,6 +117,8 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
                 writer.Write(intSpan);
 
                 foreach (var slot in host.AllocatedSlots) {
+                    var entity = host.GetEntity(slot);
+                    serializer.Serialize(ref writer, entity.Id);
                     host.GetHList(slot, entitySerializer);
                 }
             }
@@ -144,7 +134,7 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
         var relations = new List<(Entity, EntityId, int)>();
 
         fixed (ReadOnlySequence<byte>* bufferPtr = &buffer) {
-            var entityDeserializer = new EntityDeserializationHandler(serializer, bufferPtr, idMap, relations);
+            var entityDeserializer = new EntityDeserializationHandler(serializer, bufferPtr, relations);
 
             while (true) {
                 var host = THostHeaderSerializer.Deserialize(ref buffer, world);
@@ -162,7 +152,16 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
 
                 for (int i = 0; i != entityCount; ++i) {
                     var e = host.Create();
+                    int startRelationIndex = relations.Count;
+
+                    EntityId id = default;
+                    serializer.Deserialize(ref buffer, ref id);
+                    idMap[id] = e;
+
                     e.GetHList(entityDeserializer);
+                    foreach (ref var tuple in relations.AsSpan()[startRelationIndex..]) {
+                        tuple.Item1 = e;
+                    }
                 }
             }
         }

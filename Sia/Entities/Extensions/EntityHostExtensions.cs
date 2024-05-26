@@ -45,8 +45,4 @@ public static partial class EntityHostExtensions
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe Span<byte> GetSpan(this IEntityHost host, scoped in StorageSlot slot)
         => new(Unsafe.AsPointer(ref host.GetByteRef(slot)), host.Descriptor.MemorySize);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe Entity GetEntity(this IEntityHost host, in StorageSlot slot)
-        => Unsafe.As<byte, Entity>(ref host.GetByteRef(slot));
 }
