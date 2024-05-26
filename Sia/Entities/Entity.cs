@@ -5,7 +5,7 @@ using Microsoft.Extensions.ObjectPool;
 
 public sealed record Entity : IDisposable
 {
-    public long Id { get; }
+    public EntityId Id { get; } = EntityId.Create();
     public IEntityHost Host { get; internal set; } = null!;
     public StorageSlot Slot { get; internal set; }
 
@@ -19,16 +19,12 @@ public sealed record Entity : IDisposable
         public bool Return(Entity obj) => true;
     }
 
-    private static long s_acc;
     private static readonly ObjectPool<Entity> s_pool = new DefaultObjectPool<Entity>(new PooledEntityPolicy());
 
     internal static Entity Get()
         => s_pool.Get();
 
-    private Entity()
-    {
-        Id = Interlocked.Increment(ref s_acc);
-    }
+    private Entity() {}
 
     public void Dispose()
     {

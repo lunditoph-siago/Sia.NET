@@ -60,11 +60,11 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
 
     private unsafe struct EntityDeserializationHandler(
         TComponentSerializer serializer, ReadOnlySequence<byte>* buffer,
-        Dictionary<long, Entity> idMap, List<(Entity, long, int)> relations) : IRefGenericHandler<IHList>
+        Dictionary<EntityId, Entity> idMap, List<(Entity, EntityId, int)> relations) : IRefGenericHandler<IHList>
     {
         private unsafe struct HeadHandler(
             TComponentSerializer serializer, ReadOnlySequence<byte>* buffer,
-            Dictionary<long, Entity> idMap, List<(Entity, long, int)> relations) : IRefGenericHandler
+            Dictionary<EntityId, Entity> idMap, List<(Entity, EntityId, int)> relations) : IRefGenericHandler
         {
             private Entity? entity;
             private int counter;
@@ -74,7 +74,7 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
                 var t = typeof(T);
                 if (t == typeof(Entity)) {
                     entity = Unsafe.As<T, Entity>(ref component);
-                    long id = 0;
+                    EntityId id = default;
                     serializer.Deserialize(ref *buffer, ref id);
                     idMap[id] = entity;
                 }
@@ -83,7 +83,7 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
                         throw new InvalidDataException("Entity component must appear before any relation component");
                     }
 
-                    long id = 0;
+                    EntityId id = default;
                     serializer.Deserialize(ref *buffer, ref id);
                     relations.Add((entity, id, counter));
 
@@ -140,8 +140,8 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
         using var serializer = new TComponentSerializer();
         Span<byte> intSpan = stackalloc byte[4];
 
-        var idMap = new Dictionary<long, Entity>();
-        var relations = new List<(Entity, long, int)>();
+        var idMap = new Dictionary<EntityId, Entity>();
+        var relations = new List<(Entity, EntityId, int)>();
 
         fixed (ReadOnlySequence<byte>* bufferPtr = &buffer) {
             var entityDeserializer = new EntityDeserializationHandler(serializer, bufferPtr, idMap, relations);
