@@ -42,6 +42,30 @@ public class FSystem(QueryHandler queryHandler,
     public static FSystem<T1, T2, T3, T4, T5, T6> From<T1, T2, T3, T4, T5, T6>(ComponentHandler<T1, T2, T3, T4, T5, T6> handler,
         IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
         => new(handler, matcher, trigger, filter);
+
+    public static FSystemWithEntity<T1> From<T1>(ComponentHandlerWithEntity<T1> handler,
+        IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
+        => new(handler, matcher, trigger, filter);
+
+    public static FSystemWithEntity<T1, T2> From<T1, T2>(ComponentHandlerWithEntity<T1, T2> handler,
+        IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
+        => new(handler, matcher, trigger, filter);
+
+    public static FSystemWithEntity<T1, T2, T3> From<T1, T2, T3>(ComponentHandlerWithEntity<T1, T2, T3> handler,
+        IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
+        => new(handler, matcher, trigger, filter);
+
+    public static FSystemWithEntity<T1, T2, T3, T4> From<T1, T2, T3, T4>(ComponentHandlerWithEntity<T1, T2, T3, T4> handler,
+        IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
+        => new(handler, matcher, trigger, filter);
+
+    public static FSystemWithEntity<T1, T2, T3, T4, T5> From<T1, T2, T3, T4, T5>(ComponentHandlerWithEntity<T1, T2, T3, T4, T5> handler,
+        IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
+        => new(handler, matcher, trigger, filter);
+
+    public static FSystemWithEntity<T1, T2, T3, T4, T5, T6> From<T1, T2, T3, T4, T5, T6>(ComponentHandlerWithEntity<T1, T2, T3, T4, T5, T6> handler,
+        IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
+        => new(handler, matcher, trigger, filter);
 }
 
 public class FSystemWithRunner(QueryHandler queryHandler, IRunner? runner = null,
@@ -108,6 +132,42 @@ public class FSystem<T1, T2, T3, T4, T5, T6>(ComponentHandler<T1, T2, T3, T4, T5
     : FSystem(
         (query, runner, barrier) => query.ForSlice(handler, runner, barrier),
         matcher ?? Matchers.Of<T1, T2, T3, T4, T5, T6>(), trigger, filter);
+
+public class FSystemWithEntity<T1>(ComponentHandlerWithEntity<T1> handler,
+    IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
+    : FSystem(
+        (query, runner, barrier) => query.ForSlice(handler, runner, barrier),
+        matcher ?? Matchers.Of<T1>(), trigger, filter);
+
+public class FSystemWithEntity<T1, T2>(ComponentHandlerWithEntity<T1, T2> handler,
+    IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
+    : FSystem(
+        (query, runner, barrier) => query.ForSlice(handler, runner, barrier),
+        matcher ?? Matchers.Of<T1, T2>(), trigger, filter);
+
+public class FSystemWithEntity<T1, T2, T3>(ComponentHandlerWithEntity<T1, T2, T3> handler,
+    IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
+    : FSystem(
+        (query, runner, barrier) => query.ForSlice(handler, runner, barrier),
+        matcher ?? Matchers.Of<T1, T2, T3>(), trigger, filter);
+
+public class FSystemWithEntity<T1, T2, T3, T4>(ComponentHandlerWithEntity<T1, T2, T3, T4> handler,
+    IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
+    : FSystem(
+        (query, runner, barrier) => query.ForSlice(handler, runner, barrier),
+        matcher ?? Matchers.Of<T1, T2, T3, T4>(), trigger, filter);
+
+public class FSystemWithEntity<T1, T2, T3, T4, T5>(ComponentHandlerWithEntity<T1, T2, T3, T4, T5> handler,
+    IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
+    : FSystem(
+        (query, runner, barrier) => query.ForSlice(handler, runner, barrier),
+        matcher ?? Matchers.Of<T1, T2, T3, T4, T5>(), trigger, filter);
+
+public class FSystemWithEntity<T1, T2, T3, T4, T5, T6>(ComponentHandlerWithEntity<T1, T2, T3, T4, T5, T6> handler,
+    IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
+    : FSystem(
+        (query, runner, barrier) => query.ForSlice(handler, runner, barrier),
+        matcher ?? Matchers.Of<T1, T2, T3, T4, T5, T6>(), trigger, filter);
     
 public static class FSystemSystemChainExtensions
 {
@@ -132,6 +192,30 @@ public static class FSystemSystemChainExtensions
         => chain.Add(() => FSystem.From(handler, matcher, trigger, filter));
 
     public static SystemChain Add<T1, T2, T3, T4, T5, T6>(this SystemChain chain, ComponentHandler<T1, T2, T3, T4, T5, T6> handler,
+        IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
+        => chain.Add(() => FSystem.From(handler, matcher, trigger, filter));
+    
+    public static SystemChain Add<T1>(this SystemChain chain, ComponentHandlerWithEntity<T1> handler,
+        IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
+        => chain.Add(() => FSystem.From(handler, matcher, trigger, filter));
+
+    public static SystemChain Add<T1, T2>(this SystemChain chain, ComponentHandlerWithEntity<T1, T2> handler,
+        IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
+        => chain.Add(() => FSystem.From(handler, matcher, trigger, filter));
+
+    public static SystemChain Add<T1, T2, T3>(this SystemChain chain, ComponentHandlerWithEntity<T1, T2, T3> handler,
+        IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
+        => chain.Add(() => FSystem.From(handler, matcher, trigger, filter));
+
+    public static SystemChain Add<T1, T2, T3, T4>(this SystemChain chain, ComponentHandlerWithEntity<T1, T2, T3, T4> handler,
+        IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
+        => chain.Add(() => FSystem.From(handler, matcher, trigger, filter));
+
+    public static SystemChain Add<T1, T2, T3, T4, T5>(this SystemChain chain, ComponentHandlerWithEntity<T1, T2, T3, T4, T5> handler,
+        IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
+        => chain.Add(() => FSystem.From(handler, matcher, trigger, filter));
+
+    public static SystemChain Add<T1, T2, T3, T4, T5, T6>(this SystemChain chain, ComponentHandlerWithEntity<T1, T2, T3, T4, T5, T6> handler,
         IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
         => chain.Add(() => FSystem.From(handler, matcher, trigger, filter));
 }
