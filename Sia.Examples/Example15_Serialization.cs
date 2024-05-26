@@ -2,17 +2,14 @@ namespace Sia_Examples;
 
 using System.Buffers;
 using System.Text;
-using MemoryPack;
 using MemoryPack.Compression;
 using Sia;
 using Sia.Serialization.Binary;
 
-[MemoryPackable]
 public partial record struct C1(string Value);
 
 public class Likes<T> : IRelation;
 
-[MemoryPackable]
 public partial record struct Has(int Count) : IRelation;
 
 public static class Example15_Serialization
