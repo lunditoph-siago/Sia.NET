@@ -17,8 +17,8 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage storage) : IEntityHos
 {
     public event Action<IEntityHost>? OnDisposed;
 
-    public Type InnerEntityType => typeof(TEntity);
-    public EntityDescriptor Descriptor { get; } = EntityDescriptor.Get<HList<Entity, TEntity>>();
+    public Type EntityType => typeof(TEntity);
+    public EntityDescriptor Descriptor { get; } = EntityDescriptor.Get<TEntity>();
 
     public int Capacity => Storage.Capacity;
     public int Count => Storage.Count;
@@ -47,47 +47,68 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage storage) : IEntityHos
     public virtual void Release(in StorageSlot slot)
         => Storage.Release(slot);
 
+    public Entity GetEntity(in StorageSlot slot)
+        => Storage.GetRef(slot).Head;
+
     public void MoveOut(in StorageSlot slot)
         => Storage.Release(slot);
 
-    public void MoveIn(in HList<Entity, TEntity> data)
+    public void MoveIn(Entity entity, in TEntity data)
     {
-        var slot = Storage.AllocateSlot(data);
-        var e = data.Head;
-        e.Host = this;
-        e.Slot = slot;
+        var slot = Storage.AllocateSlot(HList.Cons(entity, data));
+        entity.Host = this;
+        entity.Slot = slot;
     }
 
     public bool IsValid(in StorageSlot slot)
         => Storage.IsValid(slot);
 
+    public unsafe ref byte GetByteRef(in StorageSlot slot, out Entity entity)
+        => ref Unsafe.As<TEntity, byte>(ref GetRef(slot, out entity));
+
     public unsafe ref byte GetByteRef(in StorageSlot slot)
-        => ref Unsafe.As<HList<Entity, TEntity>, byte>(ref Storage.GetRef(slot));
+        => ref Unsafe.As<TEntity, byte>(ref GetRef(slot));
 
     public unsafe ref byte UnsafeGetByteRef(in StorageSlot slot)
-        => ref Unsafe.As<HList<Entity, TEntity>, byte>(ref Storage.UnsafeGetRef(slot));
+        => ref Unsafe.As<TEntity, byte>(ref UnsafeGetRef(slot));
 
-    public ref HList<Entity, TEntity> GetRef(in StorageSlot slot)
-        => ref Storage.GetRef(slot);
+    public unsafe ref byte UnsafeGetByteRef(in StorageSlot slot, out Entity entity)
+        => ref Unsafe.As<TEntity, byte>(ref UnsafeGetRef(slot, out entity));
 
-    public ref HList<Entity, TEntity> UnsafeGetRef(in StorageSlot slot)
-        => ref Storage.UnsafeGetRef(slot);
+    public ref TEntity GetRef(in StorageSlot slot)
+        => ref Storage.GetRef(slot).Tail;
+
+    public ref TEntity GetRef(in StorageSlot slot, out Entity entity)
+    {
+        ref var data = ref Storage.GetRef(slot);
+        entity = data.Head;
+        return ref data.Tail;
+    }
+
+    public ref TEntity UnsafeGetRef(in StorageSlot slot)
+        => ref Storage.UnsafeGetRef(slot).Tail;
+
+    public ref TEntity UnsafeGetRef(in StorageSlot slot, out Entity entity)
+    {
+        ref var data = ref Storage.UnsafeGetRef(slot);
+        entity = data.Head;
+        return ref data.Tail;
+    }
 
     public void GetHList<THandler>(in StorageSlot slot, in THandler handler)
         where THandler : IRefGenericHandler<IHList>
-        => handler.Handle(ref Storage.GetRef(slot));
+        => handler.Handle(ref Storage.GetRef(slot).Tail);
 
     public virtual Entity Add<TComponent>(in StorageSlot slot, in TComponent initial)
     {
-        if (EntityIndexer<HList<Entity, TEntity>, TComponent>.Offset != -1) {
+        if (EntityIndexer<TEntity, TComponent>.Offset != -1) {
             EntityExceptionHelper.ThrowComponentExisted<TComponent>();
         }
         var host = GetSiblingHost<HList<TComponent, TEntity>>();
         ref var entity = ref Storage.GetRef(slot);
         var head = entity.Head;
-        var newData = HList.Cons(head, HList.Cons(initial, entity.Tail));
+        host.MoveIn(head, HList.Cons(initial, entity.Tail));
         MoveOut(slot);
-        host.MoveIn(newData);
         return head;
     }
 
@@ -95,13 +116,12 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage storage) : IEntityHos
         StorageEntityHost<TEntity, TStorage> host, StorageSlot slot, Entity e)
         : IGenericHandler<IHList>
     {
-        public readonly void Handle<TNewEntity>(in TNewEntity entity)
-            where TNewEntity : IHList
+        public readonly void Handle<T>(in T data)
+            where T : IHList
         {
-            var siblingHost = host.GetSiblingHost<TNewEntity>();
-            var newData = HList.Cons(e, entity);
+            var siblingHost = host.GetSiblingHost<T>();
             host.MoveOut(slot);
-            siblingHost.MoveIn(newData);
+            siblingHost.MoveIn(e, data);
         }
     }
 
@@ -111,7 +131,7 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage storage) : IEntityHos
 
         public readonly void Handle<T>()
         {
-            if (EntityIndexer<HList<Entity, TEntity>, T>.Offset != -1) {
+            if (EntityIndexer<TEntity, T>.Offset != -1) {
                 EntityExceptionHelper.ThrowComponentExisted<T>();
             }
         }
@@ -130,22 +150,22 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage storage) : IEntityHos
 
     public virtual Entity Set<TComponent>(in StorageSlot slot, in TComponent value)
     {
-        var offset = EntityIndexer<HList<Entity, TEntity>, TComponent>.Offset;
+        var offset = EntityIndexer<TEntity, TComponent>.Offset;
         if (offset == -1) {
             return Add(slot, value);
         }
-        ref var entity = ref GetRef(slot);
-        Unsafe.As<HList<Entity, TEntity>, TComponent>(
-            ref Unsafe.AddByteOffset(ref entity, offset))
+        ref var data = ref GetRef(slot, out var e);
+        Unsafe.As<TEntity, TComponent>(
+            ref Unsafe.AddByteOffset(ref data, offset))
             = value;
-        return entity.Head;
+        return e;
     }
 
     public virtual Entity Remove<TComponent>(in StorageSlot slot, out bool success)
     {
         ref var entity = ref Storage.GetRef(slot);
         var head = entity.Head;
-        if (EntityIndexer<HList<Entity, TEntity>, TComponent>.Offset == -1) {
+        if (EntityIndexer<TEntity, TComponent>.Offset == -1) {
             success = false;
             return head;
         }
@@ -186,7 +206,7 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage storage) : IEntityHos
             }
             var siblingHost = host.GetSiblingHost<T>();
             host.MoveOut(slot);
-            siblingHost.MoveIn(HList.Cons(e, value));
+            siblingHost.MoveIn(e, value);
         }
     }
 
@@ -211,7 +231,7 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage storage) : IEntityHos
     public IEnumerator<Entity> GetEnumerator()
     {
         foreach (var slot in Storage) {
-            yield return GetRef(slot).Head;
+            yield return Storage.UnsafeGetRef(slot).Head;
         }
     }
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();

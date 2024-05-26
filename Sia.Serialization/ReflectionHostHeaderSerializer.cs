@@ -14,14 +14,14 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
     {
         var type = host.GetType().AssemblyQualifiedName!;
         var components = string.Join('|',
-            host.Descriptor.Components.Skip(1).Select(c => c.Type.AssemblyQualifiedName));
+            host.Descriptor.Components.Select(c => c.Type.AssemblyQualifiedName));
 
         writer.Write(Encoding.Unicode.GetBytes(components));
         writer.Write(Dividor);
 
+        var entityType = host.EntityType.AssemblyQualifiedName!;
         writer.Write(Encoding.Unicode.GetBytes(
-            type.Replace(host.Descriptor.Type.AssemblyQualifiedName!, "%1")
-                .Replace(host.InnerEntityType.AssemblyQualifiedName!, "%2")));
+            type.Replace(entityType, "%1")));
         writer.Write(Dividor);
     }
 
@@ -43,8 +43,7 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
         var entityTypeName = GenerateHListType(components);
 
         var hostTypeName = Encoding.Unicode.GetString(hostTypeRaw)
-            .Replace("%1", "Sia.HList`2[[Sia.Entity, Sia], [" + entityTypeName + "]], Sia")
-            .Replace("%2", entityTypeName);
+            .Replace("%1", entityTypeName);
 
         return GetHost(world, hostTypeName);
     }

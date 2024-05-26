@@ -33,7 +33,7 @@ public class SystemLibrary : IAddon
             remove => Host.OnDisposed -= value;
         }
 
-        public Type InnerEntityType => Host.InnerEntityType;
+        public Type EntityType => Host.EntityType;
         public EntityDescriptor Descriptor => Host.Descriptor;
 
         public int Capacity => Host.Capacity;
@@ -87,6 +87,9 @@ public class SystemLibrary : IAddon
         public Entity Create() => Host.Create();
         public void Release(in StorageSlot slot) => Host.Release(slot);
 
+        public Entity GetEntity(in StorageSlot slot)
+            => Host.GetEntity(slot);
+
         public void MoveOut(in StorageSlot slot)
             => Host.MoveOut(slot);
 
@@ -113,8 +116,14 @@ public class SystemLibrary : IAddon
         public ref byte GetByteRef(in StorageSlot slot)
             => ref Host.GetByteRef(slot);
 
+        public ref byte GetByteRef(in StorageSlot slot, out Entity entity)
+            => ref Host.GetByteRef(slot, out entity);
+
         public ref byte UnsafeGetByteRef(in StorageSlot slot)
             => ref Host.UnsafeGetByteRef(slot);
+
+        public ref byte UnsafeGetByteRef(in StorageSlot slot, out Entity entity)
+            => ref Host.UnsafeGetByteRef(slot, out entity);
 
         public void GetHList<THandler>(in StorageSlot slot, in THandler handler)
             where THandler : IRefGenericHandler<IHList>
