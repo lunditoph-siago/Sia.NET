@@ -150,7 +150,7 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage storage) : IEntityHos
             return head;
         }
         var mover = new EntityMover(this, slot, head);
-        entity.Tail.Remove(TypeProxy<TComponent>.Default, mover);
+        entity.Tail.Remove(TypeProxy<TComponent>._, mover);
         success = true;
         return head;
     }

@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 
 public struct TypeProxy<T>
 {
-    public static TypeProxy<T> Default => default;
+    public static TypeProxy<T> _ => default;
 }
 
 public interface IHListHandler

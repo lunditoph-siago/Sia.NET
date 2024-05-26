@@ -50,7 +50,7 @@ public class HListTests
         // Act
         list1.Concat(list2, mockHandler);
         list1.Remove(1.0f, mockHandler);
-        list2.Remove(TypeProxy<bool>.Default, mockHandler);
+        list2.Remove(TypeProxy<bool>._, mockHandler);
 
         // Assert
         Assert.Equal(HList.Create("Mock", 1.0f, new Vector3(1, 2, 3), true), mockHandler.HandledValues[0]);
