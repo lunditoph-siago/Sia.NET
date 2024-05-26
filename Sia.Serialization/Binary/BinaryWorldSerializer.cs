@@ -5,7 +5,7 @@ namespace Sia.Serialization.Binary;
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
+using CommunityToolkit.HighPerformance;
 
 public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> : IWorldSerializer
     where THostHeaderSerializer : IHostHeaderSerializer
@@ -16,51 +16,72 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
         where TBufferWriter : IBufferWriter<byte>
     {
         private unsafe struct HeadHandler(
-            TComponentSerializer serializer, TBufferWriter* writer) : IGenericHandler
+            TComponentSerializer serializer, TBufferWriter* writer) : IRefGenericHandler
         {
-            public void Handle<T>(in T value)
-                => serializer.Serialize(ref *writer, value);
-        }
-
-        private HeadHandler _headHandler = new(serializer, writer);
-
-        public readonly void Handle<T>(ref T value)
-            where T : IHList
-        {
-            value.HandleHead(_headHandler);
-            value.HandleTailRef(this);
-        }
-    }
-
-    private unsafe struct EntityDeserializationHandler(
-        TComponentSerializer serializer, ReadOnlySequence<byte>* buffer) : IRefGenericHandler<IHList>
-    {
-        private unsafe struct HeadHandler(
-            TComponentSerializer serializer, ReadOnlySequence<byte>* buffer) : IRefGenericHandler
-        {
-            private readonly Dictionary<Identity, Identity> _idMap = [];
-
-            public void Handle<T>(ref T component)
+            public void Handle<T>(ref T value)
             {
-                serializer.Deserialize(ref *buffer, ref component);
-                if (component is IRelationComponent || component is Identity) {
-                    ref var target = ref Unsafe.As<T, Identity>(ref component);
-                    ref var mapped = ref CollectionsMarshal.GetValueRefOrAddDefault(_idMap, target, out bool exists);
-                    if (!exists) {
-                        mapped = Identity.Create();
-                    }
-                    target = mapped;
+                var t = typeof(T);
+                if (t == typeof(Entity) || value is IRelationComponent) {
+                    serializer.Serialize(ref *writer, Unsafe.As<T, Entity>(ref value).Id);
+                }
+                else {
+                    serializer.Serialize(ref *writer, value);
                 }
             }
         }
 
-        private HeadHandler _headHandler = new(serializer, buffer);
+        private HeadHandler _headHandler = new(serializer, writer);
 
-        public readonly void Handle<T>(ref T value)
+        public void Handle<T>(ref T value)
             where T : IHList
         {
-            value.HandleHeadRef(_headHandler);
-            value.HandleTailRef(this);
+            value.HandleHeadRef(ref _headHandler);
+            value.HandleTailRef(ref this);
+        }
+    }
+
+    private unsafe struct EntityDeserializationHandler(
+        TComponentSerializer serializer, ReadOnlySequence<byte>* buffer,
+        Dictionary<long, Entity> idMap, List<(Entity, long, int)> relations) : IRefGenericHandler<IHList>
+    {
+        private unsafe struct HeadHandler(
+            TComponentSerializer serializer, ReadOnlySequence<byte>* buffer,
+            Dictionary<long, Entity> idMap, List<(Entity, long, int)> relations) : IRefGenericHandler
+        {
+            private Entity? entity;
+            private int counter;
+
+            public void Handle<T>(ref T component)
+            {
+                var t = typeof(T);
+                if (t == typeof(Entity)) {
+                    entity = Unsafe.As<T, Entity>(ref component);
+                    long id = 0;
+                    serializer.Deserialize(ref *buffer, ref id);
+                    idMap[id] = entity;
+                }
+                else if (component is IRelationComponent) {
+                    if (entity == null) {
+                        throw new InvalidDataException("Entity component must appear before any relation component");
+                    }
+                    long id = 0;
+                    serializer.Deserialize(ref *buffer, ref id);
+                    relations.Add((entity, id, counter));
+                }
+                else {
+                    serializer.Deserialize(ref *buffer, ref component);
+                }
+                counter++;
+            }
+        }
+
+        private HeadHandler _headHandler = new(serializer, buffer, idMap, relations);
+
+        public void Handle<T>(ref T value)
+            where T : IHList
+        {
+            value.HandleHeadRef(ref _headHandler);
+            value.HandleTailRef(ref this);
         }
     }
 
@@ -95,23 +116,37 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
         using var serializer = new TComponentSerializer();
         Span<byte> intSpan = stackalloc byte[4];
 
+        var idMap = new Dictionary<long, Entity>();
+        var relations = new List<(Entity, long, int)>();
+
         fixed (ReadOnlySequence<byte>* bufferPtr = &buffer) {
-            var entityDeserializer = new EntityDeserializationHandler(serializer, bufferPtr);
+            var entityDeserializer = new EntityDeserializationHandler(serializer, bufferPtr, idMap, relations);
 
             while (true) {
                 var host = THostHeaderSerializer.Deserialize(ref buffer, world);
                 if (host == null) {
                     break;
                 }
+
                 var reader = new SequenceReader<byte>(buffer);
                 if (!reader.TryReadBigEndian(out int entityCount)) {
                     break;
                 }
+
                 buffer = reader.UnreadSequence;
+                var comps = host.Descriptor.Components;
+
                 for (int i = 0; i != entityCount; ++i) {
-                    host.Create().GetHList(entityDeserializer);
+                    var e = host.Create();
+                    e.GetHList(entityDeserializer);
                 }
             }
+        }
+
+        foreach (var (e, id, index) in relations.AsSpan()) {
+            var comps = e.Descriptor.Components;
+            ref var byteRef = ref Unsafe.AddByteOffset(ref e.AsSpan()[0], comps[index].Offset);
+            Unsafe.As<byte, Entity>(ref byteRef) = idMap[id];
         }
     }
 }

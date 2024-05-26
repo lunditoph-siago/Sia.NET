@@ -1,66 +1,55 @@
-using System.Runtime.CompilerServices;
-
 namespace Sia;
 
 public interface IRelationComponent
 {
-    public Identity Target { get; set; }
+    public Entity Target { get; }
+}
+
+public interface IRelationComponent<TArgument> : IRelationComponent
+{
+    public object? BoxedArgument { get; }
 }
 
 public interface IRelation;
 public interface IRelation<TArgument>;
 
-public record struct Relation<TTag>(Identity Target) : IRelationComponent
+public record struct Relation<TTag>(Entity Target) : IRelationComponent
     where TTag : IRelation;
 
-public record struct Relation<TTag, TArgument>(Identity Target, TArgument Argument) : IRelationComponent
-    where TTag : IRelation<TArgument>;
+public record struct Relation<TTag, TArgument>(Entity Target, TArgument Argument) : IRelationComponent<TArgument>
+    where TTag : IRelation<TArgument>
+{
+    public readonly object? BoxedArgument => Argument;
+}
 
 public static class RelationExtensions
 {
-    public static EntityRef Add<TRelation>(this EntityRef entity, EntityRef target)
+    public static Entity AddRelation<TRelation>(this Entity entity, Entity target)
         where TRelation : IRelation
-        => entity.Add(new Relation<TRelation>(target.Id));
+        => entity.Add(new Relation<TRelation>(target));
 
-    public static EntityRef Add<TRelation, TArgument>(this EntityRef entity, Identity target, TArgument arg)
+    public static Entity AddRelation<TRelation, TArgument>(this Entity entity, Entity target, TArgument arg)
         where TRelation : IRelation<TArgument>
         => entity.Add(new Relation<TRelation, TArgument>(target, arg));
 
-    public static EntityRef Add<TRelation, TArgument>(this EntityRef entity, EntityRef target, TArgument arg)
-        where TRelation : IRelation<TArgument>
-        => entity.Add(new Relation<TRelation, TArgument>(target.Id, arg));
-
-    public static EntityRef Set<TRelation>(this EntityRef entity, EntityRef target)
+    public static Entity SetRelation<TRelation>(this Entity entity, Entity target)
         where TRelation : IRelation
-        => entity.Set(new Relation<TRelation>(target.Id));
+        => entity.Set(new Relation<TRelation>(target));
 
-    public static EntityRef Set<TRelation, TArgument>(this EntityRef entity, Identity target, TArgument arg)
+    public static Entity SetRelation<TRelation, TArgument>(this Entity entity, Entity target, TArgument arg)
         where TRelation : IRelation<TArgument>
         => entity.Set(new Relation<TRelation, TArgument>(target, arg));
 
-    public static EntityRef Set<TRelation, TArgument>(this EntityRef entity, EntityRef target, TArgument arg)
-        where TRelation : IRelation<TArgument>
-        => entity.Set(new Relation<TRelation, TArgument>(target.Id, arg));
-
-    public static EntityRef Get<TRelation>(this EntityRef entity, World world)
+    public static Entity GetRelation<TRelation>(this Entity entity)
         where TRelation : IRelation
-        => world[entity.Get<Relation<TRelation>>().Target];
+        => entity.Get<Relation<TRelation>>().Target;
 
-    public static EntityRef Get<TRelation>(this EntityRef entity)
-        where TRelation : IRelation
-        => entity.Get<TRelation>(World.Current);
-
-    public static EntityRef Get<TRelation, TArgument>(
-        this EntityRef entity, World world, out TArgument arg)
+    public static Entity GetRelation<TRelation, TArgument>(
+        this Entity entity, out TArgument arg)
         where TRelation : IRelation<TArgument>
     {
         ref var relation = ref entity.Get<Relation<TRelation, TArgument>>();
         arg = relation.Argument;
-        return world[relation.Target];
+        return relation.Target;
     }
-
-    public static EntityRef Get<TRelation, TArgument>(
-        this EntityRef entity, out TArgument arg)
-        where TRelation : IRelation<TArgument>
-        => entity.Get<TRelation, TArgument>(World.Current, out arg);
 }

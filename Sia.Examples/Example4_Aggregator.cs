@@ -71,7 +71,7 @@ public static partial class Example4_Aggregator
         scheduler.Tick();
 
         aggregator.TryGet(1, out var aggrEntity);
-        aggrEntity.Dispose();
+        aggrEntity!.Dispose();
 
         Console.WriteLine(world.Count);
     }

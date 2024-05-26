@@ -9,15 +9,15 @@ public class StorageEntityHostTests
 
     public static List<object[]> StorageEntityHostTestData =>
     [
-        [new ArrayBufferStorage<HList<Identity, TransformEntity>>(512)],
-        [new SparseBufferStorage<HList<Identity, TransformEntity>>(512)],
-        [new HashBufferStorage<HList<Identity, TransformEntity>>()]
+        [new ArrayBufferStorage<HList<Entity, TransformEntity>>(512)],
+        [new SparseBufferStorage<HList<Entity, TransformEntity>>(512)],
+        [new HashBufferStorage<HList<Entity, TransformEntity>>()]
     ];
 
     [Theory]
     [MemberData(nameof(StorageEntityHostTestData))]
     public void StorageEntityHost_Insert_Test<TStorage>(TStorage storage)
-        where TStorage : class, IStorage<HList<Identity, TransformEntity>>
+        where TStorage : class, IStorage<HList<Entity, TransformEntity>>
     {
         // Arrange
         var factory = new StorageEntityHost<TransformEntity, TStorage>(storage);

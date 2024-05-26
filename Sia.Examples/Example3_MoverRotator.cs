@@ -91,7 +91,7 @@ public static partial class Example3_MoveRotator
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
             query.ForSlice(_frame,
-                static (in EntityRef entity, in Frame frame, ref Mover mover, ref Position pos, ref Rotation rot) => {
+                static (in Frame frame, ref Entity entity, ref Mover mover, ref Position pos, ref Rotation rot) => {
                     pos.Value += Vector3.Transform(Vector3.UnitZ, rot.Value) * mover.Speed * frame.Delta;
                     entity.Send(new Position.SetValue(pos.Value));
                 });
@@ -113,10 +113,10 @@ public static partial class Example3_MoveRotator
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
             query.ForSlice(_frame,
-                static (in EntityRef entity, in Frame frame, ref Rotator rotator, ref Rotation rot) => {
+                static (in Frame frame, ref Entity e, ref Rotator rotator, ref Rotation rot) => {
                     var newRot = rot.Value.ToEulerAngles() + rotator.AngularSpeed * frame.Delta;
                     rot.Value = newRot.ToQuaternion();
-                    entity.Send(new Rotation.SetValue(rot.Value));
+                    e.Send(new Rotation.SetValue(rot.Value));
                 });
         }
     }
@@ -124,7 +124,7 @@ public static partial class Example3_MoveRotator
     public sealed class MoverRandomDestroySystem() : SystemBase(
         Matchers.Of<Mover, Position>())
     {
-        private readonly ConcurrentStack<EntityRef> _entitiesToDestroy = [];
+        private readonly ConcurrentStack<Entity> _entitiesToDestroy = [];
 
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
@@ -144,7 +144,7 @@ public static partial class Example3_MoveRotator
 
     public static class TestObject
     {
-        public static EntityRef Create(World world, Vector3 position)
+        public static Entity Create(World world, Vector3 position)
         {
             return world.CreateInArrayHost(HList.Create(
                 new Position(position),

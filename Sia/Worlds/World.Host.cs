@@ -16,7 +16,7 @@ public partial class World
 
     public bool TryGetHost<TEntity, TStorage>([MaybeNullWhen(false)] out WorldEntityHost<TEntity, TStorage> host)
         where TEntity : IHList
-        where TStorage : IStorage<HList<Identity, TEntity>>, new()
+        where TStorage : IStorage<HList<Entity, TEntity>>, new()
     {
         ref var rawHost = ref _hosts.GetValueRefOrNullRef(
             WorldEntityHostIndexer<WorldEntityHost<TEntity, TStorage>>.Index);
@@ -30,7 +30,7 @@ public partial class World
 
     public WorldEntityHost<TEntity, TStorage> AddHost<TEntity, TStorage>()
         where TEntity : IHList
-        where TStorage : IStorage<HList<Identity, TEntity>>, new()
+        where TStorage : IStorage<HList<Entity, TEntity>>, new()
     {
         ref var rawHost = ref _hosts.GetOrAddValueRef(
             WorldEntityHostIndexer<WorldEntityHost<TEntity, TStorage>>.Index, out bool exists);
@@ -45,7 +45,7 @@ public partial class World
 
     public WorldEntityHost<TEntity, TStorage> AcquireHost<TEntity, TStorage>()
         where TEntity : IHList
-        where TStorage : IStorage<HList<Identity, TEntity>>, new()
+        where TStorage : IStorage<HList<Entity, TEntity>>, new()
     {
         ref var rawHost = ref _hosts.GetOrAddValueRef(
             WorldEntityHostIndexer<WorldEntityHost<TEntity, TStorage>>.Index, out bool exists);

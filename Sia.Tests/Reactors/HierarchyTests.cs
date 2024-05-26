@@ -11,7 +11,7 @@ public class HierarchyTests(HierarchyTests.HierarchyContext context) : IClassFix
 
         public sealed class TestTag;
 
-        public List<EntityRef> EntityRefs = [];
+        public List<Entity> Entities = [];
 
         public Hierarchy<TestTag> Hierarchy;
 
@@ -39,15 +39,15 @@ public class HierarchyTests(HierarchyTests.HierarchyContext context) : IClassFix
         // Arrange
         foreach (var (name, index) in hierarchies) {
             var node = index >= 0
-                ? new Node<HierarchyContext.TestTag>(context.EntityRefs[index].Id)
+                ? new Node<HierarchyContext.TestTag>(context.Entities[index])
                 : new Node<HierarchyContext.TestTag>();
             var entityRef = context.World.CreateInArrayHost(HList.Create(node, new HierarchyContext.Name(name)));
-            context.EntityRefs.Add(entityRef);
+            context.Entities.Add(entityRef);
         }
 
         // Act
-        var actualChildren = context.EntityRefs.First().Get<Node<HierarchyContext.TestTag>>().Children
-            .Select(child => context.World[child].Get<HierarchyContext.Name>().Value);
+        var actualChildren = context.Entities.First().Get<Node<HierarchyContext.TestTag>>().Children
+            .Select(child => child.Get<HierarchyContext.Name>().Value);
         var expectedChildren = hierarchies.Where(value => value.Item2 == 0).Select(value => value.Item1);
 
         // Assert
@@ -59,13 +59,13 @@ public class HierarchyTests(HierarchyTests.HierarchyContext context) : IClassFix
     public void Hierarchy_Modify_Test(int target)
     {
         // Act
-        context.World.Modify(context.EntityRefs[target],
-            new Node<HierarchyContext.TestTag>.SetParent(context.EntityRefs[0].Id));
+        context.World.Modify(context.Entities[target],
+            new Node<HierarchyContext.TestTag>.SetParent(context.Entities[0]));
     
         // Assert
         Assert.True(
-            context.EntityRefs[0].Get<Node<HierarchyContext.TestTag>>().Children
-                .Select(child => context.World[child].Get<HierarchyContext.Name>().Value)
+            context.Entities[0].Get<Node<HierarchyContext.TestTag>>().Children
+                .Select(child => child.Get<HierarchyContext.Name>().Value)
                 .Any());
     }
 }

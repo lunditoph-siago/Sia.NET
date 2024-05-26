@@ -4,14 +4,14 @@ public class DispatcherTests
 {
     public readonly record struct AssertCommand(int Expected) : ICommand
     {
-        public void Execute(World world, in EntityRef target) { }
+        public void Execute(World world, Entity target) { }
     }
 
     [Fact]
     public void Dispatcher_Test()
     {
         var dispatcher = new Dispatcher<int, IEvent>();
-        dispatcher.Listen((in int target, in AssertCommand e) => {
+        dispatcher.Listen((int target, in AssertCommand e) => {
             Assert.Equal(e.Expected, target);
             return false;
         });

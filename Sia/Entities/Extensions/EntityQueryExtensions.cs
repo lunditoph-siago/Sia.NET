@@ -6,9 +6,9 @@ public static partial class EntityQueryExtensions
 {
     public ref struct Enumerator(IReadOnlyList<IEntityHost> hosts)
     {
-        public readonly EntityRef Current {
+        public readonly Entity Current {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => new(_slot, _host);
+            get => _host.GetEntity(_slot);
         }
 
         private int _hostIndex;

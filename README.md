@@ -1,5 +1,5 @@
 # Sia.NET
-[![Build Status](https://github.com/sicusa/Sia.NET/actions/workflows/nuget.yml/badge.svg?event=push)](https://github.com/sicusa/Sia.NET/actions/workflows/nuget.yml)
+[![Build Status](https://github.com/lunditoph-siago/Sia.NET/actions/workflows/nuget.yml/badge.svg?event=push)](https://github.com/lunditoph-siago/Sia.NET/actions/workflows/nuget.yml)
 [![NuGet Badge MimeKit](https://buildstats.info/nuget/Sia)](https://www.nuget.org/packages/Sia)
 
 Modern ECS framework for .NET
@@ -39,7 +39,7 @@ public static partial class Example1_HealthDamage
 
         public readonly record struct Damage(float Value) : ICommand
         {
-            public void Execute(World world, in EntityRef target)
+            public void Execute(World world, Entity target)
                 => new View(target, world).Value -= Value;
         }
     }
@@ -117,13 +117,13 @@ public static partial class Example1_HealthDamage
 
     public static class Player
     {
-        public static EntityRef Create(World world)
+        public static Entity Create(World world)
             => world.CreateInArrayHost(HList.Create(
                 new Transform(),
                 new Health()
             ));
 
-        public static EntityRef Create(World world, Vector2 position)
+        public static Entity Create(World world, Vector2 position)
             => world.CreateInArrayHost(HList.Create(
                 new Transform {
                     Position = position

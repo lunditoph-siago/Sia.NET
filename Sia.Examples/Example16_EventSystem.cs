@@ -12,7 +12,7 @@ public static partial class Example16_EventSystem
     {
         public readonly record struct TestCommand : ICommand
         {
-            public void Execute(World world, in EntityRef target)
+            public void Execute(World world, Entity target)
                 => target.Get<Position>().X++;
         }
     }
@@ -38,31 +38,30 @@ public static partial class Example16_EventSystem
         public override void Initialize(World world, Scheduler scheduler)
         {
             base.Initialize(world, scheduler);
-            world.IndexHosts(Matchers.Of<Position>());
             RecordEvents<MoveEvents>();
         }
 
-        protected override void HandleEvent<TEvent>(in Identity id, in TEvent e)
+        protected override void HandleEvent<TEvent>(Entity e, in TEvent @event)
         {
-            Position.View Get(in Identity id)
-                => new(World[id]);
+            static Position.View Get(in Entity e)
+                => new(e);
 
-            switch (e) {
+            switch (@event) {
                 case MoveEvents.MoveUp(int count):
                     Console.WriteLine("Move Up!");
-                    Get(id).Y += count;
+                    Get(e).Y += count;
                     break;
                 case MoveEvents.MoveDown(int count):
                     Console.WriteLine("Move Down!");
-                    Get(id).Y -= count;
+                    Get(e).Y -= count;
                     break;
                 case MoveEvents.MoveLeft(int count):
                     Console.WriteLine("Move Left!");
-                    Get(id).X -= count;
+                    Get(e).X -= count;
                     break;
                 case MoveEvents.MoveRight(int count):
                     Console.WriteLine("Move Right!");
-                    Get(id).X += count;
+                    Get(e).X += count;
                     break;
             }
         }
@@ -77,13 +76,13 @@ public static partial class Example16_EventSystem
             RecordEvent<Position.TestCommand>();
         }
 
-        protected override Position Snapshot<TEvent>(in EntityRef entity, in TEvent e)
+        protected override Position Snapshot<TEvent>(Entity entity, in TEvent e)
             => entity.Get<Position>();
 
         protected override void HandleEvent<TEvent>(
-            in Identity id, in Position snapshot, in TEvent e)
+            Entity e, in Position snapshot, in TEvent @event)
         {
-            switch (e) {
+            switch (@event) {
                 case Position.TestCommand:
                     Console.WriteLine("Test Command!");
                     Console.WriteLine("\tPrevious X: " + snapshot.X);
@@ -95,7 +94,7 @@ public static partial class Example16_EventSystem
     public class TestTemplateEventSystem : TemplateEventSystemBase<Position, RPosition>
     {
         protected override void HandleEvent<TEvent>(
-            in Identity id, in Position snapshot, in TEvent e)
+            Entity entity, in Position snapshot, in TEvent e)
         {
             switch (e) {
                 case WorldEvents.Add<Position>:
@@ -119,7 +118,7 @@ public static partial class Example16_EventSystem
 
     public class TagsTemplateEventSystem : TemplateEventSystemBase<Tags, RTags>
     {
-        protected override void HandleEvent<TEvent>(in Identity id, in Tags snapshot, in TEvent e)
+        protected override void HandleEvent<TEvent>(Entity entity, in Tags snapshot, in TEvent e)
         {
             switch (e) {
                 case Tags.Add(string tag):

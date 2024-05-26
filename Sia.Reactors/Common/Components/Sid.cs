@@ -24,7 +24,7 @@ public static class Sid
         where TId : notnull
         => new(id);
     
-    public static void SetSid<TId>(this EntityRef entity, in TId id)
+    public static void SetSid<TId>(this Entity entity, in TId id)
         where TId : notnull
         => entity.Modify(new Sid<TId>.SetValue(id));
 }

@@ -10,9 +10,9 @@ public static partial class Example6_Hierarchy
     public sealed class TestTag {}
     public static class TestNode
     {
-        public static EntityRef Create(World world, string name, EntityRef? parent = null)
+        public static Entity Create(World world, string name, Entity? parent = null)
             => world.CreateInArrayHost(HList.Create(
-                new Node<TestTag>(parent?.Id),
+                new Node<TestTag>(parent),
                 new Name(name)
             ));
     }
@@ -25,14 +25,14 @@ public static partial class Example6_Hierarchy
         var e4 = TestNode.Create(world, "test4", e3);
 
         foreach (var child in e1.Get<Node<TestTag>>().Children) {
-            Console.WriteLine(world[child].Get<Name>().Value);
+            Console.WriteLine(child.Get<Name>().Value);
         }
 
         Console.WriteLine("===");
-        world.Modify(e4, new Node<TestTag>.SetParent(e1.Id));
+        world.Modify(e4, new Node<TestTag>.SetParent(e1));
 
         foreach (var child in e1.Get<Node<TestTag>>().Children) {
-            Console.WriteLine(world[child].Get<Name>().Value);
+            Console.WriteLine(child.Get<Name>().Value);
         }
 
         Console.WriteLine("Before SetIsSelfEnabled:");

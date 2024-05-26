@@ -6,9 +6,9 @@ public static partial class EntityHostExtensions
 {
     public ref struct Enumerator(IEntityHost host)
     {
-        public readonly EntityRef Current {
+        public readonly Entity Current {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => new(_slot, host);
+            get => host.GetEntity(_slot);
         }
 
         private int _slotIndex = -1;
@@ -47,6 +47,6 @@ public static partial class EntityHostExtensions
         => new(Unsafe.AsPointer(ref host.GetByteRef(slot)), host.Descriptor.MemorySize);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe Identity GetIdentity(this IEntityHost host, in StorageSlot slot)
-        => Unsafe.As<byte, Identity>(ref host.GetByteRef(slot));
+    public static unsafe Entity GetEntity(this IEntityHost host, in StorageSlot slot)
+        => Unsafe.As<byte, Entity>(ref host.GetByteRef(slot));
 }

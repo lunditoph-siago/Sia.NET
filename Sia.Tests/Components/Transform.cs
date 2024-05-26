@@ -35,7 +35,7 @@ public partial record struct Transform([Sia] Position Position, [Sia] Rotation R
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static Vector3 Cos(Vector3 x) => new(MathF.Cos(x.X), MathF.Cos(x.Y), MathF.Cos(x.Z));
 
-        public void Execute(World _, in EntityRef target)
+        public void Execute(World _, Entity target)
         {
             ref var quaternion = ref target.Get<Rotation>();
             var a = Euler * (MathF.PI / 180.0f);

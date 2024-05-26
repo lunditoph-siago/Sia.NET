@@ -14,7 +14,7 @@ public static partial class EntityQueryExtensions
             static (IEntityHost host, in EntityHandler handler, int from, int to) => {
                 var slosts = host.AllocatedSlots;
                 for (int i = from; i != to; ++i) {
-                    handler(new(slosts[i], host));
+                    handler(host.GetEntity(slosts[i]));
                 }
             }, runner, barrier);
 
@@ -28,7 +28,7 @@ public static partial class EntityQueryExtensions
                 var handler = entry.Item2;
                 var slosts = host.AllocatedSlots;
                 for (int i = from; i != to; ++i) {
-                    handler(data, new(slosts[i], host));
+                    handler(data, host.GetEntity(slosts[i]));
                 }
             }, runner, barrier);
 
@@ -37,7 +37,7 @@ public static partial class EntityQueryExtensions
         this IEntityQuery query, SimpleEntityHandler handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => query.ForEach(handler,
-            static (in SimpleEntityHandler handler, in EntityRef entity)
+            static (in SimpleEntityHandler handler, Entity entity)
                 => handler(entity), runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -45,7 +45,7 @@ public static partial class EntityQueryExtensions
         this IEntityQuery query, in TData userData, SimpleEntityHandler<TData> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => query.ForEach((handler, userData),
-            static (in (SimpleEntityHandler<TData>, TData) data, in EntityRef entity)
+            static (in (SimpleEntityHandler<TData>, TData) data, Entity entity)
                 => data.Item1(data.Item2, entity), runner, barrier);
 
     #region CurrentThreadRunner
@@ -582,490 +582,6 @@ public static partial class EntityQueryExtensions
 
     #endregion // ForSlice
 
-    #region ForSlice_WithEntity
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, C1>(
-        this IEntityQuery query, ComponentHandlerWithEntity<C1> handler, TRunner runner, RunnerBarrier? barrier)
-        where TRunner : IRunner
-        => query.Handle(handler,
-            static (IEntityHost host, in ComponentHandlerWithEntity<C1> handler, int from, int to) => {
-                var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
-                var c1Offset = desc.GetOffset<C1>();
-
-                for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
-                    handler(new(slot, host), ref c1Offset.Get(ref byteRef));
-                }
-            }, runner, barrier);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, C1, C2>(
-        this IEntityQuery query, ComponentHandlerWithEntity<C1, C2> handler, TRunner runner, RunnerBarrier? barrier)
-        where TRunner : IRunner
-        => query.Handle(handler,
-            static (IEntityHost host, in ComponentHandlerWithEntity<C1, C2> handler, int from, int to) => {
-                var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
-                var c1Offset = desc.GetOffset<C1>();
-                var c2Offset = desc.GetOffset<C2>();
-
-                for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
-                    handler(new(slot, host),
-                        ref c1Offset.Get(ref byteRef),
-                        ref c2Offset.Get(ref byteRef));
-                }
-            }, runner, barrier);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, C1, C2, C3>(
-        this IEntityQuery query, ComponentHandlerWithEntity<C1, C2, C3> handler, TRunner runner, RunnerBarrier? barrier)
-        where TRunner : IRunner
-        => query.Handle(handler,
-            static (IEntityHost host, in ComponentHandlerWithEntity<C1, C2, C3> handler, int from, int to) => {
-                var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
-                var c1Offset = desc.GetOffset<C1>();
-                var c2Offset = desc.GetOffset<C2>();
-                var c3Offset = desc.GetOffset<C3>();
-
-                for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
-                    handler(new(slot, host),
-                        ref c1Offset.Get(ref byteRef),
-                        ref c2Offset.Get(ref byteRef),
-                        ref c3Offset.Get(ref byteRef));
-                }
-            }, runner, barrier);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, C1, C2, C3, C4>(
-        this IEntityQuery query, ComponentHandlerWithEntity<C1, C2, C3, C4> handler, TRunner runner, RunnerBarrier? barrier)
-        where TRunner : IRunner
-        => query.Handle(handler,
-            static (IEntityHost host, in ComponentHandlerWithEntity<C1, C2, C3, C4> handler, int from, int to) => {
-                var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
-                var c1Offset = desc.GetOffset<C1>();
-                var c2Offset = desc.GetOffset<C2>();
-                var c3Offset = desc.GetOffset<C3>();
-                var c4Offset = desc.GetOffset<C4>();
-
-                for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
-                    handler(new(slot, host),
-                        ref c1Offset.Get(ref byteRef),
-                        ref c2Offset.Get(ref byteRef),
-                        ref c3Offset.Get(ref byteRef),
-                        ref c4Offset.Get(ref byteRef));
-                }
-            }, runner, barrier);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, C1, C2, C3, C4, C5>(
-        this IEntityQuery query, ComponentHandlerWithEntity<C1, C2, C3, C4, C5> handler, TRunner runner, RunnerBarrier? barrier)
-        where TRunner : IRunner
-        => query.Handle(handler,
-            static (IEntityHost host, in ComponentHandlerWithEntity<C1, C2, C3, C4, C5> handler, int from, int to) => {
-                var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
-                var c1Offset = desc.GetOffset<C1>();
-                var c2Offset = desc.GetOffset<C2>();
-                var c3Offset = desc.GetOffset<C3>();
-                var c4Offset = desc.GetOffset<C4>();
-                var c5Offset = desc.GetOffset<C5>();
-
-                for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
-                    handler(new(slot, host),
-                        ref c1Offset.Get(ref byteRef),
-                        ref c2Offset.Get(ref byteRef),
-                        ref c3Offset.Get(ref byteRef),
-                        ref c4Offset.Get(ref byteRef),
-                        ref c5Offset.Get(ref byteRef));
-                }
-            }, runner, barrier);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, C1, C2, C3, C4, C5, C6>(
-        this IEntityQuery query, ComponentHandlerWithEntity<C1, C2, C3, C4, C5, C6> handler, TRunner runner, RunnerBarrier? barrier)
-        where TRunner : IRunner
-        => query.Handle(handler,
-            static (IEntityHost host, in ComponentHandlerWithEntity<C1, C2, C3, C4, C5, C6> handler, int from, int to) => {
-                var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
-                var c1Offset = desc.GetOffset<C1>();
-                var c2Offset = desc.GetOffset<C2>();
-                var c3Offset = desc.GetOffset<C3>();
-                var c4Offset = desc.GetOffset<C4>();
-                var c5Offset = desc.GetOffset<C5>();
-                var c6Offset = desc.GetOffset<C6>();
-
-                for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
-                    handler(new(slot, host),
-                        ref c1Offset.Get(ref byteRef),
-                        ref c2Offset.Get(ref byteRef),
-                        ref c3Offset.Get(ref byteRef),
-                        ref c4Offset.Get(ref byteRef),
-                        ref c5Offset.Get(ref byteRef),
-                        ref c6Offset.Get(ref byteRef));
-                }
-            }, runner, barrier);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, TData, C1>(
-        this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1> handler, TRunner runner, RunnerBarrier? barrier)
-        where TRunner : IRunner
-        => query.Handle((handler, userData),
-            static (IEntityHost host, in (DataComponentHandlerWithEntity<TData, C1>, TData) data, int from, int to) => {
-                var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
-                var c1Offset = desc.GetOffset<C1>();
-
-                var handler = data.Item1;
-                ref readonly var userData = ref data.Item2;
-
-                for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
-                    handler(new(slot, host),userData, ref c1Offset.Get(ref byteRef));
-                }
-            }, runner, barrier);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, TData, C1, C2>(
-        this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1, C2> handler, TRunner runner, RunnerBarrier? barrier)
-        where TRunner : IRunner
-        => query.Handle((handler, userData),
-            static (IEntityHost host, in (DataComponentHandlerWithEntity<TData, C1, C2>, TData) data, int from, int to) => {
-                var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
-                var c1Offset = desc.GetOffset<C1>();
-                var c2Offset = desc.GetOffset<C2>();
-
-                var handler = data.Item1;
-                ref readonly var userData = ref data.Item2;
-
-                for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
-                    handler(new(slot, host),userData,
-                        ref c1Offset.Get(ref byteRef),
-                        ref c2Offset.Get(ref byteRef));
-                }
-            }, runner, barrier);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, TData, C1, C2, C3>(
-        this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1, C2, C3> handler, TRunner runner, RunnerBarrier? barrier)
-        where TRunner : IRunner
-        => query.Handle((handler, userData),
-            static (IEntityHost host, in (DataComponentHandlerWithEntity<TData, C1, C2, C3>, TData) data, int from, int to) => {
-                var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
-                var c1Offset = desc.GetOffset<C1>();
-                var c2Offset = desc.GetOffset<C2>();
-                var c3Offset = desc.GetOffset<C3>();
-
-                var handler = data.Item1;
-                ref readonly var userData = ref data.Item2;
-
-                for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
-                    handler(new(slot, host),userData,
-                        ref c1Offset.Get(ref byteRef),
-                        ref c2Offset.Get(ref byteRef),
-                        ref c3Offset.Get(ref byteRef));
-                }
-            }, runner, barrier);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, TData, C1, C2, C3, C4>(
-        this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1, C2, C3, C4> handler, TRunner runner, RunnerBarrier? barrier)
-        where TRunner : IRunner
-        => query.Handle((handler, userData),
-            static (IEntityHost host, in (DataComponentHandlerWithEntity<TData, C1, C2, C3, C4>, TData) data, int from, int to) => {
-                var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
-                var c1Offset = desc.GetOffset<C1>();
-                var c2Offset = desc.GetOffset<C2>();
-                var c3Offset = desc.GetOffset<C3>();
-                var c4Offset = desc.GetOffset<C4>();
-
-                var handler = data.Item1;
-                ref readonly var userData = ref data.Item2;
-
-                for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
-                    handler(new(slot, host),userData,
-                        ref c1Offset.Get(ref byteRef),
-                        ref c2Offset.Get(ref byteRef),
-                        ref c3Offset.Get(ref byteRef),
-                        ref c4Offset.Get(ref byteRef));
-                }
-            }, runner, barrier);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, TData, C1, C2, C3, C4, C5>(
-        this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1, C2, C3, C4, C5> handler, TRunner runner, RunnerBarrier? barrier)
-        where TRunner : IRunner
-        => query.Handle((handler, userData),
-            static (IEntityHost host, in (DataComponentHandlerWithEntity<TData, C1, C2, C3, C4, C5>, TData) data, int from, int to) => {
-                var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
-                var c1Offset = desc.GetOffset<C1>();
-                var c2Offset = desc.GetOffset<C2>();
-                var c3Offset = desc.GetOffset<C3>();
-                var c4Offset = desc.GetOffset<C4>();
-                var c5Offset = desc.GetOffset<C5>();
-
-                var handler = data.Item1;
-                ref readonly var userData = ref data.Item2;
-
-                for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
-                    handler(new(slot, host),userData,
-                        ref c1Offset.Get(ref byteRef),
-                        ref c2Offset.Get(ref byteRef),
-                        ref c3Offset.Get(ref byteRef),
-                        ref c4Offset.Get(ref byteRef),
-                        ref c5Offset.Get(ref byteRef));
-                }
-            }, runner, barrier);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, TData, C1, C2, C3, C4, C5, C6>(
-        this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1, C2, C3, C4, C5, C6> handler, TRunner runner, RunnerBarrier? barrier)
-        where TRunner : IRunner
-        => query.Handle((handler, userData),
-            static (IEntityHost host, in (DataComponentHandlerWithEntity<TData, C1, C2, C3, C4, C5, C6>, TData) data, int from, int to) => {
-                var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
-                var c1Offset = desc.GetOffset<C1>();
-                var c2Offset = desc.GetOffset<C2>();
-                var c3Offset = desc.GetOffset<C3>();
-                var c4Offset = desc.GetOffset<C4>();
-                var c5Offset = desc.GetOffset<C5>();
-                var c6Offset = desc.GetOffset<C6>();
-
-                var handler = data.Item1;
-                ref readonly var userData = ref data.Item2;
-
-                for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
-                    handler(new(slot, host),userData,
-                        ref c1Offset.Get(ref byteRef),
-                        ref c2Offset.Get(ref byteRef),
-                        ref c3Offset.Get(ref byteRef),
-                        ref c4Offset.Get(ref byteRef),
-                        ref c5Offset.Get(ref byteRef),
-                        ref c6Offset.Get(ref byteRef));
-                }
-            }, runner, barrier);
-
-    #region CurrentThreadRunner
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<C1>(
-        this IEntityQuery query, ComponentHandlerWithEntity<C1> handler)
-        => query.ForSlice(handler, CurrentThreadRunner.Instance, barrier: null);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<C1, C2>(
-        this IEntityQuery query, ComponentHandlerWithEntity<C1, C2> handler)
-        => query.ForSlice(handler, CurrentThreadRunner.Instance, barrier: null);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<C1, C2, C3>(
-        this IEntityQuery query, ComponentHandlerWithEntity<C1, C2, C3> handler)
-        => query.ForSlice(handler, CurrentThreadRunner.Instance, barrier: null);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<C1, C2, C3, C4>(
-        this IEntityQuery query, ComponentHandlerWithEntity<C1, C2, C3, C4> handler)
-        => query.ForSlice(handler, CurrentThreadRunner.Instance, barrier: null);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<C1, C2, C3, C4, C5>(
-        this IEntityQuery query, ComponentHandlerWithEntity<C1, C2, C3, C4, C5> handler)
-        => query.ForSlice(handler, CurrentThreadRunner.Instance, barrier: null);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<C1, C2, C3, C4, C5, C6>(
-        this IEntityQuery query, ComponentHandlerWithEntity<C1, C2, C3, C4, C5, C6> handler)
-        => query.ForSlice(handler, CurrentThreadRunner.Instance, barrier: null);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TData, C1>(
-        this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1> handler)
-        => query.ForSlice(userData, handler, CurrentThreadRunner.Instance, barrier: null);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TData, C1, C2>(
-        this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1, C2> handler)
-        => query.ForSlice(userData, handler, CurrentThreadRunner.Instance, barrier: null);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TData, C1, C2, C3>(
-        this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1, C2, C3> handler)
-        => query.ForSlice(userData, handler, CurrentThreadRunner.Instance, barrier: null);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TData, C1, C2, C3, C4>(
-        this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1, C2, C3, C4> handler)
-        => query.ForSlice(userData, handler, CurrentThreadRunner.Instance, barrier: null);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TData, C1, C2, C3, C4, C5>(
-        this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1, C2, C3, C4, C5> handler)
-        => query.ForSlice(userData, handler, CurrentThreadRunner.Instance, barrier: null);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TData, C1, C2, C3, C4, C5, C6>(
-        this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1, C2, C3, C4, C5, C6> handler)
-        => query.ForSlice(userData, handler, CurrentThreadRunner.Instance, barrier: null);
-    
-    #endregion // CurrentThreadRunner
-
-    #region ParallelRunner
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<C1>(
-        this IEntityQuery query, ComponentHandlerWithEntity<C1> handler)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.ForSlice(handler, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<C1, C2>(
-        this IEntityQuery query, ComponentHandlerWithEntity<C1, C2> handler)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.ForSlice(handler, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<C1, C2, C3>(
-        this IEntityQuery query, ComponentHandlerWithEntity<C1, C2, C3> handler)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.ForSlice(handler, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<C1, C2, C3, C4>(
-        this IEntityQuery query, ComponentHandlerWithEntity<C1, C2, C3, C4> handler)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.ForSlice(handler, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<C1, C2, C3, C4, C5>(
-        this IEntityQuery query, ComponentHandlerWithEntity<C1, C2, C3, C4, C5> handler)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.ForSlice(handler, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<C1, C2, C3, C4, C5, C6>(
-        this IEntityQuery query, ComponentHandlerWithEntity<C1, C2, C3, C4, C5, C6> handler)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.ForSlice(handler, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<TData, C1>(
-        this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1> handler)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.ForSlice(userData, handler, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<TData, C1, C2>(
-        this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1, C2> handler)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.ForSlice(userData, handler, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<TData, C1, C2, C3>(
-        this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1, C2, C3> handler)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.ForSlice(userData, handler, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<TData, C1, C2, C3, C4>(
-        this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1, C2, C3, C4> handler)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.ForSlice(userData, handler, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<TData, C1, C2, C3, C4, C5>(
-        this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1, C2, C3, C4, C5> handler)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.ForSlice(userData, handler, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<TData, C1, C2, C3, C4, C5, C6>(
-        this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1, C2, C3, C4, C5, C6> handler)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.ForSlice(userData, handler, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
-    
-    #endregion // ParallelRunner
-
-    #endregion // ForSlice_WithEntity
-
     #region Filter
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -1085,7 +601,7 @@ public static partial class EntityQueryExtensions
                     ref var byteRef = ref host.UnsafeGetByteRef(slot);
 
                     if (filter(ref c1Offset.Get(ref byteRef))) {
-                        handler(new(slot, host));
+                        handler(host.GetEntity(slot));
                     }
                 }
             }, runner, barrier);
@@ -1110,7 +626,7 @@ public static partial class EntityQueryExtensions
                     if (filter(
                         ref c1Offset.Get(ref byteRef),
                         ref c2Offset.Get(ref byteRef))) {
-                        handler(new(slot, host));
+                        handler(host.GetEntity(slot));
                     }
                 }
             }, runner, barrier);
@@ -1137,7 +653,7 @@ public static partial class EntityQueryExtensions
                         ref c1Offset.Get(ref byteRef),
                         ref c2Offset.Get(ref byteRef),
                         ref c3Offset.Get(ref byteRef))) {
-                        handler(new(slot, host));
+                        handler(host.GetEntity(slot));
                     }
                 }
             }, runner, barrier);
@@ -1166,7 +682,7 @@ public static partial class EntityQueryExtensions
                         ref c2Offset.Get(ref byteRef),
                         ref c3Offset.Get(ref byteRef),
                         ref c4Offset.Get(ref byteRef))) {
-                        handler(new(slot, host));
+                        handler(host.GetEntity(slot));
                     }
                 }
             }, runner, barrier);
@@ -1197,7 +713,7 @@ public static partial class EntityQueryExtensions
                         ref c3Offset.Get(ref byteRef),
                         ref c4Offset.Get(ref byteRef),
                         ref c5Offset.Get(ref byteRef))) {
-                        handler(new(slot, host));
+                        handler(host.GetEntity(slot));
                     }
                 }
             }, runner, barrier);
@@ -1230,7 +746,7 @@ public static partial class EntityQueryExtensions
                         ref c4Offset.Get(ref byteRef),
                         ref c5Offset.Get(ref byteRef),
                         ref c6Offset.Get(ref byteRef))) {
-                        handler(new(slot, host));
+                        handler(host.GetEntity(slot));
                     }
                 }
             }, runner, barrier);
@@ -1255,7 +771,7 @@ public static partial class EntityQueryExtensions
                     ref var byteRef = ref host.UnsafeGetByteRef(slot);
                     
                     if (filter(userData, ref c1Offset.Get(ref byteRef))) {
-                        handler(userData, new(slot, host));
+                        handler(userData, host.GetEntity(slot));
                     }
                 }
             }, runner, barrier);
@@ -1283,7 +799,7 @@ public static partial class EntityQueryExtensions
                     if (filter(userData,
                         ref c1Offset.Get(ref byteRef),
                         ref c2Offset.Get(ref byteRef))) {
-                        handler(userData, new(slot, host));
+                        handler(userData, host.GetEntity(slot));
                     }
                 }
             }, runner, barrier);
@@ -1313,7 +829,7 @@ public static partial class EntityQueryExtensions
                         ref c1Offset.Get(ref byteRef),
                         ref c2Offset.Get(ref byteRef),
                         ref c3Offset.Get(ref byteRef))) {
-                        handler(userData, new(slot, host));
+                        handler(userData, host.GetEntity(slot));
                     }
                 }
             }, runner, barrier);
@@ -1345,7 +861,7 @@ public static partial class EntityQueryExtensions
                         ref c2Offset.Get(ref byteRef),
                         ref c3Offset.Get(ref byteRef),
                         ref c4Offset.Get(ref byteRef))) {
-                        handler(userData, new(slot, host));
+                        handler(userData, host.GetEntity(slot));
                     }
                 }
             }, runner, barrier);
@@ -1379,7 +895,7 @@ public static partial class EntityQueryExtensions
                         ref c3Offset.Get(ref byteRef),
                         ref c4Offset.Get(ref byteRef),
                         ref c5Offset.Get(ref byteRef))) {
-                        handler(userData, new(slot, host));
+                        handler(userData, host.GetEntity(slot));
                     }
                 }
             }, runner, barrier);
@@ -1415,7 +931,7 @@ public static partial class EntityQueryExtensions
                         ref c4Offset.Get(ref byteRef),
                         ref c5Offset.Get(ref byteRef),
                         ref c6Offset.Get(ref byteRef))) {
-                        handler(userData, new(slot, host));
+                        handler(userData, host.GetEntity(slot));
                     }
                 }
             }, runner, barrier);

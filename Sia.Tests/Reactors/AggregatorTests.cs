@@ -9,7 +9,7 @@ public class AggregatorTests(AggregatorTests.AggregatorContext context) : IClass
     {
         public readonly record struct ObjectId(int Value);
 
-        public List<EntityRef> EntityRefs = [];
+        public List<Entity> Entities = [];
 
         public Aggregator<ObjectId> Aggregator;
 
@@ -40,7 +40,7 @@ public class AggregatorTests(AggregatorTests.AggregatorContext context) : IClass
         var entityRefs = objectIds
             .Select(objectId => context.World.CreateInArrayHost(HList.Create(Sid.From(objectId))))
             .ToArray();
-        context.EntityRefs.AddRange(entityRefs);
+        context.Entities.AddRange(entityRefs);
 
         // Assert
         Assert.Equal(objectIds.Length, entityRefs.Count());
@@ -55,7 +55,7 @@ public class AggregatorTests(AggregatorTests.AggregatorContext context) : IClass
         var objectId = new AggregatorContext.ObjectId(value);
 
         // Act
-        context.EntityRefs[target].SetSid(objectId);
+        context.Entities[target].SetSid(objectId);
 
         // Assert
         var actualResult = new List<AggregatorContext.ObjectId>();
@@ -72,7 +72,7 @@ public class AggregatorTests(AggregatorTests.AggregatorContext context) : IClass
     {
         // Act
         var result = context.Aggregator.TryGet(new AggregatorContext.ObjectId(target), out var aggregatorEntity);
-        aggregatorEntity.Dispose();
+        aggregatorEntity?.Dispose();
 
         // Assert
         Assert.True(result);

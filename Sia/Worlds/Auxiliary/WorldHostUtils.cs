@@ -4,7 +4,7 @@ namespace Sia;
 
 internal static class WorldHostUtils
 {
-    public struct EntityAddEventSender(EntityRef entity, WorldDispatcher dispatcher) : IGenericTypeHandler
+    public struct EntityAddEventSender(Entity entity, WorldDispatcher dispatcher) : IGenericTypeHandler
     {
         public readonly void Handle<T>()
         {
@@ -13,14 +13,14 @@ internal static class WorldHostUtils
         }
     }
 
-    public struct EntityRemoveEventSender(EntityRef entity, WorldDispatcher dispatcher) : IGenericTypeHandler
+    public struct EntityRemoveEventSender(Entity entity, WorldDispatcher dispatcher) : IGenericTypeHandler
     {
         public readonly void Handle<T>()
             => dispatcher.Send(entity, WorldEvents.Remove<T>.Instance);
     }
 
     public struct ExEntityRemoveEventSender(
-        EntityRef entity, EntityDescriptor prevDesc, WorldDispatcher dispatcher) : IGenericTypeHandler
+        Entity entity, EntityDescriptor prevDesc, WorldDispatcher dispatcher) : IGenericTypeHandler
     {
         public readonly void Handle<T>()
         {
