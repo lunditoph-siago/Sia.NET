@@ -21,13 +21,13 @@ public interface IHList
     void HandleHead<THandler>(in THandler handler)
         where THandler : IGenericHandler;
 
-    void HandleHeadRef<THandler>(in THandler handler)
+    void HandleHeadRef<THandler>(ref THandler handler)
         where THandler : IRefGenericHandler;
 
     void HandleTail<THandler>(in THandler handler)
         where THandler : IGenericHandler<IHList>;
 
-    void HandleTailRef<THandler>(in THandler handler)
+    void HandleTailRef<THandler>(ref THandler handler)
         where THandler : IRefGenericHandler<IHList>;
     
     void Filter<TPredicate, THandler>(in TPredicate predicate, in THandler handler)
@@ -60,13 +60,13 @@ public struct EmptyHList : IHList
     public readonly void HandleHead<THandler>(in THandler handler)
         where THandler : IGenericHandler {}
 
-    public readonly void HandleHeadRef<THandler>(in THandler handler)
+    public readonly void HandleHeadRef<THandler>(ref THandler handler)
         where THandler : IRefGenericHandler {}
 
     public readonly void HandleTail<THandler>(in THandler handler)
         where THandler : IGenericHandler<IHList> {}
 
-    public readonly void HandleTailRef<THandler>(in THandler handler)
+    public readonly void HandleTailRef<THandler>(ref THandler handler)
         where THandler : IRefGenericHandler<IHList> {}
 
     public readonly void Filter<TPredicate, THandler>(in TPredicate predicate, in THandler handler)
@@ -110,7 +110,7 @@ public struct HList<THead, TTail>(in THead head, in TTail tail) : IHList
         where THandler : IGenericHandler
         => handler.Handle(Head);
 
-    public void HandleHeadRef<THandler>(in THandler handler)
+    public void HandleHeadRef<THandler>(ref THandler handler)
         where THandler : IRefGenericHandler
         => handler.Handle(ref Head);
 
@@ -118,7 +118,7 @@ public struct HList<THead, TTail>(in THead head, in TTail tail) : IHList
         where THandler : IGenericHandler<IHList>
         => handler.Handle(Tail);
 
-    public void HandleTailRef<THandler>(in THandler handler)
+    public void HandleTailRef<THandler>(ref THandler handler)
         where THandler : IRefGenericHandler<IHList>
         => handler.Handle(ref Tail);
 
@@ -153,9 +153,6 @@ public struct HList<THead, TTail>(in THead head, in TTail tail) : IHList
     public readonly bool Remove<TValue, THandler>(TypeProxy<TValue> proxy, in THandler handler)
         where THandler : IGenericHandler<IHList>
     {
-        Console.WriteLine(typeof(THead));
-        Console.WriteLine(typeof(TValue));
-        Console.WriteLine();
         if (typeof(THead) == typeof(TValue)) {
             handler.Handle(Tail);
             return true;

@@ -6,7 +6,7 @@ public static partial class Example11_RPG
 {
     public interface IWeaponDamageProvider
     {
-        public float GetDamage(in WeaponMetadata metadata, in EntityRef attacker, in EntityRef target);
+        public float GetDamage(in WeaponMetadata metadata, Entity attacker, Entity target);
     }
 
     public readonly record struct WeaponMetadata(
@@ -28,7 +28,7 @@ public static partial class Example11_RPG
         {
             public static readonly DamageProvider Instance = new();
 
-            public float GetDamage(in WeaponMetadata metadata, in EntityRef attacker, in EntityRef target)
+            public float GetDamage(in WeaponMetadata metadata, Entity attacker, Entity target)
             {
                 float damage = metadata.BaseDamage + Random.Shared.NextSingle() * 10f;
 
@@ -51,7 +51,7 @@ public static partial class Example11_RPG
             BaseDamage: 10f,
             DamageProvider: DamageProvider.Instance);
 
-        public static EntityRef Create(World world, MagicType magicType)
+        public static Entity Create(World world, MagicType magicType)
             => world.CreateInArrayHost(HList.Create(
                 Metadata,
                 new Data(magicType)
@@ -76,11 +76,11 @@ public static partial class Example11_RPG
         [Sia] float HP,
         [Sia] float MP,
         [Sia] int Level = 0,
-        [Sia] Identity? Weapon = null)
+        [Sia] Entity? Weapon = null)
     {
-        public readonly record struct Damage(EntityRef Attacker) : ICommand
+        public readonly record struct Damage(Entity Attacker) : ICommand
         {
-            public void Execute(World world, in EntityRef self)
+            public void Execute(World world, Entity self)
             {
                 float damage;
                 float defense;
@@ -90,8 +90,8 @@ public static partial class Example11_RPG
                     ref var attackerCharacter = ref Attacker.Get<Character>();
                     damage = attackerMeta.BaseDamage + attackerCharacter.Level * attackerMeta.DamageGrowthRate;
 
-                    if (attackerCharacter.Weapon is Identity weaponId) {
-                        ref var weaponMeta = ref world[weaponId].Get<WeaponMetadata>();
+                    if (attackerCharacter.Weapon is Entity weapon) {
+                        ref var weaponMeta = ref weapon.Get<WeaponMetadata>();
                         damage += weaponMeta.DamageProvider.GetDamage(weaponMeta, Attacker, self);
                     }
                 }
@@ -150,7 +150,7 @@ public static partial class Example11_RPG
             DamageGrowthRate: 5f,
             DefenseGrowthRate: 4f);
 
-        public static EntityRef Create(World world, string name)
+        public static Entity Create(World world, string name)
             => world.CreateInArrayHost(HList.Create(
                 Metadata,
                 new Character(
@@ -163,7 +163,6 @@ public static partial class Example11_RPG
     public static void Run(World world)
     {
         var scheduler = new Scheduler();
-        world.IndexHosts(Matchers.Of<WeaponMetadata>());
 
         SystemChain.Empty
             .Add<DeadCharacterDestroySystem>()
@@ -175,7 +174,7 @@ public static partial class Example11_RPG
         var magicSword = MagicSword.Create(world, MagicType.Fire);
         _ = new Character.View(player) {
             Level = 100,
-            Weapon = magicSword.Id
+            Weapon = magicSword
         };
 
         enemy.Modify(new Character.Damage(player));

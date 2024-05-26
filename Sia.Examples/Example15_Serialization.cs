@@ -10,14 +10,17 @@ using Sia.Serialization.Binary;
 [MemoryPackable]
 public partial record struct C1(string Value);
 
+public class TestRelation : IRelation;
+
 public static class Example15_Serialization
 {
     public static void Run(World world)
     {
         var compressor = new BrotliCompressor();
 
-        world.CreateInArrayHost(HList.Create(new C1("?"), 0, "asdf"));
-        world.CreateInSparseHost(HList.Create(0, "asdf", 1324f, Math.PI));
+        var e1 = world.CreateInArrayHost(HList.Create(new C1("?"), 0, "asdf"));
+        var e2 = world.CreateInSparseHost(HList.Create(0, "asdf", 1324f, Math.PI));
+        e2.AddRelation<TestRelation>(e1);
         world.CreateInUnversionedHashHost(HList.Create(0, "asdf", 1324f, Math.PI));
 
         BinaryWorldSerializer.Serialize(ref compressor, world);
@@ -38,10 +41,11 @@ public static class Example15_Serialization
         Console.WriteLine();
         Console.WriteLine("Compression rate: " + (float)compressedLength / decompressedLength);
 
-        BinaryWorldSerializer.Deserialize(ref seq, world);
+        var newWorld = new World();
+        BinaryWorldSerializer.Deserialize(ref seq, newWorld);
 
         Console.WriteLine();
-        foreach (var e in world) {
+        foreach (var e in newWorld) {
             Console.WriteLine(e.Boxed);
         }
     }

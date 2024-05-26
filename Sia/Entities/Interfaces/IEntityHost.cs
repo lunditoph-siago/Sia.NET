@@ -1,6 +1,6 @@
 namespace Sia;
 
-public interface IEntityHost : IEnumerable<EntityRef>, IDisposable
+public interface IEntityHost : IEnumerable<Entity>, IDisposable
 {
     event Action<IEntityHost>? OnDisposed;
 
@@ -11,7 +11,7 @@ public interface IEntityHost : IEnumerable<EntityRef>, IDisposable
     int Count { get; }
     ReadOnlySpan<StorageSlot> AllocatedSlots { get; }
 
-    EntityRef Create();
+    Entity Create();
     void Release(in StorageSlot slot);
     void MoveOut(in StorageSlot slot);
     bool IsValid(in StorageSlot slot);
@@ -22,13 +22,13 @@ public interface IEntityHost : IEnumerable<EntityRef>, IDisposable
     void GetHList<THandler>(in StorageSlot slot, in THandler handler)
         where THandler : IRefGenericHandler<IHList>;
 
-    EntityRef Add<TComponent>(in StorageSlot slot, in TComponent initial);
-    EntityRef AddMany<TList>(in StorageSlot slot, in TList list)
+    Entity Add<TComponent>(in StorageSlot slot, in TComponent initial);
+    Entity AddMany<TList>(in StorageSlot slot, in TList list)
         where TList : IHList;
-    EntityRef Set<TComponent>(in StorageSlot slot, in TComponent value);
+    Entity Set<TComponent>(in StorageSlot slot, in TComponent value);
 
-    EntityRef Remove<TComponent>(in StorageSlot slot);
-    EntityRef RemoveMany<TList>(in StorageSlot slot)
+    Entity Remove<TComponent>(in StorageSlot slot, out bool success);
+    Entity RemoveMany<TList>(in StorageSlot slot)
         where TList : IHList;
 
     object Box(in StorageSlot slot);
@@ -43,9 +43,9 @@ public interface IReactiveEntityHost : IEntityHost
 public interface IEntityHost<TEntity> : IEntityHost
     where TEntity : IHList
 {
-    EntityRef Create(in TEntity initial);
-    EntityRef MoveIn(in HList<Identity, TEntity> data);
+    Entity Create(in TEntity initial);
+    void MoveIn(in HList<Entity, TEntity> data);
 
-    ref HList<Identity, TEntity> GetRef(in StorageSlot slot);
-    ref HList<Identity, TEntity> UnsafeGetRef(in StorageSlot slot);
+    ref HList<Entity, TEntity> GetRef(in StorageSlot slot);
+    ref HList<Entity, TEntity> UnsafeGetRef(in StorageSlot slot);
 }

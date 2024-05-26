@@ -9,7 +9,7 @@ public abstract class EventSystemBase(SystemChain? children = null)
 {
     private interface IEventCache
     {
-        public void Handle(EventSystemBase module, int index, in Identity id);
+        public void Handle(EventSystemBase module, int index, Entity id);
         public void Clear();
     }
 
@@ -18,7 +18,7 @@ public abstract class EventSystemBase(SystemChain? children = null)
     {
         public readonly List<TEvent> List = [];
 
-        public void Handle(EventSystemBase module, int index, in Identity id)
+        public void Handle(EventSystemBase module, int index, Entity id)
         {
             ref var evt = ref List.AsSpan()[index];
             try {
@@ -47,8 +47,8 @@ public abstract class EventSystemBase(SystemChain? children = null)
 
     private Dictionary<Type, IEventCache> _eventCaches = [];
     private Dictionary<Type, IEventCache> _eventCachesBack = [];
-    private List<(Identity, IEventCache, int)> _events = [];
-    private List<(Identity, IEventCache, int)> _eventsBack = [];
+    private List<(Entity, IEventCache, int)> _events = [];
+    private List<(Entity, IEventCache, int)> _eventsBack = [];
 
     public override void Initialize(World world, Scheduler scheduler)
     {
@@ -59,18 +59,17 @@ public abstract class EventSystemBase(SystemChain? children = null)
     public override void Uninitialize(World world, Scheduler scheduler)
         => OnUninitialize?.Invoke();
 
-    protected abstract void HandleEvent<TEvent>(in Identity id, in TEvent e)
+    protected abstract void HandleEvent<TEvent>(Entity entity, in TEvent e)
         where TEvent : IEvent;
     
-    protected virtual void HandleException<TEvent>(in Identity id, in TEvent e, Exception exception)
+    protected virtual void HandleException<TEvent>(Entity entity, in TEvent e, Exception exception)
         => Console.Error.WriteLine(exception);
 
     protected void RecordEvent<TEvent>()
         where TEvent : IEvent
     {
-        bool EventListener(in EntityRef entity, in TEvent e)
+        bool EventListener(Entity entity, in TEvent e)
         {
-            var id = entity.Id;
             EventCache<TEvent> eventCache;
 
             var eventType = typeof(TEvent);
@@ -84,7 +83,7 @@ public abstract class EventSystemBase(SystemChain? children = null)
 
             var eventIndex = eventCache.List.Count;
             eventCache.List.Add(e);
-            _eventsBack.Add((id, eventCache, eventIndex));
+            _eventsBack.Add((entity, eventCache, eventIndex));
             return false;
         }
 
@@ -121,7 +120,7 @@ public abstract class SnapshotEventSystemBase<TSnapshot>(SystemChain? children =
 {
     private interface IEventCache
     {
-        public void Handle(SnapshotEventSystemBase<TSnapshot> module, int index, in Identity id);
+        public void Handle(SnapshotEventSystemBase<TSnapshot> module, int index, Entity e);
         public void Clear();
     }
 
@@ -130,14 +129,14 @@ public abstract class SnapshotEventSystemBase<TSnapshot>(SystemChain? children =
     {
         public readonly List<(TSnapshot, TEvent)> List = [];
 
-        public void Handle(SnapshotEventSystemBase<TSnapshot> module, int index, in Identity id)
+        public void Handle(SnapshotEventSystemBase<TSnapshot> module, int index, Entity e)
         {
             ref var entry = ref List.AsSpan()[index];
             try {
-                module.HandleEvent(id, entry.Item1, entry.Item2);
+                module.HandleEvent(e, entry.Item1, entry.Item2);
             }
-            catch (Exception e) {
-                module.HandleException(id, entry.Item1, entry.Item2, e);
+            catch (Exception exception) {
+                module.HandleException(e, entry.Item1, entry.Item2, exception);
             }
         }
 
@@ -151,10 +150,10 @@ public abstract class SnapshotEventSystemBase<TSnapshot>(SystemChain? children =
 
     private Dictionary<Type, IEventCache> _eventCaches = [];
     private Dictionary<Type, IEventCache> _eventCachesBack = [];
-    private List<(Identity, IEventCache, int)> _events = [];
-    private List<(Identity, IEventCache, int)> _eventsBack = [];
+    private List<(Entity, IEventCache, int)> _events = [];
+    private List<(Entity, IEventCache, int)> _eventsBack = [];
 
-    private readonly Dictionary<Identity, TSnapshot> _snapshots = [];
+    private readonly Dictionary<Entity, TSnapshot> _snapshots = [];
 
     public override void Initialize(World world, Scheduler scheduler)
     {
@@ -165,16 +164,14 @@ public abstract class SnapshotEventSystemBase<TSnapshot>(SystemChain? children =
     public override void Uninitialize(World world, Scheduler scheduler)
         => OnUninitialize?.Invoke();
     
-    protected abstract TSnapshot Snapshot<TEvent>(
-        in EntityRef entity, in TEvent e)
+    protected abstract TSnapshot Snapshot<TEvent>(Entity entity, in TEvent e)
         where TEvent : IEvent;
 
-    protected abstract void HandleEvent<TEvent>(
-        in Identity id, in TSnapshot snapshot, in TEvent e)
+    protected abstract void HandleEvent<TEvent>(Entity entity, in TSnapshot snapshot, in TEvent e)
         where TEvent : IEvent;
 
     protected virtual void HandleException<TEvent>(
-        in Identity id, in TSnapshot snapshot, in TEvent e, Exception exception)
+        Entity entity, in TSnapshot snapshot, in TEvent e, Exception exception)
         where TEvent : IEvent
         => Console.Error.WriteLine(exception);
     
@@ -194,9 +191,8 @@ public abstract class SnapshotEventSystemBase<TSnapshot>(SystemChain? children =
     protected void RecordEvent<TEvent>()
         where TEvent : IEvent
     {
-        bool EventListener(in EntityRef entity, in TEvent e)
+        bool EventListener(Entity entity, in TEvent e)
         {
-            var id = entity.Id;
             EventCache<TEvent> eventCache;
 
             var eventType = typeof(TEvent);
@@ -210,7 +206,7 @@ public abstract class SnapshotEventSystemBase<TSnapshot>(SystemChain? children =
 
             TSnapshot lastSnapshot;
 
-            ref var snapshot = ref CollectionsMarshal.GetValueRefOrAddDefault(_snapshots, id, out bool exists);
+            ref var snapshot = ref CollectionsMarshal.GetValueRefOrAddDefault(_snapshots, entity, out bool exists);
             if (!exists) {
                 snapshot = Snapshot(entity, e);
                 lastSnapshot = snapshot;
@@ -222,7 +218,7 @@ public abstract class SnapshotEventSystemBase<TSnapshot>(SystemChain? children =
 
             var eventIndex = eventCache.List.Count;
             eventCache.List.Add((lastSnapshot, e));
-            _eventsBack.Add((id, eventCache, eventIndex));
+            _eventsBack.Add((entity, eventCache, eventIndex));
             return false;
         }
 
@@ -233,9 +229,8 @@ public abstract class SnapshotEventSystemBase<TSnapshot>(SystemChain? children =
     protected void RecordRemovalEvent<TEvent>()
         where TEvent : IEvent
     {
-        bool EventListener(in EntityRef entity, in TEvent e)
+        bool EventListener(Entity entity, in TEvent e)
         {
-            var id = entity.Id;
             EventCache<TEvent> eventCache;
 
             var eventType = typeof(TEvent);
@@ -247,13 +242,13 @@ public abstract class SnapshotEventSystemBase<TSnapshot>(SystemChain? children =
                 eventCache = Unsafe.As<EventCache<TEvent>>(rawCache);
             }
 
-            if (!_snapshots.Remove(id, out var snapshot)) {
+            if (!_snapshots.Remove(entity, out var snapshot)) {
                 return false;
             }
 
             var eventIndex = eventCache.List.Count;
             eventCache.List.Add((snapshot, e));
-            _eventsBack.Add((id, eventCache, eventIndex));
+            _eventsBack.Add((entity, eventCache, eventIndex));
             return false;
         }
 
@@ -284,7 +279,6 @@ public abstract class ComponentEventSystemBase<TComponent, TSnapshot>(SystemChai
     public override void Initialize(World world, Scheduler scheduler)
     {
         base.Initialize(world, scheduler);
-        World.IndexHosts(Matchers.Of<TComponent>());
         RecordFor<TComponent>();
     }
 }
@@ -292,7 +286,7 @@ public abstract class ComponentEventSystemBase<TComponent, TSnapshot>(SystemChai
 public abstract class ComponentEventSystemBase<TComponent>(SystemChain? children = null)
     : ComponentEventSystemBase<TComponent, TComponent>(children)
 {
-    protected override TComponent Snapshot<TEvent>(in EntityRef entity, in TEvent e)
+    protected override TComponent Snapshot<TEvent>(Entity entity, in TEvent e)
         => entity.Get<TComponent>();
 }
 
@@ -320,6 +314,6 @@ public abstract class TemplateEventSystemBase<TComponent, TTemplate>(SystemChain
     : TemplateEventSystemBase<TComponent, TTemplate, TComponent?>(children)
     where TComponent : IGeneratedByTemplate<TComponent, TTemplate>
 {
-    protected override TComponent? Snapshot<TEvent>(in EntityRef entity, in TEvent e)
+    protected override TComponent? Snapshot<TEvent>(Entity entity, in TEvent e)
         => entity.Get<TComponent>();
 }

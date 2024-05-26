@@ -9,14 +9,14 @@ using static WorldHostUtils;
 public class WorldEntityHost<TEntity, TStorage>(World world, TStorage storage)
     : StorageEntityHost<TEntity, TStorage>(storage), IReactiveEntityHost
     where TEntity : IHList
-    where TStorage : IStorage<HList<Identity, TEntity>>, new()
+    where TStorage : IStorage<HList<Entity, TEntity>>, new()
 {
     private unsafe readonly struct SiblingHostGetter<UEntity>(World world, IEntityHost<UEntity>* host)
-        : IStorageTypeHandler<HList<Identity, UEntity>>
+        : IStorageTypeHandler<HList<Entity, UEntity>>
         where UEntity : IHList
     {
         public void Handle<UStorage>()
-            where UStorage : IStorage<HList<Identity, UEntity>>, new()
+            where UStorage : IStorage<HList<Entity, UEntity>>, new()
             => *host = world.TryGetHost<WorldEntityHost<UEntity, UStorage>>(out var found)
                 ? found : world.UnsafeAddRawHost(new WorldEntityHost<UEntity, UStorage>(world, new()));
     }
@@ -36,7 +36,7 @@ public class WorldEntityHost<TEntity, TStorage>(World world, TStorage storage)
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public override EntityRef Create()
+    public override Entity Create()
     {
         var entity = base.Create();
         var dispatcher = World.Dispatcher;
@@ -50,7 +50,7 @@ public class WorldEntityHost<TEntity, TStorage>(World world, TStorage storage)
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public override EntityRef Create(in TEntity initial)
+    public override Entity Create(in TEntity initial)
     {
         var entity = base.Create(initial);
         var dispatcher = World.Dispatcher;
@@ -66,7 +66,7 @@ public class WorldEntityHost<TEntity, TStorage>(World world, TStorage storage)
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public override void Release(in StorageSlot slot)
     {
-        var entity = new EntityRef(slot, this);
+        ref var entity = ref GetRef(slot).Head;
         var dispatcher = World.Dispatcher;
 
         TEntity.HandleTypes(new EntityRemoveEventSender(entity, dispatcher));
@@ -78,20 +78,7 @@ public class WorldEntityHost<TEntity, TStorage>(World world, TStorage storage)
         base.Release(slot);
     }
 
-    public override EntityRef MoveIn(in HList<Identity, TEntity> data)
-    {
-        var entity = base.MoveIn(data);
-        OnEntityCreated?.Invoke(entity);
-        return entity;
-    }
-
-    public override void MoveOut(in StorageSlot slot)
-    {
-        OnEntityReleased?.Invoke(new(slot, this));
-        base.MoveOut(slot);
-    }
-
-    public override EntityRef Add<TComponent>(in StorageSlot slot, in TComponent initial)
+    public override Entity Add<TComponent>(in StorageSlot slot, in TComponent initial)
     {
         var e = base.Add(slot, initial);
         World.Dispatcher.Send(e, WorldEvents.Add<TComponent>.Instance);
@@ -99,31 +86,31 @@ public class WorldEntityHost<TEntity, TStorage>(World world, TStorage storage)
         return e;
     }
 
-    public override EntityRef AddMany<TList>(in StorageSlot slot, in TList list)
+    public override Entity AddMany<TList>(in StorageSlot slot, in TList list)
     {
         var e = base.AddMany(slot, list);
         TList.HandleTypes(new EntityAddEventSender(e, World.Dispatcher));
         return e;
     }
 
-    public override EntityRef Set<TComponent>(in StorageSlot slot, in TComponent value)
+    public override Entity Set<TComponent>(in StorageSlot slot, in TComponent value)
     {
         var e = base.Set(slot, value);
         World.Dispatcher.Send(e, WorldEvents.Set<TComponent>.Instance);
         return e;
     }
 
-    public override EntityRef Remove<TComponent>(in StorageSlot slot)
+    public override Entity Remove<TComponent>(in StorageSlot slot, out bool success)
     {
-        var e = base.Remove<TComponent>(slot);
-        if (e.Host != this) {
+        var e = base.Remove<TComponent>(slot, out success);
+        if (success) {
             World.Dispatcher.Send(e, WorldEvents.Remove<TComponent>.Instance);
         }
         return e;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public override EntityRef RemoveMany<TList>(in StorageSlot slot)
+    public override Entity RemoveMany<TList>(in StorageSlot slot)
     {
         var e = base.RemoveMany<TList>(slot);
         TList.HandleTypes(new ExEntityRemoveEventSender(e, Descriptor, World.Dispatcher));

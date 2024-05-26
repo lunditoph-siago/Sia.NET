@@ -1,4 +1,4 @@
 namespace Sia;
 
-public class EntityMap<TValue> : Dictionary<Identity, TValue>;
-public class EntityMap : EntityMap<EntityRef>;
+public class EntityMap<TValue> : Dictionary<Entity, TValue>;
+public class EntityMap : EntityMap<Entity>;

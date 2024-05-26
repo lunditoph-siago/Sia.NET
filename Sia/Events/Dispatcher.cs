@@ -6,7 +6,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
     where TKey : notnull
     where TEvent : IEvent
 {
-    public delegate bool Listener<UEvent>(in TTarget target, in UEvent e)
+    public delegate bool Listener<UEvent>(TTarget target, in UEvent e)
         where UEvent : TEvent;
 
     private bool _sending = false;
@@ -17,7 +17,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
 
     private readonly Stack<List<IEventListener<TTarget>>> _targetListenersPool = new();
 
-    protected abstract TKey GetKey(in TTarget target);
+    protected abstract TKey GetKey(TTarget target);
 
     public void Listen(IEventListener<TTarget> listener)
     {
@@ -43,7 +43,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
         listeners.Add(listener);
     }
 
-    public void Listen(in TTarget target, IEventListener<TTarget> listener)
+    public void Listen(TTarget target, IEventListener<TTarget> listener)
     {
         var key = GetKey(target);
         if (!_targetListeners.TryGetValue(key, out var listeners)) {
@@ -87,7 +87,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
         return true;
     }
     
-    public bool Unlisten(in TTarget target, IEventListener<TTarget> listener)
+    public bool Unlisten(TTarget target, IEventListener<TTarget> listener)
     {
         GuardNotSending();
 
@@ -128,7 +128,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
         listeners.Clear();
     }
 
-    public void UnlistenAll(in TTarget target)
+    public void UnlistenAll(TTarget target)
     {
         GuardNotSending();
 
@@ -155,7 +155,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
         }
     }
 
-    public void Send<UEvent>(in TTarget target, in UEvent e)
+    public void Send<UEvent>(TTarget target, in UEvent e)
         where UEvent : TEvent
     {
         _sending = true;
@@ -196,7 +196,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void ExecuteListeners<UEvent>(
-        in TTarget target, List<IEventListener<TTarget>> listeners, in UEvent e, int length)
+        TTarget target, List<IEventListener<TTarget>> listeners, in UEvent e, int length)
         where UEvent : TEvent
     {
         int initialLength = length;
@@ -224,7 +224,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void ExecuteListeners<UEvent>(
-        in TTarget target, List<Listener<UEvent>> listeners, in UEvent e, int length)
+        TTarget target, List<Listener<UEvent>> listeners, in UEvent e, int length)
         where UEvent : TEvent
     {
         int initialLength = length;
@@ -253,5 +253,5 @@ public class Dispatcher<TTarget, TEvent> : Dispatcher<TTarget, TTarget, TEvent>
     where TTarget : notnull
     where TEvent : IEvent
 {
-    protected override TTarget GetKey(in TTarget target) => target;
+    protected override TTarget GetKey(TTarget target) => target;
 }

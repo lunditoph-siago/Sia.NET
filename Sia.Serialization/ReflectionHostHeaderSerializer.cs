@@ -43,7 +43,7 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
         var entityTypeName = GenerateHListType(components);
 
         var hostTypeName = Encoding.Unicode.GetString(hostTypeRaw)
-            .Replace("%1", "Sia.HList`2[[Sia.Identity, Sia], [" + entityTypeName + "]], Sia")
+            .Replace("%1", "Sia.HList`2[[Sia.Entity, Sia], [" + entityTypeName + "]], Sia")
             .Replace("%2", entityTypeName);
 
         return GetHost(world, hostTypeName);

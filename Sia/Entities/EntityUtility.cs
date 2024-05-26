@@ -4,7 +4,7 @@ namespace Sia;
 
 public static class EntityUtility
 {
-    public static void CheckComponent<TComponent>(EntityRef entity)
+    public static void CheckComponent<TComponent>(Entity entity)
         => CheckComponent<TComponent>(entity.Descriptor);
 
     public static void CheckComponent<TEntity, TComponent>()

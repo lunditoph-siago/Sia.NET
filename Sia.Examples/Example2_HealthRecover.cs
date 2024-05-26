@@ -13,7 +13,7 @@ public static class Example2_HealthRecover
 
         public readonly record struct Damage(int Value) : ICommand
         {
-            public void Execute(World _, in EntityRef target)
+            public void Execute(World _, Entity target)
                 => target.Get<HP>().Value -= Value;
         }
 
@@ -69,7 +69,7 @@ public static class Example2_HealthRecover
 
     public static class Player
     {
-        public static EntityRef CreateResilient(World world, string name)
+        public static Entity CreateResilient(World world, string name)
             => world.CreateInArrayHost(HList.Create(
                 new Name(name),
                 new HP {

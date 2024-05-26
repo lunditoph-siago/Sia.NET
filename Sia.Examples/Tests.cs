@@ -12,7 +12,7 @@ public record struct Position(float X, float Y, float Z)
 
     public readonly record struct Set(float X, float Y, float Z) : ICommand
     {
-        public void Execute(World world, in EntityRef target)
+        public void Execute(World world, Entity target)
         {
             ref var pos = ref target.Get<Position>();
             pos.X = X;
@@ -104,7 +104,7 @@ public unsafe static class Tests
 
     private readonly record struct TestCommand(int Target) : ICommand
     {
-        public void Execute(World world, in EntityRef target)
+        public void Execute(World world, Entity target)
         {
             Console.WriteLine("Command: " + target);
         }
@@ -116,7 +116,7 @@ public unsafe static class Tests
 
         var disp = new Dispatcher<int, IEvent>();
 
-        disp.Listen((in int target, in TestCommand e) => {
+        disp.Listen((int target, in TestCommand e) => {
             Console.WriteLine("Command: " + target);
             return target == 2;
         });
@@ -168,7 +168,7 @@ public unsafe static class Tests
         var e2Ref = world.GetBucketHost<TestEntity2>().Create();
 
         var query1 = world.Query<TypeUnion<Position>>();
-        var group = new List<EntityRef>();
+        var group = new List<Entity>();
         foreach (var entity in query1) {
             group.Add(entity);
         }
@@ -265,7 +265,7 @@ public unsafe static class Tests
         Console.WriteLine("== Test Entity Factory ==");
 
         static void DoTest<TStorage>(TStorage storage)
-            where TStorage : class, IStorage<HList<Identity, TestEntity>>
+            where TStorage : class, IStorage<HList<Entity, TestEntity>>
         {
             Console.WriteLine($"[{storage}]");
             var factory = new StorageEntityHost<TestEntity, TStorage>(storage);
@@ -288,9 +288,9 @@ public unsafe static class Tests
             e5.Dispose();
         }
 
-        DoTest(new ArrayBufferStorage<HList<Identity, TestEntity>>());
-        DoTest(new SparseBufferStorage<HList<Identity, TestEntity>>());
-        DoTest(new HashBufferStorage<HList<Identity, TestEntity>>());
+        DoTest(new ArrayBufferStorage<HList<Entity, TestEntity>>());
+        DoTest(new SparseBufferStorage<HList<Entity, TestEntity>>());
+        DoTest(new HashBufferStorage<HList<Entity, TestEntity>>());
     }
 
     public static void Run()

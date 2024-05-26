@@ -4,7 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 
 public abstract class ReactorBase : IAddon
 {
-    protected delegate void ForeverListener<UEvent>(in EntityRef target, in UEvent e)
+    protected delegate void ForeverListener<UEvent>(Entity target, in UEvent e)
         where UEvent : IEvent;
 
     private event Action? OnUnlisten;
@@ -12,7 +12,7 @@ public abstract class ReactorBase : IAddon
     [AllowNull]
     public World World { get; private set; }
 
-    protected void Listen(IEventListener<EntityRef> listener)
+    protected void Listen(IEventListener<Entity> listener)
     {
         World.Dispatcher.Listen(listener);
         OnUnlisten += () => World.Dispatcher.Unlisten(listener);
@@ -28,7 +28,7 @@ public abstract class ReactorBase : IAddon
     protected void Listen<UEvent>(ForeverListener<UEvent> listener)
         where UEvent : IEvent
     {
-        bool Listener(in EntityRef entity, in UEvent command)
+        bool Listener(Entity entity, in UEvent command)
         {
             listener(entity, command);
             return false;
@@ -37,7 +37,7 @@ public abstract class ReactorBase : IAddon
         OnUnlisten += () => World.Dispatcher.Unlisten<UEvent>(Listener);
     }
 
-    protected void Listen(EntityRef target, IEventListener<EntityRef> listener)
+    protected void Listen(Entity target, IEventListener<Entity> listener)
     {
         World.Dispatcher.Listen(target, listener);
         OnUnlisten += () => World.Dispatcher.Unlisten(target, listener);
@@ -98,6 +98,6 @@ public abstract class ReactorBase<TTypeUnion> : ReactorBase
         Query = null;
     }
 
-    protected abstract void OnEntityAdded(in EntityRef entity);
-    protected abstract void OnEntityRemoved(in EntityRef entity);
+    protected abstract void OnEntityAdded(Entity entity);
+    protected abstract void OnEntityRemoved(Entity entity);
 }

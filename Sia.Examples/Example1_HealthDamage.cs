@@ -32,7 +32,7 @@ public static partial class Example1_HealthDamage
 
         public readonly record struct Damage(float Value) : ICommand
         {
-            public void Execute(World world, in EntityRef target)
+            public void Execute(World world, Entity target)
                 => new View(target, world).Value -= Value;
         }
     }
@@ -110,13 +110,13 @@ public static partial class Example1_HealthDamage
 
     public static class Player
     {
-        public static EntityRef Create(World world)
+        public static Entity Create(World world)
             => world.CreateInArrayHost(HList.Create(
                 new Transform(),
                 new Health()
             ));
 
-        public static EntityRef Create(World world, Vector2 position)
+        public static Entity Create(World world, Vector2 position)
             => world.CreateInArrayHost(HList.Create(
                 new Transform {
                     Position = position

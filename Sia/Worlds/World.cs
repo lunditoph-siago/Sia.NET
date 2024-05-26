@@ -41,12 +41,12 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Send<TEvent>(in EntityRef target, in TEvent e)
+    public void Send<TEvent>(Entity target, in TEvent e)
         where TEvent : IEvent
         => Dispatcher.Send(target, e);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Modify<TCommand>(in EntityRef target, in TCommand command)
+    public void Modify<TCommand>(Entity target, in TCommand command)
         where TCommand : ICommand
     {
         command.Execute(this, target);
@@ -55,7 +55,7 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Modify<TComponent, TCommand>(
-        in EntityRef target, ref TComponent component, in TCommand command)
+        Entity target, ref TComponent component, in TCommand command)
         where TCommand : ICommand<TComponent>
     {
         command.Execute(this, target, ref component);

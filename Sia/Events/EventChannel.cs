@@ -12,7 +12,7 @@ public class EventChannel<TTarget, TEvent> : IEventSender<TTarget, TEvent>
         void Send(IEventSender<TTarget, TEvent> receiver);
     }
 
-    private class Sender<UEvent>(in TTarget target, in UEvent e) : ISender
+    private class Sender<UEvent>(TTarget target, in UEvent e) : ISender
         where UEvent : TEvent
     {
         public TTarget Target { get; set; } = target;
@@ -62,7 +62,7 @@ public class EventChannel<TTarget, TEvent> : IEventSender<TTarget, TEvent>
         }
     }
 
-    public void Send<UEvent>(in TTarget target, in UEvent e)
+    public void Send<UEvent>(TTarget target, in UEvent e)
         where UEvent : TEvent
     {
         var sender = new Sender<UEvent>(target, e);

@@ -4,17 +4,17 @@ using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
-public class Mapper<TId> : ReactorBase<TypeUnion<Sid<TId>>>, IReadOnlyDictionary<TId, EntityRef>
+public class Mapper<TId> : ReactorBase<TypeUnion<Sid<TId>>>, IReadOnlyDictionary<TId, Entity>
     where TId : notnull, IEquatable<TId>
 {
     public IEnumerable<TId> Keys => _maps.Keys;
-    public IEnumerable<EntityRef> Values => _maps.Values;
+    public IEnumerable<Entity> Values => _maps.Values;
 
     public int Count => _maps.Count;
 
-    public EntityRef this[TId key] => _maps[key];
+    public Entity this[TId key] => _maps[key];
 
-    private readonly Dictionary<TId, EntityRef> _maps = [];
+    private readonly Dictionary<TId, Entity> _maps = [];
 
     public override void OnInitialize(World world)
     {
@@ -22,7 +22,7 @@ public class Mapper<TId> : ReactorBase<TypeUnion<Sid<TId>>>, IReadOnlyDictionary
         Listen<Sid<TId>.SetValue>(OnEntityIdChanged);
     }
 
-    private bool OnEntityIdChanged(in EntityRef entity, in Sid<TId>.SetValue e)
+    private bool OnEntityIdChanged(Entity entity, in Sid<TId>.SetValue e)
     {
         ref var id = ref entity.Get<Sid<TId>>();
         RemoveMap(entity, id.Previous);
@@ -30,26 +30,26 @@ public class Mapper<TId> : ReactorBase<TypeUnion<Sid<TId>>>, IReadOnlyDictionary
         return false;
     }
 
-    protected override void OnEntityAdded(in EntityRef entity)
+    protected override void OnEntityAdded(Entity entity)
     {
         var id = entity.Get<Sid<TId>>().Value;
         AddMap(entity, id);
     }
 
-    protected override void OnEntityRemoved(in EntityRef entity)
+    protected override void OnEntityRemoved(Entity entity)
     {
         var id = entity.Get<Sid<TId>>().Value;
         RemoveMap(entity, id);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void AddMap(in EntityRef entity, in TId id)
+    private void AddMap(Entity entity, in TId id)
     {
         _maps[id] = entity;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void RemoveMap(in EntityRef entity, in TId id)
+    private void RemoveMap(Entity entity, in TId id)
     {
         if (!_maps.Remove(id, out var removedEntity)) {
             return;
@@ -62,10 +62,10 @@ public class Mapper<TId> : ReactorBase<TypeUnion<Sid<TId>>>, IReadOnlyDictionary
     public bool ContainsKey(TId key)
         => _maps.ContainsKey(key);
 
-    public bool TryGetValue(TId key, [MaybeNullWhen(false)] out EntityRef value)
+    public bool TryGetValue(TId key, [MaybeNullWhen(false)] out Entity value)
         => _maps.TryGetValue(key, out value);
 
-    public IEnumerator<KeyValuePair<TId, EntityRef>> GetEnumerator()
+    public IEnumerator<KeyValuePair<TId, Entity>> GetEnumerator()
         => _maps.GetEnumerator();
 
     IEnumerator IEnumerable.GetEnumerator()

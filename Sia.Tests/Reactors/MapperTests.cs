@@ -9,7 +9,7 @@ public class MapperTests(MapperTests.MapperContext context) : IClassFixture<Mapp
     {
         public readonly record struct ObjectId(Guid Value);
 
-        public List<EntityRef> EntityRefs = [];
+        public List<Entity> Entities = [];
 
         public Mapper<ObjectId> Mapper;
 
@@ -38,7 +38,7 @@ public class MapperTests(MapperTests.MapperContext context) : IClassFixture<Mapp
         foreach (var objectId in objectIds) {
             // Act
             var entityRef = context.World.CreateInArrayHost(HList.Create(Sid.From(objectId)));
-            context.EntityRefs.Add(entityRef);
+            context.Entities.Add(entityRef);
 
             // Assert
             Assert.True(entityRef == context.Mapper[objectId]);
@@ -51,9 +51,9 @@ public class MapperTests(MapperTests.MapperContext context) : IClassFixture<Mapp
     {
         // Act
         var id = new MapperContext.ObjectId(Guid.NewGuid());
-        context.EntityRefs[target].SetSid(id);
+        context.Entities[target].SetSid(id);
 
         // Assert
-        Assert.True(context.Mapper[id] == context.EntityRefs[target]);
+        Assert.True(context.Mapper[id] == context.Entities[target]);
     }
 }

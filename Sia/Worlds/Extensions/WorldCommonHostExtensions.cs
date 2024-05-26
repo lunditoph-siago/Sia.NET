@@ -6,14 +6,14 @@ public static class WorldCommonHostExtensions
 
     #region BucketHost
 
-    public static WorldEntityHost<TEntity, BucketBufferStorage<HList<Identity, TEntity>>> GetBucketHost<TEntity>(this World world)
+    public static WorldEntityHost<TEntity, BucketBufferStorage<HList<Entity, TEntity>>> GetBucketHost<TEntity>(this World world)
         where TEntity : IHList
-        => world.AcquireHost<TEntity, BucketBufferStorage<HList<Identity, TEntity>>>();
+        => world.AcquireHost<TEntity, BucketBufferStorage<HList<Entity, TEntity>>>();
 
-    public static EntityRef CreateInBucketHost(this World world)
+    public static Entity CreateInBucketHost(this World world)
         => world.GetBucketHost<EmptyHList>().Create();
 
-    public static EntityRef CreateInBucketHost<TEntity>(this World world, in TEntity initial)
+    public static Entity CreateInBucketHost<TEntity>(this World world, in TEntity initial)
         where TEntity : IHList
         => world.GetBucketHost<TEntity>().Create(initial);
     
@@ -21,14 +21,14 @@ public static class WorldCommonHostExtensions
 
     #region HashHost
 
-    public static WorldEntityHost<TEntity, HashBufferStorage<HList<Identity, TEntity>>> GetHashHost<TEntity>(this World world)
+    public static WorldEntityHost<TEntity, HashBufferStorage<HList<Entity, TEntity>>> GetHashHost<TEntity>(this World world)
         where TEntity : IHList
-        => world.AcquireHost<TEntity, HashBufferStorage<HList<Identity, TEntity>>>();
+        => world.AcquireHost<TEntity, HashBufferStorage<HList<Entity, TEntity>>>();
 
-    public static EntityRef CreateInHashHost(this World world)
+    public static Entity CreateInHashHost(this World world)
         => world.GetHashHost<EmptyHList>().Create();
 
-    public static EntityRef CreateInHashHost<TEntity>(this World world, in TEntity initial)
+    public static Entity CreateInHashHost<TEntity>(this World world, in TEntity initial)
         where TEntity : IHList
         => world.GetHashHost<TEntity>().Create(initial);
     
@@ -36,14 +36,14 @@ public static class WorldCommonHostExtensions
 
     #region ArrayHost
 
-    public static WorldEntityHost<TEntity, ArrayBufferStorage<HList<Identity, TEntity>>> GetArrayHost<TEntity>(this World world)
+    public static WorldEntityHost<TEntity, ArrayBufferStorage<HList<Entity, TEntity>>> GetArrayHost<TEntity>(this World world)
         where TEntity : IHList
-        => world.AcquireHost<TEntity, ArrayBufferStorage<HList<Identity, TEntity>>>();
+        => world.AcquireHost<TEntity, ArrayBufferStorage<HList<Entity, TEntity>>>();
 
-    public static EntityRef CreateInArrayHost(this World world)
+    public static Entity CreateInArrayHost(this World world)
         => world.GetArrayHost<EmptyHList>().Create();
 
-    public static EntityRef CreateInArrayHost<TEntity>(this World world, in TEntity initial)
+    public static Entity CreateInArrayHost<TEntity>(this World world, in TEntity initial)
         where TEntity : IHList
         => world.GetArrayHost<TEntity>().Create(initial);
     
@@ -51,14 +51,14 @@ public static class WorldCommonHostExtensions
 
     #region SparseHost
 
-    public static WorldEntityHost<TEntity, SparseBufferStorage<HList<Identity, TEntity>>> GetSparseHost<TEntity>(this World world)
+    public static WorldEntityHost<TEntity, SparseBufferStorage<HList<Entity, TEntity>>> GetSparseHost<TEntity>(this World world)
         where TEntity : IHList
-        => world.AcquireHost<TEntity, SparseBufferStorage<HList<Identity, TEntity>>>();
+        => world.AcquireHost<TEntity, SparseBufferStorage<HList<Entity, TEntity>>>();
 
-    public static EntityRef CreateInSparseHost(this World world)
+    public static Entity CreateInSparseHost(this World world)
         => world.GetSparseHost<EmptyHList>().Create();
 
-    public static EntityRef CreateInSparseHost<TEntity>(this World world, in TEntity initial)
+    public static Entity CreateInSparseHost<TEntity>(this World world, in TEntity initial)
         where TEntity : IHList
         => world.GetSparseHost<TEntity>().Create(initial);
     
@@ -68,14 +68,14 @@ public static class WorldCommonHostExtensions
 
     #region UnversionedBucketHost
 
-    public static WorldEntityHost<TEntity, UnversionedBucketBufferStorage<HList<Identity, TEntity>>> GetUnversionedBucketHost<TEntity>(this World world)
+    public static WorldEntityHost<TEntity, UnversionedBucketBufferStorage<HList<Entity, TEntity>>> GetUnversionedBucketHost<TEntity>(this World world)
         where TEntity : IHList
-        => world.AcquireHost<TEntity, UnversionedBucketBufferStorage<HList<Identity, TEntity>>>();
+        => world.AcquireHost<TEntity, UnversionedBucketBufferStorage<HList<Entity, TEntity>>>();
 
-    public static EntityRef CreateInUnversionedBucketHost(this World world)
+    public static Entity CreateInUnversionedBucketHost(this World world)
         => world.GetUnversionedBucketHost<EmptyHList>().Create();
 
-    public static EntityRef CreateInUnversionedBucketHost<TEntity>(this World world, in TEntity initial)
+    public static Entity CreateInUnversionedBucketHost<TEntity>(this World world, in TEntity initial)
         where TEntity : IHList
         => world.GetUnversionedBucketHost<TEntity>().Create(initial);
     
@@ -83,14 +83,14 @@ public static class WorldCommonHostExtensions
 
     #region UnversionedHashHost
 
-    public static WorldEntityHost<TEntity, UnversionedHashBufferStorage<HList<Identity, TEntity>>> GetUnversionedHashHost<TEntity>(this World world)
+    public static WorldEntityHost<TEntity, UnversionedHashBufferStorage<HList<Entity, TEntity>>> GetUnversionedHashHost<TEntity>(this World world)
         where TEntity : IHList
-        => world.AcquireHost<TEntity, UnversionedHashBufferStorage<HList<Identity, TEntity>>>();
+        => world.AcquireHost<TEntity, UnversionedHashBufferStorage<HList<Entity, TEntity>>>();
 
-    public static EntityRef CreateInUnversionedHashHost(this World world)
+    public static Entity CreateInUnversionedHashHost(this World world)
         => world.GetUnversionedHashHost<EmptyHList>().Create();
 
-    public static EntityRef CreateInUnversionedHashHost<TEntity>(this World world, in TEntity initial)
+    public static Entity CreateInUnversionedHashHost<TEntity>(this World world, in TEntity initial)
         where TEntity : IHList
         => world.GetUnversionedHashHost<TEntity>().Create(initial);
     
@@ -98,14 +98,14 @@ public static class WorldCommonHostExtensions
 
     #region UnversionedArrayHost
 
-    public static WorldEntityHost<TEntity, UnversionedArrayBufferStorage<HList<Identity, TEntity>>> GetUnversionedArrayHost<TEntity>(this World world)
+    public static WorldEntityHost<TEntity, UnversionedArrayBufferStorage<HList<Entity, TEntity>>> GetUnversionedArrayHost<TEntity>(this World world)
         where TEntity : IHList
-        => world.AcquireHost<TEntity, UnversionedArrayBufferStorage<HList<Identity, TEntity>>>();
+        => world.AcquireHost<TEntity, UnversionedArrayBufferStorage<HList<Entity, TEntity>>>();
 
-    public static EntityRef CreateInUnversionedArrayHost(this World world)
+    public static Entity CreateInUnversionedArrayHost(this World world)
         => world.GetUnversionedArrayHost<EmptyHList>().Create();
 
-    public static EntityRef CreateInUnversionedArrayHost<TEntity>(this World world, in TEntity initial)
+    public static Entity CreateInUnversionedArrayHost<TEntity>(this World world, in TEntity initial)
         where TEntity : IHList
         => world.GetUnversionedArrayHost<TEntity>().Create(initial);
     
@@ -113,14 +113,14 @@ public static class WorldCommonHostExtensions
 
     #region UnversionedSparseHost
 
-    public static WorldEntityHost<TEntity, UnversionedSparseBufferStorage<HList<Identity, TEntity>>> GetUnversionedSparseHost<TEntity>(this World world)
+    public static WorldEntityHost<TEntity, UnversionedSparseBufferStorage<HList<Entity, TEntity>>> GetUnversionedSparseHost<TEntity>(this World world)
         where TEntity : IHList
-        => world.AcquireHost<TEntity, UnversionedSparseBufferStorage<HList<Identity, TEntity>>>();
+        => world.AcquireHost<TEntity, UnversionedSparseBufferStorage<HList<Entity, TEntity>>>();
 
-    public static EntityRef CreateInUnversionedSparseHost(this World world)
+    public static Entity CreateInUnversionedSparseHost(this World world)
         => world.GetUnversionedSparseHost<EmptyHList>().Create();
 
-    public static EntityRef CreateInUnversionedSparseHost<TEntity>(this World world, in TEntity initial)
+    public static Entity CreateInUnversionedSparseHost<TEntity>(this World world, in TEntity initial)
         where TEntity : IHList
         => world.GetUnversionedSparseHost<TEntity>().Create(initial);
     

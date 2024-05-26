@@ -12,7 +12,7 @@
     <PackageDescription>Code generators for Sia.NET</PackageDescription>
     <Author>Phlamcenth Sicusa</Author>
     <Company>Gilatod.art</Company>
-    <RepositoryUrl>https://github.com/sicusa/Sia.NET</RepositoryUrl>
+    <RepositoryUrl>https://github.com/lunditoph-siago/Sia.NET</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
   </PropertyGroup>
 

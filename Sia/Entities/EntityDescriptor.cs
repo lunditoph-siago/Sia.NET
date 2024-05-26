@@ -34,10 +34,10 @@ public static class EntityDescriptor<TEntity>
 
         private HeadRecorder _headRecorder = new(components, offsets, entityPtr);
 
-        public readonly void Handle<T>(ref T value) where T : IHList
+        public void Handle<T>(ref T value) where T : IHList
         {
-            value.HandleHeadRef(_headRecorder);
-            value.HandleTailRef(this);
+            value.HandleHeadRef(ref _headRecorder);
+            value.HandleTailRef(ref this);
         }
     }
 
