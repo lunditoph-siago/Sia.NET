@@ -73,7 +73,7 @@ public record DynBundle : IBundle
         where TList : IHList
     {
         public readonly void Handle<T>()
-            => (*impl).Remove(TypeProxy<T>.Default, new BundleImplCreator(impl));
+            => (*impl).Remove(TypeProxy<T>._, new BundleImplCreator(impl));
     }
 
     private unsafe struct HListRemover<TList>(IBundleImpl* result)
@@ -147,7 +147,7 @@ public record DynBundle : IBundle
     public unsafe DynBundle Remove<TComponent>()
     {
         IBundleImpl? impl = null;
-        _bundleImpl.Remove(TypeProxy<TComponent>.Default, new BundleImplCreator(&impl));
+        _bundleImpl.Remove(TypeProxy<TComponent>._, new BundleImplCreator(&impl));
         return new(impl!);
     }
 
