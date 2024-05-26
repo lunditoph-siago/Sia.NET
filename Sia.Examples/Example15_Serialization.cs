@@ -10,7 +10,10 @@ using Sia.Serialization.Binary;
 [MemoryPackable]
 public partial record struct C1(string Value);
 
-public class TestRelation : IRelation;
+public class Likes<T> : IRelation;
+
+[MemoryPackable]
+public partial record struct Has(int Count) : IRelation;
 
 public static class Example15_Serialization
 {
@@ -20,7 +23,8 @@ public static class Example15_Serialization
 
         var e1 = world.CreateInArrayHost(HList.Create(new C1("?"), 0, "asdf"));
         var e2 = world.CreateInSparseHost(HList.Create(0, "asdf", 1324f, Math.PI));
-        e2.AddRelation<TestRelation>(e1);
+        e2.AddRelation<Likes<float>>(e2);
+        e2.AddRelation(new Has(31415), e1);
         world.CreateInUnversionedHashHost(HList.Create(0, "asdf", 1324f, Math.PI));
 
         BinaryWorldSerializer.Serialize(ref compressor, world);

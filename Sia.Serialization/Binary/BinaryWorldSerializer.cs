@@ -11,6 +11,21 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
     where THostHeaderSerializer : IHostHeaderSerializer
     where TComponentSerializer : IComponentSerializer, new()
 {
+    private unsafe struct GenericSerializer<TBufferWriter>(
+        TComponentSerializer serializer, TBufferWriter* writer) : IRefGenericHandler
+        where TBufferWriter : IBufferWriter<byte>
+    {
+        public void Handle<T>(ref T value)
+            => serializer.Serialize(ref *writer, value);
+    }
+
+    private unsafe struct GenericDeserializer(
+        TComponentSerializer serializer, ReadOnlySequence<byte>* sequence) : IRefGenericHandler
+    {
+        public void Handle<T>(ref T value)
+            => serializer.Deserialize(ref *sequence, ref value);
+    }
+
     private unsafe struct EntitySerializationHandler<TBufferWriter>(
         TComponentSerializer serializer, TBufferWriter* writer) : IRefGenericHandler<IHList>
         where TBufferWriter : IBufferWriter<byte>
@@ -18,14 +33,17 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
         private unsafe struct HeadHandler(
             TComponentSerializer serializer, TBufferWriter* writer) : IRefGenericHandler
         {
-            public void Handle<T>(ref T value)
+            public void Handle<T>(ref T component)
             {
                 var t = typeof(T);
-                if (t == typeof(Entity) || value is IRelationComponent) {
-                    serializer.Serialize(ref *writer, Unsafe.As<T, Entity>(ref value).Id);
+                if (t == typeof(Entity) || component is IRelationComponent) {
+                    serializer.Serialize(ref *writer, Unsafe.As<T, Entity>(ref component).Id);
+                    if (component is IArgumentRelationComponent argComp) {
+                        argComp.HandleRelation(new GenericSerializer<TBufferWriter>(serializer, writer));
+                    }
                 }
                 else {
-                    serializer.Serialize(ref *writer, value);
+                    serializer.Serialize(ref *writer, component);
                 }
             }
         }
@@ -64,9 +82,15 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
                     if (entity == null) {
                         throw new InvalidDataException("Entity component must appear before any relation component");
                     }
+
                     long id = 0;
                     serializer.Deserialize(ref *buffer, ref id);
                     relations.Add((entity, id, counter));
+
+                    if (component is IArgumentRelationComponent argComp) {
+                        argComp.HandleRelation(new GenericDeserializer(serializer, buffer));
+                        component = (T)argComp;
+                    }
                 }
                 else {
                     serializer.Deserialize(ref *buffer, ref component);
