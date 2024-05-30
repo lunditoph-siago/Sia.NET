@@ -45,7 +45,11 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage storage) : IEntityHos
     }
 
     public virtual void Release(in StorageSlot slot)
-        => Storage.Release(slot);
+    {
+        ref var data = ref Storage.GetRef(slot);
+        data.Head.Release();
+        Storage.Release(slot);
+    }
 
     public Entity GetEntity(in StorageSlot slot)
         => Storage.GetRef(slot).Head;
