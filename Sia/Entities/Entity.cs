@@ -26,11 +26,15 @@ public sealed record Entity : IDisposable
 
     private Entity() {}
 
+    internal void Release()
+    {
+        s_pool.Return(this);
+    }
+
     public void Dispose()
     {
         Host.Release(Slot);
         Host = default!;
-        s_pool.Return(this);
     }
 
     public override string ToString()
