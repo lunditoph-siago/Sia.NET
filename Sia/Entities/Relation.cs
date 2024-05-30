@@ -56,7 +56,14 @@ public static class RelationExtensions
 
     public static Entity GetRelation<TRelation>(this Entity entity)
         where TRelation : IRelation
-        => entity.Get<Relation<TRelation>>().Target;
+    {
+        try {
+            return entity.Get<Relation<TRelation>>().Target;
+        }
+        catch {
+            return entity.Get<ArgRelation<TRelation>>().Target;
+        }
+    }
 
     public static Entity GetRelation<TArgRelation>(
         this Entity entity, out TArgRelation arg)
