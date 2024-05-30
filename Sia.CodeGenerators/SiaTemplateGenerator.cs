@@ -240,7 +240,7 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
 
         source.WriteLine("public void Execute(global::Sia.World _, global::Sia.Entity target)");
         source.Indent++;
-        source.Write("=> target.Get<");
+        source.Write("=> target.GetRef<");
         source.Write(componentName);
         WriteTypeParameters(source, templateType);
         source.WriteLine(">() = new(Value);");

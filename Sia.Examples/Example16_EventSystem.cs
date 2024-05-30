@@ -13,7 +13,7 @@ public static partial class Example16_EventSystem
         public readonly record struct TestCommand : ICommand
         {
             public void Execute(World world, Entity target)
-                => target.Get<Position>().X++;
+                => target.GetRef<Position>().X++;
         }
     }
 

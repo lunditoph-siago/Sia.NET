@@ -14,7 +14,7 @@ public record struct Position(float X, float Y, float Z)
     {
         public void Execute(World world, Entity target)
         {
-            ref var pos = ref target.Get<Position>();
+            ref var pos = ref target.GetRef<Position>();
             pos.X = X;
             pos.Y = Y;
             pos.Z = Z;

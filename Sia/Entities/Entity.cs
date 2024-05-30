@@ -57,22 +57,33 @@ public sealed record Entity : IDisposable
         => Descriptor.Offsets.ContainsKey(componentType);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref TComponent Get<TComponent>()
+    public TComponent Get<TComponent>()
     {
         ref var byteRef = ref Host.UnsafeGetByteRef(Slot);
         nint offset = Descriptor.GetOffset<TComponent>();
-        return ref Unsafe.As<byte, TComponent>(
+        return Unsafe.As<byte, TComponent>(
             ref Unsafe.AddByteOffset(ref byteRef, offset));
     }
     
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref TComponent GetRef<TComponent>()
+    {
+        ref var byteRef = ref Host.UnsafeGetByteRef(Slot);
+        nint offset = Descriptor.GetOffset<TComponent>();
+        ref var component = ref Unsafe.As<byte, TComponent>(
+            ref Unsafe.AddByteOffset(ref byteRef, offset));
+        return ref Unsafe.AsRef(ref component);
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref TComponent GetOrNullRef<TComponent>()
     {
         ref var byteRef = ref Host.UnsafeGetByteRef(Slot);
         try {
             nint offset = Descriptor.GetOffset<TComponent>();
-            return ref Unsafe.As<byte, TComponent>(
+            ref var component = ref Unsafe.As<byte, TComponent>(
                 ref Unsafe.AddByteOffset(ref byteRef, offset));
+            return ref Unsafe.AsRef(ref component);
         }
         catch {
             return ref Unsafe.NullRef<TComponent>();

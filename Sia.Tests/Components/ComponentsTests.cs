@@ -13,8 +13,8 @@ public class ComponentsTests
 
         var entityRef = fixture.World.CreateInArrayHost(Transform.BakedEntity);
 
-        ref var position = ref entityRef.Get<Position>();
-        ref var rotation = ref entityRef.Get<Rotation>();
+        ref var position = ref entityRef.GetRef<Position>();
+        ref var rotation = ref entityRef.GetRef<Rotation>();
 
         Assert.Equal(Vector3.Zero, position, (a, b) =>
             Math.Abs(a.Value.X - b.Value.X) < Epsilon &&

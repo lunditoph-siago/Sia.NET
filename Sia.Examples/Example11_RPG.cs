@@ -32,7 +32,7 @@ public static partial class Example11_RPG
             {
                 float damage = metadata.BaseDamage + Random.Shared.NextSingle() * 10f;
 
-                ref var attackerCharacter = ref attacker.Get<Character>();
+                var attackerCharacter = attacker.Get<Character>();
                 if (attackerCharacter.MP > 10f) {
                     attackerCharacter.MP -= 10f;
                     damage += 20f;
@@ -86,12 +86,12 @@ public static partial class Example11_RPG
                 float defense;
 
                 try {
-                    ref var attackerMeta = ref Attacker.Get<CharacterMetadata>();
-                    ref var attackerCharacter = ref Attacker.Get<Character>();
+                    var attackerMeta = Attacker.Get<CharacterMetadata>();
+                    var attackerCharacter = Attacker.Get<Character>();
                     damage = attackerMeta.BaseDamage + attackerCharacter.Level * attackerMeta.DamageGrowthRate;
 
                     if (attackerCharacter.Weapon is Entity weapon) {
-                        ref var weaponMeta = ref weapon.Get<WeaponMetadata>();
+                        var weaponMeta = weapon.Get<WeaponMetadata>();
                         damage += weaponMeta.DamageProvider.GetDamage(weaponMeta, Attacker, self);
                     }
                 }
@@ -101,7 +101,7 @@ public static partial class Example11_RPG
                 }
 
                 try {
-                    ref var selfMeta = ref self.Get<CharacterMetadata>();
+                    var selfMeta = self.Get<CharacterMetadata>();
 
                     var selfCharacter = new View(self);
                     defense = selfMeta.BaseDefense + selfCharacter.Level * selfMeta.DefenseGrowthRate;
@@ -128,7 +128,7 @@ public static partial class Example11_RPG
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
             foreach (var entity in query) {
-                ref var character = ref entity.Get<Character>();
+                var character = entity.Get<Character>();
                 if (character.HP <= 0) {
                     Console.WriteLine(character.Name + " is dead!");
                     entity.Dispose();

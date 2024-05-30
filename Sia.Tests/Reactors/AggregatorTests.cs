@@ -60,7 +60,7 @@ public class AggregatorTests(AggregatorTests.AggregatorContext context) : IClass
         // Assert
         var actualResult = new List<AggregatorContext.ObjectId>();
         foreach (var entity in context.World.Query(Matchers.Of<Aggregation<AggregatorContext.ObjectId>>())) {
-            ref var aggregation = ref entity.Get<Aggregation<AggregatorContext.ObjectId>>();
+            var aggregation = entity.Get<Aggregation<AggregatorContext.ObjectId>>();
             actualResult.Add(aggregation.Id);
         }
         Assert.Contains(objectId, actualResult);

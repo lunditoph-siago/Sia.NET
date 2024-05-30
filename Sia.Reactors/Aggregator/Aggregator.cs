@@ -25,7 +25,7 @@ public abstract class AggregatorBase<TId> : ReactorBase<TypeUnion<Sid<TId>>>
         };
         
         Listen((Entity entity, in WorldEvents.Add<Aggregation<TId>> e) => {
-            ref var aggr = ref entity.Get<Aggregation<TId>>();
+            ref var aggr = ref entity.GetRef<Aggregation<TId>>();
             if (aggr.Aggregator != this) {
                 return;
             }
@@ -34,7 +34,7 @@ public abstract class AggregatorBase<TId> : ReactorBase<TypeUnion<Sid<TId>>>
         });
 
         Listen((Entity entity, in WorldEvents.Remove<Aggregation<TId>> e) => {
-            ref var aggr = ref entity.Get<Aggregation<TId>>();
+            ref var aggr = ref entity.GetRef<Aggregation<TId>>();
             if (aggr.Aggregator != this) {
                 return;
             }
@@ -64,7 +64,7 @@ public abstract class AggregatorBase<TId> : ReactorBase<TypeUnion<Sid<TId>>>
 
     private void OnAggregationCreated(Entity entity)
     {
-        ref var aggr = ref entity.Get<Aggregation<TId>>();
+        ref var aggr = ref entity.GetRef<Aggregation<TId>>();
         if (_aggrs.TryAdd(aggr.Id, entity)) {
             aggr.Aggregator = this;
         }
@@ -72,7 +72,7 @@ public abstract class AggregatorBase<TId> : ReactorBase<TypeUnion<Sid<TId>>>
 
     private void OnAggregationReleased(Entity entity)
     {
-        ref var aggr = ref entity.Get<Aggregation<TId>>();
+        ref var aggr = ref entity.GetRef<Aggregation<TId>>();
         _aggrs.Remove(aggr.Id, out var removedEntity);
         if (removedEntity != entity)  {
             _aggrs.Add(aggr.Id, removedEntity!);
@@ -84,7 +84,7 @@ public abstract class AggregatorBase<TId> : ReactorBase<TypeUnion<Sid<TId>>>
 
     private bool OnEntityIdChanged(Entity entity, in Sid<TId>.SetValue e)
     {
-        ref var id = ref entity.Get<Sid<TId>>();
+        ref var id = ref entity.GetRef<Sid<TId>>();
         RemoveFromAggregation(entity, id.Previous);
         AddToAggregation(entity, id.Value);
         return false;
@@ -112,14 +112,14 @@ public abstract class AggregatorBase<TId> : ReactorBase<TypeUnion<Sid<TId>>>
         if (!exists) {
             aggrEntity = CreateAggregationEntity();
 
-            ref var aggr = ref aggrEntity.Get<Aggregation<TId>>();
+            ref var aggr = ref aggrEntity.GetRef<Aggregation<TId>>();
             aggr.Id = id;
             aggr.First = entity;
             aggr._group = _groupPool.TryPop(out var pooled) ? pooled : [];
             aggr._group.Add(entity);
         }
         else {
-            aggrEntity!.Get<Aggregation<TId>>()._group!.Add(entity);
+            aggrEntity!.GetRef<Aggregation<TId>>()._group!.Add(entity);
         }
 
         World.Send(aggrEntity, new Aggregation<TId>.EntityAdded(entity));
@@ -133,7 +133,7 @@ public abstract class AggregatorBase<TId> : ReactorBase<TypeUnion<Sid<TId>>>
             return;
         }
 
-        ref var aggr = ref aggrEntity.Get<Aggregation<TId>>();
+        ref var aggr = ref aggrEntity.GetRef<Aggregation<TId>>();
         var group = aggr._group!;
 
         if (!group.Remove(entity)) {

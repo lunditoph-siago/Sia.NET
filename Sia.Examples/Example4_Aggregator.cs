@@ -18,7 +18,7 @@ public static partial class Example4_Aggregator
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
             foreach (var entity in query) {
-                ref var aggr = ref entity.Get<Aggregation<ObjectId>>();
+                var aggr = entity.Get<Aggregation<ObjectId>>();
                 int count = aggr.Group.Count;
                 Console.WriteLine($"[{aggr.Id}] Count: " + count);
             }

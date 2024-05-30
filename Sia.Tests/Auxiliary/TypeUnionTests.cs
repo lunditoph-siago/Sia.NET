@@ -1,6 +1,4 @@
-﻿using System.Numerics;
-
-namespace Sia.Tests.Auxiliary;
+﻿namespace Sia.Tests.Auxiliary;
 
 public class TypeUnionTests
 {
@@ -8,20 +6,24 @@ public class TypeUnionTests
     [
         [new TypeUnion<bool>()],
         [new TypeUnion<bool, byte>()],
-        [new TypeUnion<bool, byte, sbyte>()],
-        [new TypeUnion<bool, byte, sbyte, short>()],
-        [new TypeUnion<bool, byte, sbyte, short, ushort>()],
-        [new TypeUnion<bool, byte, sbyte, short, ushort, int>()],
-        [new TypeUnion<bool, byte, sbyte, short, ushort, int, uint>()],
-        [new TypeUnion<bool, byte, sbyte, short, ushort, int, uint, long>()],
-        [new TypeUnion<bool, byte, sbyte, short, ushort, int, uint, long, ulong>()],
-        [new TypeUnion<bool, byte, sbyte, short, ushort, int, uint, long, ulong, float>()],
-        [new TypeUnion<bool, byte, sbyte, short, ushort, int, uint, long, ulong, float, double>()],
-        [new TypeUnion<bool, byte, sbyte, short, ushort, int, uint, long, ulong, float, double, decimal>()],
-        [new TypeUnion<bool, byte, sbyte, short, ushort, int, uint, long, ulong, float, double, decimal, char>()],
-        [new TypeUnion<bool, byte, sbyte, short, ushort, int, uint, long, ulong, float, double, decimal, char, string>()],
-        [new TypeUnion<bool, byte, sbyte, short, ushort, int, uint, long, ulong, float, double, decimal, char, string, Guid>()],
-        [new TypeUnion<bool, byte, sbyte, short, ushort, int, uint, long, ulong, float, double, decimal, char, string, Guid, Vector<string>>()]
+        [new TypeUnion<bool, byte>()],
+        [new TypeUnion<bool, byte, short>()],
+        [new TypeUnion<bool, byte, short>()],
+        [new TypeUnion<bool, byte, short, int>()],
+        [new TypeUnion<bool, byte, short, int>()],
+        [new TypeUnion<bool, byte, short, int, long>()],
+        [new TypeUnion<bool, byte, short, int, long>()],
+        [new TypeUnion<bool, byte, short, int, long, float>()],
+        [new TypeUnion<bool, byte, short, int, long, float, double>()],
+        [new TypeUnion<bool, byte, short, int, long, float, double, decimal>()],
+        [new TypeUnion<bool, byte, short, int, long, float, double, decimal, char>()],
+        [new TypeUnion<bool, byte, short, int, long, float, double, decimal, char, string>()],
+        [new TypeUnion<bool, byte, short, int, long, float, double, decimal, char, string, object>()],
+        [new TypeUnion<bool, byte, short, int, long, float, double, decimal, char, string, object, dynamic>()],
+        [new TypeUnion<bool, byte, short, int, long, float, double, decimal, char, string, object, dynamic, Action<float>>()],
+        [new TypeUnion<bool, byte, short, int, long, float, double, decimal, char, string, object, dynamic, Action<float>, TypeCode>()],
+        [new TypeUnion<bool, byte, short, int, long, float, double, decimal, char, string, object, dynamic, Action<float>, TypeCode, Guid>()],
+        [new TypeUnion<bool, byte, short, int, long, float, double, decimal, char, string, object, dynamic, Action<float>, TypeCode, Guid, Random>()]
     ];
 
     [Theory]

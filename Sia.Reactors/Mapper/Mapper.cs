@@ -24,7 +24,7 @@ public class Mapper<TId> : ReactorBase<TypeUnion<Sid<TId>>>, IReadOnlyDictionary
 
     private bool OnEntityIdChanged(Entity entity, in Sid<TId>.SetValue e)
     {
-        ref var id = ref entity.Get<Sid<TId>>();
+        var id = entity.Get<Sid<TId>>();
         RemoveMap(entity, id.Previous);
         AddMap(entity, id.Value);
         return false;

@@ -14,7 +14,7 @@ public static class Example2_HealthRecover
         public readonly record struct Damage(int Value) : ICommand
         {
             public void Execute(World _, Entity target)
-                => target.Get<HP>().Value -= Value;
+                => target.GetRef<HP>().Value -= Value;
         }
 
         public sealed class Kill : SingletonEvent<Kill>, ICancellableEvent;
@@ -26,7 +26,7 @@ public static class Example2_HealthRecover
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
             foreach (var entity in query) {
-                ref var hp = ref entity.Get<HP>();
+                ref var hp = ref entity.GetRef<HP>();
 
                 if (hp.Value < hp.Maximum) {
                     hp.Value = Math.Min(hp.Value + hp.AutoRecoverRate, hp.Maximum);
@@ -61,7 +61,7 @@ public static class Example2_HealthRecover
             Console.WriteLine("START KILLING!");
 
             foreach (var entity in query) {
-                entity.Get<HP>().Value = 0;
+                entity.GetRef<HP>().Value = 0;
                 Console.WriteLine("KILL!");
             }
         }
@@ -89,7 +89,7 @@ public static class Example2_HealthRecover
             .RegisterTo(world, scheduler);
 
         var player = Player.CreateResilient(world, "玩家");
-        ref var hp = ref player.Get<HP>();
+        ref var hp = ref player.GetRef<HP>();
 
         Console.WriteLine("HP: " + hp.Value);
         scheduler.Tick();

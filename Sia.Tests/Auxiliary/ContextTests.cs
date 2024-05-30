@@ -51,6 +51,27 @@ public class ContextTests
     }
 
     [Fact]
+    public void Context_With_Test()
+    {
+        // Arrange
+        const string value1 = "Value1";
+        const string value2 = "Value2";
+        var result = string.Empty;
+
+        Context<string>.Current = value1;
+
+        Context<string>.With(value1, () =>
+        {
+            Context<string>.Current = value2;
+            result = value2;
+        });
+
+        // Act
+        Assert.Equal(value2, result);
+        Assert.Equal(value1, Context<string>.Current);
+    }
+
+    [Fact]
     public void Context_IJobAssign_Test()
     {
         // Arrange

@@ -37,7 +37,7 @@ public partial record struct Transform([Sia] Position Position, [Sia] Rotation R
 
         public void Execute(World _, Entity target)
         {
-            ref var quaternion = ref target.Get<Rotation>();
+            ref var quaternion = ref target.GetRef<Rotation>();
             var a = Euler * (MathF.PI / 180.0f);
             var s = Sin(a * 0.5f);
             var c = Cos(a * 0.5f);

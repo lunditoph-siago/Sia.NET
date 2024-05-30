@@ -331,7 +331,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
 
         source.WriteLine("public void Execute(global::Sia.World _, global::Sia.Entity target)");
         source.Indent++;
-        source.Write("=> Execute(ref target.Get<");
+        source.Write("=> Execute(ref target.GetRef<");
         WriteComponentType();
         source.WriteLine(">());");
         source.Indent--;
@@ -384,7 +384,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         source.WriteLine('{');
         source.Indent++;
 
-        source.Write("ref var component = ref target.Get<");
+        source.Write("ref var component = ref target.GetRef<");
         WriteComponentType();
         source.WriteLine(">();");
 
@@ -433,7 +433,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         source.WriteLine("private readonly global::Sia.World _world = world ?? global::Sia.Context<global::Sia.World>.Current!;");
         source.Write("private readonly ref ");
         WriteComponentType();
-        source.Write(" _component = ref entity.Get<");
+        source.Write(" _component = ref entity.GetRef<");
         WriteComponentType();
         source.WriteLine(">();");
 

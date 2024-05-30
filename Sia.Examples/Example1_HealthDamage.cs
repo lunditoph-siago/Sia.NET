@@ -45,7 +45,7 @@ public static partial class Example1_HealthDamage
             var game = world.GetAddon<Game>();
 
             foreach (var entity in query) {
-                ref var health = ref entity.Get<Health>();
+                var health = entity.Get<Health>();
                 if (health.Debuff != 0) {
                     entity.Modify(new Health.Damage(health.Debuff * game.DeltaTime));
                 }

@@ -69,7 +69,7 @@ public static class RelationExtensions
         this Entity entity, out TArgRelation arg)
         where TArgRelation : IRelation
     {
-        ref var relation = ref entity.Get<ArgRelation<TArgRelation>>();
+        ref var relation = ref entity.GetRef<ArgRelation<TArgRelation>>();
         arg = relation.Relation;
         return relation.Target;
     }
