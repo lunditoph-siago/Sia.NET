@@ -59,10 +59,10 @@ public abstract class EventSystemBase(SystemChain? children = null)
     public override void Uninitialize(World world, Scheduler scheduler)
         => OnUninitialize?.Invoke();
 
-    protected abstract void HandleEvent<TEvent>(Entity entity, in TEvent e)
+    protected abstract void HandleEvent<TEvent>(Entity entity, in TEvent @event)
         where TEvent : IEvent;
     
-    protected virtual void HandleException<TEvent>(Entity entity, in TEvent e, Exception exception)
+    protected virtual void HandleException<TEvent>(Entity entity, in TEvent @event, Exception exception)
         => Console.Error.WriteLine(exception);
 
     protected void RecordEvent<TEvent>()
@@ -164,14 +164,14 @@ public abstract class SnapshotEventSystemBase<TSnapshot>(SystemChain? children =
     public override void Uninitialize(World world, Scheduler scheduler)
         => OnUninitialize?.Invoke();
     
-    protected abstract TSnapshot Snapshot<TEvent>(Entity entity, in TEvent e)
+    protected abstract TSnapshot Snapshot<TEvent>(Entity entity, in TEvent @event)
         where TEvent : IEvent;
 
-    protected abstract void HandleEvent<TEvent>(Entity entity, in TSnapshot snapshot, in TEvent e)
+    protected abstract void HandleEvent<TEvent>(Entity entity, in TSnapshot snapshot, in TEvent @event)
         where TEvent : IEvent;
 
     protected virtual void HandleException<TEvent>(
-        Entity entity, in TSnapshot snapshot, in TEvent e, Exception exception)
+        Entity entity, in TSnapshot snapshot, in TEvent @event, Exception exception)
         where TEvent : IEvent
         => Console.Error.WriteLine(exception);
     
@@ -258,10 +258,14 @@ public abstract class SnapshotEventSystemBase<TSnapshot>(SystemChain? children =
 
     public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
     {
+        if (_eventsBack.Count == 0) {
+            return;
+        }
+
         (_eventCaches, _eventCachesBack) = (_eventCachesBack, _eventCaches);
         (_events, _eventsBack) = (_eventsBack, _events);
 
-        foreach (var (id, cache, index) in _events) {
+        foreach (var (id, cache, index) in _events.AsSpan()) {
             cache.Handle(this, index, id);
         }
 
