@@ -11,7 +11,6 @@ public interface IArgumentRelationComponent : IRelationComponent
 }
 
 public interface IRelation;
-public interface IRelation<TArgument>;
 
 public record struct Relation<TRelation>(Entity Target) : IRelationComponent
     where TRelation : IRelation
