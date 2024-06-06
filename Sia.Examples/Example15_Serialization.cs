@@ -23,7 +23,7 @@ public static class Example15_Serialization
 
         var e1 = world.CreateInArrayHost(HList.Create(new C1("?"), 0, "asdf"));
         var e2 = world.CreateInSparseHost(HList.Create(1234, "asdf", 1324f, Math.PI));
-        e2.Add(new Likes<float>(e2));
+        e2.Add(new Likes<float>(e1));
         e2.Add(new Has(31415, e2));
         world.CreateInUnversionedHashHost(HList.Create(1234, "asdf", 1324f, Math.PI));
 
@@ -50,7 +50,7 @@ public static class Example15_Serialization
 
         Console.WriteLine();
         foreach (var e in newWorld) {
-            Console.WriteLine(e.Boxed);
+            Console.WriteLine(e + ": " + e.Boxed);
         }
     }
 }
