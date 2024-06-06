@@ -230,7 +230,7 @@ public class StorageEntityHost<TEntity, TStorage>(TStorage storage) : IEntityHos
         => throw new NotSupportedException("Sibling host not supported");
 
     public object Box(in StorageSlot slot)
-        => Storage.GetRef(slot);
+        => Storage.GetRef(slot).Tail;
 
     public IEnumerator<Entity> GetEnumerator()
     {
