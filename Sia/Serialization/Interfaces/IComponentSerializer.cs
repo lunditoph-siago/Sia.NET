@@ -9,5 +9,5 @@ public interface IComponentSerializer : IDisposable
         where TBufferWriter : IBufferWriter<byte>;
 
     bool Deserialize<TComponent>(
-        ref ReadOnlySequence<byte> buffer, ref TComponent component);
+        ref ReadOnlySequence<byte> buffer, ref TComponent component, Dictionary<EntityId, Entity> entityMap);
 }

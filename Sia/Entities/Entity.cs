@@ -1,9 +1,11 @@
 namespace Sia;
 
 using System.Runtime.CompilerServices;
+using MemoryPack;
 using Microsoft.Extensions.ObjectPool;
 
-public sealed record Entity : IDisposable
+[MemoryPackable(GenerateType.NoGenerate)]
+public partial record Entity : IDisposable
 {
     public EntityId Id { get; } = EntityId.Create();
     public IEntityHost Host { get; internal set; } = null!;
