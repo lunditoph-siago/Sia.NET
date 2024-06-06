@@ -2,15 +2,18 @@ namespace Sia_Examples;
 
 using System.Buffers;
 using System.Text;
+using MemoryPack;
 using MemoryPack.Compression;
 using Sia;
 using Sia.Serialization.Binary;
 
 public partial record struct C1(string Value);
 
-public class Likes<T> : IRelation;
+[MemoryPackable]
+public partial record struct Likes<T>(Entity Target);
 
-public partial record struct Has(int Count) : IRelation;
+[MemoryPackable]
+public partial record struct Has(int Count, Entity Target);
 
 public static class Example15_Serialization
 {
@@ -19,10 +22,10 @@ public static class Example15_Serialization
         var compressor = new BrotliCompressor();
 
         var e1 = world.CreateInArrayHost(HList.Create(new C1("?"), 0, "asdf"));
-        var e2 = world.CreateInSparseHost(HList.Create(0, "asdf", 1324f, Math.PI));
-        e2.AddRelation<Likes<float>>(e2);
-        e2.AddRelation(new Has(31415), e1);
-        world.CreateInUnversionedHashHost(HList.Create(0, "asdf", 1324f, Math.PI));
+        var e2 = world.CreateInSparseHost(HList.Create(1234, "asdf", 1324f, Math.PI));
+        e2.Add(new Likes<float>(e2));
+        e2.Add(new Has(31415, e2));
+        world.CreateInUnversionedHashHost(HList.Create(1234, "asdf", 1324f, Math.PI));
 
         BinaryWorldSerializer.Serialize(ref compressor, world);
 
