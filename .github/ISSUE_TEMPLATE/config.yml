@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Questions & Discussions
+    url: https://github.com/lunditoph-siago/Sia.NET/discussions
+    about: Use GitHub discussions for message-board style questions and discussions.

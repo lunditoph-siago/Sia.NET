@@ -37,33 +37,23 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
             static (syntaxNode, token) => true,
             static (syntax, token) =>
                 (syntax, ParentTypes: GetParentTypes(syntax.TargetNode)))
-            .Where(static t => t.ParentTypes.All(
-                static typeDecl => typeDecl.Modifiers.Any(SyntaxKind.PartialKeyword)))
             .Select(static (t, token) => {
                 var (syntax, parentTypes) = t;
                 var model = syntax.SemanticModel;
                 var targetType = (TypeDeclarationSyntax)syntax.TargetNode;
-
-                static IEnumerable<PropertyInfo> GetProperties(INamedTypeSymbol symbol)
-                {
-                    var result = symbol.GetMembers().SelectMany(member => member switch {
-                        IFieldSymbol fieldSymbol =>
-                            IsValidTemplateMember(fieldSymbol)
-                                ? ImmutableArray.Create(
-                                    new PropertyInfo(fieldSymbol.Name, fieldSymbol.Type, symbol, member.GetAttributes()))
-                                : Enumerable.Empty<PropertyInfo>(),
-                        IPropertySymbol propSymbol =>
-                            IsValidTemplateMember(propSymbol)
-                                ? ImmutableArray.Create(
-                                    new PropertyInfo(propSymbol.Name, propSymbol.Type, symbol, member.GetAttributes()))
-                                : Enumerable.Empty<PropertyInfo>(),
-                        _ => []
-                    });
-                    return symbol.BaseType != null ? result.Concat(GetProperties(symbol.BaseType)) : result;
-                }
-
                 var targetSymbol = model.GetDeclaredSymbol(targetType, token)!;
                 var templateAttr = syntax.Attributes[0];
+
+                static IEnumerable<PropertyInfo> GetProperties(INamedTypeSymbol symbol)
+                    => symbol.GetMembers()
+                        .Where(IsValidTemplateMember)
+                        .Select<ISymbol, PropertyInfo?>(member => member switch {
+                            IFieldSymbol fieldSymbol => new(fieldSymbol.Name, fieldSymbol.Type, fieldSymbol.GetAttributes()),
+                            IPropertySymbol propSymbol => new(propSymbol.Name, propSymbol.Type, propSymbol.GetAttributes()),
+                            _ => null
+                        })
+                        .Where(c => c != null)
+                        .Concat(symbol.BaseType != null ? GetProperties(symbol.BaseType) : [])!;;
 
                 return new CodeGenerationInfo(
                     Namespace: syntax.TargetSymbol.ContainingNamespace,
@@ -101,21 +91,23 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
 
                             GenerateResetCommand(source,
                                 templateType: templateType,
-                                componentName: compName,
-                                properties: properties);
+                                componentName: compName);
                             
                             if (properties.Length != 0) {
                                 source.WriteLine();
-                                SiaPropertyGenerator.GenerateViewTypeMainDecl(source, compName, templateType.TypeParameterList);
+                                SiaPropertyGenerator.GenerateViewMainDecl(
+                                    source, compName, templateType.TypeParameterList);
+                                
+                                var commands = new List<string>();
 
-                                foreach (var propInfo in properties) {
+                                foreach (var prop in properties) {
                                     source.WriteLine();
-                                    SiaPropertyGenerator.GeneratePropertyCommands(
-                                        source, propInfo, compName, templateType.TypeParameterList);
-
-                                    source.WriteLine();
-                                    SiaPropertyGenerator.GenerateViewTypeProperty(source, propInfo);
+                                    SiaPropertyGenerator.GenerateProperty(
+                                        source, prop, compName, templateType.TypeParameterList, commands);
                                 }
+
+                                source.WriteLine();
+                                GenerateHandleCommandTypesMethod(source, templateType, compName, commands);
                             }
                         }
                     }
@@ -129,9 +121,9 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool IsValidTemplateMember(ISymbol symbol)
-        => !symbol.IsStatic && symbol.DeclaredAccessibility == Accessibility.Public
-            && !symbol.GetAttributes().Any(attr =>
-                attr.AttributeClass?.ToDisplayString() == SiaIgnoreAttributeName);
+        => symbol is { IsStatic: false, DeclaredAccessibility: Accessibility.Public }
+           && !symbol.GetAttributes().Any(attr =>
+               attr.AttributeClass?.ToDisplayString() == SiaIgnoreAttributeName);
     private static string GenerateFileName(CodeGenerationInfo info)
     {
         var builder = new StringBuilder();
@@ -146,7 +138,7 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
         return builder.ToString();
     }
 
-    private static IDisposable GenerateInComponentType(
+    private static EnclosingDisposable GenerateInComponentType(
         IndentedTextWriter source, CodeGenerationInfo info)
     {
         var templateType = info.TemplateType;
@@ -175,7 +167,7 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
             index++;
         }
 
-        source.Write(") : global::Sia.IConstructable<");
+        source.Write(") : global::Sia.IGeneratedByTemplate<");
         source.Write(info.ComponentName);
         WriteTypeParameters(source, templateType);
         source.Write(", ");
@@ -238,7 +230,7 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
     }
 
     public static void GenerateResetCommand(
-        IndentedTextWriter source, TypeDeclarationSyntax templateType, string componentName, ImmutableArray<PropertyInfo> properties)
+        IndentedTextWriter source, TypeDeclarationSyntax templateType, string componentName)
     {
         source.Write("public readonly record struct Reset(");
         WriteType(source, templateType);
@@ -246,14 +238,36 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
         source.WriteLine("{");
         source.Indent++;
 
-        source.WriteLine("public void Execute(global::Sia.World _, in global::Sia.EntityRef target)");
+        source.WriteLine("public void Execute(global::Sia.World _, global::Sia.Entity target)");
         source.Indent++;
         source.Write("=> target.Get<");
         source.Write(componentName);
         WriteTypeParameters(source, templateType);
         source.WriteLine(">() = new(Value);");
+        source.Indent--;
 
-        source.Indent -= 2;
+        source.Indent--;
+        source.WriteLine("}");
+    }
+
+    public static void GenerateHandleCommandTypesMethod(
+        IndentedTextWriter source, TypeDeclarationSyntax templateType, string componentName, List<string> commands)
+    {
+        source.Write("public static void HandleCommandTypes(global::Sia.IGenericTypeHandler<global::Sia.ICommand<");
+        source.Write(componentName);
+        WriteTypeParameters(source, templateType);
+        source.WriteLine(">> handler)");
+
+        source.WriteLine("{");
+        source.Indent++;
+
+        foreach (var command in commands) {
+            source.Write("handler.Handle<");
+            source.Write(command);
+            source.WriteLine(">();");
+        }
+
+        source.Indent--;
         source.WriteLine("}");
     }
 }

@@ -13,16 +13,15 @@ public static class Example2_HealthRecover
 
         public readonly record struct Damage(int Value) : ICommand
         {
-            public void Execute(World _, in EntityRef target)
+            public void Execute(World _, Entity target)
                 => target.Get<HP>().Value -= Value;
         }
 
         public sealed class Kill : SingletonEvent<Kill>, ICancellableEvent;
     }
 
-    public class HPAutoRecoverSystem()
-        : SystemBase(
-            matcher: Matchers.Of<HP>())
+    public class HPAutoRecoverSystem() : SystemBase(
+        Matchers.Of<HP>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
@@ -40,10 +39,9 @@ public static class Example2_HealthRecover
         }
     }
 
-    public class DamageDisplaySystem()
-        : SystemBase(
-            matcher: Matchers.Of<HP, Name>(),
-            trigger: EventUnion.Of<HP.Damage>())
+    public class DamageDisplaySystem() : SystemBase(
+        Matchers.Of<HP, Name>(),
+        EventUnion.Of<HP.Damage>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
@@ -53,11 +51,10 @@ public static class Example2_HealthRecover
         }
     }
 
-    public class KillSystem()
-        : SystemBase(
-            matcher: Matchers.Of<HP>(),
-            trigger: EventUnion.Of<HP.Kill>(),
-            filter: EventUnion.Of<HOEvents.Cancel<HP.Kill>>())
+    public class KillSystem() : SystemBase(
+        Matchers.Of<HP>(),
+        EventUnion.Of<HP.Kill>(),
+        filter: EventUnion.Of<HOEvents.Cancel<HP.Kill>>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
@@ -72,8 +69,8 @@ public static class Example2_HealthRecover
 
     public static class Player
     {
-        public static EntityRef CreateResilient(World world, string name)
-            => world.CreateInArrayHost(Bundle.Create(
+        public static Entity CreateResilient(World world, string name)
+            => world.CreateInArrayHost(HList.Create(
                 new Name(name),
                 new HP {
                     AutoRecoverRate = 10

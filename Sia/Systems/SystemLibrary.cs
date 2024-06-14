@@ -14,8 +14,10 @@ public class SystemLibrary : IAddon
         internal readonly HashSet<Scheduler.TaskGraphNode> _taskGraphNodes = [];
     }
 
-    private record WrappedReactiveEntityHost(IReactiveEntityHost Host) : IReactiveEntityHost
+    private class WrappedReactiveEntityHost : IReactiveEntityHost
     {
+        public IReactiveEntityHost Host { get; }
+
         public event EntityHandler? OnEntityCreated {
             add => Host.OnEntityCreated += value;
             remove => Host.OnEntityCreated -= value;
@@ -26,11 +28,12 @@ public class SystemLibrary : IAddon
             remove => Host.OnEntityReleased -= value;
         }
 
-        public event Action? OnDisposed {
+        public event Action<IEntityHost>? OnDisposed {
             add => Host.OnDisposed += value;
             remove => Host.OnDisposed -= value;
         }
 
+        public Type EntityType => Host.EntityType;
         public EntityDescriptor Descriptor => Host.Descriptor;
 
         public int Capacity => Host.Capacity;
@@ -40,14 +43,20 @@ public class SystemLibrary : IAddon
         private int _firstFreeSlot;
 
         private readonly SparseSet<StorageSlot> _allocatedSlots = [];
-        private readonly Dictionary<Identity, int> _entitySlots = [];
+        private readonly Dictionary<Entity, int> _entitySlots = [];
+
+        public WrappedReactiveEntityHost(IReactiveEntityHost host)
+        {
+            Host = host;
+            Host.OnEntityReleased += (Entity e) => Remove(e.Slot);
+        }
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Add(scoped in StorageSlot slot)
+        public void Add(in StorageSlot slot)
         {
             var index = _firstFreeSlot;
-            var id = Host.GetIdentity(slot);
-            if (!_entitySlots.TryAdd(id, index)) {
+            var entity = Host.GetEntity(slot);
+            if (!_entitySlots.TryAdd(entity, index)) {
                 return;
             }
             _allocatedSlots.Add(index, slot);
@@ -55,10 +64,10 @@ public class SystemLibrary : IAddon
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool Remove(scoped in StorageSlot slot)
+        public bool Remove(in StorageSlot slot)
         {
-            var id = Host.GetIdentity(slot);
-            if (!_entitySlots.Remove(id, out int slotIndex)) {
+            var entity = Host.GetEntity(slot);
+            if (!_entitySlots.Remove(entity, out int slotIndex)) {
                 return false;
             }
             _allocatedSlots.Remove(slotIndex);
@@ -75,31 +84,58 @@ public class SystemLibrary : IAddon
             _firstFreeSlot = 0;
         }
 
-        public EntityRef Create()
-            => Host.Create();
+        public Entity Create() => Host.Create();
+        public void Release(in StorageSlot slot) => Host.Release(slot);
 
-        public void Release(in StorageSlot slot)
-        {
-            Remove(slot);
-            Host.Release(slot);
-        }
+        public Entity GetEntity(in StorageSlot slot)
+            => Host.GetEntity(slot);
+
+        public void MoveOut(in StorageSlot slot)
+            => Host.MoveOut(slot);
+
+        public Entity Add<TComponent>(in StorageSlot slot, in TComponent initial)
+            => Host.Add(slot, initial);
+
+        public Entity AddMany<TList>(in StorageSlot slot, in TList bundle)
+            where TList : IHList
+            => Host.AddMany(slot, bundle);
+
+        public Entity Set<TComponent>(in StorageSlot slot, in TComponent initial)
+            => Host.Set(slot, initial);
+
+        public Entity Remove<TComponent>(in StorageSlot slot, out bool success)
+            => Host.Remove<TComponent>(slot, out success);
+
+        public Entity RemoveMany<TList>(in StorageSlot slot)
+            where TList : IHList
+            => Host.RemoveMany<TList>(slot);
 
         public bool IsValid(in StorageSlot slot)
             => Host.IsValid(slot);
 
-        public ref byte GetByteRef(scoped in StorageSlot slot)
+        public ref byte GetByteRef(in StorageSlot slot)
             => ref Host.GetByteRef(slot);
 
-        public ref byte UnsafeGetByteRef(scoped in StorageSlot slot)
+        public ref byte GetByteRef(in StorageSlot slot, out Entity entity)
+            => ref Host.GetByteRef(slot, out entity);
+
+        public ref byte UnsafeGetByteRef(in StorageSlot slot)
             => ref Host.UnsafeGetByteRef(slot);
+
+        public ref byte UnsafeGetByteRef(in StorageSlot slot, out Entity entity)
+            => ref Host.UnsafeGetByteRef(slot, out entity);
+
+        public void GetHList<THandler>(in StorageSlot slot, in THandler handler)
+            where THandler : IRefGenericHandler<IHList>
+            => Host.GetHList(slot, handler);
 
         public object Box(in StorageSlot slot)
             => Host.Box(slot);
 
-        public IEnumerator<EntityRef> GetEnumerator()
+        public IEnumerator<Entity> GetEnumerator()
         {
             foreach (var slot in _allocatedSlots.Values) {
-                yield return new(slot, Host);
+                yield return Host.GetEntity(slot);
             }
         }
 
@@ -117,7 +153,7 @@ public class SystemLibrary : IAddon
         WrappedReactiveEntityHost Host, FrozenSet<Type> TriggerTypes) : IEventListener
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool OnEvent<TEvent>(in EntityRef target, in TEvent e)
+        public bool OnEvent<TEvent>(Entity target, in TEvent e)
             where TEvent : IEvent
         {
             var type = typeof(TEvent);
@@ -132,7 +168,7 @@ public class SystemLibrary : IAddon
         WrappedReactiveEntityHost Host, FrozenSet<Type> FilterTypes) : IEventListener
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool OnEvent<TEvent>(in EntityRef target, in TEvent e)
+        public bool OnEvent<TEvent>(Entity target, in TEvent e)
             where TEvent : IEvent
         {
             var type = typeof(TEvent);
@@ -147,7 +183,7 @@ public class SystemLibrary : IAddon
         WrappedReactiveEntityHost Host, FrozenSet<Type> TriggerTypes, FrozenSet<Type> FilterTypes) : IEventListener
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool OnEvent<TEvent>(in EntityRef target, in TEvent e)
+        public bool OnEvent<TEvent>(Entity target, in TEvent e)
             where TEvent : IEvent
         {
             var type = typeof(TEvent);
@@ -206,6 +242,10 @@ public class SystemLibrary : IAddon
 
             _query.OnEntityHostAdded += OnEntityHostAdded;
             _query.OnEntityHostRemoved += OnEntityHostRemoved;
+
+            foreach (var host in _query.Hosts) {
+                OnEntityHostAdded(host);
+            }
         }
 
         private void OnEntityHostAdded(IEntityHost host)
@@ -220,6 +260,10 @@ public class SystemLibrary : IAddon
             var onEntityCreated = CreateEntityHandler(wrappedHost, out var listener);
             reactiveHost.OnEntityCreated += onEntityCreated;
             _hostMap[reactiveHost] = new(wrappedHost, onEntityCreated, listener);
+
+            foreach (var entity in host) {
+                onEntityCreated(entity);
+            }
         }
 
         private EntityHandler CreateEntityHandler(WrappedReactiveEntityHost host, out IEventListener? resultListener)
@@ -227,12 +271,12 @@ public class SystemLibrary : IAddon
             if (_onlyHasAddEventTrigger) {
                 if (_filterTypes.Count == 0) {
                     resultListener = null;
-                    return (in EntityRef target) => host.Add(target.Slot);
+                    return target => host.Add(target.Slot);
                 }
                 else {
                     var listener = new FilterEventListener(host, _filterTypes);
                     resultListener = listener;
-                    return (in EntityRef target) => {
+                    return target => {
                         host.Add(target.Slot);
                         _dispatcher.Listen(target, listener);
                     };
@@ -242,12 +286,12 @@ public class SystemLibrary : IAddon
                 if (_filterTypes.Count == 0) {
                     var listener = new TriggerEventListener(host, _triggerTypes);
                     resultListener = listener;
-                    return (in EntityRef target) => _dispatcher.Listen(target, listener);
+                    return target => _dispatcher.Listen(target, listener);
                 }
                 else {
                     var listener = new TriggerFilterEventListener(host, _triggerTypes, _filterTypes);
                     resultListener = listener;
-                    return (in EntityRef target) => _dispatcher.Listen(target, listener);
+                    return target => _dispatcher.Listen(target, listener);
                 }
             }
         }
@@ -401,8 +445,12 @@ public class SystemLibrary : IAddon
             }
         }
         else {
-            var filterTypes = filter?.EventTypesWithPureEvents.ToFrozenSet() ?? FrozenSet<Type>.Empty;
-            var triggerTypes = trigger?.EventTypesWithPureEvents.Except(filterTypes).ToFrozenSet() ?? FrozenSet<Type>.Empty;
+            var filterTypes = filter?.EventTypes.TypeSet ?? FrozenSet<Type>.Empty;
+            var triggerTypes = 
+                (filter != null
+                    ? trigger?.EventTypes.Types.Except(filter.EventTypes.TypeSet).ToFrozenSet()
+                    : trigger?.EventTypes.TypeSet)
+                ?? FrozenSet<Type>.Empty;
 
             if (triggerTypes.Count == 0) {
                 throw new InvalidSystemConfigurationException(

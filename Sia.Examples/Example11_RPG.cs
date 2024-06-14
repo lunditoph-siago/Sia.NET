@@ -6,7 +6,7 @@ public static partial class Example11_RPG
 {
     public interface IWeaponDamageProvider
     {
-        public float GetDamage(in WeaponMetadata metadata, in EntityRef attacker, in EntityRef target);
+        public float GetDamage(in WeaponMetadata metadata, Entity attacker, Entity target);
     }
 
     public readonly record struct WeaponMetadata(
@@ -28,7 +28,7 @@ public static partial class Example11_RPG
         {
             public static readonly DamageProvider Instance = new();
 
-            public float GetDamage(in WeaponMetadata metadata, in EntityRef attacker, in EntityRef target)
+            public float GetDamage(in WeaponMetadata metadata, Entity attacker, Entity target)
             {
                 float damage = metadata.BaseDamage + Random.Shared.NextSingle() * 10f;
 
@@ -51,8 +51,8 @@ public static partial class Example11_RPG
             BaseDamage: 10f,
             DamageProvider: DamageProvider.Instance);
 
-        public static EntityRef Create(World world, MagicType magicType)
-            => world.CreateInArrayHost(Bundle.Create(
+        public static Entity Create(World world, MagicType magicType)
+            => world.CreateInArrayHost(HList.Create(
                 Metadata,
                 new Data(magicType)
             ));
@@ -76,11 +76,11 @@ public static partial class Example11_RPG
         [Sia] float HP,
         [Sia] float MP,
         [Sia] int Level = 0,
-        [Sia] EntityRef? Weapon = null)
+        [Sia] Entity? Weapon = null)
     {
-        public readonly record struct Damage(EntityRef Attacker) : ICommand
+        public readonly record struct Damage(Entity Attacker) : ICommand
         {
-            public void Execute(World world, in EntityRef self)
+            public void Execute(World world, Entity self)
             {
                 float damage;
                 float defense;
@@ -90,7 +90,7 @@ public static partial class Example11_RPG
                     ref var attackerCharacter = ref Attacker.Get<Character>();
                     damage = attackerMeta.BaseDamage + attackerCharacter.Level * attackerMeta.DamageGrowthRate;
 
-                    if (attackerCharacter.Weapon is EntityRef weapon) {
+                    if (attackerCharacter.Weapon is Entity weapon) {
                         ref var weaponMeta = ref weapon.Get<WeaponMetadata>();
                         damage += weaponMeta.DamageProvider.GetDamage(weaponMeta, Attacker, self);
                     }
@@ -121,10 +121,9 @@ public static partial class Example11_RPG
         }
     }
 
-    public class DeadCharacterDestroySystem()
-        : SystemBase(
-            matcher: Matchers.Of<Character>(),
-            trigger: EventUnion.Of<Character.SetHP>())
+    public class DeadCharacterDestroySystem() : SystemBase(
+        Matchers.Of<Character>(),
+        EventUnion.Of<Character.SetHP>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
@@ -151,8 +150,8 @@ public static partial class Example11_RPG
             DamageGrowthRate: 5f,
             DefenseGrowthRate: 4f);
 
-        public static EntityRef Create(World world, string name)
-            => world.CreateInArrayHost(Bundle.Create(
+        public static Entity Create(World world, string name)
+            => world.CreateInArrayHost(HList.Create(
                 Metadata,
                 new Character(
                     Name: name,

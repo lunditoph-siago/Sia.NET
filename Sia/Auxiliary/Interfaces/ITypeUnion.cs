@@ -1,11 +1,12 @@
 namespace Sia;
 
+using System.Collections.Frozen;
 using System.Collections.Immutable;
 
 public interface ITypeUnion : IEquatable<ITypeUnion>
 {
     ImmutableArray<Type> Types { get; }
-    ImmutableSortedDictionary<int, Type> IndexTypeDictionary { get; }
+    FrozenSet<Type> TypeSet { get; }
 
     ITypeUnion Merge(ITypeUnion other);
 }
@@ -15,6 +16,6 @@ public interface IStaticTypeUnion : ITypeUnion
     static virtual ImmutableArray<Type> StaticTypes { get; } = ImmutableArray<Type>.Empty;
     static virtual int StaticHash { get; } = 0;
 
-    static virtual ImmutableSortedDictionary<int, Type> StatiIndexTypeDictionary { get; }
-        = ImmutableSortedDictionary<int, Type>.Empty;
+    static virtual FrozenSet<Type> StaticTypeSet { get; }
+        = FrozenSet<Type>.Empty;
 }

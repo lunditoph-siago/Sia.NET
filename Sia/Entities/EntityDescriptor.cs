@@ -1,119 +1,130 @@
 ﻿namespace Sia;
 
 using System.Collections.Frozen;
-using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
+using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 
-public static class EntityDescriptor<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>
+public record struct ComponentInfo(Type Type, IntPtr Offset, int TypeIndex);
+
+public static class EntityDescriptor<TEntity>
+    where TEntity : IHList
 {
-    private delegate int GetOffsetDelegate(in TEntity entity);
+    public static readonly ImmutableArray<ComponentInfo> Components;
+    public static readonly FrozenDictionary<Type, IntPtr> Offsets;
+    public static readonly ImmutableArray<nint> OffsetSlots;
 
-    public static readonly FrozenDictionary<Type, IntPtr> FieldOffsets;
-
-    private const BindingFlags s_bindingFlags =
-        BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
-
-    static EntityDescriptor()
+    private unsafe struct OffsetRecorder(
+        List<ComponentInfo> components, Dictionary<Type, IntPtr> offsets, IntPtr entityPtr)
+        : IRefGenericHandler<IHList>
     {
-        var dict = new Dictionary<Type, IntPtr>();
-        RegisterFields(dict, typeof(TEntity));
-        FieldOffsets = dict.ToFrozenDictionary();
-    }
-
-    private static void RegisterFields(Dictionary<Type, IntPtr> dict, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] Type type, int baseOffset = 0)
-    {
-        foreach (var member in type.GetMembers(s_bindingFlags)) {
-            if (member.MemberType != MemberTypes.Field) {
-                continue;
+        private unsafe struct HeadRecorder(
+            List<ComponentInfo> components, Dictionary<Type, IntPtr> offsets, IntPtr entityPtr)
+            : IRefGenericHandler
+        {
+            public readonly void Handle<T>(ref T value)
+            {
+                var compPtr = (IntPtr)Unsafe.AsPointer(ref value);
+                var offset = compPtr - entityPtr;
+                if (!offsets.TryAdd(typeof(T), offset)) {
+                    throw new InvalidDataException("Entity cannot have multiple components of the same type");
+                }
+                components.Add(new(typeof(T), offset, InternalEntityComponentIndexer<TEntity, T>.Index));
             }
+        }
 
-            var fieldInfo = (FieldInfo)member;
-            var offset = GetFieldOffset(fieldInfo);
+        private HeadRecorder _headRecorder = new(components, offsets, entityPtr);
 
-            var fieldType = fieldInfo.FieldType;
-            if (fieldType.IsAssignableTo(typeof(IComponentBundle))
-                    || fieldInfo.GetCustomAttribute<ComponentBundleAttribute>() != null) {
-                RegisterFields(dict, fieldType, baseOffset + offset);
-            }
-            else if (!dict.TryAdd(fieldType, baseOffset + offset)) {
-                throw new InvalidDataException("Entity cannot have multiple components of the same type");
-            }
+        public void Handle<T>(ref T value) where T : IHList
+        {
+            value.HandleHeadRef(ref _headRecorder);
+            value.HandleTailRef(ref this);
         }
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static unsafe int GetFieldOffset(FieldInfo fieldInfo)
+    unsafe static EntityDescriptor()
     {
-        var ptr = fieldInfo.FieldHandle.Value;
-        ptr = ptr + 4 + sizeof(IntPtr);
-        ushort length = *(ushort*)ptr;
-        byte chunkSize = *(byte*)(ptr + 2);
-        return length + (chunkSize << 16);
+        if (typeof(TEntity) == typeof(EmptyHList)) {
+            Components = [];
+            Offsets = new Dictionary<Type, IntPtr>().ToFrozenDictionary();
+            OffsetSlots = [];
+            return;
+        }
+
+        var components = new List<ComponentInfo>();
+        var offsets = new Dictionary<Type, IntPtr>();
+
+        var defaultEntity = default(TEntity)!;
+        var entityPtr = (IntPtr)Unsafe.AsPointer(ref defaultEntity);
+
+        new OffsetRecorder(components, offsets, entityPtr).Handle(ref defaultEntity);
+        Offsets = offsets.ToFrozenDictionary();
+        Components = [..components];
+
+        var slots = new nint[Components.Select(info => info.TypeIndex).Max() + 1];
+        foreach (var info in Components) {
+            slots[info.TypeIndex] = info.Offset;
+        }
+        OffsetSlots = [.. slots];
     }
 }
 
-public readonly struct EntityIndexer<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity, TComponent>
+public readonly struct EntityIndexer<TEntity, TComponent>
+    where TEntity : IHList
 {
     public static readonly IntPtr Offset =
-        EntityDescriptor<TEntity>.FieldOffsets.TryGetValue(typeof(TComponent), out var result)
+        EntityDescriptor<TEntity>.Offsets.TryGetValue(typeof(TComponent), out var result)
             ? result : -1;
 }
 
 public record EntityDescriptor
 {
-    private interface IProxy
+    private interface IFieldIndexGetter
     {
-        public FrozenDictionary<Type, nint> FieldOffsets { get; }
-        nint GetOffset<TComponent>();
+        int GetIndex<TComponent>();
     }
 
-    private class Proxy<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity> : IProxy
+    private class FieldIndexGetter<TEntity> : IFieldIndexGetter
     {
-        public static EntityDescriptor Descriptor = new(
-            typeof(TEntity), Unsafe.SizeOf<TEntity>(), new Proxy<TEntity>());
-        
-        public FrozenDictionary<Type, nint> FieldOffsets => EntityDescriptor<TEntity>.FieldOffsets;
+        public static FieldIndexGetter<TEntity> Instance = new();
+
+        private FieldIndexGetter() {}
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public nint GetOffset<TComponent>()
-            => EntityIndexer<TEntity, TComponent>.Offset;
+        public int GetIndex<TComponent>()
+            => InternalEntityComponentIndexer<TEntity, TComponent>.Index;
     }
 
-    public static EntityDescriptor Get<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>()
-        => Proxy<TEntity>.Descriptor;
+    public static EntityDescriptor Get<TEntity>()
+        where TEntity : IHList
+        => new(typeof(TEntity), Unsafe.SizeOf<TEntity>(),
+            EntityDescriptor<TEntity>.Components,
+            EntityDescriptor<TEntity>.Offsets,
+            EntityDescriptor<TEntity>.OffsetSlots,
+            FieldIndexGetter<TEntity>.Instance);
 
     public Type Type { get; }
     public int MemorySize { get; }
-    public FrozenDictionary<Type, nint> FieldOffsets { get; }
 
-    private const int OffsetCacheSize = 256;
-    private readonly (Type? Type, nint Offset)[] _offsetCache = new (Type?, nint)[OffsetCacheSize];
-    private readonly IProxy _proxy;
+    public ImmutableArray<ComponentInfo> Components { get; }
+    public FrozenDictionary<Type, nint> Offsets { get; }
+    public ImmutableArray<nint> OffsetSlots { get; }
 
-    private EntityDescriptor(Type type, int memorySize, IProxy proxy)
+    private readonly IFieldIndexGetter _fieldIndexGetter;
+
+    private EntityDescriptor(
+        Type type, int memorySize, ImmutableArray<ComponentInfo> components,
+        FrozenDictionary<Type, nint> offsets, ImmutableArray<nint> offsetSlots,
+        IFieldIndexGetter fieldIndexGetter)
     {
         Type = type;
         MemorySize = memorySize;
-        _proxy = proxy;
-        FieldOffsets = _proxy.FieldOffsets;
+        Components = components;
+        Offsets = offsets;
+        OffsetSlots = offsetSlots;
+        _fieldIndexGetter = fieldIndexGetter;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public nint GetOffset(Type componentType)
-        => FieldOffsets.TryGetValue(componentType, out var offset) ? offset : -1;
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public nint GetOffset<TComponent>()
-    {
-        ref var entry = ref _offsetCache[TypeIndexer<TComponent>.Index % OffsetCacheSize];
-        var type = typeof(TComponent);
-
-        if (entry.Type != type) {
-            entry.Type = type;
-            entry.Offset = _proxy.GetOffset<TComponent>();
-        }
-
-        return entry.Offset;
-    }
+    public ComponentOffset<TComponent> GetOffset<TComponent>()
+        => OffsetSlots[_fieldIndexGetter.GetIndex<TComponent>()];
 }

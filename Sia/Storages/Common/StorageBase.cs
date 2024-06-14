@@ -48,7 +48,7 @@ public abstract class StorageBase<T> : IStorage<T>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Release(scoped in StorageSlot slot)
+    public void Release(in StorageSlot slot)
     {
         var index = slot.Index;
         var version = slot.Version;
@@ -68,7 +68,7 @@ public abstract class StorageBase<T> : IStorage<T>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool IsValid(scoped in StorageSlot slot)
+    public bool IsValid(in StorageSlot slot)
         => slot.Index < _versions.Count && _versions[slot.Index] == slot.Version;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -81,6 +81,10 @@ public abstract class StorageBase<T> : IStorage<T>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T UnsafeGetRef(scoped in StorageSlot slot)
         => ref GetRef(slot.Index);
+
+    public virtual void GetSiblingStorageType<U>(IStorageTypeHandler<U> handler)
+        where U : struct
+        => throw new NotImplementedException("GetSiblingStorageType not implemented for this storage");
 
     protected abstract void Allocate(int slot);
     protected abstract void Release(int slot);
@@ -98,7 +102,7 @@ public abstract class StorageBase<T> : IStorage<T>
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void GuardSlotVersion(scoped in StorageSlot slot)
+    private void GuardSlotVersion(in StorageSlot slot)
     {
         if (_versions[slot.Index] != slot.Version) {
             throw new ArgumentException("Bad slot access");

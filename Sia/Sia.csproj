@@ -9,13 +9,14 @@
     <PackageDescription>Modern ECS framework for .NET</PackageDescription>
     <Author>Phlamcenth Sicusa</Author>
     <Company>Gilatod.art</Company>
-    <RepositoryUrl>https://github.com/sicusa/Sia.NET</RepositoryUrl>
+    <RepositoryUrl>https://github.com/lunditoph-siago/Sia.NET</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.HighPerformance" Version="8.2.1"/>
     <PackageReference Include="Microsoft.Extensions.ObjectPool" Version="9.0.0-preview.1.24081.5"/>
+    <PackageReference Include="MemoryPack" Version="1.21.1" />
   </ItemGroup>
 
 </Project>

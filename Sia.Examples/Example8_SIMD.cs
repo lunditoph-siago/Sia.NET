@@ -13,9 +13,8 @@ public static class Example8_Sum
         public int Value;
     }
 
-    public class SumSystem()
-        : SystemBase(
-            matcher: Matchers.Of<Number>())
+    public class SumSystem() : SystemBase(
+        Matchers.Of<Number>())
     {
         private int _acc = 0;
 
@@ -37,9 +36,8 @@ public static class Example8_Sum
         }
     }
 
-    public class RecordSumSystem()
-        : SystemBase(
-            matcher: Matchers.Of<Number>())
+    public class RecordSumSystem() : SystemBase(
+        Matchers.Of<Number>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
@@ -59,9 +57,8 @@ public static class Example8_Sum
         }
     }
 
-    public class VectorizedSumSystem()
-        : SystemBase(
-            matcher: Matchers.Of<Number>())
+    public class VectorizedSumSystem() : SystemBase(
+        Matchers.Of<Number>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
@@ -105,7 +102,7 @@ public static class Example8_Sum
             .RegisterTo(world, scheduler);
         
         for (int i = 0; i != 1000000; ++i) {
-            world.CreateInArrayHost(Bundle.Create(
+            world.CreateInArrayHost(HList.Create(
                 new Number { Value = 1 }
             ));
         }

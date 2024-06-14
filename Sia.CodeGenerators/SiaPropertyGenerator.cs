@@ -59,8 +59,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
                             ParameterSyntax paramSyntax =>
                                 GetNodeType(syntax.SemanticModel, paramSyntax.Type!, token),
                             _ => throw new InvalidDataException("Invalid syntax")
-                        },
-                        targetSymbol, syntax.Attributes)
+                        }, syntax.Attributes)
                 );
             }).Collect();
         
@@ -77,15 +76,12 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
                         var compTypeParams = componentType.TypeParameterList;
 
                         if (componentTypes.Add(componentType)) {
-                            GenerateViewTypeMainDecl(source, compTypeStr, compTypeParams);
+                            GenerateViewMainDecl(source, compTypeStr, compTypeParams);
                             source.WriteLine();
                         }
 
-                        GeneratePropertyCommands(
+                        GenerateProperty(
                             source, info.Property, compTypeStr, compTypeParams);
-                        
-                        source.WriteLine();
-                        GenerateViewTypeProperty(source, info.Property);
                     }
                 }
 
@@ -126,9 +122,10 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         return builder.ToString();
     }
 
-    public static void GeneratePropertyCommands(
+    public static void GenerateProperty(
         IndentedTextWriter source, PropertyInfo info,
-        string componentType, TypeParameterListSyntax? componentTypeParams = null)
+        string componentType, TypeParameterListSyntax? componentTypeParams = null,
+        List<string>? generatedCommands = null)
     {
         if (info.GetArgument("NoCommands", false)) {
             return;
@@ -136,13 +133,18 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         if (info.GetArgument("GenerateSetCommand", true)) {
             GenerateSetCommand(
                 source, info, componentType, componentTypeParams);
+
+            source.WriteLine();
+            GenerateViewProperty(source, info);
+
+            generatedCommands?.Add("Set" + info.Name);
         }
 
         var immutableType = info.ImmutableContainerType;
         if (immutableType == null) { return; }
 
-        var itemName = info.GetArgument("Item", "");
-        if (itemName == "") { return; }
+        var itemName = info.GetArgument<string?>("Item", null);
+        if (itemName == null) { return; }
 
         string? keyType, valueType;
 
@@ -153,27 +155,45 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
 
             if (info.GetArgument("GenerateAddItemCommand", true)) {
                 source.WriteLine();
+                var command = "Add" + itemName;
+                generatedCommands?.Add(command);
                 GenerateImmutableContainerCommand(
-                    source, info, componentType, componentTypeParams,
-                    "Add" + itemName,
+                    source, info, componentType, componentTypeParams, command,
                     $"{keyType} Key, {valueType} Value",
                     ".Add(Key, Value);");
+                source.WriteLine();
+                GenerateImmutableContainerViewMethods(
+                    source, info, componentType, componentTypeParams, command,
+                    $"{keyType} key, {valueType} value",
+                    "key, value");
             }
             if (info.GetArgument("GenerateSetItemCommand", true)) {
                 source.WriteLine();
+                var command = "Set" + itemName;
+                generatedCommands?.Add(command);
                 GenerateImmutableContainerCommand(
-                    source, info, componentType, componentTypeParams,
-                    "Set" + itemName,
+                    source, info, componentType, componentTypeParams, command,
                     $"{keyType} Key, {valueType} Value",
                     ".SetItem(Key, Value);");
+                source.WriteLine();
+                GenerateImmutableContainerViewMethods(
+                    source, info, componentType, componentTypeParams, command,
+                    $"{keyType} key, {valueType} value",
+                    "key, value");
             }
             if (info.GetArgument("GenerateRemoveItemCommand", true)) {
                 source.WriteLine();
+                var command = "Remove" + itemName;
+                generatedCommands?.Add(command);
                 GenerateImmutableContainerCommand(
-                    source, info, componentType, componentTypeParams,
-                    "Remove" + itemName,
+                    source, info, componentType, componentTypeParams, command,
                     $"{keyType} Key",
                     ".Remove(Key);");
+                source.WriteLine();
+                GenerateImmutableContainerViewMethods(
+                    source, info, componentType, componentTypeParams, command,
+                    $"{keyType} key",
+                    "key");
             }
             break;
 
@@ -182,11 +202,17 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
 
             if (info.GetArgument("GenerateAddItemCommand", true)) {
                 source.WriteLine();
+                var command = "Enqueue" + itemName;
+                generatedCommands?.Add(command);
                 GenerateImmutableContainerCommand(
-                    source, info, componentType, componentTypeParams,
-                    "Enqueue" + itemName,
+                    source, info, componentType, componentTypeParams, command,
                     $"{valueType} Value",
                     ".Enqueue(Value);");
+                source.WriteLine();
+                GenerateImmutableContainerViewMethods(
+                    source, info, componentType, componentTypeParams, command,
+                    $"{valueType} value",
+                    "value");
             }
             break;
 
@@ -195,11 +221,17 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
 
             if (info.GetArgument("GenerateAddItemCommand", true)) {
                 source.WriteLine();
+                var command = "Push" + itemName;
+                generatedCommands?.Add(command);
                 GenerateImmutableContainerCommand(
-                    source, info, componentType, componentTypeParams,
-                    "Push" + itemName,
+                    source, info, componentType, componentTypeParams, command,
                     $"{valueType} Value",
                     ".Push(Value);");
+                source.WriteLine();
+                GenerateImmutableContainerViewMethods(
+                    source, info, componentType, componentTypeParams, command,
+                    $"{valueType} value",
+                    "value");
             }
             break;
         
@@ -207,30 +239,47 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         case "List":
         case "Array":
             valueType = info.TypeArguments[0];
-
             if (info.GetArgument("GenerateAddItemCommand", true)) {
                 source.WriteLine();
+                var command = "Add" + itemName;
+                generatedCommands?.Add(command);
                 GenerateImmutableContainerCommand(
-                    source, info, componentType, componentTypeParams,
-                    "Add" + itemName,
+                    source, info, componentType, componentTypeParams, command,
                     $"{valueType} Value",
                     ".Add(Value);");
+                source.WriteLine();
+                GenerateImmutableContainerViewMethods(
+                    source, info, componentType, componentTypeParams, command,
+                    $"{valueType} value",
+                    "value");
             }
             if (immutableType != "HashSet" && info.GetArgument("GenerateSetItemCommand", true)) {
                 source.WriteLine();
+                var command = "Set" + itemName;
+                generatedCommands?.Add(command);
                 GenerateImmutableContainerCommand(
-                    source, info, componentType, componentTypeParams,
-                    "Set" + itemName,
+                    source, info, componentType, componentTypeParams, command,
                     $"int Index, {valueType} Value",
                     ".SetItem(Index, Value);");
+                source.WriteLine();
+                GenerateImmutableContainerViewMethods(
+                    source, info, componentType, componentTypeParams, command,
+                    $"int index, {valueType} value",
+                    "index, value");
             }
             if (info.GetArgument("GenerateRemoveItemCommand", true)) {
                 source.WriteLine();
+                var command = "Remove" + itemName;
+                generatedCommands?.Add(command);
                 GenerateImmutableContainerCommand(
-                    source, info, componentType, componentTypeParams,
-                    "Remove" + itemName,
+                    source, info, componentType, componentTypeParams, command,
                     $"{valueType} Value",
                     ".Remove(Value);");
+                source.WriteLine();
+                GenerateImmutableContainerViewMethods(
+                    source, info, componentType, componentTypeParams, command,
+                    $"{valueType} value",
+                    "value");
             }
             break;
         }
@@ -256,7 +305,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         source.Write(info.DisplayType);
         source.Write(" Value) : global::Sia.IReconstructableCommand<");
         source.Write(commandName);
-        source.Write(">, global::Sia.IParallelCommand<");
+        source.Write(">, global::Sia.IPureCommand<");
         WriteComponentType();
         source.Write(">, global::Sia.IPropertyCommand<");
         source.Write(info.DisplayType);
@@ -271,7 +320,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
 
         source.Write("public static ");
         source.Write(commandName);
-        source.WriteLine(" ReconstructFromCurrentState(in global::Sia.EntityRef entity)");
+        source.WriteLine(" ReconstructFromCurrentState(global::Sia.Entity entity)");
         source.Indent++;
         source.Write("=> new(entity.Get<");
         WriteComponentType();
@@ -280,28 +329,21 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         source.WriteLine(");");
         source.Indent--;
 
-        source.WriteLine("public void Execute(global::Sia.World _, in global::Sia.EntityRef target)");
+        source.WriteLine("public void Execute(global::Sia.World _, global::Sia.Entity target)");
         source.Indent++;
-        source.WriteLine("=> ExecuteOnParallel(target);");
+        source.Write("=> Execute(ref target.Get<");
+        WriteComponentType();
+        source.WriteLine(">());");
         source.Indent--;
 
-        source.Write("public void Execute(global::Sia.World _, in global::Sia.EntityRef target, ref ");
+        source.Write("public void Execute(global::Sia.World _, global::Sia.Entity target, ref ");
         WriteComponentType();
         source.WriteLine(" component)");
         source.Indent++;
-        source.WriteLine("=> ExecuteOnParallel(ref component);");
+        source.WriteLine("=> Execute(ref component);");
         source.Indent--;
 
-        source.WriteLine("public void ExecuteOnParallel(in global::Sia.EntityRef target)");
-        source.Indent++;
-        source.Write("=> target.Get<");
-        WriteComponentType();
-        source.Write(">().");
-        source.Write(info.Name);
-        source.WriteLine(" = Value;");
-        source.Indent--;
-
-        source.Write("public void ExecuteOnParallel(ref ");
+        source.Write("public void Execute(ref ");
         WriteComponentType();
         source.WriteLine(" component)");
         source.Indent++;
@@ -338,7 +380,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         source.WriteLine('{');
         source.Indent++;
 
-        source.WriteLine("public void Execute(global::Sia.World _, in global::Sia.EntityRef target)");
+        source.WriteLine("public void Execute(global::Sia.World _, global::Sia.Entity target)");
         source.WriteLine('{');
         source.Indent++;
 
@@ -357,26 +399,23 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
 
         source.WriteLine();
 
-        source.Write("public void Execute(global::Sia.World _, in global::Sia.EntityRef target, ref ");
+        source.Write("public void Execute(global::Sia.World _, global::Sia.Entity target, ref ");
         WriteComponentType();
         source.WriteLine(" component)");
-        source.WriteLine('{');
-        source.Indent++;
 
-        source.Write("component.");
+        source.Indent++;
+        source.Write("=> component.");
         source.Write(info.Name);
         source.Write(" = component.");
         source.Write(info.Name);
         source.WriteLine(call);
-
         source.Indent--;
-        source.WriteLine("}");
 
         source.Indent--;
         source.WriteLine("}");
     }
 
-    public static void GenerateViewTypeMainDecl(
+    public static void GenerateViewMainDecl(
         IndentedTextWriter source, string componentType, TypeParameterListSyntax? componentTypeParams = null)
     {
         void WriteComponentType()
@@ -387,7 +426,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
             }
         }
         
-        source.WriteLine("public readonly ref partial struct View(global::Sia.EntityRef entity, global::Sia.World? world = null)");
+        source.WriteLine("public readonly ref partial struct View(global::Sia.Entity entity, global::Sia.World world = null)");
         source.WriteLine("{");
         source.Indent++;
 
@@ -408,15 +447,16 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         source.WriteLine("}");
     }
 
-    public static void GenerateViewTypeProperty(
-        IndentedTextWriter source, PropertyInfo info, TypeParameterListSyntax? componentTypeParams = null)
+    public static void GenerateViewProperty(
+        IndentedTextWriter source, PropertyInfo info)
     {
         source.WriteLine("public readonly ref partial struct View");
         source.WriteLine("{");
         source.Indent++;
 
         source.Write("public ");
-        source.Write(info.Type);
+        source.Write(GetDisplayType(info.Type));
+        
         source.Write(" ");
         source.Write(info.Name);
         source.WriteLine(" {");
@@ -444,6 +484,38 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         }
         source.Indent--;
         source.WriteLine("}");
+
+        source.Indent--;
+        source.WriteLine("}");
+    }
+
+    public static void GenerateImmutableContainerViewMethods(
+        IndentedTextWriter source, PropertyInfo info,
+        string componentType, TypeParameterListSyntax? componentTypeParams,
+        string commandName, string arguments, string parameters)
+    {
+        source.WriteLine("public readonly ref partial struct View");
+        source.WriteLine("{");
+        source.Indent++;
+
+        source.Write("public void ");
+        source.Write(commandName);
+        source.Write('(');
+        source.Write(arguments);
+        source.WriteLine(')');
+
+        source.Indent++;
+        source.Write("=> _world.Modify(entity, ref _component, new ");
+        source.Write(componentType);
+        if (componentTypeParams != null) {
+            WriteTypeParameters(source, componentTypeParams);
+        }
+        source.Write(".");
+        source.Write(commandName);
+        source.Write('(');
+        source.Write(parameters);
+        source.WriteLine("));");
+        source.Indent--;
 
         source.Indent--;
         source.WriteLine("}");

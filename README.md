@@ -1,5 +1,5 @@
 # Sia.NET
-[![Build Status](https://github.com/sicusa/Sia.NET/actions/workflows/nuget.yml/badge.svg?event=push)](https://github.com/sicusa/Sia.NET/actions/workflows/nuget.yml)
+[![Build Status](https://github.com/lunditoph-siago/Sia.NET/actions/workflows/nuget.yml/badge.svg?event=push)](https://github.com/lunditoph-siago/Sia.NET/actions/workflows/nuget.yml)
 [![NuGet Badge MimeKit](https://buildstats.info/nuget/Sia)](https://www.nuget.org/packages/Sia)
 
 Modern ECS framework for .NET
@@ -144,8 +144,6 @@ to another component.
 ## Example
 
 ```C#
-namespace Sia_Examples;
-
 using System.Numerics;
 using Sia;
 
@@ -178,14 +176,13 @@ public static partial class Example1_HealthDamage
 
         public readonly record struct Damage(float Value) : ICommand
         {
-            public void Execute(World world, in EntityRef target)
+            public void Execute(World world, Entity target)
                 => new View(target, world).Value -= Value;
         }
     }
 
-    public class HealthUpdateSystem()
-        : SystemBase(
-            matcher: Matchers.Of<Health>())
+    public class HealthUpdateSystem() : SystemBase(
+        Matchers.Of<Health>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
@@ -195,16 +192,14 @@ public static partial class Example1_HealthDamage
                 ref var health = ref entity.Get<Health>();
                 if (health.Debuff != 0) {
                     entity.Modify(new Health.Damage(health.Debuff * game.DeltaTime));
-                    Console.WriteLine($"Damage: HP {health.Value}");
                 }
             }
         }
     }
 
     [AfterSystem<HealthUpdateSystem>]
-    public class DeathSystem()
-        : SystemBase(
-            matcher: Matchers.Of<Health>())
+    public class DeathSystem() : SystemBase(
+        Matchers.Of<Health>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
@@ -217,16 +212,14 @@ public static partial class Example1_HealthDamage
         }
     }
 
-    public class HealthSystems()
-        : SystemBase(
-            children: SystemChain.Empty
-                .Add<HealthUpdateSystem>()
-                .Add<DeathSystem>());
+    public class HealthSystems() : SystemBase(
+        SystemChain.Empty
+            .Add<HealthUpdateSystem>()
+            .Add<DeathSystem>());
 
-    public class LocationDamageSystem()
-        : SystemBase(
-            matcher: Matchers.Of<Transform, Health>(),
-            trigger: EventUnion.Of<WorldEvents.Add, Transform.SetPosition>())
+    public class LocationDamageSystem() : SystemBase(
+        Matchers.Of<Transform, Health>(),
+        EventUnion.Of<WorldEvents.Add<Health>, Transform.SetPosition>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
@@ -236,32 +229,39 @@ public static partial class Example1_HealthDamage
 
                 if (pos.X == 1 && pos.Y == 1) {
                     entity.Modify(new Health.Damage(10));
-                    Console.WriteLine($"Damage: HP {health.Value}");
                 }
                 if (pos.X == 1 && pos.Y == 2) {
                     health.Debuff = 100;
-                    Console.WriteLine("Debuff!");
                 }
             }
         }
     }
 
     [BeforeSystem<HealthSystems>]
-    public class GameplaySystems()
-        : SystemBase(
-            children: SystemChain.Empty
-                .Add<LocationDamageSystem>());
+    public class GameplaySystems() : SystemBase(
+        SystemChain.Empty
+            .Add<LocationDamageSystem>());
+    
+    [AfterSystem<HealthSystems>]
+    [AfterSystem<GameplaySystems>]
+    public class MonitorSystems() : SystemBase(
+        SystemChain.Empty
+            .Add((ref Health health) => Console.WriteLine("Damage: HP " + health.Value),
+                trigger: EventUnion.Of<Health.Damage>())
+            .Add((ref Health health) => Console.WriteLine("Set Debuff: " + health.Debuff),
+                trigger: EventUnion.Of<Health.SetDebuff>())
+            .Add((ref Transform transform) => Console.WriteLine("Position: " + transform.Position)));
 
     public static class Player
     {
-        public static EntityRef Create(World world)
-            => world.CreateInArrayHost(Bundle.Create(
+        public static Entity Create(World world)
+            => world.CreateInArrayHost(HList.Create(
                 new Transform(),
                 new Health()
             ));
 
-        public static EntityRef Create(World world, Vector2 position)
-            => world.CreateInArrayHost(Bundle.Create(
+        public static Entity Create(World world, Vector2 position)
+            => world.CreateInArrayHost(HList.Create(
                 new Transform {
                     Position = position
                 },
@@ -269,7 +269,7 @@ public static partial class Example1_HealthDamage
             ));
     }
 
-    public static void Run()
+    public static void Main()
     {
         var world = new World();
         Context<World>.Current = world;
@@ -290,7 +290,7 @@ public static partial class Example1_HealthDamage
         game.Update(0.5f);
 
         game.Scheduler.CreateTask(() => {
-            Console.WriteLine("Callback invoked after health and gameplay systems");
+            Console.WriteLine("Callback invoked after systems");
             return true; // remove task
         }, handle.SystemTaskNodes);
     

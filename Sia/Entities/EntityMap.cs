@@ -1,6 +1,4 @@
 namespace Sia;
 
-public class EntityMap<TKey> : Dictionary<TKey, EntityRef>
-    where TKey : notnull;
-
-public class EntityMap : EntityMap<Identity>;
+public class EntityMap<TValue> : Dictionary<Entity, TValue>;
+public class EntityMap : EntityMap<Entity>;

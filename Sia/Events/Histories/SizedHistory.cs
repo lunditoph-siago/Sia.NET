@@ -66,7 +66,6 @@ public class SizedHistory<TTarget, TEvent> : IHistory<TTarget, TEvent>
         }
     }
 
-    public Dispatcher<TTarget, TEvent> Dispatcher { get; }
     public EventPair<TTarget, TEvent>? Last { get; private set; }
 
     public int Capacity {
@@ -102,33 +101,29 @@ public class SizedHistory<TTarget, TEvent> : IHistory<TTarget, TEvent>
     private int _lastIndex;
 
     public MemoryOwner<EventPair<TTarget, TEvent>> _events;
-    private readonly Dispatcher<TTarget, TEvent>.Listener<TEvent> _listener;
 
     private bool _disposed;
 
-    public SizedHistory(Dispatcher<TTarget, TEvent> dispatcher, int capacity)
+    public SizedHistory(int capacity)
     {
         if (capacity <= 0) {
             throw new ArgumentException("Capacity must be bigger than 0");
         }
-
-        Dispatcher = dispatcher;
         _capacity = capacity;
         _events = MemoryOwner<EventPair<TTarget, TEvent>>.Allocate(capacity);
+    }
 
-        _listener = (in TTarget target, in TEvent e) => {
-            ref var pair = ref _events.Span[_lastIndex];
-            pair = new EventPair<TTarget, TEvent>(target, e);
-            Last = pair;
-            _lastIndex = (_lastIndex + 1) % Capacity;
+    public void Record(in TTarget target, in TEvent e)
+    {
+        ref var pair = ref _events.Span[_lastIndex];
+        pair = new EventPair<TTarget, TEvent>(target, e);
+        Last = pair;
+        _lastIndex = (_lastIndex + 1) % Capacity;
 
-            if (Count < Capacity) {
-                Count++;
-            }
-            _version++;
-            return false;
-        };
-        Dispatcher.Listen(_listener);
+        if (Count < Capacity) {
+            Count++;
+        }
+        _version++;
     }
 
     public bool Contains(in EventPair<TTarget, TEvent> pair)
@@ -194,7 +189,6 @@ public class SizedHistory<TTarget, TEvent> : IHistory<TTarget, TEvent>
         if (disposing) {
             _events.Dispose();
         }
-        Dispatcher.Unlisten(_listener);
         _version++;
     }
 

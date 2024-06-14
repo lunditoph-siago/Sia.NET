@@ -25,7 +25,7 @@ public class EventQueue<TTarget, TEvent>(IEventSender<TTarget, TEvent> receiver)
 
     private readonly ConcurrentQueue<ISender> _queue = new();
 
-    public void Send<UEvent>(in TTarget target, in UEvent e)
+    public void Send<UEvent>(TTarget target, in UEvent e)
         where UEvent : TEvent
         => _queue.Enqueue(new Sender<UEvent>(target, e));
 

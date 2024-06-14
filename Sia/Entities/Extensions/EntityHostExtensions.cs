@@ -6,16 +6,31 @@ public static partial class EntityHostExtensions
 {
     public ref struct Enumerator(IEntityHost host)
     {
-        public readonly EntityRef Current {
+        public readonly Entity Current {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => new(_slots[_slotIndex], host);
+            get => host.GetEntity(_slot);
         }
 
         private int _slotIndex = -1;
         private readonly ReadOnlySpan<StorageSlot> _slots = host.AllocatedSlots;
+        private StorageSlot _slot;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool MoveNext() => ++_slotIndex < _slots.Length;
+        public bool MoveNext()
+        {
+            if (_slotIndex >= 0) {
+                var currSlot = _slots[_slotIndex];
+                if (currSlot != _slot) {
+                    _slot = currSlot;
+                    return true;
+                }
+            }
+            if (++_slotIndex >= _slots.Length) {
+                _slot = _slots[_slotIndex];
+                return true;
+            }
+            return false;
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Reset()
@@ -30,8 +45,4 @@ public static partial class EntityHostExtensions
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe Span<byte> GetSpan(this IEntityHost host, scoped in StorageSlot slot)
         => new(Unsafe.AsPointer(ref host.GetByteRef(slot)), host.Descriptor.MemorySize);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe Identity GetIdentity(this IEntityHost host, scoped in StorageSlot slot)
-        => Unsafe.As<byte, Identity>(ref host.GetByteRef(slot));
 }

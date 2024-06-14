@@ -67,10 +67,9 @@ public static partial class Example3_MoveRotator
     }
 
     [AfterSystem<MoverUpdateSystem>]
-    public sealed class PositionChangePrintSystem()
-        : SystemBase(
-            matcher: Matchers.Of<Position>(),
-            trigger: EventUnion.Of<Position.SetValue>())
+    public sealed class PositionChangePrintSystem() : SystemBase(
+        Matchers.Of<Position>(),
+        EventUnion.Of<Position.SetValue>())
     {
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
@@ -78,9 +77,8 @@ public static partial class Example3_MoveRotator
         }
     }
 
-    public sealed class MoverUpdateSystem()
-        : SystemBase(
-            matcher: Matchers.Of<Mover, Position, Rotation>())
+    public sealed class MoverUpdateSystem() : SystemBase(
+        Matchers.Of<Mover, Position, Rotation>())
     {
         private Frame _frame = null!;
 
@@ -92,20 +90,17 @@ public static partial class Example3_MoveRotator
 
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
-            query.ForSliceOnParallel(_frame,
-                static (in Frame frame, ref Mover mover, ref Position pos, ref Rotation rot) => {
+            query.ForSlice(_frame,
+                static (Entity e, in Frame frame, ref Mover mover, ref Position pos, ref Rotation rot) => {
                     pos.Value += Vector3.Transform(Vector3.UnitZ, rot.Value) * mover.Speed * frame.Delta;
+                    e.Send(new Position.SetValue(pos.Value));
                 });
-            foreach (var entity in query) {
-                world.Send(entity, PureEvent<Position.SetValue>.Instance);
-            }
         }
     }
 
     [AfterSystem<MoverUpdateSystem>]
-    public sealed class RotatorUpdateSystem()
-        : SystemBase(
-            matcher: Matchers.Of<Rotator, Rotation>())
+    public sealed class RotatorUpdateSystem() : SystemBase(
+        Matchers.Of<Rotator, Rotation>())
     {
         private Frame _frame = null!;
 
@@ -117,22 +112,19 @@ public static partial class Example3_MoveRotator
 
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
-            query.ForSliceOnParallel(_frame,
-                static (in Frame frame, ref Rotator rotator, ref Rotation rot) => {
+            query.ForSlice(_frame,
+                static (Entity e, in Frame frame, ref Rotator rotator, ref Rotation rot) => {
                     var newRot = rot.Value.ToEulerAngles() + rotator.AngularSpeed * frame.Delta;
                     rot.Value = newRot.ToQuaternion();
+                    e.Send(new Rotation.SetValue(rot.Value));
                 });
-            foreach (var entity in query) {
-                world.Send(entity, PureEvent<Rotation.SetValue>.Instance);
-            }
         }
     }
 
-    public sealed class MoverRandomDestroySystem()
-        : SystemBase(
-            matcher: Matchers.Of<Mover, Position>())
+    public sealed class MoverRandomDestroySystem() : SystemBase(
+        Matchers.Of<Mover, Position>())
     {
-        private readonly ConcurrentStack<EntityRef> _entitiesToDestroy = [];
+        private readonly ConcurrentStack<Entity> _entitiesToDestroy = [];
 
         public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
         {
@@ -152,9 +144,9 @@ public static partial class Example3_MoveRotator
 
     public static class TestObject
     {
-        public static EntityRef Create(World world, Vector3 position)
+        public static Entity Create(World world, Vector3 position)
         {
-            return world.CreateInArrayHost(Bundle.Create(
+            return world.CreateInArrayHost(HList.Create(
                 new Position(position),
                 new Rotation(),
                 new Mover(5f),

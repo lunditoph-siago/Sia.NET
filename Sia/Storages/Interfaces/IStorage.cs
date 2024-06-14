@@ -9,8 +9,8 @@ public interface IStorage : IEnumerable<StorageSlot>, IDisposable
     ReadOnlySpan<StorageSlot> AllocatedSlots { get; }
 
     StorageSlot AllocateSlot();
-    void Release(scoped in StorageSlot slot);
-    bool IsValid(scoped in StorageSlot slot);
+    void Release(in StorageSlot slot);
+    bool IsValid(in StorageSlot slot);
 }
 
 public interface IStorage<T> : IStorage
@@ -32,4 +32,7 @@ public interface IStorage<T> : IStorage
 
     ref T GetRef(scoped in StorageSlot slot);
     ref T UnsafeGetRef(scoped in StorageSlot slot);
+
+    void GetSiblingStorageType<U>(IStorageTypeHandler<U> handler)
+        where U : struct;
 }

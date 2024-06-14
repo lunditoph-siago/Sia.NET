@@ -33,7 +33,7 @@ public abstract class UnversionedStorageBase<T> : IStorage<T>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Release(scoped in StorageSlot slot)
+    public void Release(in StorageSlot slot)
     {
         int index = slot.Index;
 
@@ -46,7 +46,7 @@ public abstract class UnversionedStorageBase<T> : IStorage<T>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool IsValid(scoped in StorageSlot slot)
+    public bool IsValid(in StorageSlot slot)
         => true;
 
     public ref T GetRef(scoped in StorageSlot slot)
@@ -58,6 +58,10 @@ public abstract class UnversionedStorageBase<T> : IStorage<T>
     protected abstract void Allocate(int slot);
     protected abstract void Release(int slot);
     protected abstract ref T GetRef(int slot);
+
+    public virtual void GetSiblingStorageType<U>(IStorageTypeHandler<U> handler)
+        where U : struct
+        => throw new NotImplementedException("CreateSiblingStorage not implemented for this storage");
 
     public abstract void Dispose();
 

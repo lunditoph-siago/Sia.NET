@@ -2,20 +2,22 @@ namespace Sia;
 
 using System.Runtime.CompilerServices;
 
-public class Dispatcher<TTarget, TEvent> : IEventSender<TTarget, TEvent>
-    where TTarget : notnull
+public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, TEvent>
+    where TKey : notnull
     where TEvent : IEvent
 {
-    public delegate bool Listener<UEvent>(in TTarget target, in UEvent e)
+    public delegate bool Listener<UEvent>(TTarget target, in UEvent e)
         where UEvent : TEvent;
 
     private bool _sending = false;
 
     private readonly List<IEventListener<TTarget>> _globalListeners = [];
     private ArrayBuffer<object> _eventListeners = new();
-    private readonly Dictionary<TTarget, List<IEventListener<TTarget>>> _targetListeners = [];
+    private readonly Dictionary<TKey, List<IEventListener<TTarget>>> _targetListeners = [];
 
     private readonly Stack<List<IEventListener<TTarget>>> _targetListenersPool = new();
+
+    protected abstract TKey GetKey(TTarget target);
 
     public void Listen(IEventListener<TTarget> listener)
     {
@@ -41,11 +43,12 @@ public class Dispatcher<TTarget, TEvent> : IEventSender<TTarget, TEvent>
         listeners.Add(listener);
     }
 
-    public void Listen(in TTarget target, IEventListener<TTarget> listener)
+    public void Listen(TTarget target, IEventListener<TTarget> listener)
     {
-        if (!_targetListeners.TryGetValue(target, out var listeners)) {
+        var key = GetKey(target);
+        if (!_targetListeners.TryGetValue(key, out var listeners)) {
             listeners = _targetListenersPool.TryPop(out var result) ? result : [];
-            _targetListeners.Add(target, listeners);
+            _targetListeners.Add(key, listeners);
         }
         listeners.Add(listener);
     }
@@ -84,11 +87,11 @@ public class Dispatcher<TTarget, TEvent> : IEventSender<TTarget, TEvent>
         return true;
     }
     
-    public bool Unlisten(in TTarget target, IEventListener<TTarget> listener)
+    public bool Unlisten(TTarget target, IEventListener<TTarget> listener)
     {
         GuardNotSending();
 
-        if (!_targetListeners.TryGetValue(target, out var listeners)) {
+        if (!_targetListeners.TryGetValue(GetKey(target), out var listeners)) {
             return false;
         }
 
@@ -125,11 +128,11 @@ public class Dispatcher<TTarget, TEvent> : IEventSender<TTarget, TEvent>
         listeners.Clear();
     }
 
-    public void UnlistenAll(in TTarget target)
+    public void UnlistenAll(TTarget target)
     {
         GuardNotSending();
 
-        if (_targetListeners.Remove(target, out var listeners)) {
+        if (_targetListeners.Remove(GetKey(target), out var listeners)) {
             _targetListenersPool.Push(listeners);
         }
     }
@@ -152,7 +155,7 @@ public class Dispatcher<TTarget, TEvent> : IEventSender<TTarget, TEvent>
         }
     }
 
-    public void Send<UEvent>(in TTarget target, in UEvent e)
+    public void Send<UEvent>(TTarget target, in UEvent e)
         where UEvent : TEvent
     {
         _sending = true;
@@ -172,7 +175,7 @@ public class Dispatcher<TTarget, TEvent> : IEventSender<TTarget, TEvent>
                 eventListenerCount = eventListeners.Count;
             }
             
-            if (_targetListeners.TryGetValue(target, out var targetListeners)) {
+            if (_targetListeners.TryGetValue(GetKey(target), out var targetListeners)) {
                 targetListenerCount = targetListeners.Count;
             }
 
@@ -193,7 +196,7 @@ public class Dispatcher<TTarget, TEvent> : IEventSender<TTarget, TEvent>
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void ExecuteListeners<UEvent>(
-        in TTarget target, List<IEventListener<TTarget>> listeners, in UEvent e, int length)
+        TTarget target, List<IEventListener<TTarget>> listeners, in UEvent e, int length)
         where UEvent : TEvent
     {
         int initialLength = length;
@@ -221,7 +224,7 @@ public class Dispatcher<TTarget, TEvent> : IEventSender<TTarget, TEvent>
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void ExecuteListeners<UEvent>(
-        in TTarget target, List<Listener<UEvent>> listeners, in UEvent e, int length)
+        TTarget target, List<Listener<UEvent>> listeners, in UEvent e, int length)
         where UEvent : TEvent
     {
         int initialLength = length;
@@ -244,4 +247,11 @@ public class Dispatcher<TTarget, TEvent> : IEventSender<TTarget, TEvent>
             listeners.RemoveRange(length, initialLength - length);
         }
     }
+}
+
+public class Dispatcher<TTarget, TEvent> : Dispatcher<TTarget, TTarget, TEvent>
+    where TTarget : notnull
+    where TEvent : IEvent
+{
+    protected override TTarget GetKey(TTarget target) => target;
 }
