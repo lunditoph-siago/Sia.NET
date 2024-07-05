@@ -285,6 +285,24 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         }
     }
 
+    private static void WriteEntityContextHead(IndentedTextWriter source)
+    {
+        source.WriteLine("var prevEntity = global::Sia.Context<global::Sia.Entity>.Current;");
+        source.WriteLine("try {");
+        source.Indent++;
+    }
+
+    private static void WriteEntityContextTail(IndentedTextWriter source)
+    {
+        source.Indent--;
+        source.WriteLine("}");
+        source.WriteLine("finally {");
+        source.Indent++;
+        source.WriteLine("global::Sia.Context<global::Sia.Entity>.Current = prevEntity;");
+        source.Indent--;
+        source.WriteLine("}");
+    }
+
     public static void GenerateSetCommand(
         IndentedTextWriter source, PropertyInfo info,
         string componentType, TypeParameterListSyntax? componentTypeParams = null)
@@ -328,13 +346,30 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         source.Write(info.Name);
         source.WriteLine(");");
         source.Indent--;
-
+        
         source.WriteLine("public void Execute(global::Sia.World _, global::Sia.Entity target)");
-        source.Indent++;
-        source.Write("=> Execute(ref target.Get<");
-        WriteComponentType();
-        source.WriteLine(">());");
-        source.Indent--;
+        if (info.GetArgument("InjectContext", false)) {
+            source.WriteLine("{");
+            source.Indent++;
+
+            WriteEntityContextHead(source);
+
+            source.Write("Execute(ref target.Get<");
+            WriteComponentType();
+            source.WriteLine(">());");
+
+            WriteEntityContextTail(source);
+
+            source.Indent--;
+            source.WriteLine("}");
+        }
+        else {
+            source.Indent++;
+            source.Write("=> Execute(ref target.Get<");
+            WriteComponentType();
+            source.WriteLine(">());");
+            source.Indent--;
+        }
 
         source.Write("public void Execute(global::Sia.World _, global::Sia.Entity target, ref ");
         WriteComponentType();
@@ -388,11 +423,20 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         WriteComponentType();
         source.WriteLine(">();");
 
+        bool injectContext = info.GetArgument("InjectContext", false);
+        if (injectContext) {
+            WriteEntityContextHead(source);
+        }
+
         source.Write("component.");
         source.Write(info.Name);
         source.Write(" = component.");
         source.Write(info.Name);
         source.WriteLine(call);
+
+        if (injectContext) {
+            WriteEntityContextTail(source);
+        }
 
         source.Indent--;
         source.WriteLine("}");
@@ -465,23 +509,31 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         source.Write("get => _component.");
         source.Write(info.Name);
         source.WriteLine(';');
-        if (!info.GetArgument("NoCommands", false) && info.GetArgument("GenerateSetCommand", true)) {
+
+        if (info.GetArgument("GenerateSetCommand", true)) {
             source.WriteLine("set {");
             source.Indent++;
+
+            bool injectContext = info.GetArgument("InjectContext", false);
+            if (injectContext) {
+                WriteEntityContextHead(source);
+            }
+
             source.Write("_component.");
             source.Write(info.Name);
             source.WriteLine(" = value;");
+
+            if (injectContext) {
+                WriteEntityContextTail(source);
+            }
+            
             source.Write("_world.Dispatcher.Send(entity, new Set");
             source.Write(info.Name);
             source.WriteLine("(value));");
             source.Indent--;
             source.WriteLine('}');
         }
-        else {
-            source.Write("set => _component.");
-            source.Write(info.Name);
-            source.WriteLine(" = value;");
-        }
+
         source.Indent--;
         source.WriteLine("}");
 
