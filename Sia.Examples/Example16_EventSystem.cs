@@ -163,7 +163,7 @@ public static partial class Example16_EventSystem
         tags.Add("Test");
         scheduler.Tick();
 
-        e.Modify(new Position.TestCommand());
+        e.Execute(new Position.TestCommand());
         tags.Remove("Test");
         scheduler.Tick();
 

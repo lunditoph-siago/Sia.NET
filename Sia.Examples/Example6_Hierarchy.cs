@@ -29,7 +29,7 @@ public static partial class Example6_Hierarchy
         }
 
         Console.WriteLine("===");
-        world.Modify(e4, new Node<TestTag>.SetParent(e1));
+        world.Execute(e4, new Node<TestTag>.SetParent(e1));
 
         foreach (var child in e1.Get<Node<TestTag>>().Children) {
             Console.WriteLine(child.Get<Name>().Value);

@@ -10,13 +10,13 @@ public static class EntityWorldContextExtensions
         => World.Current.Send(entity, e);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void Modify<TCommand>(this Entity entity, in TCommand command)
+    public static void Execute<TCommand>(this Entity entity, in TCommand command)
         where TCommand : ICommand
-        => World.Current.Modify(entity, command);
+        => World.Current.Execute(entity, command);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void Modify<TComponent, TCommand>(
+    public static void Execute<TComponent, TCommand>(
         this Entity entity, ref TComponent component, in TCommand command)
         where TCommand : ICommand<TComponent>
-        => World.Current.Modify(entity, ref component, command);
+        => World.Current.Execute(entity, ref component, command);
 }

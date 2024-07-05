@@ -21,7 +21,7 @@ public class ComponentsTests
             Math.Abs(a.Value.Y - b.Value.Y) < Epsilon &&
             Math.Abs(a.Value.Z - b.Value.Z) < Epsilon);
 
-        fixture.World.Modify(entityRef, new Transform.SetEuler(Vector3.UnitY * 90.0f));
+        fixture.World.Execute(entityRef, new Transform.SetEuler(Vector3.UnitY * 90.0f));
 
         Assert.Equal(new Quaternion(0.0f, 0.707107f, 0.0f, 0.707107f), rotation, (a, b) =>
             Math.Abs(a.Value.X - b.Value.X) < Epsilon &&

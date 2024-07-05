@@ -94,7 +94,7 @@ public static class Example2_HealthRecover
         Console.WriteLine("HP: " + hp.Value);
         scheduler.Tick();
 
-        world.Modify(player, new HP.Damage(50));
+        world.Execute(player, new HP.Damage(50));
         Console.WriteLine("HP: " + hp.Value);
         scheduler.Tick();
         Console.WriteLine("HP: " + hp.Value);
