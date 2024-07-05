@@ -4,7 +4,6 @@ namespace Sia.Serialization.Binary;
 
 using System.Buffers;
 using System.Buffers.Binary;
-using System.Runtime.CompilerServices;
 using CommunityToolkit.HighPerformance;
 
 public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> : IWorldSerializer
