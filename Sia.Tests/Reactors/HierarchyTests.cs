@@ -56,10 +56,10 @@ public class HierarchyTests(HierarchyTests.HierarchyContext context) : IClassFix
 
     [Theory, Priority(1)]
     [InlineData(3)]
-    public void Hierarchy_Modify_Test(int target)
+    public void Hierarchy_Execute_Test(int target)
     {
         // Act
-        context.World.Modify(context.Entities[target],
+        context.World.Execute(context.Entities[target],
             new Node<HierarchyContext.TestTag>.SetParent(context.Entities[0]));
     
         // Assert

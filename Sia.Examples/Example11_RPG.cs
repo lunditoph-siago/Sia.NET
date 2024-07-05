@@ -177,7 +177,7 @@ public static partial class Example11_RPG
             Weapon = magicSword
         };
 
-        enemy.Modify(new Character.Damage(player));
+        enemy.Execute(new Character.Damage(player));
         scheduler.Tick();
     }
 }

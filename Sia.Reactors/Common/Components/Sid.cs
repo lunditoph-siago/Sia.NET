@@ -26,5 +26,5 @@ public static class Sid
     
     public static void SetSid<TId>(this Entity entity, in TId id)
         where TId : notnull
-        => entity.Modify(new Sid<TId>.SetValue(id));
+        => entity.Execute(new Sid<TId>.SetValue(id));
 }

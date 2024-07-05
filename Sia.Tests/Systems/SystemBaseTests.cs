@@ -104,7 +104,7 @@ public partial class SystemBaseTests
 
         fixture.World.RegisterSystem<MultiComponentsUpdateContext.UpdateMultiComponentsWithTriggerSystem>(scheduler);
 
-        entity.Modify(new ConstData.SetValue(1));
+        entity.Execute(new ConstData.SetValue(1));
         scheduler.Tick();
 
         // Assert

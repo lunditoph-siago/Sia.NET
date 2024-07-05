@@ -47,7 +47,7 @@ public static partial class Example1_HealthDamage
             foreach (var entity in query) {
                 ref var health = ref entity.Get<Health>();
                 if (health.Debuff != 0) {
-                    entity.Modify(new Health.Damage(health.Debuff * game.DeltaTime));
+                    entity.Execute(new Health.Damage(health.Debuff * game.DeltaTime));
                 }
             }
         }
@@ -84,7 +84,7 @@ public static partial class Example1_HealthDamage
                 var health = new Health.View(entity);
 
                 if (pos.X == 1 && pos.Y == 1) {
-                    entity.Modify(new Health.Damage(10));
+                    entity.Execute(new Health.Damage(10));
                 }
                 if (pos.X == 1 && pos.Y == 2) {
                     health.Debuff = 100;

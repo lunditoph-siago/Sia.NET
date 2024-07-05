@@ -557,7 +557,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         source.WriteLine(')');
 
         source.Indent++;
-        source.Write("=> _world.Modify(entity, ref _component, new ");
+        source.Write("=> _world.Execute(entity, ref _component, new ");
         source.Write(componentType);
         if (componentTypeParams != null) {
             WriteTypeParameters(source, componentTypeParams);
