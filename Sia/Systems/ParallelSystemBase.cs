@@ -7,7 +7,7 @@ public abstract class ParallelSystemBase<C1>(
 {
     public IRunner Runner { get; } = runner ?? ParallelRunner.Default;
 
-    public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+    public override void Execute(World world, IEntityQuery query)
     {
         var barrier = RunnerBarrier.Get();
         query.ForSlice<IRunner, C1>(HandleSlice, Runner, barrier);
@@ -24,7 +24,7 @@ public abstract class ParallelSystemBase<C1, C2>(
 {
     public IRunner Runner { get; } = runner ?? ParallelRunner.Default;
 
-    public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+    public override void Execute(World world, IEntityQuery query)
     {
         var barrier = RunnerBarrier.Get();
         query.ForSlice<IRunner, C1, C2>(OnExecute, Runner, barrier);
@@ -41,7 +41,7 @@ public abstract class ParallelSystemBase<C1, C2, C3>(
 {
     public IRunner Runner { get; } = runner ?? ParallelRunner.Default;
 
-    public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+    public override void Execute(World world, IEntityQuery query)
     {
         var barrier = RunnerBarrier.Get();
         query.ForSlice<IRunner, C1, C2, C3>(OnExecute, Runner, barrier);
@@ -58,7 +58,7 @@ public abstract class ParallelSystemBase<C1, C2, C3, C4>(
 {
     public IRunner Runner { get; } = runner ?? ParallelRunner.Default;
 
-    public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+    public override void Execute(World world, IEntityQuery query)
     {
         var barrier = RunnerBarrier.Get();
         query.ForSlice<IRunner, C1, C2, C3, C4>(OnExecute, Runner, barrier);
@@ -75,7 +75,7 @@ public abstract class ParallelSystemBase<C1, C2, C3, C4, C5>(
 {
     public IRunner Runner { get; } = runner ?? ParallelRunner.Default;
 
-    public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+    public override void Execute(World world, IEntityQuery query)
     {
         var barrier = RunnerBarrier.Get();
         query.ForSlice<IRunner, C1, C2, C3, C4, C5>(OnExecute, Runner, barrier);
@@ -92,7 +92,7 @@ public abstract class ParallelSystemBase<C1, C2, C3, C4, C5, C6>(
 {
    public IRunner Runner { get; } = runner ?? ParallelRunner.Default;
 
-    public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+    public override void Execute(World world, IEntityQuery query)
     {
         var barrier = RunnerBarrier.Get();
         query.ForSlice<IRunner, C1, C2, C3, C4, C5, C6>(OnExecute, Runner, barrier);

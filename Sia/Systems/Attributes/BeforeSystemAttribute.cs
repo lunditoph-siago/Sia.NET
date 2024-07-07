@@ -1,8 +1,0 @@
-namespace Sia;
-
-[AttributeUsage(AttributeTargets.Class, Inherited = true, AllowMultiple = true)]
-public sealed class BeforeSystemAttribute<TSystem> : Attribute, ISystemAttribute
-    where TSystem : ISystem
-{
-    public Type SystemType => typeof(TSystem);
-}

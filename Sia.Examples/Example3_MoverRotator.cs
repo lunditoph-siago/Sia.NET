@@ -66,12 +66,11 @@ public static partial class Example3_MoveRotator
         public float Delta { get; set; }
     }
 
-    [AfterSystem<MoverUpdateSystem>]
     public sealed class PositionChangePrintSystem() : SystemBase(
         Matchers.Of<Position>(),
         EventUnion.Of<Position.SetValue>())
     {
-        public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+        public override void Execute(World world, IEntityQuery query)
         {
             Console.WriteLine("PositionChangePrintSystem query count: " + query.Count);
         }
@@ -82,13 +81,12 @@ public static partial class Example3_MoveRotator
     {
         private Frame _frame = null!;
 
-        public override void Initialize(World world, Scheduler scheduler)
+        public override void Initialize(World world)
         {
-            base.Initialize(world, scheduler);
             _frame = world.GetAddon<Frame>();
         }
 
-        public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+        public override void Execute(World world, IEntityQuery query)
         {
             query.ForSlice(_frame,
                 static (Entity e, in Frame frame, ref Mover mover, ref Position pos, ref Rotation rot) => {
@@ -98,19 +96,17 @@ public static partial class Example3_MoveRotator
         }
     }
 
-    [AfterSystem<MoverUpdateSystem>]
     public sealed class RotatorUpdateSystem() : SystemBase(
         Matchers.Of<Rotator, Rotation>())
     {
         private Frame _frame = null!;
 
-        public override void Initialize(World world, Scheduler scheduler)
+        public override void Initialize(World world)
         {
-            base.Initialize(world, scheduler);
             _frame = world.GetAddon<Frame>();
         }
 
-        public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+        public override void Execute(World world, IEntityQuery query)
         {
             query.ForSlice(_frame,
                 static (Entity e, in Frame frame, ref Rotator rotator, ref Rotation rot) => {
@@ -126,7 +122,7 @@ public static partial class Example3_MoveRotator
     {
         private readonly ConcurrentStack<Entity> _entitiesToDestroy = [];
 
-        public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+        public override void Execute(World world, IEntityQuery query)
         {
             int entityCount = world.Count;
             query.ForEachOnParallel(this, static (sys, entity) => {
@@ -157,17 +153,15 @@ public static partial class Example3_MoveRotator
 
     public static void Run(World world)
     {
-        var scheduler = new Scheduler();
-
         var frame = world.AcquireAddon<Frame>();
         frame.Delta = 0.5f;
 
-        SystemChain.Empty
+        var stage = SystemChain.Empty
             .Add<MoverUpdateSystem>()
             .Add<RotatorUpdateSystem>()
             .Add<MoverRandomDestroySystem>()
             .Add<PositionChangePrintSystem>()
-            .RegisterTo(world, scheduler);
+            .CreateStage(world);
 
         for (int i = 0; i != 100000; ++i) {
             TestObject.Create(world,
@@ -176,12 +170,12 @@ public static partial class Example3_MoveRotator
                     Random.Shared.NextSingle() * 100 - 50));
         }
 
-        scheduler.Tick();
+        stage.Tick();
 
         var sw = new Stopwatch();
         sw.Start();
         for (int i = 0; i < 4; ++i) {
-            scheduler.Tick();
+            stage.Tick();
         }
         sw.Stop();
         Console.WriteLine(sw.Elapsed);

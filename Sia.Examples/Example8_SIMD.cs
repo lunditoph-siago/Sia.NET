@@ -21,7 +21,7 @@ public static class Example8_Sum
         private void Accumulate(ref Number num)
             => _acc += num.Value;
 
-        public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+        public override void Execute(World world, IEntityQuery query)
         {
             var watch = new Stopwatch();
             watch.Start();
@@ -39,7 +39,7 @@ public static class Example8_Sum
     public class RecordSumSystem() : SystemBase(
         Matchers.Of<Number>())
     {
-        public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+        public override void Execute(World world, IEntityQuery query)
         {
             var watch = new Stopwatch();
             watch.Start();
@@ -60,7 +60,7 @@ public static class Example8_Sum
     public class VectorizedSumSystem() : SystemBase(
         Matchers.Of<Number>())
     {
-        public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+        public override void Execute(World world, IEntityQuery query)
         {
             var watch = new Stopwatch();
             watch.Start();
@@ -93,13 +93,11 @@ public static class Example8_Sum
 
     public static void Run(World world)
     {
-        var scheduler = new Scheduler();
-
-        SystemChain.Empty
+        var stage = SystemChain.Empty
             .Add<SumSystem>()
             .Add<RecordSumSystem>()
             .Add<VectorizedSumSystem>()
-            .RegisterTo(world, scheduler);
+            .CreateStage(world);
         
         for (int i = 0; i != 1000000; ++i) {
             world.CreateInArrayHost(HList.Create(
@@ -107,6 +105,6 @@ public static class Example8_Sum
             ));
         }
 
-        scheduler.Tick();
+        stage.Tick();
     }
 }

@@ -11,7 +11,7 @@ public abstract class SystemBase(
 
     public SystemBase(SystemChain? children) : this(null, null, null, children) {}
 
-    public virtual void Initialize(World world, Scheduler scheduler) {}
-    public virtual void Uninitialize(World world, Scheduler scheduler) {}
-    public virtual void Execute(World world, Scheduler scheduler, IEntityQuery query) {}
+    public virtual void Initialize(World world) {}
+    public virtual void Uninitialize(World world) {}
+    public virtual void Execute(World world, IEntityQuery query) {}
 }

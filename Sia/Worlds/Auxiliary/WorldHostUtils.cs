@@ -1,5 +1,3 @@
-using Microsoft.VisualBasic;
-
 namespace Sia;
 
 internal static class WorldHostUtils

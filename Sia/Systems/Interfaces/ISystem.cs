@@ -7,7 +7,7 @@ public interface ISystem
     IEventUnion? Trigger { get; }
     IEventUnion? Filter { get; }
 
-    void Initialize(World world, Scheduler scheduler);
-    void Uninitialize(World world, Scheduler scheduler);
-    void Execute(World world, Scheduler scheduler, IEntityQuery query);
+    void Initialize(World world);
+    void Uninitialize(World world);
+    void Execute(World world, IEntityQuery query);
 }

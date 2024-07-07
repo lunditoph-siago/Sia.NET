@@ -67,41 +67,6 @@ public unsafe static class Tests
         Console.WriteLine("\tScale: " + scaleOffset + ", Value: " + *(Scale*)(ptr + scaleOffset));
     }
 
-    private static void TestScheduler()
-    {
-        Console.WriteLine("== Test Scheduler ==");
-        
-        var sched = new Scheduler();
-
-        var task1 = sched.CreateTask(() => {
-            Console.WriteLine("Infinite 1");
-            return false;
-        });
-
-        Scheduler.TaskGraphNode? task2 = null;
-        task2 = sched.CreateTask(() => {
-            Console.WriteLine("Call once 1");
-            task2!.Dispose();
-            return false;
-        });
-
-        var task3 = sched.CreateTask(() => {
-            Console.WriteLine("Call once 2");
-            return true;
-        }, [task1]);
-
-        var task4 = sched.CreateTask(() => {
-            Console.WriteLine("Infinite 2");
-            return false;
-        }, [task1]);
-
-        sched.Tick();
-        sched.Tick();
-        sched.Tick();
-        sched.Tick();
-        sched.Tick();
-    }
-
     private readonly record struct TestCommand(int Target) : ICommand
     {
         public void Execute(World world, Entity target)
@@ -187,7 +152,7 @@ public unsafe static class Tests
             Matcher = Matchers.Of<Position>();
         }
 
-        public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+        public override void Execute(World world, IEntityQuery query)
         {
             foreach (var entity in query) {
                 Console.WriteLine(entity.Get<Position>());
@@ -203,7 +168,7 @@ public unsafe static class Tests
             Trigger = EventUnion.Of<Position.Set>();
         }
         
-        public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+        public override void Execute(World world, IEntityQuery query)
         {
             foreach (var entity in query) {
                 Console.WriteLine("--> Changed: " + entity.Get<Position>());
@@ -296,7 +261,6 @@ public unsafe static class Tests
     public static void Run()
     {
         TestEntityDescriptor();
-        TestScheduler();
         TestDispatcher();
         TestTypeUnion();
         TestMatcher();

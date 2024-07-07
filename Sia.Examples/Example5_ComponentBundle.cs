@@ -1,6 +1,5 @@
 using System.Numerics;
 using Sia;
-using Sia.Reactors;
 
 namespace Sia_Examples
 {
@@ -26,7 +25,7 @@ namespace Sia_Examples
         }
 
         [SiaBundle]
-        public partial record struct GameObject(Sid<ObjectId> Id, Name Name);
+        public partial record struct GameObject(ObjectId Id, Name Name);
 
         public record struct HP([Sia] int Value);
 
@@ -45,7 +44,7 @@ namespace Sia_Examples
                 }
             },
             new GameObject {
-                Id = new Sid<ObjectId>(0),
+                Id = new(0),
                 Name = "Test"
             });
     }

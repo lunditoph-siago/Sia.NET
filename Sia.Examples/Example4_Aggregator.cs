@@ -15,7 +15,7 @@ public static partial class Example4_Aggregator
         Matchers.Of<Aggregation<ObjectId>>(),
         EventUnion.Of<Aggregation<ObjectId>.EntityAdded, Aggregation<ObjectId>.EntityRemoved>())
     {
-        public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+        public override void Execute(World world, IEntityQuery query)
         {
             foreach (var entity in query) {
                 ref var aggr = ref entity.Get<Aggregation<ObjectId>>();
@@ -27,27 +27,25 @@ public static partial class Example4_Aggregator
 
     public static void Run(World world)
     {
-        var scheduler = new Scheduler();
-
         var aggregator = world.AcquireAddon<Aggregator<ObjectId>>();
 
-        SystemChain.Empty
+        var stage = SystemChain.Empty
             .Add<ComponentCountSystem>()
-            .RegisterTo(world, scheduler);
+            .CreateStage(world);
         
         world.CreateInArrayHost(HList.Create(
             new Sid<ObjectId>(0)
         ));
 
         Console.WriteLine("Tick!");
-        scheduler.Tick();
+        stage.Tick();
 
         world.CreateInArrayHost(HList.Create(
             new Sid<ObjectId>(1)
         ));
 
         Console.WriteLine("Tick!");
-        scheduler.Tick();
+        stage.Tick();
 
         world.CreateInArrayHost(HList.Create(
             new Sid<ObjectId>(1)
@@ -60,15 +58,15 @@ public static partial class Example4_Aggregator
         ));
 
         Console.WriteLine("Tick!");
-        scheduler.Tick();
+        stage.Tick();
 
         e2.SetSid(new ObjectId(2));
 
         Console.WriteLine("Tick!");
-        scheduler.Tick();
+        stage.Tick();
 
         e1.SetSid(new ObjectId(2));
-        scheduler.Tick();
+        stage.Tick();
 
         aggregator.TryGet(1, out var aggrEntity);
         aggrEntity!.Dispose();
