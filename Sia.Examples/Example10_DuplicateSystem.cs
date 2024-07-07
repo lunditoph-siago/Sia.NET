@@ -9,7 +9,7 @@ public static class Example10_DuplicateSystem
     {
         private readonly string _text = text;
 
-        public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+        public override void Execute(World world, IEntityQuery query)
         {
             Console.WriteLine(_text);
         }
@@ -17,14 +17,12 @@ public static class Example10_DuplicateSystem
 
     public static void Run(World world)
     {
-        var scheduler = new Scheduler();
-
-        SystemChain.Empty
+        var stage = SystemChain.Empty
             .Add<PrintSystem>(() => new("Hello!"))
             .Add<PrintSystem>(() => new("World!"))
-            .RegisterTo(world, scheduler);
+            .CreateStage(world);
         
-        scheduler.Tick();
-        scheduler.Tick();
+        stage.Tick();
+        stage.Tick();
     }
 }

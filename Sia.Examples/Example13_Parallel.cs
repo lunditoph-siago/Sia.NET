@@ -12,7 +12,7 @@ public static partial class Example13_Parallel
     public sealed class MonoThreadUpdateSystem() : SystemBase(
         Matchers.Of<int>())
     {
-        public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+        public override void Execute(World world, IEntityQuery query)
         {
             var watch = new Stopwatch();
             watch.Start();
@@ -29,7 +29,7 @@ public static partial class Example13_Parallel
     public sealed class MultiThreadUpdateSystem() : SystemBase(
         Matchers.Of<int>())
     {
-        public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+        public override void Execute(World world, IEntityQuery query)
         {
             var watch = new Stopwatch();
             watch.Start();
@@ -45,12 +45,12 @@ public static partial class Example13_Parallel
 
     public sealed class ParallelUpdateSystem() : ParallelSystemBase<int>()
     {
-        public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+        public override void Execute(World world, IEntityQuery query)
         {
             var watch = new Stopwatch();
             watch.Start();
 
-            base.Execute(world, scheduler, query);
+            base.Execute(world, query);
 
             watch.Stop();
             _parallelElapsed = watch.Elapsed;
@@ -62,20 +62,18 @@ public static partial class Example13_Parallel
 
     public static void Run(World world)
     {
-        var schduler = new Scheduler();
-
-        SystemChain.Empty
+        var stage = SystemChain.Empty
             .Add<MonoThreadUpdateSystem>()
             .Add<MultiThreadUpdateSystem>()
             .Add<ParallelUpdateSystem>()
-            .RegisterTo(world, schduler);
+            .CreateStage(world);
         
         int entityCount = 100000;
         for (int i = 0; i < entityCount; ++i) {
             world.CreateInArrayHost(HList.Create(0));
         }
         for (int i = 0; i != 20; ++i) {
-            schduler.Tick();
+            stage.Tick();
         }
 
         Console.WriteLine("MonoThread: " + _monoThreadElapsed);

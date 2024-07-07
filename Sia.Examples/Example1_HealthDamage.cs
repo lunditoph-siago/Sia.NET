@@ -10,13 +10,10 @@ public static partial class Example1_HealthDamage
         public float DeltaTime { get; private set; }
         public float Time { get; private set; }
 
-        public Scheduler Scheduler { get; } = new();
-
-        public void Update(float deltaTime)
+        public void BeginFrame(float deltaTime)
         {
             DeltaTime = deltaTime;
             Time += deltaTime;
-            Scheduler.Tick();
         }
     }
 
@@ -40,7 +37,7 @@ public static partial class Example1_HealthDamage
     public class HealthUpdateSystem() : SystemBase(
         Matchers.Of<Health>())
     {
-        public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+        public override void Execute(World world, IEntityQuery query)
         {
             var game = world.GetAddon<Game>();
 
@@ -53,11 +50,10 @@ public static partial class Example1_HealthDamage
         }
     }
 
-    [AfterSystem<HealthUpdateSystem>]
     public class DeathSystem() : SystemBase(
         Matchers.Of<Health>())
     {
-        public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+        public override void Execute(World world, IEntityQuery query)
         {
             foreach (var entity in query) {
                 if (entity.Get<Health>().Value <= 0) {
@@ -77,7 +73,7 @@ public static partial class Example1_HealthDamage
         Matchers.Of<Transform, Health>(),
         EventUnion.Of<WorldEvents.Add<Health>, Transform.SetPosition>())
     {
-        public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+        public override void Execute(World world, IEntityQuery query)
         {
             foreach (var entity in query) {
                 var pos = entity.Get<Transform>().Position;
@@ -93,13 +89,10 @@ public static partial class Example1_HealthDamage
         }
     }
 
-    [BeforeSystem<HealthSystems>]
     public class GameplaySystems() : SystemBase(
         SystemChain.Empty
             .Add<LocationDamageSystem>());
     
-    [AfterSystem<HealthSystems>]
-    [AfterSystem<GameplaySystems>]
     public class MonitorSystems() : SystemBase(
         SystemChain.Empty
             .Add((ref Health health) => Console.WriteLine("Damage: HP " + health.Value),
@@ -129,32 +122,35 @@ public static partial class Example1_HealthDamage
     {
         var game = world.AcquireAddon<Game>();
 
-        var handle = SystemChain.Empty
+        var stage = SystemChain.Empty
             .Add<HealthSystems>()
             .Add<GameplaySystems>()
             .Add<MonitorSystems>()
-            .RegisterTo(world, game.Scheduler);
+            .CreateStage(world);
         
         var player = Player.Create(world, new(1, 1));
-        game.Update(0.5f);
+        game.BeginFrame(0.5f);
+        stage.Tick();
 
         var trans = new Transform.View(player) {
             Position = new(1, 2)
         };
-        game.Update(0.5f);
-
-        game.Scheduler.CreateTask(() => {
-            Console.WriteLine("Callback invoked after systems");
-            return true; // remove task
-        }, handle.SystemTaskNodes);
-    
+        game.BeginFrame(0.5f);
+        stage.Tick();
         trans.Position = new(1, 3);
 
-        game.Update(0.5f);
-        game.Update(0.5f);
-        game.Update(0.5f);
-        game.Update(0.5f); // player dead
+        game.BeginFrame(0.5f);
+        stage.Tick();
 
-        handle.Dispose();
+        game.BeginFrame(0.5f);
+        stage.Tick();
+
+        game.BeginFrame(0.5f);
+        stage.Tick();
+
+        game.BeginFrame(0.5f); // player dead
+        stage.Tick();
+
+        stage.Dispose();
     }
 }

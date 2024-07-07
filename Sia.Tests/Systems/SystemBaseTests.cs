@@ -11,7 +11,7 @@ public partial class SystemBaseTests
     public class AssertSystem(int expected) : SystemBase(
         Matchers.Of<VariableData>())
     {
-        public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+        public override void Execute(World world, IEntityQuery query)
         {
             using var mem = SpanOwner<int>.Allocate(query.Count);
 
@@ -29,7 +29,7 @@ public partial class SystemBaseTests
                 Matchers.Of<VariableData>(),
                 children: SystemChain.Empty.Add<AssertSystem>(() => new(2)))
         {
-            public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+            public override void Execute(World world, IEntityQuery query)
             {
                 query.ForSlice(static (ref VariableData c) => { c.Value++; });
                 query.ForSliceOnParallel(static (ref VariableData c) => { c.Value++; });
@@ -44,7 +44,7 @@ public partial class SystemBaseTests
                 Matchers.Of<VariableData, ConstData>(),
                 children: SystemChain.Empty.Add<AssertSystem>(() => new(2)))
         {
-            public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+            public override void Execute(World world, IEntityQuery query)
             {
                 query.ForSlice(static (ref VariableData c1, ref ConstData c2) => { c1.Value += c2.Value; });
                 query.ForSliceOnParallel(static (ref VariableData c1, ref ConstData c2) => { c1.Value += c2.Value; });
@@ -56,7 +56,7 @@ public partial class SystemBaseTests
                 Matchers.Of<VariableData, ConstData>(),
                 EventUnion.Of<ConstData.SetValue>())
         {
-            public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+            public override void Execute(World world, IEntityQuery query)
             {
                 query.ForSlice(static (ref VariableData c1, ref ConstData c2) => { c1.Value += c2.Value; });
                 query.ForSliceOnParallel(static (ref VariableData c1, ref ConstData c2) => { c1.Value += c2.Value; });
@@ -72,11 +72,10 @@ public partial class SystemBaseTests
         using var fixture = new WorldFixture();
         fixture.Prepare(new VariableData(), 100, padding);
 
-        var scheduler = new Scheduler();
-
-        fixture.World.RegisterSystem<SingleComponentUpdateContext.UpdateSingleComponentSystem>(scheduler);
-
-        scheduler.Tick();
+        SystemChain.Empty
+            .Add<SingleComponentUpdateContext.UpdateSingleComponentSystem>()
+            .CreateStage(fixture.World)
+            .Tick();
     }
 
     [Theory]
@@ -87,25 +86,24 @@ public partial class SystemBaseTests
         using var fixture = new WorldFixture();
         fixture.Prepare(new VariableData(), new ConstData { Value = 1 }, 100, padding);
 
-        var scheduler = new Scheduler();
-
-        fixture.World.RegisterSystem<MultiComponentsUpdateContext.UpdateMultiComponentsSystem>(scheduler);
-
-        scheduler.Tick();
+        SystemChain.Empty
+            .Add<MultiComponentsUpdateContext.UpdateMultiComponentsSystem>()
+            .CreateStage(fixture.World)
+            .Tick();
     }
 
     [Fact]
     public void SystemBaseMultiComponents_Trigger_Test()
     {
         using var fixture = new WorldFixture();
-        var scheduler = new Scheduler();
-
         var entity = fixture.World.CreateInArrayHost(HList.Create(new VariableData(), new ConstData()));
 
-        fixture.World.RegisterSystem<MultiComponentsUpdateContext.UpdateMultiComponentsWithTriggerSystem>(scheduler);
+        var stage = SystemChain.Empty
+            .Add<MultiComponentsUpdateContext.UpdateMultiComponentsWithTriggerSystem>()
+            .CreateStage(fixture.World);
 
         entity.Execute(new ConstData.SetValue(1));
-        scheduler.Tick();
+        stage.Tick();
 
         // Assert
         Assert.Equal(2, new VariableData.View(entity).Value);

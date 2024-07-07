@@ -23,7 +23,7 @@ public static class Example2_HealthRecover
     public class HPAutoRecoverSystem() : SystemBase(
         Matchers.Of<HP>())
     {
-        public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+        public override void Execute(World world, IEntityQuery query)
         {
             foreach (var entity in query) {
                 ref var hp = ref entity.Get<HP>();
@@ -43,7 +43,7 @@ public static class Example2_HealthRecover
         Matchers.Of<HP, Name>(),
         EventUnion.Of<HP.Damage>())
     {
-        public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+        public override void Execute(World world, IEntityQuery query)
         {
             foreach (var entity in query) {
                 Console.WriteLine($"[{entity.Get<Name>().Value}] 受到攻击！");
@@ -56,7 +56,7 @@ public static class Example2_HealthRecover
         EventUnion.Of<HP.Kill>(),
         filter: EventUnion.Of<HOEvents.Cancel<HP.Kill>>())
     {
-        public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+        public override void Execute(World world, IEntityQuery query)
         {
             Console.WriteLine("START KILLING!");
 
@@ -80,33 +80,31 @@ public static class Example2_HealthRecover
 
     public static void Run(World world)
     {
-        var scheduler = new Scheduler();
-
-        SystemChain.Empty
+        var stage = SystemChain.Empty
             .Add<DamageDisplaySystem>()
             .Add<HPAutoRecoverSystem>()
             .Add<KillSystem>()
-            .RegisterTo(world, scheduler);
+            .CreateStage(world);
 
         var player = Player.CreateResilient(world, "玩家");
         ref var hp = ref player.Get<HP>();
 
         Console.WriteLine("HP: " + hp.Value);
-        scheduler.Tick();
+        stage.Tick();
 
         world.Execute(player, new HP.Damage(50));
         Console.WriteLine("HP: " + hp.Value);
-        scheduler.Tick();
+        stage.Tick();
         Console.WriteLine("HP: " + hp.Value);
 
         world.Send(player, HP.Kill.Instance);
-        scheduler.Tick();
+        stage.Tick();
         Console.WriteLine("HP: " + hp.Value);
 
         hp.Value = 100;
         world.Send(player, HP.Kill.Instance);
         world.Send(player, HOEvents.Cancel<HP.Kill>.Instance);
-        scheduler.Tick();
+        stage.Tick();
         Console.WriteLine("HP: " + hp.Value);
     }
 }

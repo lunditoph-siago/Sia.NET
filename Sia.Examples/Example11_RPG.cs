@@ -125,7 +125,7 @@ public static partial class Example11_RPG
         Matchers.Of<Character>(),
         EventUnion.Of<Character.SetHP>())
     {
-        public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+        public override void Execute(World world, IEntityQuery query)
         {
             foreach (var entity in query) {
                 ref var character = ref entity.Get<Character>();
@@ -162,11 +162,9 @@ public static partial class Example11_RPG
 
     public static void Run(World world)
     {
-        var scheduler = new Scheduler();
-
-        SystemChain.Empty
+        var stage = SystemChain.Empty
             .Add<DeadCharacterDestroySystem>()
-            .RegisterTo(world, scheduler);
+            .CreateStage(world);
 
         var player = Human.Create(world, "Player");
         var enemy = Human.Create(world, "Enemy");
@@ -178,6 +176,6 @@ public static partial class Example11_RPG
         };
 
         enemy.Execute(new Character.Damage(player));
-        scheduler.Tick();
+        stage.Tick();
     }
 }

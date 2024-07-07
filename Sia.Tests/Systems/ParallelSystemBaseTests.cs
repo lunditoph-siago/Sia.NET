@@ -11,11 +11,10 @@ public class ParallelSystemBaseTests
         protected override void HandleSlice(ref VariableData c) => c.Value++;
     }
 
-    [AfterSystem<UpdateSingleComponentSystem>]
     public class AssertSystem(int expected) : SystemBase(
         Matchers.Of<VariableData>())
     {
-        public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+        public override void Execute(World world, IEntityQuery query)
         {
             using var mem = SpanOwner<int>.Allocate(query.Count);
 
@@ -34,13 +33,11 @@ public class ParallelSystemBaseTests
         using var fixture = new WorldFixture();
         fixture.Prepare(new VariableData(), 100, padding);
 
-        var scheduler = new Scheduler();
-
-        SystemChain.Empty
+        var stage = SystemChain.Empty
             .Add<UpdateSingleComponentSystem>()
             .Add<AssertSystem>(() => new (1))
-            .RegisterTo(fixture.World, scheduler);
+            .CreateStage(fixture.World);
 
-        scheduler.Tick();
+        stage.Tick();
     }
 }

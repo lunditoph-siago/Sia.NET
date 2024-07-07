@@ -10,7 +10,7 @@ public class FSystem(QueryHandler queryHandler,
 {
     private readonly QueryHandler _queryHandler = queryHandler;
 
-    public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+    public override void Execute(World world, IEntityQuery query)
         => _queryHandler(query, CurrentThreadRunner.Instance, null);
 
     public FSystem WithMatcher(IEntityMatcher matcher)
@@ -76,7 +76,7 @@ public class FSystemWithRunner(QueryHandler queryHandler, IRunner? runner = null
 
     private readonly QueryHandler _queryHandler = queryHandler;
 
-    public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+    public override void Execute(World world, IEntityQuery query)
         => _queryHandler(query, Runner, null);
 
     public FSystemWithBarrier WithBarrier()
@@ -89,7 +89,7 @@ public class FSystemWithBarrier(QueryHandler queryHandler, IRunner? runner = nul
 {
     public IRunner Runner { get; } = runner ?? CurrentThreadRunner.Instance;
 
-    public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+    public override void Execute(World world, IEntityQuery query)
     {
         var barrier = RunnerBarrier.Get();
         queryHandler(query, Runner, barrier);

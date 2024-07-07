@@ -15,7 +15,7 @@ public abstract class AddonSystemBase(
         return world.AddAddon<TAddon>();
     }
 
-    public override void Uninitialize(World world, Scheduler scheduler)
+    public override void Uninitialize(World world)
     {
         foreach (var remover in _addonRemovers.Values) {
             remover(world);

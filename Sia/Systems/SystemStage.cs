@@ -1,18 +1,15 @@
 namespace Sia;
 
-using System.Runtime.CompilerServices;
-using System.Diagnostics.CodeAnalysis;
 using System.Collections;
 using System.Collections.Frozen;
+using System.Collections.Immutable;
+using System.Reactive.Disposables;
+using System.Runtime.CompilerServices;
 using CommunityToolkit.HighPerformance;
 
-public class SystemLibrary : IAddon
+public sealed class SystemStage : IDisposable
 {
-    public class Entry
-    {
-        public IReadOnlySet<Scheduler.TaskGraphNode> TaskGraphNodes => _taskGraphNodes;
-        internal readonly HashSet<Scheduler.TaskGraphNode> _taskGraphNodes = [];
-    }
+    public record struct Entry(ISystem System, Action? Action, IDisposable? Disposable);
 
     private class WrappedReactiveEntityHost : IReactiveEntityHost
     {
@@ -344,104 +341,95 @@ public class SystemLibrary : IAddon
         }
     }
 
-    public delegate SystemHandle SystemRegisterer(
-        SystemLibrary lib, Scheduler scheduler, Scheduler.TaskGraphNode[]? dependedTasks = null);
+    public World World { get; }
+    public ImmutableArray<Entry> Entries { get; }
+    public bool IsDisposed { get; private set; }
 
-    [AllowNull] private World _world;
-    private readonly Dictionary<(Scheduler, Type), Entry> _systemEntries = [];
+    private readonly Action _combinedAction;
 
-    public void OnInitialize(World world)
+    internal SystemStage(World world, IEnumerable<ISystem> systems)
     {
-        _world = world;
-    }
+        World = world;
+        Entries = systems.Select(system =>
+            new Entry(system,
+                CreateSystemAction(world, system, out var disposable),
+                disposable))
+            .ToImmutableArray();
+        
+        var actions = Entries
+            .Where(entry => entry.Action != null)
+            .Select(entry => entry.Action!)
+            .ToArray();
 
-    public Entry Get<TSystem>(Scheduler scheduler) where TSystem : ISystem
-        => Get(scheduler, typeof(TSystem));
-
-    public Entry Get(Scheduler scheduler, Type systemType)
-        => _systemEntries[(scheduler, systemType)];
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal Entry Acquire(Scheduler scheduler, Type systemType)
-    {
-        var key = (scheduler, systemType);
-        if (!_systemEntries.TryGetValue(key, out var instance)) {
-            instance = new();
-            _systemEntries.Add(key, instance);
-        }
-        return instance;
-    }
-
-    public SystemHandle Register<TSystem>(Scheduler scheduler, IEnumerable<Scheduler.TaskGraphNode>? dependedTasks = null)
-        where TSystem : ISystem, new()
-        => Register<TSystem>(scheduler, () => new(), dependedTasks);
-
-    public SystemHandle Register<TSystem>(Scheduler scheduler, Func<TSystem> creator, IEnumerable<Scheduler.TaskGraphNode>? dependedTasks = null)
-        where TSystem : ISystem
-    {
-        var system = creator();
-        var sysEntry = Acquire(scheduler, system.GetType());
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void InitializeSystem(Entry sysEntry, Scheduler.TaskGraphNode task)
-        {
-            sysEntry._taskGraphNodes.Add(task);
-            system.Initialize(_world, scheduler);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void UninitializeSystem(Entry sysEntry, Scheduler.TaskGraphNode task)
-        {
-            if (!sysEntry._taskGraphNodes.Remove(task)) {
-                throw new ObjectDisposedException("Failed to unregister system: system not found");
+        _combinedAction = () => {
+            foreach (var action in actions) {
+                action();
             }
-            system.Uninitialize(_world, scheduler);
+        };
+
+        foreach (var entry in Entries) {
+            entry.System.Initialize(world);
         }
+    }
 
-        Scheduler.TaskGraphNode? task;
-        SystemChain.Handle? childrenDisposable;
+    ~SystemStage()
+    {
+        DoDispose();
+    }
 
+    public void Dispose()
+    {
+        DoDispose();
+        GC.SuppressFinalize(this);
+    }
+
+    private void DoDispose()
+    {
+        if (IsDisposed) {
+            return;
+        }
+        foreach (var entry in Entries) {
+            entry.System.Uninitialize(World);
+            entry.Disposable?.Dispose();
+        }
+        IsDisposed = true;
+    }
+
+    public void Tick() => _combinedAction();
+
+    private static Action? CreateSystemAction(World world, ISystem system, out IDisposable? disposable)
+    {
         var matcher = system.Matcher;
         var children = system.Children;
 
         if (matcher == null || matcher == Matchers.None) {
-            task = dependedTasks != null
-                ? scheduler.CreateTask(dependedTasks)
-                : scheduler.CreateTask();
-            task.UserData = system;
-
-            InitializeSystem(sysEntry, task);
-            childrenDisposable = children?.RegisterTo(_world, scheduler, [task]);
-
-            return new SystemHandle(
-                system, task,
-                handle => {
-                    UninitializeSystem(sysEntry, task);
-                    childrenDisposable?.Dispose();
-                    handle.TaskGraphNode.Dispose();
-                });
+            if (children == null) {
+                disposable = null;
+                return null;
+            }
+            else {
+                var childrenStage = children.CreateStage(world);
+                disposable = childrenStage;
+                return childrenStage.Tick;
+            }
         }
-
-        Func<bool> taskFunc;
-        Action disposeFunc = () => {};
 
         var trigger = system.Trigger;
         var filter = system.Filter;
-        var dispatcher = _world.Dispatcher;
+        var dispatcher = world.Dispatcher;
+
+        Action? selfAction;
+        IDisposable? selfDisposable;
 
         if (trigger == null && filter == null) {
             if (matcher == Matchers.Any) {
-                taskFunc = () => {
-                    system.Execute(_world, scheduler, _world);
-                    return false;
-                };
+                selfDisposable = null;
+                selfAction = () => system.Execute(world, world);
             }
             else {
-                var query = _world.Query(matcher);
-                taskFunc = () => {
-                    system.Execute(_world, scheduler, query);
-                    return false;
-                };
+                var query = world.Query(matcher);
+                selfDisposable = null;
+                selfAction = () => system.Execute(world, query);
             }
         }
         else {
@@ -454,47 +442,38 @@ public class SystemLibrary : IAddon
 
             if (triggerTypes.Count == 0) {
                 throw new InvalidSystemConfigurationException(
-                    "Failed to register system: reactive system must have at least one valid trigger");
+                    "Invalid system configuration: reactive system must have at least one valid trigger");
             }
 
-            var query = _world.Query(matcher);
+            var query = world.Query(matcher);
             var reactiveQuery = new ReactiveQuery(query, dispatcher, triggerTypes, filterTypes);
 
-            taskFunc = () => {
+            selfDisposable = reactiveQuery;
+            selfAction = () => {
                 if (reactiveQuery.Count == 0) {
-                    return false;
+                    return;
                 }
-                system.Execute(_world, scheduler, reactiveQuery);
+                system.Execute(world, reactiveQuery);
                 reactiveQuery.ClearCollected();
-                return false;
             };
-            disposeFunc = reactiveQuery.Dispose;
         }
 
-        task = dependedTasks != null
-            ? scheduler.CreateTask(taskFunc, dependedTasks)
-            : scheduler.CreateTask(taskFunc);
-        task.UserData = system;
+        if (children != null) {
+            var childrenStage = children.CreateStage(world);
+            var childrenStageAction = childrenStage._combinedAction;
 
-        InitializeSystem(sysEntry, task);
-        childrenDisposable = children?.RegisterTo(_world, scheduler, [task]);
+            disposable = selfDisposable != null
+                ? new CompositeDisposable(selfDisposable, childrenStage)
+                : childrenStage;
 
-        SystemHandle? handle = null;
-
-        void OnWorldDisposed(World world) => handle!.Dispose();
-        _world.OnDisposed += OnWorldDisposed;
-
-        handle = new SystemHandle(
-            system, task,
-            handle => {
-                _world.OnDisposed -= OnWorldDisposed;
-
-                UninitializeSystem(sysEntry, task);
-                disposeFunc();
-                childrenDisposable?.Dispose();
-                handle.TaskGraphNode.Terminate();
-            });
-
-        return handle;
+            return () => {
+                selfAction();
+                childrenStageAction();
+            };
+        }
+        else {
+            disposable = selfDisposable;
+            return selfAction;
+        }
     }
 }

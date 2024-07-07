@@ -43,20 +43,16 @@ public abstract class EventSystemBase(SystemChain? children = null)
     protected event Action? OnUninitialize;
 
     public World World { get; private set; } = null!;
-    public Scheduler Scheduler { get; private set; } = null!;
 
     private Dictionary<Type, IEventCache> _eventCaches = [];
     private Dictionary<Type, IEventCache> _eventCachesBack = [];
     private List<(Entity, IEventCache, int)> _events = [];
     private List<(Entity, IEventCache, int)> _eventsBack = [];
 
-    public override void Initialize(World world, Scheduler scheduler)
-    {
-        World = world;
-        Scheduler = scheduler;
-    }
+    public override void Initialize(World world)
+        => World = world;
 
-    public override void Uninitialize(World world, Scheduler scheduler)
+    public override void Uninitialize(World world)
         => OnUninitialize?.Invoke();
 
     protected abstract void HandleEvent<TEvent>(Entity entity, in TEvent @event)
@@ -95,7 +91,7 @@ public abstract class EventSystemBase(SystemChain? children = null)
         where TEventUnion : IEventUnion
         => TEventUnion.HandleEventTypes(new EventRecorder(this));
 
-    public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+    public override void Execute(World world, IEntityQuery query)
     {
         (_eventCaches, _eventCachesBack) = (_eventCachesBack, _eventCaches);
         (_events, _eventsBack) = (_eventsBack, _events);
@@ -146,7 +142,6 @@ public abstract class SnapshotEventSystemBase<TSnapshot>(SystemChain? children =
     protected event Action? OnUninitialize;
 
     public World World { get; private set; } = null!;
-    public Scheduler Scheduler { get; private set; } = null!;
 
     private Dictionary<Type, IEventCache> _eventCaches = [];
     private Dictionary<Type, IEventCache> _eventCachesBack = [];
@@ -155,13 +150,10 @@ public abstract class SnapshotEventSystemBase<TSnapshot>(SystemChain? children =
 
     private readonly Dictionary<Entity, TSnapshot> _snapshots = [];
 
-    public override void Initialize(World world, Scheduler scheduler)
-    {
-        World = world;
-        Scheduler = scheduler;
-    }
+    public override void Initialize(World world)
+        => World = world;
 
-    public override void Uninitialize(World world, Scheduler scheduler)
+    public override void Uninitialize(World world)
         => OnUninitialize?.Invoke();
     
     protected abstract TSnapshot Snapshot<TEvent>(Entity entity, in TEvent @event)
@@ -256,7 +248,7 @@ public abstract class SnapshotEventSystemBase<TSnapshot>(SystemChain? children =
         OnUninitialize += () => World.Dispatcher.Unlisten<TEvent>(EventListener);
     }
 
-    public override void Execute(World world, Scheduler scheduler, IEntityQuery query)
+    public override void Execute(World world, IEntityQuery query)
     {
         if (_eventsBack.Count == 0) {
             return;
@@ -280,9 +272,9 @@ public abstract class SnapshotEventSystemBase<TSnapshot>(SystemChain? children =
 public abstract class ComponentEventSystemBase<TComponent, TSnapshot>(SystemChain? children = null)
     : SnapshotEventSystemBase<TSnapshot>(children)
 {
-    public override void Initialize(World world, Scheduler scheduler)
+    public override void Initialize(World world)
     {
-        base.Initialize(world, scheduler);
+        base.Initialize(world);
         RecordFor<TComponent>();
     }
 }
@@ -307,9 +299,9 @@ public abstract class TemplateEventSystemBase<TComponent, TTemplate, TSnapshot>(
             => sys.RecordEvent<T>();
     }
 
-    public override void Initialize(World world, Scheduler scheduler)
+    public override void Initialize(World world)
     {
-        base.Initialize(world, scheduler);
+        base.Initialize(world);
         TComponent.HandleCommandTypes(new CommandRecorder(this));
     }
 }

@@ -35,9 +35,9 @@ public static partial class Example16_EventSystem
 
     public class TestEventSystem : EventSystemBase
     {
-        public override void Initialize(World world, Scheduler scheduler)
+        public override void Initialize(World world)
         {
-            base.Initialize(world, scheduler);
+            base.Initialize(world);
             RecordEvents<MoveEvents>();
         }
 
@@ -69,9 +69,9 @@ public static partial class Example16_EventSystem
 
     public class TestSnapshotEventSystem : SnapshotEventSystemBase<Position>
     {
-        public override void Initialize(World world, Scheduler scheduler)
+        public override void Initialize(World world)
         {
-            base.Initialize(world, scheduler);
+            base.Initialize(world);
             RecordFor<Position>();
             RecordEvent<Position.TestCommand>();
         }
@@ -143,14 +143,12 @@ public static partial class Example16_EventSystem
 
     public static void Run(World world)
     {
-        var scheduler = new Scheduler();
-
-        SystemChain.Empty
+        var stage = SystemChain.Empty
             .Add<TestTemplateEventSystem>()
             .Add<TestEventSystem>()
             .Add<TestSnapshotEventSystem>()
             .Add<TagsTemplateEventSystem>()
-            .RegisterTo(world, scheduler);
+            .CreateStage(world);
 
         var e = world.CreateInArrayHost(HList.Create(
             new Position(1, 1), new Tags([])));
@@ -161,22 +159,22 @@ public static partial class Example16_EventSystem
         e.Send(new MoveEvents.MoveUp(5));
         e.Send(new MoveEvents.MoveLeft(5));
         tags.Add("Test");
-        scheduler.Tick();
+        stage.Tick();
 
         e.Execute(new Position.TestCommand());
         tags.Remove("Test");
-        scheduler.Tick();
+        stage.Tick();
 
         pos.X += 10;
         tags.List = ["a", "b", "c"];
         tags.Set(1, "d");
-        scheduler.Tick();
+        stage.Tick();
 
         pos.Y += 5;
         tags.List = [];
-        scheduler.Tick();
+        stage.Tick();
 
         e.Remove<Position>();
-        scheduler.Tick();
+        stage.Tick();
     }
 }
