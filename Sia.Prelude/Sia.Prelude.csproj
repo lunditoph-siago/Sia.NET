@@ -5,8 +5,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <PackageId>Sia.Reactors</PackageId>
-    <PackageDescription>Reactors for Sia.NET</PackageDescription>
+    <PackageId>Sia.Prelude</PackageId>
+    <PackageDescription>Standard library for Sia.NET</PackageDescription>
     <Author>Phlamcenth Sicusa</Author>
     <Company>Gilatod.art</Company>
     <RepositoryUrl>https://github.com/lunditoph-siago/Sia.NET</RepositoryUrl>
