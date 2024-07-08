@@ -55,12 +55,13 @@ public static partial class Example1_HealthDamage
     {
         public override void Execute(World world, IEntityQuery query)
         {
-            foreach (var entity in query) {
-                if (entity.Get<Health>().Value <= 0) {
+            // faster than foreach
+            query.ForSlice((Entity entity, ref Health health) => {
+                if (health.Value <= 0) {
                     entity.Dispose();
                     Console.WriteLine("Dead!");
                 }
-            }
+            });
         }
     }
 
