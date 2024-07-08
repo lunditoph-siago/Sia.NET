@@ -131,7 +131,7 @@ public static partial class Example3_MoveRotator
                 }
             });
             foreach (var entity in _entitiesToDestroy) {
-                entity.Dispose();
+                entity.Destroy();
             }
             _entitiesToDestroy.Clear();
             Console.WriteLine($"Destroyed {entityCount - world.Count} entities.");

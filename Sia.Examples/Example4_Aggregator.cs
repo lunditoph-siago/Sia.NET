@@ -69,7 +69,7 @@ public static partial class Example4_Aggregator
         stage.Tick();
 
         aggregator.TryGet(1, out var aggrEntity);
-        aggrEntity!.Dispose();
+        aggrEntity!.Destroy();
 
         Console.WriteLine(world.Count);
     }

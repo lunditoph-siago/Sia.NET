@@ -131,7 +131,7 @@ public static partial class Example11_RPG
                 ref var character = ref entity.Get<Character>();
                 if (character.HP <= 0) {
                     Console.WriteLine(character.Name + " is dead!");
-                    entity.Dispose();
+                    entity.Destroy();
                 }
             }
         }

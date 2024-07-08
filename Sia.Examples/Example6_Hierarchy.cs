@@ -49,10 +49,10 @@ public static partial class Example6_Hierarchy
         Console.WriteLine(e3.Get<Node<TestTag>>().IsEnabled);
         Console.WriteLine(e4.Get<Node<TestTag>>().IsEnabled);
 
-        e4.Dispose();
+        e4.Destroy();
         Console.WriteLine(world.Count);
 
-        e1.Dispose();
+        e1.Destroy();
         Console.WriteLine(world.Count);
     }
 }
