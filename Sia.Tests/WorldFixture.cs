@@ -23,10 +23,10 @@ public class WorldFixture : IDisposable
         for (var i = 0; i < count; ++i) {
             if (padding) {
                 switch (i % 4) {
-                    case 0: World.Create(HList.Create(item1, new Padding1())); break;
-                    case 1: World.Create(HList.Create(item1, new Padding2())); break;
-                    case 2: World.Create(HList.Create(item1, new Padding3())); break;
-                    case 3: World.Create(HList.Create(item1, new Padding4())); break;
+                    case 0: World.Create(HList.From(item1, new Padding1())); break;
+                    case 1: World.Create(HList.From(item1, new Padding2())); break;
+                    case 2: World.Create(HList.From(item1, new Padding3())); break;
+                    case 3: World.Create(HList.From(item1, new Padding4())); break;
                 }
             }
             else {
@@ -47,7 +47,7 @@ public class WorldFixture : IDisposable
                 }
             }
             else {
-                World.Create(HList.Create(item1, item2));
+                World.Create(HList.From(item1, item2));
             }
         }
     }

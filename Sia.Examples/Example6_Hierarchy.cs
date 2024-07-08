@@ -11,7 +11,7 @@ public static partial class Example6_Hierarchy
     public static class TestNode
     {
         public static Entity Create(World world, string name, Entity? parent = null)
-            => world.Create(HList.Create(
+            => world.Create(HList.From(
                 new Node<TestTag>(parent),
                 new Name(name)
             ));
