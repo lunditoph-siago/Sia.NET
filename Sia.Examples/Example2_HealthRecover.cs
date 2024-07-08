@@ -70,7 +70,7 @@ public static class Example2_HealthRecover
     public static class Player
     {
         public static Entity CreateResilient(World world, string name)
-            => world.CreateInArrayHost(HList.Create(
+            => world.Create(HList.Create(
                 new Name(name),
                 new HP {
                     AutoRecoverRate = 10

@@ -52,7 +52,7 @@ public static partial class Example11_RPG
             DamageProvider: DamageProvider.Instance);
 
         public static Entity Create(World world, MagicType magicType)
-            => world.CreateInArrayHost(HList.Create(
+            => world.Create(HList.Create(
                 Metadata,
                 new Data(magicType)
             ));
@@ -151,7 +151,7 @@ public static partial class Example11_RPG
             DefenseGrowthRate: 4f);
 
         public static Entity Create(World world, string name)
-            => world.CreateInArrayHost(HList.Create(
+            => world.Create(HList.Create(
                 Metadata,
                 new Character(
                     Name: name,

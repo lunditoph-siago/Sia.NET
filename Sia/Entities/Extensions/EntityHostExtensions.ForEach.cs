@@ -12,9 +12,8 @@ public static partial class EntityHostExtensions
         where TRunner : IRunner
         => host.Handle(handler,
             static (IEntityHost host, in EntityHandler handler, int from, int to) => {
-                var slosts = host.AllocatedSlots;
                 for (int i = from; i != to; ++i) {
-                    handler(host.GetEntity(slosts[i]));
+                    handler(host.GetEntity(i));
                 }
             }, runner, barrier);
 
@@ -26,9 +25,8 @@ public static partial class EntityHostExtensions
             static (IEntityHost host, in (TData, EntityHandler<TData>) entry, int from, int to) => {
                 ref readonly var data = ref entry.Item1;
                 var handler = entry.Item2;
-                var slosts = host.AllocatedSlots;
                 for (int i = from; i != to; ++i) {
-                    handler(data, host.GetEntity(slosts[i]));
+                    handler(data, host.GetEntity(i));
                 }
             }, runner, barrier);
 
@@ -118,13 +116,10 @@ public static partial class EntityHostExtensions
         where TRunner : IRunner
         => host.Handle(handler,
             static (IEntityHost host, in ComponentHandler<C1> handler, int from, int to) => {
-                var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
-                var c1Offset = desc.GetOffset<C1>();
+                var desc = host.Descriptor;var c1Offset = desc.GetOffset<C1>();
 
                 for (int i = from; i != to; ++i) {
-                    ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
+                    ref var byteRef = ref host.GetByteRef(i);
                     handler(ref c1Offset.Get(ref byteRef));
                 }
             }, runner, barrier);
@@ -135,14 +130,11 @@ public static partial class EntityHostExtensions
         where TRunner : IRunner
         => host.Handle(handler,
             static (IEntityHost host, in ComponentHandler<C1, C2> handler, int from, int to) => {
-                var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
-                var c1Offset = desc.GetOffset<C1>();
+                var desc = host.Descriptor;var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
 
                 for (int i = from; i != to; ++i) {
-                    ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
+                    ref var byteRef = ref host.GetByteRef(i);
                     handler(
                         ref c1Offset.Get(ref byteRef),
                         ref c2Offset.Get(ref byteRef));
@@ -155,15 +147,12 @@ public static partial class EntityHostExtensions
         where TRunner : IRunner
         => host.Handle(handler,
             static (IEntityHost host, in ComponentHandler<C1, C2, C3> handler, int from, int to) => {
-                var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
-                var c1Offset = desc.GetOffset<C1>();
+                var desc = host.Descriptor;var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
                 var c3Offset = desc.GetOffset<C3>();
 
                 for (int i = from; i != to; ++i) {
-                    ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
+                    ref var byteRef = ref host.GetByteRef(i);
                     handler(
                         ref c1Offset.Get(ref byteRef),
                         ref c2Offset.Get(ref byteRef),
@@ -177,16 +166,13 @@ public static partial class EntityHostExtensions
         where TRunner : IRunner
         => host.Handle(handler,
             static (IEntityHost host, in ComponentHandler<C1, C2, C3, C4> handler, int from, int to) => {
-                var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
-                var c1Offset = desc.GetOffset<C1>();
+                var desc = host.Descriptor;var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
                 var c3Offset = desc.GetOffset<C3>();
                 var c4Offset = desc.GetOffset<C4>();
 
                 for (int i = from; i != to; ++i) {
-                    ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
+                    ref var byteRef = ref host.GetByteRef(i);
                     handler(
                         ref c1Offset.Get(ref byteRef),
                         ref c2Offset.Get(ref byteRef),
@@ -201,17 +187,14 @@ public static partial class EntityHostExtensions
         where TRunner : IRunner
         => host.Handle(handler,
             static (IEntityHost host, in ComponentHandler<C1, C2, C3, C4, C5> handler, int from, int to) => {
-                var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
-                var c1Offset = desc.GetOffset<C1>();
+                var desc = host.Descriptor;var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
                 var c3Offset = desc.GetOffset<C3>();
                 var c4Offset = desc.GetOffset<C4>();
                 var c5Offset = desc.GetOffset<C5>();
 
                 for (int i = from; i != to; ++i) {
-                    ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
+                    ref var byteRef = ref host.GetByteRef(i);
                     handler(
                         ref c1Offset.Get(ref byteRef),
                         ref c2Offset.Get(ref byteRef),
@@ -227,10 +210,7 @@ public static partial class EntityHostExtensions
         where TRunner : IRunner
         => host.Handle(handler,
             static (IEntityHost host, in ComponentHandler<C1, C2, C3, C4, C5, C6> handler, int from, int to) => {
-                var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
-                var c1Offset = desc.GetOffset<C1>();
+                var desc = host.Descriptor;var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
                 var c3Offset = desc.GetOffset<C3>();
                 var c4Offset = desc.GetOffset<C4>();
@@ -238,7 +218,7 @@ public static partial class EntityHostExtensions
                 var c6Offset = desc.GetOffset<C6>();
 
                 for (int i = from; i != to; ++i) {
-                    ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
+                    ref var byteRef = ref host.GetByteRef(i);
                     handler(
                         ref c1Offset.Get(ref byteRef),
                         ref c2Offset.Get(ref byteRef),
@@ -256,15 +236,13 @@ public static partial class EntityHostExtensions
         => host.Handle((handler, userData),
             static (IEntityHost host, in (DataComponentHandler<TData, C1>, TData) data, int from, int to) => {
                 var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
                 var c1Offset = desc.GetOffset<C1>();
 
                 var handler = data.Item1;
                 ref readonly var userData = ref data.Item2;
 
                 for (int i = from; i != to; ++i) {
-                    ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
+                    ref var byteRef = ref host.GetByteRef(i);
                     handler(userData, ref c1Offset.Get(ref byteRef));
                 }
             }, runner, barrier);
@@ -275,17 +253,14 @@ public static partial class EntityHostExtensions
         where TRunner : IRunner
         => host.Handle((handler, userData),
             static (IEntityHost host, in (DataComponentHandler<TData, C1, C2>, TData) data, int from, int to) => {
-                var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
-                var c1Offset = desc.GetOffset<C1>();
+                var desc = host.Descriptor;var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
 
                 var handler = data.Item1;
                 ref readonly var userData = ref data.Item2;
 
                 for (int i = from; i != to; ++i) {
-                    ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
+                    ref var byteRef = ref host.GetByteRef(i);
                     handler(userData,
                         ref c1Offset.Get(ref byteRef),
                         ref c2Offset.Get(ref byteRef));
@@ -298,10 +273,7 @@ public static partial class EntityHostExtensions
         where TRunner : IRunner
         => host.Handle((handler, userData),
             static (IEntityHost host, in (DataComponentHandler<TData, C1, C2, C3>, TData) data, int from, int to) => {
-                var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
-                var c1Offset = desc.GetOffset<C1>();
+                var desc = host.Descriptor;var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
                 var c3Offset = desc.GetOffset<C3>();
 
@@ -309,7 +281,7 @@ public static partial class EntityHostExtensions
                 ref readonly var userData = ref data.Item2;
 
                 for (int i = from; i != to; ++i) {
-                    ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
+                    ref var byteRef = ref host.GetByteRef(i);
                     handler(userData,
                         ref c1Offset.Get(ref byteRef),
                         ref c2Offset.Get(ref byteRef),
@@ -324,8 +296,6 @@ public static partial class EntityHostExtensions
         => host.Handle((handler, userData),
             static (IEntityHost host, in (DataComponentHandler<TData, C1, C2, C3, C4>, TData) data, int from, int to) => {
                 var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
                 var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
                 var c3Offset = desc.GetOffset<C3>();
@@ -335,7 +305,7 @@ public static partial class EntityHostExtensions
                 ref readonly var userData = ref data.Item2;
 
                 for (int i = from; i != to; ++i) {
-                    ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
+                    ref var byteRef = ref host.GetByteRef(i);
                     handler(userData,
                         ref c1Offset.Get(ref byteRef),
                         ref c2Offset.Get(ref byteRef),
@@ -350,10 +320,7 @@ public static partial class EntityHostExtensions
         where TRunner : IRunner
         => host.Handle((handler, userData),
             static (IEntityHost host, in (DataComponentHandler<TData, C1, C2, C3, C4, C5>, TData) data, int from, int to) => {
-                var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
-                var c1Offset = desc.GetOffset<C1>();
+                var desc = host.Descriptor;var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
                 var c3Offset = desc.GetOffset<C3>();
                 var c4Offset = desc.GetOffset<C4>();
@@ -363,7 +330,7 @@ public static partial class EntityHostExtensions
                 ref readonly var userData = ref data.Item2;
 
                 for (int i = from; i != to; ++i) {
-                    ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
+                    ref var byteRef = ref host.GetByteRef(i);
                     handler(userData,
                         ref c1Offset.Get(ref byteRef),
                         ref c2Offset.Get(ref byteRef),
@@ -379,10 +346,7 @@ public static partial class EntityHostExtensions
         where TRunner : IRunner
         => host.Handle((handler, userData),
             static (IEntityHost host, in (DataComponentHandler<TData, C1, C2, C3, C4, C5, C6>, TData) data, int from, int to) => {
-                var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
-                var c1Offset = desc.GetOffset<C1>();
+                var desc = host.Descriptor;var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
                 var c3Offset = desc.GetOffset<C3>();
                 var c4Offset = desc.GetOffset<C4>();
@@ -393,7 +357,7 @@ public static partial class EntityHostExtensions
                 ref readonly var userData = ref data.Item2;
 
                 for (int i = from; i != to; ++i) {
-                    ref var byteRef = ref host.UnsafeGetByteRef(slots[i]);
+                    ref var byteRef = ref host.GetByteRef(i);
                     handler(userData,
                         ref c1Offset.Get(ref byteRef),
                         ref c2Offset.Get(ref byteRef),
@@ -591,13 +555,10 @@ public static partial class EntityHostExtensions
         => host.Handle(handler,
             static (IEntityHost host, in ComponentHandlerWithEntity<C1> handler, int from, int to) => {
                 var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
                 var c1Offset = desc.GetOffset<C1>();
 
                 for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot, out var entity);
+                    ref var byteRef = ref host.GetByteRef(i, out var entity);
                     handler(entity, ref c1Offset.Get(ref byteRef));
                 }
             }, runner, barrier);
@@ -609,14 +570,11 @@ public static partial class EntityHostExtensions
         => host.Handle(handler,
             static (IEntityHost host, in ComponentHandlerWithEntity<C1, C2> handler, int from, int to) => {
                 var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
                 var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
 
                 for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot, out var entity);
+                    ref var byteRef = ref host.GetByteRef(i, out var entity);
                     handler(entity,
                         ref c1Offset.Get(ref byteRef),
                         ref c2Offset.Get(ref byteRef));
@@ -630,15 +588,12 @@ public static partial class EntityHostExtensions
         => host.Handle(handler,
             static (IEntityHost host, in ComponentHandlerWithEntity<C1, C2, C3> handler, int from, int to) => {
                 var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
                 var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
                 var c3Offset = desc.GetOffset<C3>();
 
                 for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot, out var entity);
+                    ref var byteRef = ref host.GetByteRef(i, out var entity);
                     handler(entity,
                         ref c1Offset.Get(ref byteRef),
                         ref c2Offset.Get(ref byteRef),
@@ -653,16 +608,13 @@ public static partial class EntityHostExtensions
         => host.Handle(handler,
             static (IEntityHost host, in ComponentHandlerWithEntity<C1, C2, C3, C4> handler, int from, int to) => {
                 var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
                 var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
                 var c3Offset = desc.GetOffset<C3>();
                 var c4Offset = desc.GetOffset<C4>();
 
                 for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot, out var entity);
+                    ref var byteRef = ref host.GetByteRef(i, out var entity);
                     handler(entity,
                         ref c1Offset.Get(ref byteRef),
                         ref c2Offset.Get(ref byteRef),
@@ -678,8 +630,6 @@ public static partial class EntityHostExtensions
         => host.Handle(handler,
             static (IEntityHost host, in ComponentHandlerWithEntity<C1, C2, C3, C4, C5> handler, int from, int to) => {
                 var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
                 var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
                 var c3Offset = desc.GetOffset<C3>();
@@ -687,8 +637,7 @@ public static partial class EntityHostExtensions
                 var c5Offset = desc.GetOffset<C5>();
 
                 for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot, out var entity);
+                    ref var byteRef = ref host.GetByteRef(i, out var entity);
                     handler(entity,
                         ref c1Offset.Get(ref byteRef),
                         ref c2Offset.Get(ref byteRef),
@@ -705,8 +654,6 @@ public static partial class EntityHostExtensions
         => host.Handle(handler,
             static (IEntityHost host, in ComponentHandlerWithEntity<C1, C2, C3, C4, C5, C6> handler, int from, int to) => {
                 var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
                 var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
                 var c3Offset = desc.GetOffset<C3>();
@@ -715,8 +662,7 @@ public static partial class EntityHostExtensions
                 var c6Offset = desc.GetOffset<C6>();
 
                 for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot, out var entity);
+                    ref var byteRef = ref host.GetByteRef(i, out var entity);
                     handler(entity,
                         ref c1Offset.Get(ref byteRef),
                         ref c2Offset.Get(ref byteRef),
@@ -734,16 +680,13 @@ public static partial class EntityHostExtensions
         => host.Handle((handler, userData),
             static (IEntityHost host, in (DataComponentHandlerWithEntity<TData, C1>, TData) data, int from, int to) => {
                 var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
                 var c1Offset = desc.GetOffset<C1>();
 
                 var handler = data.Item1;
                 ref readonly var userData = ref data.Item2;
 
                 for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot, out var entity);
+                    ref var byteRef = ref host.GetByteRef(i, out var entity);
                     handler(entity, userData, ref c1Offset.Get(ref byteRef));
                 }
             }, runner, barrier);
@@ -755,8 +698,6 @@ public static partial class EntityHostExtensions
         => host.Handle((handler, userData),
             static (IEntityHost host, in (DataComponentHandlerWithEntity<TData, C1, C2>, TData) data, int from, int to) => {
                 var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
                 var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
 
@@ -764,8 +705,7 @@ public static partial class EntityHostExtensions
                 ref readonly var userData = ref data.Item2;
 
                 for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot, out var entity);
+                    ref var byteRef = ref host.GetByteRef(i, out var entity);
                     handler(entity, userData,
                         ref c1Offset.Get(ref byteRef),
                         ref c2Offset.Get(ref byteRef));
@@ -779,8 +719,6 @@ public static partial class EntityHostExtensions
         => host.Handle((handler, userData),
             static (IEntityHost host, in (DataComponentHandlerWithEntity<TData, C1, C2, C3>, TData) data, int from, int to) => {
                 var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
                 var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
                 var c3Offset = desc.GetOffset<C3>();
@@ -789,8 +727,7 @@ public static partial class EntityHostExtensions
                 ref readonly var userData = ref data.Item2;
 
                 for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot, out var entity);
+                    ref var byteRef = ref host.GetByteRef(i, out var entity);
                     handler(entity, userData,
                         ref c1Offset.Get(ref byteRef),
                         ref c2Offset.Get(ref byteRef),
@@ -805,8 +742,6 @@ public static partial class EntityHostExtensions
         => host.Handle((handler, userData),
             static (IEntityHost host, in (DataComponentHandlerWithEntity<TData, C1, C2, C3, C4>, TData) data, int from, int to) => {
                 var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
                 var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
                 var c3Offset = desc.GetOffset<C3>();
@@ -816,8 +751,7 @@ public static partial class EntityHostExtensions
                 ref readonly var userData = ref data.Item2;
 
                 for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot, out var entity);
+                    ref var byteRef = ref host.GetByteRef(i, out var entity);
                     handler(entity, userData,
                         ref c1Offset.Get(ref byteRef),
                         ref c2Offset.Get(ref byteRef),
@@ -833,8 +767,6 @@ public static partial class EntityHostExtensions
         => host.Handle((handler, userData),
             static (IEntityHost host, in (DataComponentHandlerWithEntity<TData, C1, C2, C3, C4, C5>, TData) data, int from, int to) => {
                 var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
                 var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
                 var c3Offset = desc.GetOffset<C3>();
@@ -845,8 +777,7 @@ public static partial class EntityHostExtensions
                 ref readonly var userData = ref data.Item2;
 
                 for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot, out var entity);
+                    ref var byteRef = ref host.GetByteRef(i, out var entity);
                     handler(entity, userData,
                         ref c1Offset.Get(ref byteRef),
                         ref c2Offset.Get(ref byteRef),
@@ -863,8 +794,6 @@ public static partial class EntityHostExtensions
         => host.Handle((handler, userData),
             static (IEntityHost host, in (DataComponentHandlerWithEntity<TData, C1, C2, C3, C4, C5, C6>, TData) data, int from, int to) => {
                 var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
                 var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
                 var c3Offset = desc.GetOffset<C3>();
@@ -876,8 +805,7 @@ public static partial class EntityHostExtensions
                 ref readonly var userData = ref data.Item2;
 
                 for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot, out var entity);
+                    ref var byteRef = ref host.GetByteRef(i, out var entity);
                     handler(entity, userData,
                         ref c1Offset.Get(ref byteRef),
                         ref c2Offset.Get(ref byteRef),
@@ -1075,17 +1003,15 @@ public static partial class EntityHostExtensions
         => host.Handle((filter, handler),
             static (IEntityHost host, in (ComponentFilter<C1>, EntityHandler) fs, int from, int to) => {
                 var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
                 var (filter, handler) = fs;
 
                 var c1Offset = desc.GetOffset<C1>();
 
                 for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
+                    ref var byteRef = ref host.GetByteRef(i);
 
                     if (filter(ref c1Offset.Get(ref byteRef))) {
-                        handler(host.GetEntity(slot));
+                        handler(host.GetEntity(i));
                     }
                 }
             }, runner, barrier);
@@ -1097,20 +1023,18 @@ public static partial class EntityHostExtensions
         => host.Handle((filter, handler),
             static (IEntityHost host, in (ComponentFilter<C1, C2>, EntityHandler) fs, int from, int to) => {
                 var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
                 var (filter, handler) = fs;
 
                 var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
 
                 for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
+                    ref var byteRef = ref host.GetByteRef(i);
 
                     if (filter(
                         ref c1Offset.Get(ref byteRef),
                         ref c2Offset.Get(ref byteRef))) {
-                        handler(host.GetEntity(slot));
+                        handler(host.GetEntity(i));
                     }
                 }
             }, runner, barrier);
@@ -1122,7 +1046,6 @@ public static partial class EntityHostExtensions
         => host.Handle((filter, handler),
             static (IEntityHost host, in (ComponentFilter<C1, C2, C3>, EntityHandler) fs, int from, int to) => {
                 var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
                 var (filter, handler) = fs;
 
                 var c1Offset = desc.GetOffset<C1>();
@@ -1130,14 +1053,13 @@ public static partial class EntityHostExtensions
                 var c3Offset = desc.GetOffset<C3>();
 
                 for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
+                    ref var byteRef = ref host.GetByteRef(i);
 
                     if (filter(
                         ref c1Offset.Get(ref byteRef),
                         ref c2Offset.Get(ref byteRef),
                         ref c3Offset.Get(ref byteRef))) {
-                        handler(host.GetEntity(slot));
+                        handler(host.GetEntity(i));
                     }
                 }
             }, runner, barrier);
@@ -1149,7 +1071,6 @@ public static partial class EntityHostExtensions
         => host.Handle((filter, handler),
             static (IEntityHost host, in (ComponentFilter<C1, C2, C3, C4>, EntityHandler) fs, int from, int to) => {
                 var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
                 var (filter, handler) = fs;
 
                 var c1Offset = desc.GetOffset<C1>();
@@ -1158,15 +1079,14 @@ public static partial class EntityHostExtensions
                 var c4Offset = desc.GetOffset<C4>();
 
                 for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
+                    ref var byteRef = ref host.GetByteRef(i);
 
                     if (filter(
                         ref c1Offset.Get(ref byteRef),
                         ref c2Offset.Get(ref byteRef),
                         ref c3Offset.Get(ref byteRef),
                         ref c4Offset.Get(ref byteRef))) {
-                        handler(host.GetEntity(slot));
+                        handler(host.GetEntity(i));
                     }
                 }
             }, runner, barrier);
@@ -1178,7 +1098,6 @@ public static partial class EntityHostExtensions
         => host.Handle((filter, handler),
             static (IEntityHost host, in (ComponentFilter<C1, C2, C3, C4, C5>, EntityHandler) fs, int from, int to) => {
                 var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
                 var (filter, handler) = fs;
 
                 var c1Offset = desc.GetOffset<C1>();
@@ -1188,8 +1107,7 @@ public static partial class EntityHostExtensions
                 var c5Offset = desc.GetOffset<C5>();
 
                 for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
+                    ref var byteRef = ref host.GetByteRef(i);
 
                     if (filter(
                         ref c1Offset.Get(ref byteRef),
@@ -1197,7 +1115,7 @@ public static partial class EntityHostExtensions
                         ref c3Offset.Get(ref byteRef),
                         ref c4Offset.Get(ref byteRef),
                         ref c5Offset.Get(ref byteRef))) {
-                        handler(host.GetEntity(slot));
+                        handler(host.GetEntity(i));
                     }
                 }
             }, runner, barrier);
@@ -1209,7 +1127,6 @@ public static partial class EntityHostExtensions
         => host.Handle((filter, handler),
             static (IEntityHost host, in (ComponentFilter<C1, C2, C3, C4, C5, C6>, EntityHandler) fs, int from, int to) => {
                 var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
                 var (filter, handler) = fs;
 
                 var c1Offset = desc.GetOffset<C1>();
@@ -1220,8 +1137,7 @@ public static partial class EntityHostExtensions
                 var c6Offset = desc.GetOffset<C6>();
 
                 for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
+                    ref var byteRef = ref host.GetByteRef(i);
 
                     if (filter(
                         ref c1Offset.Get(ref byteRef),
@@ -1230,7 +1146,7 @@ public static partial class EntityHostExtensions
                         ref c4Offset.Get(ref byteRef),
                         ref c5Offset.Get(ref byteRef),
                         ref c6Offset.Get(ref byteRef))) {
-                        handler(host.GetEntity(slot));
+                        handler(host.GetEntity(i));
                     }
                 }
             }, runner, barrier);
@@ -1242,8 +1158,6 @@ public static partial class EntityHostExtensions
         => host.Handle((filter, handler, userData),
             static (IEntityHost host, in (DataComponentFilter<TData, C1>, EntityHandler<TData>, TData) data, int from, int to) => {
                 var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
                 var c1Offset = desc.GetOffset<C1>();
 
                 var filter = data.Item1;
@@ -1251,11 +1165,10 @@ public static partial class EntityHostExtensions
                 ref readonly var userData = ref data.Item3;
 
                 for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
+                    ref var byteRef = ref host.GetByteRef(i);
                     
                     if (filter(userData, ref c1Offset.Get(ref byteRef))) {
-                        handler(userData, host.GetEntity(slot));
+                        handler(userData, host.GetEntity(i));
                     }
                 }
             }, runner, barrier);
@@ -1267,8 +1180,6 @@ public static partial class EntityHostExtensions
         => host.Handle((filter, handler, userData),
             static (IEntityHost host, in (DataComponentFilter<TData, C1, C2>, EntityHandler<TData>, TData) data, int from, int to) => {
                 var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
                 var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
 
@@ -1277,13 +1188,12 @@ public static partial class EntityHostExtensions
                 ref readonly var userData = ref data.Item3;
 
                 for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
+                    ref var byteRef = ref host.GetByteRef(i);
 
                     if (filter(userData,
                         ref c1Offset.Get(ref byteRef),
                         ref c2Offset.Get(ref byteRef))) {
-                        handler(userData, host.GetEntity(slot));
+                        handler(userData, host.GetEntity(i));
                     }
                 }
             }, runner, barrier);
@@ -1295,8 +1205,6 @@ public static partial class EntityHostExtensions
         => host.Handle((filter, handler, userData),
             static (IEntityHost host, in (DataComponentFilter<TData, C1, C2, C3>, EntityHandler<TData>, TData) data, int from, int to) => {
                 var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
                 var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
                 var c3Offset = desc.GetOffset<C3>();
@@ -1306,14 +1214,13 @@ public static partial class EntityHostExtensions
                 ref readonly var userData = ref data.Item3;
 
                 for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
+                    ref var byteRef = ref host.GetByteRef(i);
 
                     if (filter(userData,
                         ref c1Offset.Get(ref byteRef),
                         ref c2Offset.Get(ref byteRef),
                         ref c3Offset.Get(ref byteRef))) {
-                        handler(userData, host.GetEntity(slot));
+                        handler(userData, host.GetEntity(i));
                     }
                 }
             }, runner, barrier);
@@ -1325,8 +1232,6 @@ public static partial class EntityHostExtensions
         => host.Handle((filter, handler, userData),
             static (IEntityHost host, in (DataComponentFilter<TData, C1, C2, C3, C4>, EntityHandler<TData>, TData) data, int from, int to) => {
                 var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
                 var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
                 var c3Offset = desc.GetOffset<C3>();
@@ -1337,15 +1242,14 @@ public static partial class EntityHostExtensions
                 ref readonly var userData = ref data.Item3;
 
                 for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
+                    ref var byteRef = ref host.GetByteRef(i);
 
                     if (filter(userData,
                         ref c1Offset.Get(ref byteRef),
                         ref c2Offset.Get(ref byteRef),
                         ref c3Offset.Get(ref byteRef),
                         ref c4Offset.Get(ref byteRef))) {
-                        handler(userData, host.GetEntity(slot));
+                        handler(userData, host.GetEntity(i));
                     }
                 }
             }, runner, barrier);
@@ -1357,8 +1261,6 @@ public static partial class EntityHostExtensions
         => host.Handle((filter, handler, userData),
             static (IEntityHost host, in (DataComponentFilter<TData, C1, C2, C3, C4, C5>, EntityHandler<TData>, TData) data, int from, int to) => {
                 var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
                 var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
                 var c3Offset = desc.GetOffset<C3>();
@@ -1370,8 +1272,7 @@ public static partial class EntityHostExtensions
                 ref readonly var userData = ref data.Item3;
 
                 for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
+                    ref var byteRef = ref host.GetByteRef(i);
 
                     if (filter(userData,
                         ref c1Offset.Get(ref byteRef),
@@ -1379,7 +1280,7 @@ public static partial class EntityHostExtensions
                         ref c3Offset.Get(ref byteRef),
                         ref c4Offset.Get(ref byteRef),
                         ref c5Offset.Get(ref byteRef))) {
-                        handler(userData, host.GetEntity(slot));
+                        handler(userData, host.GetEntity(i));
                     }
                 }
             }, runner, barrier);
@@ -1391,8 +1292,6 @@ public static partial class EntityHostExtensions
         => host.Handle((filter, handler, userData),
             static (IEntityHost host, in (DataComponentFilter<TData, C1, C2, C3, C4, C5, C6>, EntityHandler<TData>, TData) data, int from, int to) => {
                 var desc = host.Descriptor;
-                var slots = host.AllocatedSlots;
-
                 var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
                 var c3Offset = desc.GetOffset<C3>();
@@ -1405,8 +1304,7 @@ public static partial class EntityHostExtensions
                 ref readonly var userData = ref data.Item3;
 
                 for (int i = from; i != to; ++i) {
-                    ref readonly var slot = ref slots[i];
-                    ref var byteRef = ref host.UnsafeGetByteRef(slot);
+                    ref var byteRef = ref host.GetByteRef(i);
 
                     if (filter(userData,
                         ref c1Offset.Get(ref byteRef),
@@ -1415,7 +1313,7 @@ public static partial class EntityHostExtensions
                         ref c4Offset.Get(ref byteRef),
                         ref c5Offset.Get(ref byteRef),
                         ref c6Offset.Get(ref byteRef))) {
-                        handler(userData, host.GetEntity(slot));
+                        handler(userData, host.GetEntity(i));
                     }
                 }
             }, runner, barrier);

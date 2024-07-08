@@ -11,8 +11,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sia.CodeGenerators", "Sia.C
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sia.Tests", "Sia.Tests\Sia.Tests.csproj", "{474D6C7F-9F35-4F85-8B7F-6BC7D767CFBD}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sia.Reactors", "Sia.Reactors\Sia.Reactors.csproj", "{2431731D-F292-46D3-8656-E3C617C46E10}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sia.Prelude", "Sia.Prelude\Sia.Prelude.csproj", "{8ED10D5C-E5BA-4ECA-80C0-CA09C706CCE2}"
 EndProject
 Global
@@ -37,10 +35,6 @@ Global
 		{474D6C7F-9F35-4F85-8B7F-6BC7D767CFBD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{474D6C7F-9F35-4F85-8B7F-6BC7D767CFBD}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{474D6C7F-9F35-4F85-8B7F-6BC7D767CFBD}.Release|Any CPU.Build.0 = Release|Any CPU
-		{2431731D-F292-46D3-8656-E3C617C46E10}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{2431731D-F292-46D3-8656-E3C617C46E10}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{2431731D-F292-46D3-8656-E3C617C46E10}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{2431731D-F292-46D3-8656-E3C617C46E10}.Release|Any CPU.Build.0 = Release|Any CPU
 		{8ED10D5C-E5BA-4ECA-80C0-CA09C706CCE2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{8ED10D5C-E5BA-4ECA-80C0-CA09C706CCE2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8ED10D5C-E5BA-4ECA-80C0-CA09C706CCE2}.Release|Any CPU.ActiveCfg = Release|Any CPU

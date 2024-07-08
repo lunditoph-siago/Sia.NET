@@ -11,7 +11,7 @@ public class ComponentsTests
     {
         using var fixture = new WorldFixture();
 
-        var entityRef = fixture.World.CreateInArrayHost(Transform.BakedEntity);
+        var entityRef = fixture.World.Create(Transform.BakedEntity);
 
         ref var position = ref entityRef.Get<Position>();
         ref var rotation = ref entityRef.Get<Rotation>();

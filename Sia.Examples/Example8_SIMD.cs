@@ -100,7 +100,7 @@ public static class Example8_Sum
             .CreateStage(world);
         
         for (int i = 0; i != 1000000; ++i) {
-            world.CreateInArrayHost(HList.Create(
+            world.Create(HList.Create(
                 new Number { Value = 1 }
             ));
         }

@@ -11,28 +11,14 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
     private static readonly byte[] Dividor = Encoding.Unicode.GetBytes(";");
     private static readonly byte[] StorageAliasHeader = Encoding.Unicode.GetBytes("$");
 
-    private static readonly FrozenDictionary<Type, byte[]> s_storageAlias = new Dictionary<Type, byte[]> {
-        [typeof(ArrayBufferStorage<>)] = Encoding.Unicode.GetBytes("$A"),
-        [typeof(HashBufferStorage<>)] = Encoding.Unicode.GetBytes("$H"),
-        [typeof(BucketBufferStorage<>)] = Encoding.Unicode.GetBytes("$B"),
-        [typeof(SparseBufferStorage<>)] = Encoding.Unicode.GetBytes("$S"),
-
-        [typeof(UnversionedArrayBufferStorage<>)] = Encoding.Unicode.GetBytes("$UA"),
-        [typeof(UnversionedHashBufferStorage<>)] = Encoding.Unicode.GetBytes("$UH"),
-        [typeof(UnversionedBucketBufferStorage<>)] = Encoding.Unicode.GetBytes("$UB"),
-        [typeof(UnversionedSparseBufferStorage<>)] = Encoding.Unicode.GetBytes("$US")
+    private static readonly FrozenDictionary<Type, byte[]> s_hostAlias = new Dictionary<Type, byte[]> {
+        [typeof(ArrayEntityHost<>)] = Encoding.Unicode.GetBytes("$A"),
+        [typeof(UnmanagedArrayEntityHost<>)] = Encoding.Unicode.GetBytes("$U"),
     }.ToFrozenDictionary();
 
-    private static readonly FrozenDictionary<string, Type> s_aliasStorageTypes = new Dictionary<string, Type> {
-        ["$A"] = typeof(ArrayBufferStorage<>),
-        ["$H"] = typeof(HashBufferStorage<>),
-        ["$B"] = typeof(BucketBufferStorage<>),
-        ["$S"] = typeof(SparseBufferStorage<>),
-
-        ["$UA"] = typeof(UnversionedArrayBufferStorage<>),
-        ["$UH"] = typeof(UnversionedHashBufferStorage<>),
-        ["$UB"] = typeof(UnversionedBucketBufferStorage<>),
-        ["$US"] = typeof(UnversionedSparseBufferStorage<>)
+    private static readonly FrozenDictionary<string, Type> s_aliasHostTypes = new Dictionary<string, Type> {
+        ["$A"] = typeof(ArrayEntityHost<>),
+        ["$U"] = typeof(UnmanagedArrayEntityHost<>)
     }.ToFrozenDictionary();
 
     public static void Serialize<TBufferWriter>(ref TBufferWriter writer, IEntityHost host)
@@ -46,15 +32,15 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
 
         var type = host.GetType();
         if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(WorldEntityHost<,>)) {
-            var storageType = type.GetGenericArguments()[1];
-            if (storageType.IsGenericType
-                    && s_storageAlias.TryGetValue(storageType.GetGenericTypeDefinition(), out var alias)) {
+            var innerHostType = type.GetGenericArguments()[1];
+            if (innerHostType.IsGenericType
+                    && s_hostAlias.TryGetValue(innerHostType.GetGenericTypeDefinition(), out var alias)) {
                 writer.Write(alias);
             }
             else {
                 writer.Write(StorageAliasHeader);
                 writer.Write(Encoding.Unicode.GetBytes(
-                    storageType.AssemblyQualifiedName!.Replace(
+                    innerHostType.AssemblyQualifiedName!.Replace(
                         host.EntityType.AssemblyQualifiedName!, "%1")));
             }
             writer.Write(Dividor);
@@ -85,12 +71,12 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
         var entityTypeName = GenerateHListType(components);
 
         var hostTypeName = Encoding.Unicode.GetString(hostTypeRaw);
-        if (s_aliasStorageTypes.TryGetValue(hostTypeName, out var storageType)) {
-            return GetWorldHost(world, storageType, Type.GetType(entityTypeName)!);
+        if (s_aliasHostTypes.TryGetValue(hostTypeName, out var innerHostType)) {
+            return GetWorldHost(world, innerHostType, Type.GetType(entityTypeName)!);
         }
         else if (hostTypeName[0] == '$') {
-            storageType = Type.GetType(hostTypeName[1..].Replace("%1", entityTypeName))!;
-            return GetWorldHost(world, storageType, Type.GetType(entityTypeName)!);
+            innerHostType = Type.GetType(hostTypeName[1..].Replace("%1", entityTypeName))!;
+            return GetWorldHost(world, innerHostType, Type.GetType(entityTypeName)!);
         }
 
         hostTypeName = hostTypeName.Replace("%1", entityTypeName);
@@ -99,9 +85,9 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
 
     private static readonly MethodInfo s_acquireHostMethod = 
         typeof(ReflectionHostHeaderSerializer)
-            .GetMethod("AcquireHost", BindingFlags.Static | BindingFlags.NonPublic)!;
+            .GetMethod("AcquireHost", BindingFlags.Static | BindingFlags.Public)!;
 
-    private static IReactiveEntityHost AcquireHost<THost>(World world)
+    public static IReactiveEntityHost AcquireHost<THost>(World world)
         where THost : class, IReactiveEntityHost
         => world.TryGetHost<THost>(out var host)
             ? host : world.UnsafeAddRawHost(
@@ -115,11 +101,10 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
         return Unsafe.As<IReactiveEntityHost>(acquireHostMethod.Invoke(null, [world]))!;
     }
 
-    private static IReactiveEntityHost GetWorldHost(World world, Type storageGenericType, Type entityType)
+    private static IReactiveEntityHost GetWorldHost(World world, Type hostGenericType, Type entityType)
     {
-        var storageType = storageGenericType.MakeGenericType(
-            typeof(HList<,>).MakeGenericType(typeof(Entity), entityType));
-        var hostType = typeof(WorldEntityHost<,>).MakeGenericType(entityType, storageType);
+        var innerHostType = hostGenericType.MakeGenericType(entityType);
+        var hostType = typeof(WorldEntityHost<,>).MakeGenericType(entityType, innerHostType);
         var acquireHostMethod = s_acquireHostMethod.MakeGenericMethod(hostType);
         return Unsafe.As<IReactiveEntityHost>(acquireHostMethod.Invoke(null, [world]))!;
     }

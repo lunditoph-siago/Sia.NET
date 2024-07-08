@@ -74,12 +74,11 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
                 BinaryPrimitives.WriteInt32BigEndian(intSpan, host.Count);
                 writer.Write(intSpan);
 
-                foreach (var slot in host.AllocatedSlots) {
-                    var entity = host.GetEntity(slot);
+                foreach (var entity in host) {
                     serializer.Serialize(ref writer, entity.Id);
                 }
-                foreach (var slot in host.AllocatedSlots) {
-                    host.GetHList(slot, entitySerializer);
+                foreach (var entity in host) {
+                    entity.GetHList(entitySerializer);
                 }
             }
         }

@@ -14,45 +14,45 @@ public partial class World
 
     private readonly SparseSet<IReactiveEntityHost> _hosts = [];
 
-    public bool TryGetHost<TEntity, TStorage>([MaybeNullWhen(false)] out WorldEntityHost<TEntity, TStorage> host)
+    public bool TryGetHost<TEntity, THost>([MaybeNullWhen(false)] out WorldEntityHost<TEntity, THost> host)
         where TEntity : IHList
-        where TStorage : IStorage<HList<Entity, TEntity>>, new()
+        where THost : IEntityHost<TEntity>, new()
     {
         ref var rawHost = ref _hosts.GetValueRefOrNullRef(
-            WorldEntityHostIndexer<WorldEntityHost<TEntity, TStorage>>.Index);
+            WorldEntityHostIndexer<WorldEntityHost<TEntity, THost>>.Index);
         if (Unsafe.IsNullRef(ref rawHost)) {
             host = null;
             return false;
         }
-        host = Unsafe.As<WorldEntityHost<TEntity, TStorage>>(rawHost);
+        host = Unsafe.As<WorldEntityHost<TEntity, THost>>(rawHost);
         return true;
     }
 
-    public WorldEntityHost<TEntity, TStorage> AddHost<TEntity, TStorage>()
+    public WorldEntityHost<TEntity, THost> AddHost<TEntity, THost>()
         where TEntity : IHList
-        where TStorage : IStorage<HList<Entity, TEntity>>, new()
+        where THost : IEntityHost<TEntity>, new()
     {
         ref var rawHost = ref _hosts.GetOrAddValueRef(
-            WorldEntityHostIndexer<WorldEntityHost<TEntity, TStorage>>.Index, out bool exists);
+            WorldEntityHostIndexer<WorldEntityHost<TEntity, THost>>.Index, out bool exists);
         if (exists) {
             throw new ArgumentException("Host with the same type already exists");
         }
-        var host = new WorldEntityHost<TEntity, TStorage>(this);
+        var host = new WorldEntityHost<TEntity, THost>(this);
         OnEntityHostAdded?.Invoke(host);
         rawHost = host;
         return host;
     }
 
-    public WorldEntityHost<TEntity, TStorage> AcquireHost<TEntity, TStorage>()
+    public WorldEntityHost<TEntity, THost> AcquireHost<TEntity, THost>()
         where TEntity : IHList
-        where TStorage : IStorage<HList<Entity, TEntity>>, new()
+        where THost : IEntityHost<TEntity>, new()
     {
         ref var rawHost = ref _hosts.GetOrAddValueRef(
-            WorldEntityHostIndexer<WorldEntityHost<TEntity, TStorage>>.Index, out bool exists);
+            WorldEntityHostIndexer<WorldEntityHost<TEntity, THost>>.Index, out bool exists);
         if (exists) {
-            return Unsafe.As<WorldEntityHost<TEntity, TStorage>>(rawHost);
+            return Unsafe.As<WorldEntityHost<TEntity, THost>>(rawHost);
         }
-        var host = new WorldEntityHost<TEntity, TStorage>(this);
+        var host = new WorldEntityHost<TEntity, THost>(this);
         OnEntityHostAdded?.Invoke(host);
         rawHost = host;
         return host;
