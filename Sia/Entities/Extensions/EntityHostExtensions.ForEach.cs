@@ -116,7 +116,8 @@ public static partial class EntityHostExtensions
         where TRunner : IRunner
         => host.Handle(handler,
             static (IEntityHost host, in ComponentHandler<C1> handler, int from, int to) => {
-                var desc = host.Descriptor;var c1Offset = desc.GetOffset<C1>();
+                var desc = host.Descriptor;
+                var c1Offset = desc.GetOffset<C1>();
 
                 for (int i = from; i != to; ++i) {
                     ref var byteRef = ref host.GetByteRef(i);
@@ -130,7 +131,8 @@ public static partial class EntityHostExtensions
         where TRunner : IRunner
         => host.Handle(handler,
             static (IEntityHost host, in ComponentHandler<C1, C2> handler, int from, int to) => {
-                var desc = host.Descriptor;var c1Offset = desc.GetOffset<C1>();
+                var desc = host.Descriptor;
+                var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
 
                 for (int i = from; i != to; ++i) {
@@ -147,7 +149,8 @@ public static partial class EntityHostExtensions
         where TRunner : IRunner
         => host.Handle(handler,
             static (IEntityHost host, in ComponentHandler<C1, C2, C3> handler, int from, int to) => {
-                var desc = host.Descriptor;var c1Offset = desc.GetOffset<C1>();
+                var desc = host.Descriptor;
+                var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
                 var c3Offset = desc.GetOffset<C3>();
 
@@ -166,7 +169,8 @@ public static partial class EntityHostExtensions
         where TRunner : IRunner
         => host.Handle(handler,
             static (IEntityHost host, in ComponentHandler<C1, C2, C3, C4> handler, int from, int to) => {
-                var desc = host.Descriptor;var c1Offset = desc.GetOffset<C1>();
+                var desc = host.Descriptor;
+                var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
                 var c3Offset = desc.GetOffset<C3>();
                 var c4Offset = desc.GetOffset<C4>();
@@ -187,7 +191,8 @@ public static partial class EntityHostExtensions
         where TRunner : IRunner
         => host.Handle(handler,
             static (IEntityHost host, in ComponentHandler<C1, C2, C3, C4, C5> handler, int from, int to) => {
-                var desc = host.Descriptor;var c1Offset = desc.GetOffset<C1>();
+                var desc = host.Descriptor;
+                var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
                 var c3Offset = desc.GetOffset<C3>();
                 var c4Offset = desc.GetOffset<C4>();
@@ -210,7 +215,8 @@ public static partial class EntityHostExtensions
         where TRunner : IRunner
         => host.Handle(handler,
             static (IEntityHost host, in ComponentHandler<C1, C2, C3, C4, C5, C6> handler, int from, int to) => {
-                var desc = host.Descriptor;var c1Offset = desc.GetOffset<C1>();
+                var desc = host.Descriptor;
+                var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
                 var c3Offset = desc.GetOffset<C3>();
                 var c4Offset = desc.GetOffset<C4>();
@@ -253,7 +259,8 @@ public static partial class EntityHostExtensions
         where TRunner : IRunner
         => host.Handle((handler, userData),
             static (IEntityHost host, in (DataComponentHandler<TData, C1, C2>, TData) data, int from, int to) => {
-                var desc = host.Descriptor;var c1Offset = desc.GetOffset<C1>();
+                var desc = host.Descriptor;
+                var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
 
                 var handler = data.Item1;
@@ -273,7 +280,8 @@ public static partial class EntityHostExtensions
         where TRunner : IRunner
         => host.Handle((handler, userData),
             static (IEntityHost host, in (DataComponentHandler<TData, C1, C2, C3>, TData) data, int from, int to) => {
-                var desc = host.Descriptor;var c1Offset = desc.GetOffset<C1>();
+                var desc = host.Descriptor;
+                var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
                 var c3Offset = desc.GetOffset<C3>();
 
@@ -320,7 +328,8 @@ public static partial class EntityHostExtensions
         where TRunner : IRunner
         => host.Handle((handler, userData),
             static (IEntityHost host, in (DataComponentHandler<TData, C1, C2, C3, C4, C5>, TData) data, int from, int to) => {
-                var desc = host.Descriptor;var c1Offset = desc.GetOffset<C1>();
+                var desc = host.Descriptor;
+                var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
                 var c3Offset = desc.GetOffset<C3>();
                 var c4Offset = desc.GetOffset<C4>();
@@ -346,7 +355,8 @@ public static partial class EntityHostExtensions
         where TRunner : IRunner
         => host.Handle((handler, userData),
             static (IEntityHost host, in (DataComponentHandler<TData, C1, C2, C3, C4, C5, C6>, TData) data, int from, int to) => {
-                var desc = host.Descriptor;var c1Offset = desc.GetOffset<C1>();
+                var desc = host.Descriptor;
+                var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
                 var c3Offset = desc.GetOffset<C3>();
                 var c4Offset = desc.GetOffset<C4>();
