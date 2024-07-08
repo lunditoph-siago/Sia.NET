@@ -40,16 +40,7 @@ public partial record Entity : IDisposable
         => "[Entity " + Id + "]";
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool Contains<TComponent>()
-    {
-        try {
-            Descriptor.GetOffset<TComponent>();
-            return true;
-        }
-        catch {
-            return false;
-        }
-    }
+    public bool Contains<TComponent>() => Descriptor.Contains<TComponent>();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Contains(Type componentType)
