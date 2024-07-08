@@ -8,7 +8,7 @@
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <IsRoslynComponent>true</IsRoslynComponent>
-    <PackageId>Sia</PackageId>
+    <PackageId>Sia.CodeGenerators</PackageId>
     <PackageDescription>Code generators for Sia.NET</PackageDescription>
     <Author>Phlamcenth Sicusa</Author>
     <Company>Gilatod.art</Company>
