@@ -142,7 +142,7 @@ public static partial class Example3_MoveRotator
     {
         public static Entity Create(World world, Vector3 position)
         {
-            return world.Create(HList.Create(
+            return world.Create(HList.From(
                 new Position(position),
                 new Rotation(),
                 new Mover(5f),

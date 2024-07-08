@@ -22,11 +22,11 @@ public static class Example15_Serialization
     {
         var compressor = new BrotliCompressor();
 
-        var e1 = world.Create(HList.Create(new C1("?"), 0, "asdf"));
-        var e2 = world.Create(HList.Create(1234, "asdf", 1324f, Math.PI));
+        var e1 = world.Create(HList.From(new C1("?"), 0, "asdf"));
+        var e2 = world.Create(HList.From(1234, "asdf", 1324f, Math.PI));
         e2.Add(new Likes<float>(e1));
         e2.Add(new Has(31415, e2));
-        world.Create(HList.Create(1234, "asdf", 1324f, Math.PI));
+        world.Create(HList.From(1234, "asdf", 1324f, Math.PI));
 
         BinaryWorldSerializer.Serialize(ref compressor, world);
 

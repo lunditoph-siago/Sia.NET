@@ -13,7 +13,7 @@ public static class Example8_Sum
         public int Value;
     }
 
-    public class SumSystem() : SystemBase(
+    public class ForSliceSumSystem() : SystemBase(
         Matchers.Of<Number>())
     {
         private int _acc = 0;
@@ -30,7 +30,29 @@ public static class Example8_Sum
             query.ForSlice<Number>(Accumulate);
             
             watch.Stop();
-            Console.WriteLine("[SumSystem]");
+            Console.WriteLine("[ForSliceSumSystem]");
+            Console.WriteLine("Result: " + _acc);
+            Console.WriteLine("Time: " + watch.Elapsed);
+        }
+    }
+
+    public class ForEachSumSystem() : SystemBase(
+        Matchers.Of<Number>())
+    {
+        private int _acc = 0;
+
+        public override void Execute(World world, IEntityQuery query)
+        {
+            var watch = new Stopwatch();
+            watch.Start();
+
+            _acc = 0;
+            foreach (var entity in query) {
+                _acc += entity.Get<Number>().Value;
+            }
+            
+            watch.Stop();
+            Console.WriteLine("[ForEachSumSystem]");
             Console.WriteLine("Result: " + _acc);
             Console.WriteLine("Time: " + watch.Elapsed);
         }
@@ -94,13 +116,14 @@ public static class Example8_Sum
     public static void Run(World world)
     {
         var stage = SystemChain.Empty
-            .Add<SumSystem>()
+            .Add<ForSliceSumSystem>()
+            .Add<ForEachSumSystem>()
             .Add<RecordSumSystem>()
             .Add<VectorizedSumSystem>()
             .CreateStage(world);
         
         for (int i = 0; i != 1000000; ++i) {
-            world.Create(HList.Create(
+            world.Create(HList.From(
                 new Number { Value = 1 }
             ));
         }

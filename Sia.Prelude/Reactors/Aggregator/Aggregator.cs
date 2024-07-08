@@ -156,5 +156,5 @@ public class Aggregator<TId> : AggregatorBase<TId>
     where TId : notnull, IEquatable<TId>
 {
     protected override Entity CreateAggregationEntity()
-        => World.Create(HList.Create(new Aggregation<TId>()));
+        => World.Create(HList.From(new Aggregation<TId>()));
 }

@@ -25,7 +25,7 @@ public partial record struct Scale([Sia] float Value)
 public partial record struct Transform([Sia] Position Position, [Sia] Rotation Rotation, [Sia] Scale Scale)
 {
     public static HList<Position, HList<Rotation, HList<Scale, EmptyHList>>> BakedEntity =>
-        HList.Create((Position)Vector3.Zero, (Rotation)Quaternion.Identity, (Scale)1.0f);
+        HList.From((Position)Vector3.Zero, (Rotation)Quaternion.Identity, (Scale)1.0f);
 
     public readonly record struct SetEuler(Vector3 Euler) : ICommand
     {

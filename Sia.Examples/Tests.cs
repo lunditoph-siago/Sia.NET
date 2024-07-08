@@ -36,7 +36,7 @@ public record struct Scale
 
 public unsafe static class Tests
 {
-    public static readonly TestEntity DefaultTestEntity = HList.Create(
+    public static readonly TestEntity DefaultTestEntity = HList.From(
         new Position(1, 2, 3),
         new Rotation { Angle = 2 },
         new Scale() {

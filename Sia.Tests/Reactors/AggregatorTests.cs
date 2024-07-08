@@ -38,7 +38,7 @@ public class AggregatorTests(AggregatorTests.AggregatorContext context) : IClass
     {
         // Act
         var entityRefs = objectIds
-            .Select(objectId => context.World.Create(HList.Create(Sid.From(objectId))))
+            .Select(objectId => context.World.Create(HList.From(Sid.From(objectId))))
             .ToArray();
         context.Entities.AddRange(entityRefs);
 

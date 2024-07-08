@@ -37,7 +37,7 @@ public class MapperTests(MapperTests.MapperContext context) : IClassFixture<Mapp
     {
         foreach (var objectId in objectIds) {
             // Act
-            var entityRef = context.World.Create(HList.Create(Sid.From(objectId)));
+            var entityRef = context.World.Create(HList.From(Sid.From(objectId)));
             context.Entities.Add(entityRef);
 
             // Assert

@@ -29,7 +29,7 @@ public class HListTests
     public void HList_HandleHead_Test(int value)
     {
         // Arrange
-        var list = HList.Create(value);
+        var list = HList.From(value);
         var mockHandler = new MockHandler();
 
         // Act
@@ -53,8 +53,8 @@ public class HListTests
         list2.Remove(TypeProxy<bool>._, mockHandler);
 
         // Assert
-        Assert.Equal(HList.Create("Mock", 1.0f, new Vector3(1, 2, 3), true), mockHandler.HandledValues[0]);
-        Assert.Equal(HList.Create("Mock"), mockHandler.HandledValues[1]);
-        Assert.Equal(HList.Create(new Vector3(1, 2, 3)), mockHandler.HandledValues[2]);
+        Assert.Equal(HList.From("Mock", 1.0f, new Vector3(1, 2, 3), true), mockHandler.HandledValues[0]);
+        Assert.Equal(HList.From("Mock"), mockHandler.HandledValues[1]);
+        Assert.Equal(HList.From(new Vector3(1, 2, 3)), mockHandler.HandledValues[2]);
     }
 }

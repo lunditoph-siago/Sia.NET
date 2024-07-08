@@ -18,10 +18,10 @@ public static partial class Example7_Mapper
         var id1 = ObjectId.Create();
         var id2 = ObjectId.Create();
 
-        var e1 = world.Create(HList.Create(
+        var e1 = world.Create(HList.From(
             Sid.From(id1)
         ));
-        var e2 = world.Create(HList.Create(
+        var e2 = world.Create(HList.From(
             Sid.From(id2)
         ));
 

@@ -19,7 +19,7 @@ public class BundleTests
     {
         using var fixture = new WorldFixture();
 
-        var entityRef = fixture.World.Create(HList.Create(0))
+        var entityRef = fixture.World.Create(HList.From(0))
             .AddBundle(transform)
             .AddBundle(gameObject);
 
@@ -35,7 +35,7 @@ public class BundleTests
     {
         using var fixture = new WorldFixture();
 
-        var entityRef = fixture.World.Create(HList.Create(0))
+        var entityRef = fixture.World.Create(HList.From(0))
             .AddBundle(
                 new DynBundle()
                     .AddBundle(transform)
