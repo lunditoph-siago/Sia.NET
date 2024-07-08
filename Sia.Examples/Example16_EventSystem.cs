@@ -150,7 +150,7 @@ public static partial class Example16_EventSystem
             .Add<TagsTemplateEventSystem>()
             .CreateStage(world);
 
-        var e = world.Create(HList.Create(
+        var e = world.Create(HList.From(
             new Position(1, 1), new Tags([])));
 
         var pos = new Position.View(e);

@@ -198,7 +198,7 @@ public static class HList
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static HList<T1, HList<T2, EmptyHList>>
-        Create<T1, T2>(in T1 item1, in T2 item2)
+        From<T1, T2>(in T1 item1, in T2 item2)
         => Cons(item1, Create(item2));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

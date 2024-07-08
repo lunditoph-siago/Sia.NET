@@ -41,7 +41,7 @@ public class HierarchyTests(HierarchyTests.HierarchyContext context) : IClassFix
             var node = index >= 0
                 ? new Node<HierarchyContext.TestTag>(context.Entities[index])
                 : new Node<HierarchyContext.TestTag>();
-            var entityRef = context.World.Create(HList.Create(node, new HierarchyContext.Name(name)));
+            var entityRef = context.World.Create(HList.From(node, new HierarchyContext.Name(name)));
             context.Entities.Add(entityRef);
         }
 

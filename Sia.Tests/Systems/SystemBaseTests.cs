@@ -96,7 +96,7 @@ public partial class SystemBaseTests
     public void SystemBaseMultiComponents_Trigger_Test()
     {
         using var fixture = new WorldFixture();
-        var entity = fixture.World.Create(HList.Create(new VariableData(), new ConstData()));
+        var entity = fixture.World.Create(HList.From(new VariableData(), new ConstData()));
 
         var stage = SystemChain.Empty
             .Add<MultiComponentsUpdateContext.UpdateMultiComponentsWithTriggerSystem>()

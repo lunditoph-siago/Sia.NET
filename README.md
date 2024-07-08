@@ -113,13 +113,13 @@ public static partial class Example1_HealthDamage
     public static class Player
     {
         public static Entity Create(World world)
-            => world.CreateInArrayHost(HList.Create(
+            => world.Create(HList.From(
                 new Transform(),
                 new Health()
             ));
 
         public static Entity Create(World world, Vector2 position)
-            => world.CreateInArrayHost(HList.Create(
+            => world.Create(HList.From(
                 new Transform {
                     Position = position
                 },

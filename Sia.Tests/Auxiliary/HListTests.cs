@@ -43,8 +43,8 @@ public class HListTests
     public void HList_ConsTwoHLists_Test()
     {
         // Arrange
-        var list1 = HList.Create("Mock", 1.0f);
-        var list2 = HList.Create(new Vector3(1, 2, 3), true);
+        var list1 = HList.From("Mock", 1.0f);
+        var list2 = HList.From(new Vector3(1, 2, 3), true);
         var mockHandler = new MockGenericHandler();
 
         // Act
