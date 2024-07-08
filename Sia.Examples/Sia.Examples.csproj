@@ -14,7 +14,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Sia\Sia.csproj" />
     <ProjectReference Include="..\Sia.CodeGenerators\Sia.CodeGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="..\Sia.Reactors\Sia.Reactors.csproj" />
+    <ProjectReference Include="..\Sia.Prelude\Sia.Prelude.csproj" />
   </ItemGroup>
 
 </Project>
