@@ -11,19 +11,9 @@ public sealed class SystemStage : IDisposable
 {
     public record struct Entry(ISystem System, Action? Action, IDisposable? Disposable);
 
-    private class WrappedReactiveEntityHost : IReactiveEntityHost
+    private class CollectedEntityHost : IEntityHost
     {
         public IReactiveEntityHost Host { get; }
-
-        public event EntityHandler? OnEntityCreated {
-            add => Host.OnEntityCreated += value;
-            remove => Host.OnEntityCreated -= value;
-        }
-
-        public event EntityHandler? OnEntityReleased {
-            add => Host.OnEntityReleased += value;
-            remove => Host.OnEntityReleased -= value;
-        }
 
         public event Action<IEntityHost>? OnDisposed {
             add => Host.OnDisposed += value;
@@ -34,125 +24,114 @@ public sealed class SystemStage : IDisposable
         public EntityDescriptor Descriptor => Host.Descriptor;
 
         public int Capacity => Host.Capacity;
-        public int Count => _entitySlots.Count;
-        public ReadOnlySpan<StorageSlot> AllocatedSlots => _allocatedSlots.ValueSpan;
+        public int Count => _entities.Count;
 
-        private int _firstFreeSlot;
+        private readonly List<Entity> _entities = [];
+        private readonly Dictionary<Entity, int> _entityMap = [];
 
-        private readonly SparseSet<StorageSlot> _allocatedSlots = [];
-        private readonly Dictionary<Entity, int> _entitySlots = [];
-
-        public WrappedReactiveEntityHost(IReactiveEntityHost host)
+        public CollectedEntityHost(IReactiveEntityHost host)
         {
             Host = host;
             Host.OnEntityReleased += (Entity e) => Remove(e.Slot);
         }
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Add(in StorageSlot slot)
+        public void Add(int slot)
         {
-            var index = _firstFreeSlot;
+            var index = _entities.Count;
             var entity = Host.GetEntity(slot);
-            if (!_entitySlots.TryAdd(entity, index)) {
+            if (!_entityMap.TryAdd(entity, index)) {
                 return;
             }
-            _allocatedSlots.Add(index, slot);
-            while (_allocatedSlots.ContainsKey(++_firstFreeSlot)) {}
+            _entities.Add(entity);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool Remove(in StorageSlot slot)
+        public bool Remove(int slot)
         {
             var entity = Host.GetEntity(slot);
-            if (!_entitySlots.Remove(entity, out int slotIndex)) {
+            if (!_entityMap.Remove(entity, out int index)) {
                 return false;
             }
-            _allocatedSlots.Remove(slotIndex);
-            if (_firstFreeSlot > slotIndex) {
-                _firstFreeSlot = slotIndex;
-            }
+            int lastIndex = _entities.Count - 1;
+            _entities[index] = _entities[lastIndex];
+            _entities.RemoveAt(lastIndex);
             return true;
         }
 
         public void ClearCollected()
         {
-            _entitySlots.Clear();
-            _allocatedSlots.Clear();
-            _firstFreeSlot = 0;
+            _entities.Clear();
+            _entityMap.Clear();
         }
 
-        public Entity Create() => Host.Create();
-        public void Release(in StorageSlot slot) => Host.Release(slot);
-
-        public Entity GetEntity(in StorageSlot slot)
-            => Host.GetEntity(slot);
-
-        public void MoveOut(in StorageSlot slot)
-            => Host.MoveOut(slot);
-
-        public Entity Add<TComponent>(in StorageSlot slot, in TComponent initial)
-            => Host.Add(slot, initial);
-
-        public Entity AddMany<TList>(in StorageSlot slot, in TList bundle)
-            where TList : IHList
-            => Host.AddMany(slot, bundle);
-
-        public Entity Set<TComponent>(in StorageSlot slot, in TComponent initial)
-            => Host.Set(slot, initial);
-
-        public Entity Remove<TComponent>(in StorageSlot slot, out bool success)
-            => Host.Remove<TComponent>(slot, out success);
-
-        public Entity RemoveMany<TList>(in StorageSlot slot)
-            where TList : IHList
-            => Host.RemoveMany<TList>(slot);
-
-        public bool IsValid(in StorageSlot slot)
-            => Host.IsValid(slot);
-
-        public ref byte GetByteRef(in StorageSlot slot)
-            => ref Host.GetByteRef(slot);
-
-        public ref byte GetByteRef(in StorageSlot slot, out Entity entity)
-            => ref Host.GetByteRef(slot, out entity);
-
-        public ref byte UnsafeGetByteRef(in StorageSlot slot)
-            => ref Host.UnsafeGetByteRef(slot);
-
-        public ref byte UnsafeGetByteRef(in StorageSlot slot, out Entity entity)
-            => ref Host.UnsafeGetByteRef(slot, out entity);
-
-        public void GetHList<THandler>(in StorageSlot slot, in THandler handler)
-            where THandler : IRefGenericHandler<IHList>
-            => Host.GetHList(slot, handler);
-
-        public object Box(in StorageSlot slot)
-            => Host.Box(slot);
-
-        public IEnumerator<Entity> GetEnumerator()
-        {
-            foreach (var slot in _allocatedSlots.Values) {
-                yield return Host.GetEntity(slot);
-            }
-        }
-
-        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+        public IEnumerator<Entity> GetEnumerator() => _entities.GetEnumerator();
+        IEnumerator IEnumerable.GetEnumerator() => _entities.GetEnumerator();
 
         public void Dispose()
         {
-            _allocatedSlots.Clear();
-            _entitySlots.Clear();
+            _entities.Clear();
+            _entityMap.Clear();
             Host.Dispose();
         }
+
+        public Entity Create() => Host.Create();
+        public void Release(int slot) => Host.Release(_entities[slot].Slot);
+
+        public Entity GetEntity(int slot)
+            => Host.GetEntity(_entities[slot].Slot);
+
+        public void MoveOut(int slot)
+            => Host.MoveOut(_entities[slot].Slot);
+
+        public Entity Add<TComponent>(int slot, in TComponent initial)
+            => Host.Add(_entities[slot].Slot, initial);
+
+        public Entity AddMany<TList>(int slot, in TList bundle)
+            where TList : IHList
+            => Host.AddMany(_entities[slot].Slot, bundle);
+
+        public Entity Set<TComponent>(int slot, in TComponent initial)
+            => Host.Set(_entities[slot].Slot, initial);
+
+        public Entity Remove<TComponent>(int slot, out bool success)
+            => Host.Remove<TComponent>(_entities[slot].Slot, out success);
+
+        public Entity RemoveMany<TList>(int slot)
+            where TList : IHList
+            => Host.RemoveMany<TList>(_entities[slot].Slot);
+
+        public ref byte GetByteRef(int slot)
+            => ref Host.GetByteRef(_entities[slot].Slot);
+
+        public ref byte GetByteRef(int slot, out Entity entity)
+            => ref Host.GetByteRef(_entities[slot].Slot, out entity);
+
+        public void GetHList<THandler>(int slot, in THandler handler)
+            where THandler : IRefGenericHandler<IHList>
+            => Host.GetHList(_entities[slot].Slot, handler);
+
+        public object Box(int slot)
+            => Host.Box(_entities[slot].Slot);
+
+        public IEntityHost<UEntity> GetSiblingHost<UEntity>() where UEntity : IHList
+            => Host.GetSiblingHost<UEntity>();
+
+        public void GetSiblingHostType<UEntity>(IGenericConcreteTypeHandler<IEntityHost<UEntity>> hostTypeHandler)
+            where UEntity : IHList
+            => Host.GetSiblingHostType(hostTypeHandler);
     }
 
     private record TriggerEventListener(
-        WrappedReactiveEntityHost Host, FrozenSet<Type> TriggerTypes) : IEventListener
+        ReactiveQuery Query, CollectedEntityHost Host, FrozenSet<Type> TriggerTypes) : IEventListener
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool OnEvent<TEvent>(Entity target, in TEvent e)
             where TEvent : IEvent
         {
+            if (Query.Frozen) {
+                return false;
+            }
             var type = typeof(TEvent);
             if (TriggerTypes.Contains(type)) {
                 Host.Add(target.Slot);
@@ -162,12 +141,15 @@ public sealed class SystemStage : IDisposable
     }
 
     private record FilterEventListener(
-        WrappedReactiveEntityHost Host, FrozenSet<Type> FilterTypes) : IEventListener
+        ReactiveQuery Query, CollectedEntityHost Host, FrozenSet<Type> FilterTypes) : IEventListener
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool OnEvent<TEvent>(Entity target, in TEvent e)
             where TEvent : IEvent
         {
+            if (Query.Frozen) {
+                return false;
+            }
             var type = typeof(TEvent);
             if (FilterTypes.Contains(type)) {
                 Host.Remove(target.Slot);
@@ -177,12 +159,15 @@ public sealed class SystemStage : IDisposable
     }
 
     private record TriggerFilterEventListener(
-        WrappedReactiveEntityHost Host, FrozenSet<Type> TriggerTypes, FrozenSet<Type> FilterTypes) : IEventListener
+        ReactiveQuery Query, CollectedEntityHost Host, FrozenSet<Type> TriggerTypes, FrozenSet<Type> FilterTypes) : IEventListener
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool OnEvent<TEvent>(Entity target, in TEvent e)
             where TEvent : IEvent
         {
+            if (Query.Frozen) {
+                return false;
+            }
             var type = typeof(TEvent);
             if (TriggerTypes.Contains(type)) {
                 Host.Add(target.Slot);
@@ -197,7 +182,7 @@ public sealed class SystemStage : IDisposable
     private class ReactiveQuery : IEntityQuery
     {
         public readonly record struct HostEntry(
-            WrappedReactiveEntityHost WrappedHost, EntityHandler EntityHandler, IEventListener? Listener);
+            CollectedEntityHost WrappedHost, EntityHandler EntityHandler, IEventListener? Listener);
         
         public int Count {
             get {
@@ -210,8 +195,10 @@ public sealed class SystemStage : IDisposable
             }
         }
 
+        public bool Frozen { get; set; }
+
         public IReadOnlyList<IEntityHost> Hosts => _hosts;
-        private readonly List<WrappedReactiveEntityHost> _hosts = [];
+        private readonly List<CollectedEntityHost> _hosts = [];
         private readonly Dictionary<IEntityHost, HostEntry> _hostMap = [];
 
         private readonly IReactiveEntityQuery _query;
@@ -251,29 +238,33 @@ public sealed class SystemStage : IDisposable
                 return;
             }
 
-            var wrappedHost = new WrappedReactiveEntityHost(reactiveHost);
-            _hosts.Add(wrappedHost);
+            var collectedHost = new CollectedEntityHost(reactiveHost);
+            _hosts.Add(collectedHost);
 
-            var onEntityCreated = CreateEntityHandler(wrappedHost, out var listener);
+            var onEntityCreated = CreateEntityHandler(collectedHost, out var listener);
             reactiveHost.OnEntityCreated += onEntityCreated;
-            _hostMap[reactiveHost] = new(wrappedHost, onEntityCreated, listener);
+            _hostMap[reactiveHost] = new(collectedHost, onEntityCreated, listener);
 
             foreach (var entity in host) {
                 onEntityCreated(entity);
             }
         }
 
-        private EntityHandler CreateEntityHandler(WrappedReactiveEntityHost host, out IEventListener? resultListener)
+        private EntityHandler CreateEntityHandler(CollectedEntityHost host, out IEventListener? resultListener)
         {
             if (_onlyHasAddEventTrigger) {
                 if (_filterTypes.Count == 0) {
                     resultListener = null;
-                    return target => host.Add(target.Slot);
+                    return target => {
+                        if (Frozen) { return; }
+                        host.Add(target.Slot);
+                    };
                 }
                 else {
-                    var listener = new FilterEventListener(host, _filterTypes);
+                    var listener = new FilterEventListener(this, host, _filterTypes);
                     resultListener = listener;
                     return target => {
+                        if (Frozen) { return; }
                         host.Add(target.Slot);
                         _dispatcher.Listen(target, listener);
                     };
@@ -281,12 +272,12 @@ public sealed class SystemStage : IDisposable
             }
             else {
                 if (_filterTypes.Count == 0) {
-                    var listener = new TriggerEventListener(host, _triggerTypes);
+                    var listener = new TriggerEventListener(this, host, _triggerTypes);
                     resultListener = listener;
                     return target => _dispatcher.Listen(target, listener);
                 }
                 else {
-                    var listener = new TriggerFilterEventListener(host, _triggerTypes, _filterTypes);
+                    var listener = new TriggerFilterEventListener(this, host, _triggerTypes, _filterTypes);
                     resultListener = listener;
                     return target => _dispatcher.Listen(target, listener);
                 }
@@ -453,8 +444,10 @@ public sealed class SystemStage : IDisposable
                 if (reactiveQuery.Count == 0) {
                     return;
                 }
+                reactiveQuery.Frozen = true;
                 system.Execute(world, reactiveQuery);
                 reactiveQuery.ClearCollected();
+                reactiveQuery.Frozen = false;
             };
         }
 

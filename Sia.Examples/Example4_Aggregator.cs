@@ -33,27 +33,27 @@ public static partial class Example4_Aggregator
             .Add<ComponentCountSystem>()
             .CreateStage(world);
         
-        world.CreateInArrayHost(HList.Create(
+        world.Create(HList.Create(
             new Sid<ObjectId>(0)
         ));
 
         Console.WriteLine("Tick!");
         stage.Tick();
 
-        world.CreateInArrayHost(HList.Create(
+        world.Create(HList.Create(
             new Sid<ObjectId>(1)
         ));
 
         Console.WriteLine("Tick!");
         stage.Tick();
 
-        world.CreateInArrayHost(HList.Create(
+        world.Create(HList.Create(
             new Sid<ObjectId>(1)
         ));
-        var e1 = world.CreateInArrayHost(HList.Create(
+        var e1 = world.Create(HList.Create(
             new Sid<ObjectId>(1)
         ));
-        var e2 = world.CreateInArrayHost(HList.Create(
+        var e2 = world.Create(HList.Create(
             new Sid<ObjectId>(1)
         ));
 

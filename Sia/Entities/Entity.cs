@@ -9,10 +9,10 @@ public partial record Entity : IDisposable
 {
     public EntityId Id { get; } = EntityId.Create();
     public IEntityHost Host { get; internal set; } = null!;
-    public StorageSlot Slot { get; internal set; }
+    public int Slot { get; internal set; }
 
     public object Boxed => Host.Box(Slot);
-    public bool Valid => Host != null && Host.IsValid(Slot);
+    public bool Valid => Host != null;
     public EntityDescriptor Descriptor => Host.Descriptor;
 
     private class PooledEntityPolicy : IPooledObjectPolicy<Entity>
@@ -28,16 +28,13 @@ public partial record Entity : IDisposable
 
     private Entity() {}
 
-    internal void Release()
+    public void Release()
     {
+        Host = null!;
+        Slot = 0;
         s_pool.Return(this);
     }
-
-    public void Dispose()
-    {
-        Host.Release(Slot);
-        Host = default!;
-    }
+    public void Dispose() => Host.Release(Slot);
 
     public override string ToString()
         => "[Entity " + Id + "]";
@@ -61,7 +58,7 @@ public partial record Entity : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref TComponent Get<TComponent>()
     {
-        ref var byteRef = ref Host.UnsafeGetByteRef(Slot);
+        ref var byteRef = ref Host.GetByteRef(Slot);
         nint offset = Descriptor.GetOffset<TComponent>();
         return ref Unsafe.As<byte, TComponent>(
             ref Unsafe.AddByteOffset(ref byteRef, offset));
@@ -70,7 +67,7 @@ public partial record Entity : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref TComponent GetOrNullRef<TComponent>()
     {
-        ref var byteRef = ref Host.UnsafeGetByteRef(Slot);
+        ref var byteRef = ref Host.GetByteRef(Slot);
         try {
             nint offset = Descriptor.GetOffset<TComponent>();
             return ref Unsafe.As<byte, TComponent>(

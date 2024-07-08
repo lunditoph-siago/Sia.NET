@@ -34,7 +34,11 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
         
         if (Unsafe.IsNullRef(ref rawListeners) || rawListeners == null) {
             listeners = [];
-            _eventListeners.CreateRef(typeIndex) = listeners;
+            int count = _eventListeners.Count;
+            if (count <= typeIndex) {
+                _eventListeners.Count = typeIndex + 1;
+            }
+            _eventListeners.GetRef(typeIndex) = listeners;
         }
         else {
             listeners = (List<Listener<UEvent>>)rawListeners;
@@ -142,7 +146,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
         GuardNotSending();
 
         _globalListeners.Clear();
-        _eventListeners.Clear();
+        _eventListeners.Count = 0;
         _targetListeners.Clear();
         _targetListenersPool.Clear();
     }

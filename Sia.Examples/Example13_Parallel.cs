@@ -70,7 +70,7 @@ public static partial class Example13_Parallel
         
         int entityCount = 100000;
         for (int i = 0; i < entityCount; ++i) {
-            world.CreateInArrayHost(HList.Create(0));
+            world.Create(HList.Create(0));
         }
         for (int i = 0; i != 20; ++i) {
             stage.Tick();

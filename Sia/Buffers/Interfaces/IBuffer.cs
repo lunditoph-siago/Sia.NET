@@ -2,14 +2,10 @@ namespace Sia;
 
 public interface IBuffer<T> : IDisposable
 {
+    bool IsManaged { get; }
     int Capacity { get; }
-
-    ref T CreateRef(int index);
-    bool Release(int index);
-    bool IsAllocated(int index);
+    int Count { get; set; }
 
     ref T GetRef(int index);
     ref T GetRefOrNullRef(int index);
-
-    void Clear();
 }

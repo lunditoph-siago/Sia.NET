@@ -129,8 +129,8 @@ public unsafe static class Tests
 
         var world = new World();
 
-        var e1Ref = world.GetBucketHost<TestEntity>().Create();
-        var e2Ref = world.GetBucketHost<TestEntity2>().Create();
+        var e1Ref = world.GetArrayHost<TestEntity>().Create();
+        var e2Ref = world.GetArrayHost<TestEntity2>().Create();
 
         var query1 = world.Query<TypeUnion<Position>>();
         var group = new List<Entity>();
@@ -186,78 +186,6 @@ public unsafe static class Tests
         }
     }
 
-    private static void TestStorages()
-    {
-        Console.WriteLine("== Test Storages ==");
-
-        static void DoTest(IStorage<int> storage)
-        {
-            var pointers = new List<Pointer<int>>();
-            
-            for (int c = 0; c < 10; c++) {
-                if (Random.Shared.NextSingle() < 0.5) {
-                    var count = Random.Shared.Next(1, 30);
-                    for (int i = 0; i < count; ++i) {
-                        pointers.Add(storage.Allocate());
-                    }
-                }
-                else {
-                    while (pointers.Count > 0) {
-                        int index = Random.Shared.Next(0, pointers.Count);
-                        pointers[index].Dispose();
-                        pointers.RemoveAt(index);
-                    }
-                }
-            }
-
-            while (pointers.Count > 0) {
-                int index = Random.Shared.Next(0, pointers.Count);
-                pointers[index].Dispose();
-                pointers.RemoveAt(index);
-            }
-            return;
-        }
-
-        DoTest(new ArrayBufferStorage<int>(5120));
-        DoTest(new SparseBufferStorage<int>(5120));
-        DoTest(new HashBufferStorage<int>());
-
-        Console.WriteLine("Finished");
-    }
-
-    private static void TestEntityFactory()
-    {
-        Console.WriteLine("== Test Entity Factory ==");
-
-        static void DoTest<TStorage>(TStorage storage)
-            where TStorage : class, IStorage<HList<Entity, TestEntity>>
-        {
-            Console.WriteLine($"[{storage}]");
-            var factory = new StorageEntityHost<TestEntity, TStorage>(storage);
-            var e1 = factory.Create(DefaultTestEntity);
-            var e2 = factory.Create();
-            var e3 = factory.Create();
-            Console.WriteLine(e1.Get<Position>());
-            Console.WriteLine(e1.Get<Rotation>());
-            Console.WriteLine(e1.Get<Scale>());
-            Console.WriteLine(e2.Get<Position>());
-            Console.WriteLine(e3.Get<Position>());
-            e1.Dispose();
-            e2.Dispose();
-            e3.Dispose();
-            var e4 = factory.Create();
-            Console.WriteLine(e4.Get<Position>());
-            var e5 = factory.Create();
-            Console.WriteLine(e5.Get<Position>());
-            e4.Dispose();
-            e5.Dispose();
-        }
-
-        DoTest(new ArrayBufferStorage<HList<Entity, TestEntity>>());
-        DoTest(new SparseBufferStorage<HList<Entity, TestEntity>>());
-        DoTest(new HashBufferStorage<HList<Entity, TestEntity>>());
-    }
-
     public static void Run()
     {
         TestEntityDescriptor();
@@ -265,7 +193,5 @@ public unsafe static class Tests
         TestTypeUnion();
         TestMatcher();
         TestWorldQuery();
-        TestStorages();
-        TestEntityFactory();
     }
 }

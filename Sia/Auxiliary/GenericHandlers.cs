@@ -20,6 +20,11 @@ public interface IGenericTypeHandler<TBase>
     public void Handle<T>() where T : TBase;
 }
 
+public interface IGenericConcreteTypeHandler<TBase>
+{
+    public void Handle<T>() where T : TBase, new();
+}
+
 public interface IRefGenericHandler
 {
     public void Handle<T>(ref T value);

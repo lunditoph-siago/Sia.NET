@@ -1,15 +1,29 @@
 namespace Sia;
 
 using System.Runtime.CompilerServices;
-using CommunityToolkit.HighPerformance;
 
-public struct ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
+public sealed class ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
 {
-    public readonly int Capacity => int.MaxValue;
+    public bool IsManaged => true;
+    public int Capacity => int.MaxValue;
 
-    private T[] _values = new T[initialCapacity];
+    public int Count {
+        get => _count;
+        set {
+            if (value == _count) {
+                return;
+            }
+            if (value > _array.Length) {
+                var newArr = new T[CalculateArraySize(value)];
+                Array.Copy(_array, newArr, _count);
+                _array = newArr;
+            }
+            _count = value;
+        }
+    }
 
-    public readonly ref T this[int index] => ref GetRef(index);
+    private int _count;
+    private T[] _array = new T[initialCapacity];
 
     public ArrayBuffer() : this(0) {}
 
@@ -22,41 +36,13 @@ public struct ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref T CreateRef(int index)
-    {
-        if (index >= _values.Length) {
-            var newArr = new T[CalculateArraySize(index + 1)];
-            _values.CopyTo(newArr.AsSpan());
-            _values = newArr;
-        }
-        return ref _values[index];
-    }
+    public ref T GetRef(int index)
+        => ref _array[index];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly bool Release(int index)
-    {
-        if (index >= _values.Length) {
-            return false;
-        }
-        _values[index] = default!;
-        return true;
-    }
+    public ref T GetRefOrNullRef(int index)
+        => ref index >= _array.Length ? ref Unsafe.NullRef<T>() : ref _array[index];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly bool IsAllocated(int index)
-        => index < _values.Length;
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly ref T GetRef(int index)
-        => ref _values[index];
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly ref T GetRefOrNullRef(int index)
-        => ref index >= _values.Length ? ref Unsafe.NullRef<T>() : ref _values[index];
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly void Clear() => Array.Clear(_values);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly void Dispose() {}
+    public void Dispose() {}
 }

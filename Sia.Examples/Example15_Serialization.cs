@@ -7,6 +7,7 @@ using MemoryPack.Compression;
 using Sia;
 using Sia.Serialization.Binary;
 
+[MemoryPackable]
 public partial record struct C1(string Value);
 
 [MemoryPackable]
@@ -21,11 +22,11 @@ public static class Example15_Serialization
     {
         var compressor = new BrotliCompressor();
 
-        var e1 = world.CreateInArrayHost(HList.Create(new C1("?"), 0, "asdf"));
-        var e2 = world.CreateInSparseHost(HList.Create(1234, "asdf", 1324f, Math.PI));
+        var e1 = world.Create(HList.Create(new C1("?"), 0, "asdf"));
+        var e2 = world.Create(HList.Create(1234, "asdf", 1324f, Math.PI));
         e2.Add(new Likes<float>(e1));
         e2.Add(new Has(31415, e2));
-        world.CreateInUnversionedHashHost(HList.Create(1234, "asdf", 1324f, Math.PI));
+        world.Create(HList.Create(1234, "asdf", 1324f, Math.PI));
 
         BinaryWorldSerializer.Serialize(ref compressor, world);
 

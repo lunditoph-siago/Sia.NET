@@ -24,13 +24,12 @@ public static partial class EntityQueryExtensions
 
             query.Handle(data,
                 static (IEntityHost host, in EntityRecordData<TResult> data, int from, int to) => {
-                    var slots = host.AllocatedSlots;
                     var pointer = data.Pointer;
                     var recorder = data.Recorder;
                     ref var index = ref *data.Index;
 
                     for (int i = from; i != to; ++i) {
-                        recorder(host.GetEntity(slots[i]),
+                        recorder(host.GetEntity(i),
                             out *(pointer + Interlocked.Increment(ref index)));
                     }
                 }, runner, barrier);
@@ -53,14 +52,13 @@ public static partial class EntityQueryExtensions
 
             query.Handle(data,
                 static (IEntityHost host, in EntityRecordData<TData, TResult> data, int from, int to) => {
-                    var slots = host.AllocatedSlots;
                     var pointer = data.Pointer;
                     var recorder = data.Recorder;
                     ref readonly var userData = ref data.UserData;
                     ref var index = ref *data.Index;
 
                     for (int i = from; i != to; ++i) {
-                        recorder(userData, host.GetEntity(slots[i]),
+                        recorder(userData, host.GetEntity(i),
                             out *(pointer + Interlocked.Increment(ref index)));
                     }
                 }, runner, barrier);

@@ -53,7 +53,7 @@ namespace Sia_Examples
     {
         public static void Run(World world)
         {
-            var entity = world.CreateInArrayHost()
+            var entity = world.Create()
                 .AddBundle(new ComponentBundle.TestObjectBundle());
 
             Console.WriteLine("Entity 1:");
@@ -65,7 +65,7 @@ namespace Sia_Examples
 
             Console.WriteLine();
 
-            var entity2 = world.CreateInArrayHost()
+            var entity2 = world.Create()
                 .AddBundle(new ComponentBundle.TestObjectBundle())
                 .Remove<ComponentBundle.Scale>();
 
