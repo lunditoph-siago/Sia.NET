@@ -32,14 +32,13 @@ public sealed class SystemStage : IDisposable
         public CollectedEntityHost(IReactiveEntityHost host)
         {
             Host = host;
-            Host.OnEntityReleased += (Entity e) => Remove(e.Slot);
+            Host.OnEntityReleased += (Entity e) => Remove(e);
         }
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Add(int slot)
+        public void Add(Entity entity)
         {
             var index = _entities.Count;
-            var entity = Host.GetEntity(slot);
             if (!_entityMap.TryAdd(entity, index)) {
                 return;
             }
@@ -47,15 +46,20 @@ public sealed class SystemStage : IDisposable
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool Remove(int slot)
+        public bool Remove(Entity entity)
         {
-            var entity = Host.GetEntity(slot);
             if (!_entityMap.Remove(entity, out int index)) {
                 return false;
             }
             int lastIndex = _entities.Count - 1;
-            _entities[index] = _entities[lastIndex];
-            _entities.RemoveAt(lastIndex);
+            if (index == lastIndex) {
+                _entities.RemoveAt(lastIndex);
+            }
+            else {
+                var lastEntity = _entities[lastIndex];
+                _entities[index] = lastEntity;
+                _entityMap[lastEntity] = index;
+            }
             return true;
         }
 
@@ -134,7 +138,7 @@ public sealed class SystemStage : IDisposable
             }
             var type = typeof(TEvent);
             if (TriggerTypes.Contains(type)) {
-                Host.Add(target.Slot);
+                Host.Add(target);
             }
             return false;
         }
@@ -152,7 +156,7 @@ public sealed class SystemStage : IDisposable
             }
             var type = typeof(TEvent);
             if (FilterTypes.Contains(type)) {
-                Host.Remove(target.Slot);
+                Host.Remove(target);
             }
             return false;
         }
@@ -170,10 +174,10 @@ public sealed class SystemStage : IDisposable
             }
             var type = typeof(TEvent);
             if (TriggerTypes.Contains(type)) {
-                Host.Add(target.Slot);
+                Host.Add(target);
             }
             else if (FilterTypes.Contains(type)) {
-                Host.Remove(target.Slot);
+                Host.Remove(target);
             }
             return false;
         }
@@ -257,7 +261,7 @@ public sealed class SystemStage : IDisposable
                     resultListener = null;
                     return target => {
                         if (Frozen) { return; }
-                        host.Add(target.Slot);
+                        host.Add(target);
                     };
                 }
                 else {
@@ -265,7 +269,7 @@ public sealed class SystemStage : IDisposable
                     resultListener = listener;
                     return target => {
                         if (Frozen) { return; }
-                        host.Add(target.Slot);
+                        host.Add(target);
                         _dispatcher.Listen(target, listener);
                     };
                 }
