@@ -127,4 +127,8 @@ public record EntityDescriptor
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ComponentOffset<TComponent> GetOffset<TComponent>()
         => OffsetSlots[_fieldIndexGetter.GetIndex<TComponent>()];
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool Contains<TComponent>()
+        => _fieldIndexGetter.GetIndex<TComponent>() < OffsetSlots.Length;
 }
