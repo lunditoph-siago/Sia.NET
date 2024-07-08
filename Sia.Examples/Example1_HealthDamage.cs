@@ -58,7 +58,7 @@ public static partial class Example1_HealthDamage
             // faster than foreach
             query.ForSlice((Entity entity, ref Health health) => {
                 if (health.Value <= 0) {
-                    entity.Dispose();
+                    entity.Destroy();
                     Console.WriteLine("Dead!");
                 }
             });

@@ -144,7 +144,7 @@ public abstract class AggregatorBase<TId> : ReactorBase<TypeUnion<Sid<TId>>>
         if (group.Count == 0) {
             _aggrs.Remove(id);
             _groupPool.Push(group);
-            aggrEntity.Dispose();
+            aggrEntity.Destroy();
         }
         else if (aggr.First == entity) {
             aggr.First = group.First();

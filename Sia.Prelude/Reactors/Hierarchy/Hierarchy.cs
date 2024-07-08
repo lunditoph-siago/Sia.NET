@@ -92,7 +92,7 @@ public class Hierarchy<TTag> : ReactorBase<TypeUnion<Node<TTag>>>
         var children = node._children;
         if (children != null) {
             foreach (var child in children) {
-                child.Dispose();
+                child.Destroy();
             }
             children.Clear();
             _childrenPool.Push(children);

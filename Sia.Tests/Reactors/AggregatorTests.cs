@@ -72,7 +72,7 @@ public class AggregatorTests(AggregatorTests.AggregatorContext context) : IClass
     {
         // Act
         var result = context.Aggregator.TryGet(new AggregatorContext.ObjectId(target), out var aggregatorEntity);
-        aggregatorEntity?.Dispose();
+        aggregatorEntity?.Destroy();
 
         // Assert
         Assert.True(result);

@@ -5,8 +5,10 @@ using MemoryPack;
 using Microsoft.Extensions.ObjectPool;
 
 [MemoryPackable(GenerateType.NoGenerate)]
-public partial record Entity : IDisposable
+public partial record Entity
 {
+    public static readonly ObjectPool<Entity> Pool = new DefaultObjectPool<Entity>(new PooledEntityPolicy());
+
     public EntityId Id { get; } = EntityId.Create();
     public IEntityHost Host { get; internal set; } = null!;
     public int Slot { get; internal set; }
@@ -21,20 +23,8 @@ public partial record Entity : IDisposable
         public bool Return(Entity obj) => true;
     }
 
-    private static readonly ObjectPool<Entity> s_pool = new DefaultObjectPool<Entity>(new PooledEntityPolicy());
-
-    internal static Entity Get()
-        => s_pool.Get();
-
     private Entity() {}
-
-    public void Release()
-    {
-        Host = null!;
-        Slot = 0;
-        s_pool.Return(this);
-    }
-    public void Dispose() => Host.Release(Slot);
+    public void Destroy() => Host.Release(Slot);
 
     public override string ToString()
         => "[Entity " + Id + "]";

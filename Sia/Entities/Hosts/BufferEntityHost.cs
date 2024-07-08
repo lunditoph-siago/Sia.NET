@@ -30,7 +30,7 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer Buffer) : IEntityHost<TE
     public virtual Entity Create() => Create(default!);
     public virtual Entity Create(in TEntity initial)
     {
-        var e = Entity.Get();
+        var e = Entity.Pool.Get();
         MoveIn(e, initial);
         return e;
     }
@@ -38,7 +38,8 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer Buffer) : IEntityHost<TE
     public virtual void Release(int slot)
     {
         var entity = _entities[slot];
-        entity.Release();
+        entity.Host = null!;
+        Entity.Pool.Return(entity);
         MoveOut(slot);
     }
 
