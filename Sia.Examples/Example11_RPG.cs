@@ -1,5 +1,6 @@
 namespace Sia_Examples;
 
+using CommunityToolkit.HighPerformance;
 using Sia;
 
 public static partial class Example11_RPG
@@ -125,14 +126,23 @@ public static partial class Example11_RPG
         Matchers.Of<Character>(),
         EventUnion.Of<Character.SetHP>())
     {
+        private List<Entity> _entitiesToDestroy = [];
+
         public override void Execute(World world, IEntityQuery query)
         {
             foreach (var entity in query) {
                 ref var character = ref entity.Get<Character>();
                 if (character.HP <= 0) {
                     Console.WriteLine(character.Name + " is dead!");
+                    _entitiesToDestroy.Add(entity);
+                }
+            }
+
+            if (_entitiesToDestroy.Count != 0) {
+                foreach (var entity in _entitiesToDestroy.AsSpan()) {
                     entity.Destroy();
                 }
+                _entitiesToDestroy.Clear();
             }
         }
     }

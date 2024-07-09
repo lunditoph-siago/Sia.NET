@@ -19,6 +19,8 @@ public partial class World
             }
         }
 
+        public int Version { get; private set; }
+
         public World World { get; private set; }
         public IEntityMatcher Matcher { get; private set; }
         public IReadOnlyList<IReactiveEntityHost> Hosts => _hosts;
@@ -51,6 +53,7 @@ public partial class World
         {
             if (Matcher.Match(host)) {
                 _hosts.Add(host);
+                Version++;
                 OnEntityHostAdded?.Invoke(host);
             }
         }
@@ -59,6 +62,7 @@ public partial class World
         {
             if (Matcher.Match(host)) {
                 _hosts.Remove(host);
+                Version++;
                 OnEntityHostRemoved?.Invoke(host);
             }
         }
@@ -74,6 +78,7 @@ public partial class World
             if (World == null) {
                 return;
             }
+            Version++;
 
             World._queries.Remove(Matcher);
             World.OnEntityHostAdded -= OnEntityHostCreated;

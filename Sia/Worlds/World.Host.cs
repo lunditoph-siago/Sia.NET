@@ -37,6 +37,7 @@ public partial class World
         if (exists) {
             throw new ArgumentException("Host with the same type already exists");
         }
+        Version++;
         var host = new WorldEntityHost<TEntity, THost>(this);
         OnEntityHostAdded?.Invoke(host);
         rawHost = host;
@@ -52,6 +53,7 @@ public partial class World
         if (exists) {
             return Unsafe.As<WorldEntityHost<TEntity, THost>>(rawHost);
         }
+        Version++;
         var host = new WorldEntityHost<TEntity, THost>(this);
         OnEntityHostAdded?.Invoke(host);
         rawHost = host;
@@ -66,6 +68,7 @@ public partial class World
         if (exists) {
             throw new ArgumentException("Host with the same type already exists: " + typeof(THost));
         }
+        Version++;
         rawHost = host;
         OnEntityHostAdded?.Invoke(host);
         return host;
@@ -75,6 +78,7 @@ public partial class World
         where THost : IEntityHost
     {
         if (_hosts.Remove(WorldEntityHostIndexer<THost>.Index, out var host)) {
+            Version++;
             OnEntityHostRemoved?.Invoke(host);
             host.Dispose();
             return true;
@@ -99,6 +103,7 @@ public partial class World
     
     public void ClearHosts()
     {
+        Version++;
         var hosts = _hosts.UnsafeRawValues;
         for (int i = 0; i < hosts.Count; ++i) {
             var host = hosts[i];
@@ -122,6 +127,7 @@ public partial class World
         }
 
         if (hostsToRemove != null) {
+            Version++;
             try {
                 for (int i = 0; i != count; ++i) {
                     _hosts.Remove(hostsToRemove[i], out var host);

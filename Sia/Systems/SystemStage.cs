@@ -25,6 +25,7 @@ public sealed class SystemStage : IDisposable
 
         public int Capacity => Host.Capacity;
         public int Count => _entities.Count;
+        public int Version { get; private set; }
 
         private readonly List<Entity> _entities = [];
         private readonly Dictionary<Entity, int> _entityMap = [];
@@ -42,6 +43,7 @@ public sealed class SystemStage : IDisposable
             if (!_entityMap.TryAdd(entity, index)) {
                 return;
             }
+            Version++;
             _entities.Add(entity);
         }
 
@@ -51,6 +53,7 @@ public sealed class SystemStage : IDisposable
             if (!_entityMap.Remove(entity, out int index)) {
                 return false;
             }
+            Version++;
             int lastIndex = _entities.Count - 1;
             if (index == lastIndex) {
                 _entities.RemoveAt(lastIndex);
@@ -65,6 +68,7 @@ public sealed class SystemStage : IDisposable
 
         public void ClearCollected()
         {
+            Version++;
             _entities.Clear();
             _entityMap.Clear();
         }
@@ -74,42 +78,40 @@ public sealed class SystemStage : IDisposable
 
         public void Dispose()
         {
+            Version++;
             _entities.Clear();
             _entityMap.Clear();
             Host.Dispose();
         }
 
         public Entity Create() => Host.Create();
-        public void Release(int slot) => Host.Release(_entities[slot].Slot);
+        public void Release(Entity entity) => Host.Release(entity);
 
         public Entity GetEntity(int slot)
             => Host.GetEntity(_entities[slot].Slot);
 
-        public void MoveOut(int slot)
-            => Host.MoveOut(_entities[slot].Slot);
+        public void MoveOut(Entity entity)
+            => Host.MoveOut(entity);
 
-        public Entity Add<TComponent>(int slot, in TComponent initial)
-            => Host.Add(_entities[slot].Slot, initial);
+        public void Add<TComponent>(Entity entity, in TComponent initial)
+            => Host.Add(entity, initial);
 
-        public Entity AddMany<TList>(int slot, in TList bundle)
+        public void AddMany<TList>(Entity entity, in TList bundle)
             where TList : struct, IHList
-            => Host.AddMany(_entities[slot].Slot, bundle);
+            => Host.AddMany(entity, bundle);
 
-        public Entity Set<TComponent>(int slot, in TComponent initial)
-            => Host.Set(_entities[slot].Slot, initial);
+        public void Set<TComponent>(Entity entity, in TComponent initial)
+            => Host.Set(entity, initial);
 
-        public Entity Remove<TComponent>(int slot, out bool success)
-            => Host.Remove<TComponent>(_entities[slot].Slot, out success);
+        public void Remove<TComponent>(Entity entity, out bool success)
+            => Host.Remove<TComponent>(entity, out success);
 
-        public Entity RemoveMany<TList>(int slot)
+        public void RemoveMany<TList>(Entity entity)
             where TList : struct, IHList
-            => Host.RemoveMany<TList>(_entities[slot].Slot);
+            => Host.RemoveMany<TList>(entity);
 
         public ref byte GetByteRef(int slot)
             => ref Host.GetByteRef(_entities[slot].Slot);
-
-        public ref byte GetByteRef(int slot, out Entity entity)
-            => ref Host.GetByteRef(_entities[slot].Slot, out entity);
 
         public void GetHList<THandler>(int slot, in THandler handler)
             where THandler : IRefGenericHandler<IHList>
@@ -126,6 +128,9 @@ public sealed class SystemStage : IDisposable
             IGenericConcreteTypeHandler<IEntityHost<UEntity>> hostTypeHandler)
             where UEntity : struct, IHList
             => Host.GetSiblingHostType(hostTypeHandler);
+        
+        public Span<Entity> UnsafeGetEntitySpan()
+            => _entities.AsSpan();
     }
 
     private record TriggerEventListener(
@@ -201,6 +206,7 @@ public sealed class SystemStage : IDisposable
             }
         }
 
+        public int Version { get; private set; }
         public bool Frozen { get; set; }
 
         public IReadOnlyList<IEntityHost> Hosts => _hosts;
@@ -243,6 +249,7 @@ public sealed class SystemStage : IDisposable
             if (host is not IReactiveEntityHost reactiveHost) {
                 return;
             }
+            Version++;
 
             var collectedHost = new CollectedEntityHost(reactiveHost);
             _hosts.Add(collectedHost);
@@ -295,6 +302,7 @@ public sealed class SystemStage : IDisposable
             if (!_hostMap.Remove(host, out var entry)) {
                 return;
             }
+            Version++;
 
             var wrappedHost = entry.WrappedHost;
             _hosts.Remove(wrappedHost);

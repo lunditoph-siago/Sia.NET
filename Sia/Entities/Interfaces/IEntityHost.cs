@@ -9,26 +9,24 @@ public interface IEntityHost : IEnumerable<Entity>, IDisposable
 
     int Capacity { get; }
     int Count { get; }
+    int Version { get; }
 
     Entity Create();
-    void Release(int slot);
-    void MoveOut(int slot);
+    void Release(Entity entity);
+    void MoveOut(Entity entity);
 
     Entity GetEntity(int slot);
-
     ref byte GetByteRef(int slot);
-    ref byte GetByteRef(int slot, out Entity entity);
-
     void GetHList<THandler>(int slot, in THandler handler)
         where THandler : IRefGenericHandler<IHList>;
 
-    Entity Add<TComponent>(int slot, in TComponent initial);
-    Entity AddMany<TList>(int slot, in TList list)
+    void Add<TComponent>(Entity entity, in TComponent initial);
+    void AddMany<TList>(Entity entity, in TList list)
         where TList : struct, IHList;
-    Entity Set<TComponent>(int slot, in TComponent value);
+    void Set<TComponent>(Entity entity, in TComponent value);
 
-    Entity Remove<TComponent>(int slot, out bool success);
-    Entity RemoveMany<TList>(int slot)
+    void Remove<TComponent>(Entity entity, out bool success);
+    void RemoveMany<TList>(Entity entity)
         where TList : struct, IHList;
 
     object Box(int slot);
@@ -38,6 +36,8 @@ public interface IEntityHost : IEnumerable<Entity>, IDisposable
     void GetSiblingHostType<UEntity>(
         IGenericConcreteTypeHandler<IEntityHost<UEntity>> hostTypeHandler)
         where UEntity : struct, IHList;
+    
+    Span<Entity> UnsafeGetEntitySpan();
 }
 
 public interface IReactiveEntityHost : IEntityHost
@@ -51,7 +51,5 @@ public interface IEntityHost<TEntity> : IEntityHost
 {
     Entity Create(in TEntity initial);
     void MoveIn(Entity entity, in TEntity data);
-
     ref TEntity GetRef(int slot);
-    ref TEntity GetRef(int slot, out Entity entity);
 }

@@ -8,31 +8,20 @@ public static partial class EntityHostExtensions
     {
         public readonly Entity Current {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => _entity;
+            get => _entities[_slot];
         }
 
         private int _slot = -1;
-        private Entity _entity;
+        private readonly Span<Entity> _entities = host.UnsafeGetEntitySpan();
+        private readonly int _version = host.Version;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool MoveNext()
         {
-            int count = host.Count;
-            if (_slot >= count) {
-                return false;
+            if (host.Version != _version) {
+                throw new InvalidOperationException("Entity host was modified; enumeration operation may not execute");
             }
-            if (_slot >= 0) {
-                var currEntity = host.GetEntity(_slot);
-                if (currEntity != _entity) {
-                    _entity = currEntity;
-                    return true;
-                }
-            }
-            if (++_slot < host.Count) {
-                _entity = host.GetEntity(_slot);
-                return true;
-            }
-            return false;
+            return ++_slot < _entities.Length;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -43,6 +32,6 @@ public static partial class EntityHostExtensions
     public static Enumerator GetEnumerator(this IReactiveEntityHost host) => new(host);
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe Span<byte> GetSpan(this IEntityHost host, int slot)
+    public static unsafe Span<byte> GetBytes(this IEntityHost host, int slot)
         => new(Unsafe.AsPointer(ref host.GetByteRef(slot)), host.Descriptor.MemorySize);
 }

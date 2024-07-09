@@ -11,6 +11,7 @@ public interface IEntityQuery : IDisposable
             return count;
         }
     }
+    int Version { get; }
 
     IReadOnlyList<IEntityHost> Hosts { get; }
 }
