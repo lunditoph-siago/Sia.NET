@@ -2,7 +2,7 @@ namespace Sia;
 
 public class UnmanagedArrayEntityHost<TEntity>(int initialCapacity)
     : BufferEntityHost<TEntity, UnmanagedArrayBuffer<TEntity>>(new UnmanagedArrayBuffer<TEntity>(initialCapacity))
-    where TEntity : IHList
+    where TEntity : struct, IHList
 {
     public UnmanagedArrayEntityHost() : this(0) {}
 

@@ -3,14 +3,14 @@
 public interface IBundle
 {
     void ToHList<THandler>(in THandler handler)
-        where THandler : IGenericHandler<IHList>;
+        where THandler : IGenericStructHandler<IHList>;
 
     void HandleHListType<THandler>(in THandler handler)
-        where THandler : IGenericTypeHandler<IHList>;
+        where THandler : IGenericStructTypeHandler<IHList>;
 }
 
 public interface IStaticBundle : IBundle
 {
     abstract static void StaticHandleHListType<THandler>(in THandler handler)
-        where THandler : IGenericTypeHandler<IHList>;
+        where THandler : IGenericStructTypeHandler<IHList>;
 }

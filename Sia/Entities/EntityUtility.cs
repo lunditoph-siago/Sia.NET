@@ -6,7 +6,7 @@ public static class EntityUtility
         => CheckComponent<TComponent>(entity.Descriptor);
 
     public static void CheckComponent<TEntity, TComponent>()
-        where TEntity : IHList
+        where TEntity : struct, IHList
         => CheckComponent<TComponent>(EntityDescriptor.Get<TEntity>());
 
     public static void CheckComponent<TComponent>(EntityDescriptor descriptor)

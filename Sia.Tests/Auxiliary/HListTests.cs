@@ -14,11 +14,11 @@ public class HListTests
         }
     }
 
-    public class MockGenericHandler : IGenericHandler<IHList>
+    public class MockGenericHandler : IGenericStructHandler<IHList>
     {
         public List<IHList> HandledValues { get; } = new();
 
-        public void Handle<T>(in T value) where T : IHList
+        public void Handle<T>(in T value) where T : struct, IHList
         {
             HandledValues.Add(value);
         }

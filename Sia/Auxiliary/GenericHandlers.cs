@@ -10,6 +10,11 @@ public interface IGenericHandler<TBase>
     public void Handle<T>(in T value) where T : TBase;
 }
 
+public interface IGenericStructHandler<TBase>
+{
+    public void Handle<T>(in T value) where T : struct, TBase;
+}
+
 public interface IGenericTypeHandler
 {
     public void Handle<T>();
@@ -18,6 +23,11 @@ public interface IGenericTypeHandler
 public interface IGenericTypeHandler<TBase>
 {
     public void Handle<T>() where T : TBase;
+}
+
+public interface IGenericStructTypeHandler<TBase>
+{
+    public void Handle<T>() where T : struct, TBase;
 }
 
 public interface IGenericConcreteTypeHandler<TBase>

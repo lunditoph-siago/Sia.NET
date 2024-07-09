@@ -15,7 +15,7 @@ public partial class World
     private readonly SparseSet<IReactiveEntityHost> _hosts = [];
 
     public bool TryGetHost<TEntity, THost>([MaybeNullWhen(false)] out WorldEntityHost<TEntity, THost> host)
-        where TEntity : IHList
+        where TEntity : struct, IHList
         where THost : IEntityHost<TEntity>, new()
     {
         ref var rawHost = ref _hosts.GetValueRefOrNullRef(
@@ -29,7 +29,7 @@ public partial class World
     }
 
     public WorldEntityHost<TEntity, THost> AddHost<TEntity, THost>()
-        where TEntity : IHList
+        where TEntity : struct, IHList
         where THost : IEntityHost<TEntity>, new()
     {
         ref var rawHost = ref _hosts.GetOrAddValueRef(
@@ -44,7 +44,7 @@ public partial class World
     }
 
     public WorldEntityHost<TEntity, THost> AcquireHost<TEntity, THost>()
-        where TEntity : IHList
+        where TEntity : struct, IHList
         where THost : IEntityHost<TEntity>, new()
     {
         ref var rawHost = ref _hosts.GetOrAddValueRef(

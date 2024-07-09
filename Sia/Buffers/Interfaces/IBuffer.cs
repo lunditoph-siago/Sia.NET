@@ -8,4 +8,6 @@ public interface IBuffer<T> : IDisposable
 
     ref T GetRef(int index);
     ref T GetRefOrNullRef(int index);
+
+    Span<T> AsSpan();
 }

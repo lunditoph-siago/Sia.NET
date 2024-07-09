@@ -32,18 +32,18 @@ public interface IHList
     
     void Filter<TPredicate, THandler>(in TPredicate predicate, in THandler handler)
         where TPredicate : IGenericPredicate
-        where THandler : IGenericHandler<IHList>;
+        where THandler : IGenericStructHandler<IHList>;
     
     void Concat<THList, THandler>(in THList list, in THandler handler)
-        where THList : IHList
-        where THandler : IGenericHandler<IHList>;
+        where THList : struct, IHList
+        where THandler : IGenericStructHandler<IHList>;
 
     bool Remove<TValue, THandler>(TypeProxy<TValue> proxy, in THandler handler)
-        where THandler : IGenericHandler<IHList>;
+        where THandler : IGenericStructHandler<IHList>;
 
     bool Remove<TValue, THandler>(in TValue value, in THandler handler)
         where TValue : IEquatable<TValue>
-        where THandler : IGenericHandler<IHList>;
+        where THandler : IGenericStructHandler<IHList>;
     
     virtual static void HandleTypes<THandler>(in THandler handler)
         where THandler : IGenericTypeHandler
@@ -71,22 +71,22 @@ public struct EmptyHList : IHList
 
     public readonly void Filter<TPredicate, THandler>(in TPredicate predicate, in THandler handler)
         where TPredicate : IGenericPredicate
-        where THandler : IGenericHandler<IHList>
+        where THandler : IGenericStructHandler<IHList>
         => handler.Handle(this);
 
     public readonly void Concat<THList, THandler>(in THList list, in THandler handler)
-        where THList : IHList
-        where THandler : IGenericHandler<IHList>
+        where THList : struct, IHList
+        where THandler : IGenericStructHandler<IHList>
         => handler.Handle(list);
 
     public readonly bool Remove<TValue, THandler>(
         TypeProxy<TValue> proxy, in THandler handler)
-        where THandler : IGenericHandler<IHList>
+        where THandler : IGenericStructHandler<IHList>
         => false;
 
     public readonly bool Remove<TValue, THandler>(in TValue value, in THandler handler)
         where TValue : IEquatable<TValue>
-        where THandler : IGenericHandler<IHList>
+        where THandler : IGenericStructHandler<IHList>
         => false;
 
     public override readonly string ToString() => "Empty";
@@ -97,7 +97,7 @@ public struct EmptyHList : IHList
 }
 
 public struct HList<THead, TTail>(in THead head, in TTail tail) : IHList
-    where TTail : IHList
+    where TTail : struct, IHList
 {
     public THead Head = head;
     public TTail Tail = tail;
@@ -123,19 +123,19 @@ public struct HList<THead, TTail>(in THead head, in TTail tail) : IHList
         => handler.Handle(ref Tail);
 
     private struct TailConcater<THandler>(in THead head, in THandler handler)
-        : IGenericHandler<IHList>
-        where THandler : IGenericHandler<IHList>
+        : IGenericStructHandler<IHList>
+        where THandler : IGenericStructHandler<IHList>
     {
         public THead Head = head;
         public THandler Handler = handler;
 
-        public void Handle<T>(in T value) where T : IHList
+        public void Handle<T>(in T value) where T : struct, IHList
             => Handler.Handle(new HList<THead, T>(Head, value));
     }
 
     public readonly void Filter<TPredicate, THandler>(in TPredicate predicate, in THandler handler)
         where TPredicate : IGenericPredicate
-        where THandler : IGenericHandler<IHList>
+        where THandler : IGenericStructHandler<IHList>
     {
         if (predicate.Predicate(Head)) {
             Tail.Filter(predicate, new TailConcater<THandler>(Head, handler));
@@ -146,12 +146,12 @@ public struct HList<THead, TTail>(in THead head, in TTail tail) : IHList
     }
 
     public readonly void Concat<THList, THandler>(in THList list, in THandler handler)
-        where THList : IHList
-        where THandler : IGenericHandler<IHList>
+        where THList : struct, IHList
+        where THandler : IGenericStructHandler<IHList>
         => Tail.Concat(list, new TailConcater<THandler>(Head, handler));
 
     public readonly bool Remove<TValue, THandler>(TypeProxy<TValue> proxy, in THandler handler)
-        where THandler : IGenericHandler<IHList>
+        where THandler : IGenericStructHandler<IHList>
     {
         if (typeof(THead) == typeof(TValue)) {
             handler.Handle(Tail);
@@ -162,7 +162,7 @@ public struct HList<THead, TTail>(in THead head, in TTail tail) : IHList
 
     public bool Remove<TValue, THandler>(in TValue value, in THandler handler)
         where TValue : IEquatable<TValue>
-        where THandler : IGenericHandler<IHList>
+        where THandler : IGenericStructHandler<IHList>
     {
         if (typeof(THead) == typeof(TValue)) {
             ref TValue casted = ref Unsafe.As<THead, TValue>(ref Head);
@@ -193,7 +193,7 @@ public static class HList
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static HList<THead, TTail> Cons<THead, TTail>(in THead head, in TTail tail)
-        where TTail : IHList
+        where TTail : struct, IHList
         => new(head, tail);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
