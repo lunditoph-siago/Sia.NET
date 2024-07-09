@@ -11,12 +11,12 @@ using static WorldHostUtils;
 
 public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost innerHost)
     : IEntityHost<TEntity>, IReactiveEntityHost
-    where TEntity : IHList
+    where TEntity : struct, IHList
     where TInnerHost : IEntityHost<TEntity>, new()
 {
     private unsafe readonly struct SiblingInnerHostGetter<UEntity>(World world, IEntityHost<UEntity>* host)
         : IGenericConcreteTypeHandler<IEntityHost<UEntity>>
-        where UEntity : IHList
+        where UEntity : struct, IHList
     {
         public void Handle<UInnerHost>()
             where UInnerHost : IEntityHost<UEntity>, new()
@@ -40,7 +40,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     public WorldEntityHost(World world) : this(world, new()) {}
 
     public unsafe IEntityHost<UEntity> GetSiblingHost<UEntity>()
-        where UEntity : IHList
+        where UEntity : struct, IHList
     {
         IEntityHost<UEntity>? host = null;
         InnerHost.GetSiblingHostType(new SiblingInnerHostGetter<UEntity>(World, &host));
@@ -48,7 +48,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     }
 
     public void GetSiblingHostType<UEntity>(IGenericConcreteTypeHandler<IEntityHost<UEntity>> hostTypeHandler)
-        where UEntity : IHList
+        where UEntity : struct, IHList
         => throw new NotSupportedException("Cannot get concrete sibling type for world hosts");
 
     public IEnumerator<Entity> GetEnumerator() => InnerHost.GetEnumerator();
@@ -104,7 +104,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Entity AddMany<TList>(int slot, in TList list)
-        where TList : IHList
+        where TList : struct, IHList
     {
         var e = InnerHost.AddMany(slot, list);
         TList.HandleTypes(new EntityAddEventSender(e, World.Dispatcher));
@@ -131,7 +131,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Entity RemoveMany<TList>(int slot)
-        where TList : IHList
+        where TList : struct, IHList
     {
         var e = InnerHost.RemoveMany<TList>(slot);
         TList.HandleTypes(new ExEntityRemoveEventSender(e, Descriptor, World.Dispatcher));

@@ -20,7 +20,7 @@ public sealed class UnmanagedArrayBuffer<T>(int initialCapacity) : IBuffer<T>
                 _length = CalculateArraySize(value);
                 var newMem = Marshal.AllocHGlobal(_length * Unsafe.SizeOf<T>());
                 unsafe {
-                    new Span<T>((void*)_mem, _count).CopyTo(new Span<T>((void*)newMem, _length));
+                    AsSpan().CopyTo(new Span<T>((void*)newMem, _length));
                 }
                 Marshal.FreeHGlobal(_mem);
                 _mem = newMem;
@@ -50,6 +50,8 @@ public sealed class UnmanagedArrayBuffer<T>(int initialCapacity) : IBuffer<T>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe ref T GetRefOrNullRef(int index)
         => ref index < 0 || index >= Count ? ref Unsafe.NullRef<T>() : ref ((T*)_mem)[index];
+
+    public unsafe Span<T> AsSpan() => new((void*)_mem, _count);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Dispose() {}

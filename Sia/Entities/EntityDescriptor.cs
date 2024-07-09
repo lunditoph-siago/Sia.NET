@@ -7,7 +7,7 @@ using System.Runtime.CompilerServices;
 public record struct ComponentInfo(Type Type, IntPtr Offset, int TypeIndex);
 
 public static class EntityDescriptor<TEntity>
-    where TEntity : IHList
+    where TEntity : struct, IHList
 {
     public static readonly ImmutableArray<ComponentInfo> Components;
     public static readonly FrozenDictionary<Type, IntPtr> Offsets;
@@ -69,7 +69,7 @@ public static class EntityDescriptor<TEntity>
 }
 
 public readonly struct EntityIndexer<TEntity, TComponent>
-    where TEntity : IHList
+    where TEntity : struct, IHList
 {
     public static readonly IntPtr Offset =
         EntityDescriptor<TEntity>.Offsets.TryGetValue(typeof(TComponent), out var result)
@@ -95,7 +95,7 @@ public record EntityDescriptor
     }
 
     public static EntityDescriptor Get<TEntity>()
-        where TEntity : IHList
+        where TEntity : struct, IHList
         => new(typeof(TEntity), Unsafe.SizeOf<TEntity>(),
             EntityDescriptor<TEntity>.Components,
             EntityDescriptor<TEntity>.Offsets,

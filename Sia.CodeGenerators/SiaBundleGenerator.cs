@@ -137,7 +137,7 @@ internal partial class SiaBundleGenerator : IIncrementalGenerator
     {
         source.WriteLine("public void ToHList<THandler>(in THandler handler)");
         source.Indent++;
-        source.WriteLine("where THandler : global::Sia.IGenericHandler<global::Sia.IHList>");
+        source.WriteLine("where THandler : global::Sia.IGenericStructHandler<global::Sia.IHList>");
         source.WriteLine("=> handler.Handle(Baked);");
         source.Indent--;
     }
@@ -146,7 +146,7 @@ internal partial class SiaBundleGenerator : IIncrementalGenerator
     {
         source.WriteLine("public void HandleHListType<THandler>(in THandler handler)");
         source.Indent++;
-        source.WriteLine("where THandler : global::Sia.IGenericTypeHandler<global::Sia.IHList>");
+        source.WriteLine("where THandler : global::Sia.IGenericStructTypeHandler<global::Sia.IHList>");
         source.Write("=> StaticHandleHListType(handler);");
         source.Indent--;
     }
@@ -155,7 +155,7 @@ internal partial class SiaBundleGenerator : IIncrementalGenerator
     {
         source.WriteLine("public static void StaticHandleHListType<THandler>(in THandler handler)");
         source.Indent++;
-        source.WriteLine("where THandler : global::Sia.IGenericTypeHandler<global::Sia.IHList>");
+        source.WriteLine("where THandler : global::Sia.IGenericStructTypeHandler<global::Sia.IHList>");
         source.Write("=> handler.Handle<");
         GenerateHListType(source, info);
         source.WriteLine(">();");

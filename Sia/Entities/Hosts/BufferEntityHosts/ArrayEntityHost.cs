@@ -2,7 +2,7 @@ namespace Sia;
 
 public class ArrayEntityHost<TEntity>(int initialCapacity)
     : BufferEntityHost<TEntity, ArrayBuffer<TEntity>>(new ArrayBuffer<TEntity>(initialCapacity))
-    where TEntity : IHList
+    where TEntity : struct, IHList
 {
     public ArrayEntityHost() : this(0) {}
 

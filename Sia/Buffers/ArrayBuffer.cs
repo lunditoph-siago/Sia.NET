@@ -43,6 +43,8 @@ public sealed class ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
     public ref T GetRefOrNullRef(int index)
         => ref index >= _array.Length ? ref Unsafe.NullRef<T>() : ref _array[index];
 
+    public Span<T> AsSpan() => _array;
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Dispose() {}
 }

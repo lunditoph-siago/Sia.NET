@@ -66,12 +66,13 @@ public partial record Entity
         => Host.Add(Slot, initial);
 
     public Entity AddMany<TList>(in TList bundle)
-        where TList : IHList
+        where TList : struct, IHList
         => Host.AddMany(Slot, bundle);
 
-    private struct BundleAdder(Entity entity) : IGenericHandler<IHList>
+    private struct BundleAdder(Entity entity) : IGenericStructHandler<IHList>
     {
-        public readonly void Handle<T>(in T value) where T : IHList
+        public readonly void Handle<T>(in T value)
+            where T : struct, IHList
             => entity.AddMany(value);
     }
 
@@ -92,12 +93,14 @@ public partial record Entity
         => Host.Remove<TComponent>(Slot, out success);
 
     public Entity RemoveMany<TList>()
-        where TList : IHList
+        where TList : struct, IHList
         => Host.RemoveMany<TList>(Slot);
 
-    private unsafe struct BundleRemover(Entity entity) : IGenericTypeHandler<IHList>
+    private unsafe struct BundleRemover(Entity entity)
+        : IGenericStructTypeHandler<IHList>
     {
-        public readonly void Handle<T>() where T : IHList
+        public readonly void Handle<T>()
+            where T : struct, IHList
             => entity.RemoveMany<T>();
     }
 

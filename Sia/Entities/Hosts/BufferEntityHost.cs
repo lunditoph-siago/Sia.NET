@@ -2,17 +2,19 @@ namespace Sia;
 
 using System.Collections;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 public static class BufferEntityHost<TEntity>
-    where TEntity : IHList
+    where TEntity : struct, IHList
 {
     public static BufferEntityHost<TEntity, TBuffer> Create<TBuffer>(TBuffer Buffer)
         where TBuffer : IBuffer<TEntity>
         => new(Buffer);
 }
 
-public class BufferEntityHost<TEntity, TBuffer>(TBuffer Buffer) : IEntityHost<TEntity>
-    where TEntity : IHList
+public class BufferEntityHost<TEntity, TBuffer>(TBuffer Buffer)
+    : IEntityHost<TEntity>, ISequentialEntityHost
+    where TEntity : struct, IHList
     where TBuffer : IBuffer<TEntity>
 {
     public event Action<IEntityHost>? OnDisposed;
@@ -22,6 +24,8 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer Buffer) : IEntityHost<TE
 
     public int Capacity => Buffer.Capacity;
     public int Count => Buffer.Count;
+    public unsafe Span<byte> Bytes =>
+        Buffer.Count == 0 ? [] : MemoryMarshal.Cast<TEntity, byte>(Buffer.AsSpan());
 
     public TBuffer Buffer { get; } = Buffer;
 
@@ -106,10 +110,10 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer Buffer) : IEntityHost<TE
     }
 
     private struct EntityMover(int slot, Entity e)
-        : IGenericHandler<IHList>
+        : IGenericStructHandler<IHList>
     {
         public readonly void Handle<T>(in T data)
-            where T : IHList
+            where T : struct, IHList
         {
             var host = e.Host;
             var siblingHost = host.GetSiblingHost<T>();
@@ -131,7 +135,7 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer Buffer) : IEntityHost<TE
     }
 
     public virtual Entity AddMany<TList>(int slot, in TList list)
-        where TList : IHList
+        where TList : struct, IHList
     {
         TList.HandleTypes(EntityComponentChecker.Instance);
 
@@ -173,7 +177,7 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer Buffer) : IEntityHost<TE
     }
 
     private readonly struct EntityComponentPredicate<TList> : IGenericPredicate
-        where TList : IHList
+        where TList : struct, IHList
     {
         public static EntityComponentPredicate<TList> Instance = new();
 
@@ -194,9 +198,10 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer Buffer) : IEntityHost<TE
 
     private unsafe struct FilteredHListMover(
         int slot, Entity e)
-        : IGenericHandler<IHList>
+        : IGenericStructHandler<IHList>
     {
-        public readonly void Handle<T>(in T value) where T : IHList
+        public readonly void Handle<T>(in T value)
+            where T : struct, IHList
         {
             if (typeof(T) == typeof(TEntity)) {
                 return;
@@ -209,7 +214,7 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer Buffer) : IEntityHost<TE
     }
 
     public virtual Entity RemoveMany<TList>(int slot)
-        where TList : IHList
+        where TList : struct, IHList
     {
         ref var data = ref Buffer.GetRef(slot);
         var entity = _entities[slot];
@@ -221,11 +226,12 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer Buffer) : IEntityHost<TE
     }
 
     public virtual IEntityHost<UEntity> GetSiblingHost<UEntity>()
-        where UEntity : IHList
+        where UEntity : struct, IHList
         => throw new NotSupportedException("Sibling host not supported");
 
-    public virtual void GetSiblingHostType<UEntity>(IGenericConcreteTypeHandler<IEntityHost<UEntity>> hostTypeHandler)
-        where UEntity : IHList
+    public virtual void GetSiblingHostType<UEntity>(
+        IGenericConcreteTypeHandler<IEntityHost<UEntity>> hostTypeHandler)
+        where UEntity : struct, IHList
         => throw new NotSupportedException("Sibling host not supported");
 
     public object Box(int slot)

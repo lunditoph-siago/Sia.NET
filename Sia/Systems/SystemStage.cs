@@ -92,7 +92,7 @@ public sealed class SystemStage : IDisposable
             => Host.Add(_entities[slot].Slot, initial);
 
         public Entity AddMany<TList>(int slot, in TList bundle)
-            where TList : IHList
+            where TList : struct, IHList
             => Host.AddMany(_entities[slot].Slot, bundle);
 
         public Entity Set<TComponent>(int slot, in TComponent initial)
@@ -102,7 +102,7 @@ public sealed class SystemStage : IDisposable
             => Host.Remove<TComponent>(_entities[slot].Slot, out success);
 
         public Entity RemoveMany<TList>(int slot)
-            where TList : IHList
+            where TList : struct, IHList
             => Host.RemoveMany<TList>(_entities[slot].Slot);
 
         public ref byte GetByteRef(int slot)
@@ -118,11 +118,13 @@ public sealed class SystemStage : IDisposable
         public object Box(int slot)
             => Host.Box(_entities[slot].Slot);
 
-        public IEntityHost<UEntity> GetSiblingHost<UEntity>() where UEntity : IHList
+        public IEntityHost<UEntity> GetSiblingHost<UEntity>()
+            where UEntity : struct, IHList
             => Host.GetSiblingHost<UEntity>();
 
-        public void GetSiblingHostType<UEntity>(IGenericConcreteTypeHandler<IEntityHost<UEntity>> hostTypeHandler)
-            where UEntity : IHList
+        public void GetSiblingHostType<UEntity>(
+            IGenericConcreteTypeHandler<IEntityHost<UEntity>> hostTypeHandler)
+            where UEntity : struct, IHList
             => Host.GetSiblingHostType(hostTypeHandler);
     }
 
