@@ -36,6 +36,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
 
     public int Capacity => InnerHost.Capacity;
     public int Count => InnerHost.Count;
+    public int Version => InnerHost.Version;
 
     public WorldEntityHost(World world) : this(world, new()) {}
 
@@ -78,9 +79,8 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Release(int slot)
+    public void Release(Entity entity)
     {
-        var entity = InnerHost.GetEntity(slot);
         var dispatcher = World.Dispatcher;
 
         TEntity.HandleTypes(new EntityRemoveEventSender(entity, dispatcher));
@@ -90,52 +90,47 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
         World.Count--;
         OnEntityReleased?.Invoke(entity);
 
-        InnerHost.Release(slot);
+        InnerHost.Release(entity);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Entity Add<TComponent>(int slot, in TComponent initial)
+    public void Add<TComponent>(Entity entity, in TComponent initial)
     {
-        var e = InnerHost.Add(slot, initial);
-        World.Dispatcher.Send(e, WorldEvents.Add<TComponent>.Instance);
-        World.Dispatcher.Send(e, WorldEvents.Set<TComponent>.Instance);
-        return e;
+        InnerHost.Add(entity, initial);
+        World.Dispatcher.Send(entity, WorldEvents.Add<TComponent>.Instance);
+        World.Dispatcher.Send(entity, WorldEvents.Set<TComponent>.Instance);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Entity AddMany<TList>(int slot, in TList list)
+    public void AddMany<TList>(Entity entity, in TList list)
         where TList : struct, IHList
     {
-        var e = InnerHost.AddMany(slot, list);
-        TList.HandleTypes(new EntityAddEventSender(e, World.Dispatcher));
-        return e;
+        InnerHost.AddMany(entity, list);
+        TList.HandleTypes(new EntityAddEventSender(entity, World.Dispatcher));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Entity Set<TComponent>(int slot, in TComponent value)
+    public void Set<TComponent>(Entity entity, in TComponent value)
     {
-        var e = InnerHost.Set(slot, value);
-        World.Dispatcher.Send(e, WorldEvents.Set<TComponent>.Instance);
-        return e;
+        InnerHost.Set(entity, value);
+        World.Dispatcher.Send(entity, WorldEvents.Set<TComponent>.Instance);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Entity Remove<TComponent>(int slot, out bool success)
+    public void Remove<TComponent>(Entity entity, out bool success)
     {
-        var e = InnerHost.Remove<TComponent>(slot, out success);
+        InnerHost.Remove<TComponent>(entity, out success);
         if (success) {
-            World.Dispatcher.Send(e, WorldEvents.Remove<TComponent>.Instance);
+            World.Dispatcher.Send(entity, WorldEvents.Remove<TComponent>.Instance);
         }
-        return e;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Entity RemoveMany<TList>(int slot)
+    public void RemoveMany<TList>(Entity entity)
         where TList : struct, IHList
     {
-        var e = InnerHost.RemoveMany<TList>(slot);
-        TList.HandleTypes(new ExEntityRemoveEventSender(e, Descriptor, World.Dispatcher));
-        return e;
+        InnerHost.RemoveMany<TList>(entity);
+        TList.HandleTypes(new ExEntityRemoveEventSender(entity, Descriptor, World.Dispatcher));
     }
 
     public void MoveIn(Entity entity, in TEntity data)
@@ -144,18 +139,17 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
         entity.Host = this;
     }
 
-    public ref TEntity GetRef(int slot) => ref InnerHost.GetRef(slot);
-    public ref TEntity GetRef(int slot, out Entity entity) => ref InnerHost.GetRef(slot, out entity);
+    public void MoveOut(Entity entity) => InnerHost.MoveOut(entity);
 
-    public void MoveOut(int slot) => InnerHost.MoveOut(slot);
     public Entity GetEntity(int slot) => InnerHost.GetEntity(slot);
-
+    public ref TEntity GetRef(int slot) => ref InnerHost.GetRef(slot);
     public ref byte GetByteRef(int slot) => ref InnerHost.GetByteRef(slot);
-    public ref byte GetByteRef(int slot, out Entity entity) => ref InnerHost.GetByteRef(slot, out entity);
 
     public void GetHList<THandler>(int slot, in THandler handler)
         where THandler : IRefGenericHandler<IHList>
         => InnerHost.GetHList(slot, handler);
 
     public object Box(int slot) => InnerHost.Box(slot);
+
+    public Span<Entity> UnsafeGetEntitySpan() => InnerHost.UnsafeGetEntitySpan();
 }

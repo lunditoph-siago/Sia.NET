@@ -14,7 +14,7 @@ public partial record Entity
     public int Slot { get; internal set; }
 
     public object Boxed => Host.Box(Slot);
-    public bool Valid => Host != null;
+    public bool IsValid => Host != null;
     public EntityDescriptor Descriptor => Host.Descriptor;
 
     private class PooledEntityPolicy : IPooledObjectPolicy<Entity>
@@ -24,7 +24,7 @@ public partial record Entity
     }
 
     private Entity() {}
-    public void Destroy() => Host.Release(Slot);
+    public void Destroy() => Host.Release(this);
 
     public override string ToString()
         => "[Entity " + Id + "]";
@@ -60,14 +60,23 @@ public partial record Entity
     }
 
     public Entity Add<TComponent>()
-        => Host.Add(Slot, default(TComponent));
+    {
+        Host.Add(this, default(TComponent));
+        return this;
+    }
 
     public Entity Add<TComponent>(in TComponent initial)
-        => Host.Add(Slot, initial);
+    {
+        Host.Add(this, initial);
+        return this;
+    }
 
     public Entity AddMany<TList>(in TList bundle)
         where TList : struct, IHList
-        => Host.AddMany(Slot, bundle);
+    {
+        Host.AddMany(this, bundle);
+        return this;
+    }
 
     private struct BundleAdder(Entity entity) : IGenericStructHandler<IHList>
     {
@@ -84,17 +93,29 @@ public partial record Entity
     }
 
     public Entity Set<TComponent>(in TComponent value)
-        => Host.Set(Slot, value);
+    {
+        Host.Set(this, value);
+        return this;
+    }
 
     public Entity Remove<TComponent>()
-        => Host.Remove<TComponent>(Slot, out _);
+    {
+        Host.Remove<TComponent>(this, out _);
+        return this;
+    }
 
     public Entity Remove<TComponent>(out bool success)
-        => Host.Remove<TComponent>(Slot, out success);
+    {
+        Host.Remove<TComponent>(this, out success);
+        return this;
+    }
 
     public Entity RemoveMany<TList>()
         where TList : struct, IHList
-        => Host.RemoveMany<TList>(Slot);
+    {
+        Host.RemoveMany<TList>(this);
+        return this;
+    }
 
     private unsafe struct BundleRemover(Entity entity)
         : IGenericStructTypeHandler<IHList>
@@ -124,5 +145,5 @@ public partial record Entity
         => Host.GetHList(Slot, handler);
 
     public Span<byte> AsSpan()
-        => Host.GetSpan(Slot);
+        => Host.GetBytes(Slot);
 }

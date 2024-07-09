@@ -10,6 +10,7 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
 
     public int Count { get; internal set; }
     public bool IsDisposed { get; private set; }
+    public int Version { get; internal set; }
 
     public WorldDispatcher Dispatcher { get; }
 

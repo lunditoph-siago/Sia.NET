@@ -3,6 +3,7 @@ namespace Sia;
 using System.Collections;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using CommunityToolkit.HighPerformance;
 
 public static class BufferEntityHost<TEntity>
     where TEntity : struct, IHList
@@ -24,6 +25,8 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer Buffer)
 
     public int Capacity => Buffer.Capacity;
     public int Count => Buffer.Count;
+    public int Version { get; private set; }
+
     public unsafe Span<byte> Bytes =>
         Buffer.Count == 0 ? [] : MemoryMarshal.Cast<TEntity, byte>(Buffer.AsSpan());
 
@@ -39,20 +42,23 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer Buffer)
         return e;
     }
 
-    public virtual void Release(int slot)
+    public virtual void Release(Entity entity)
     {
-        var entity = _entities[slot];
         entity.Host = null!;
         Entity.Pool.Return(entity);
-        MoveOut(slot);
+        MoveOut(entity);
     }
 
     public Entity GetEntity(int slot)
         => _entities[slot];
 
-    public void MoveOut(int slot)
+    public void MoveOut(Entity entity)
     {
+        Version++;
+
+        int slot = entity.Slot;
         int lastSlot = Buffer.Count - 1;
+
         if (slot != lastSlot) {
             Buffer.GetRef(slot) = Buffer.GetRef(lastSlot);
             var lastEntity = _entities[lastSlot];
@@ -66,6 +72,8 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer Buffer)
 
     public void MoveIn(Entity entity, in TEntity data)
     {
+        Version++;
+
         int slot = Buffer.Count++;
         Buffer.GetRef(slot) = data;
 
@@ -74,42 +82,28 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer Buffer)
         _entities.Add(entity);
     }
 
-    public unsafe ref byte GetByteRef(int slot, out Entity entity)
-        => ref Unsafe.As<TEntity, byte>(ref GetRef(slot, out entity));
-
     public unsafe ref byte GetByteRef(int slot)
         => ref Unsafe.As<TEntity, byte>(ref GetRef(slot));
 
     public ref TEntity GetRef(int slot)
         => ref Buffer.GetRef(slot);
 
-    public ref TEntity GetRef(int slot, out Entity entity)
-    {
-        ref var data = ref Buffer.GetRef(slot);
-        entity = _entities[slot];
-        return ref data!;
-    }
-
     public void GetHList<THandler>(int slot, in THandler handler)
         where THandler : IRefGenericHandler<IHList>
         => handler.Handle(ref Buffer.GetRef(slot));
 
-    public virtual Entity Add<TComponent>(int slot, in TComponent initial)
+    public virtual void Add<TComponent>(Entity entity, in TComponent initial)
     {
         if (EntityIndexer<TEntity, TComponent>.Offset != -1) {
             EntityExceptionHelper.ThrowComponentExisted<TComponent>();
         }
-        ref var data = ref Buffer.GetRef(slot);
-        var entity = _entities[slot];
-
+        ref var data = ref Buffer.GetRef(entity.Slot);
         var host = entity.Host.GetSiblingHost<HList<TComponent, TEntity>>();
         host.MoveIn(entity, HList.Cons(initial, data));
-
-        MoveOut(slot);
-        return entity;
+        MoveOut(entity);
     }
 
-    private struct EntityMover(int slot, Entity e)
+    private struct EntityMover(Entity e)
         : IGenericStructHandler<IHList>
     {
         public readonly void Handle<T>(in T data)
@@ -117,7 +111,7 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer Buffer)
         {
             var host = e.Host;
             var siblingHost = host.GetSiblingHost<T>();
-            host.MoveOut(slot);
+            host.MoveOut(e);
             siblingHost.MoveIn(e, data);
         }
     }
@@ -134,46 +128,39 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer Buffer)
         }
     }
 
-    public virtual Entity AddMany<TList>(int slot, in TList list)
+    public virtual void AddMany<TList>(Entity entity, in TList list)
         where TList : struct, IHList
     {
         TList.HandleTypes(EntityComponentChecker.Instance);
 
-        ref var data = ref Buffer.GetRef(slot);
-        var entity = _entities[slot];
-
-        var mover = new EntityMover(slot, entity);
+        ref var data = ref Buffer.GetRef(entity.Slot);
+        var mover = new EntityMover(entity);
         data.Concat(list, mover);
-        return entity;
     }
 
-    public virtual Entity Set<TComponent>(int slot, in TComponent value)
+    public virtual void Set<TComponent>(Entity entity, in TComponent value)
     {
         var offset = EntityIndexer<TEntity, TComponent>.Offset;
         if (offset == -1) {
-            return Add(slot, value);
+            Add(entity, value);
+            return;
         }
-        ref var data = ref GetRef(slot, out var e);
+        ref var data = ref GetRef(entity.Slot);
         Unsafe.As<TEntity, TComponent>(
             ref Unsafe.AddByteOffset(ref data, offset))
             = value;
-        return e;
     }
 
-    public virtual Entity Remove<TComponent>(int slot, out bool success)
+    public virtual void Remove<TComponent>(Entity entity, out bool success)
     {
-        ref var data = ref Buffer.GetRef(slot);
-        var entity = _entities[slot];
-
         if (EntityIndexer<TEntity, TComponent>.Offset == -1) {
             success = false;
-            return entity;
+            return;
         }
-
-        var mover = new EntityMover(slot, entity);
+        ref var data = ref Buffer.GetRef(entity.Slot);
+        var mover = new EntityMover(entity);
         data.Remove(TypeProxy<TComponent>._, mover);
         success = true;
-        return entity;
     }
 
     private readonly struct EntityComponentPredicate<TList> : IGenericPredicate
@@ -196,8 +183,7 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer Buffer)
             => !_types.Contains(typeof(T));
     }
 
-    private unsafe struct FilteredHListMover(
-        int slot, Entity e)
+    private unsafe struct FilteredHListMover(Entity e)
         : IGenericStructHandler<IHList>
     {
         public readonly void Handle<T>(in T value)
@@ -208,21 +194,18 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer Buffer)
             }
             var host = e.Host;
             var siblingHost = host.GetSiblingHost<T>();
-            host.MoveOut(slot);
+            host.MoveOut(e);
             siblingHost.MoveIn(e, value);
         }
     }
 
-    public virtual Entity RemoveMany<TList>(int slot)
+    public virtual void RemoveMany<TList>(Entity entity)
         where TList : struct, IHList
     {
-        ref var data = ref Buffer.GetRef(slot);
-        var entity = _entities[slot];
-
+        ref var data = ref Buffer.GetRef(entity.Slot);
         data.Filter(
             EntityComponentPredicate<TList>.Instance,
-            new FilteredHListMover(slot, entity));
-        return entity;
+            new FilteredHListMover(entity));
     }
 
     public virtual IEntityHost<UEntity> GetSiblingHost<UEntity>()
@@ -233,6 +216,9 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer Buffer)
         IGenericConcreteTypeHandler<IEntityHost<UEntity>> hostTypeHandler)
         where UEntity : struct, IHList
         => throw new NotSupportedException("Sibling host not supported");
+    
+    public Span<Entity> UnsafeGetEntitySpan()
+        => _entities.AsSpan();
 
     public object Box(int slot)
         => Buffer.GetRef(slot);

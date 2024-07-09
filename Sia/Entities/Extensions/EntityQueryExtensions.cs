@@ -4,53 +4,54 @@ using System.Runtime.CompilerServices;
 
 public static partial class EntityQueryExtensions
 {
-    public ref struct Enumerator(IReadOnlyList<IEntityHost> hosts)
+    public ref struct Enumerator(IEntityQuery query)
     {
         public readonly Entity Current {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => _entity;
+            get => _entities[_slot];
         }
 
-        private int _hostIndex;
         private int _slot = -1;
-        private Entity _entity;
+        private Span<Entity> _entities;
+
+        private readonly int _queryVersion = query.Version;
+        private readonly IReadOnlyList<IEntityHost> _hosts = query.Hosts;
+        private readonly int _hostCount = query.Hosts.Count;
 
         private IEntityHost _host;
+        private int _hostIndex;
+        private int _hostVersion;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool MoveNext()
         {
-            if (_hostIndex >= hosts.Count) {
+            if (_hostIndex >= _hostCount) {
                 return false;
             }
-            
-            var currHost = hosts[_hostIndex];
-            if (currHost != _host) {
-                _host = currHost;
-                _slot = -1;
+            if (_queryVersion != query.Version) {
+                throw new InvalidOperationException("Entity query was modified; enumeration operation may not execute");
+            }
+
+            if (_host == null) {
+                _host = _hosts[_hostIndex];
+                _hostVersion = _host.Version;
+                _entities = _host.UnsafeGetEntitySpan();
+            }
+            else if (_hostVersion != _host.Version) {
+                throw new InvalidOperationException("Entity host was modified; enumeration operation may not execute");
             }
 
             while (true) {
-                int count = _host.Count;
-                if (_slot >= count) {
-                    return false;
-                }
-                if (_slot >= 0) {
-                    var currEntity = _host.GetEntity(_slot);
-                    if (currEntity != _entity) {
-                        _entity = currEntity;
-                        return true;
-                    }
-                }
-                if (++_slot < count) {
-                    _entity = _host.GetEntity(_slot);
+                if (++_slot < _entities.Length) {
                     return true;
                 }
-                if (++_hostIndex >= hosts.Count) {
+                if (++_hostIndex >= _hostCount) {
                     return false;
                 }
-                _host = hosts[_hostIndex];
                 _slot = -1;
+                _host = _hosts[_hostIndex];
+                _hostVersion = _host.Version;
+                _entities = _host.UnsafeGetEntitySpan();
             }
         }
 
@@ -64,5 +65,5 @@ public static partial class EntityQueryExtensions
     }
 
     public static Enumerator GetEnumerator(this IEntityQuery query)
-        => new(query.Hosts);
+        => new(query);
 }
