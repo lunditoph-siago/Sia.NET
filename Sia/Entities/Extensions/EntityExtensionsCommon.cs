@@ -2,6 +2,7 @@
 
 namespace Sia;
 
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
 internal static class EntityExtensionsCommon
@@ -206,6 +207,15 @@ internal static class EntityExtensionsCommon
     {
         if (span.Length < requiredSize) {
             throw new ArgumentException("Span length is not sufficient");
+        }
+    }
+
+    [Conditional("DEBUG")]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void GuardVersion(int currentVersion, int requiredVersion)
+    {
+        if (currentVersion != requiredVersion) {
+            throw new InvalidOperationException("Entity host cannot be modified during the task");
         }
     }
 }

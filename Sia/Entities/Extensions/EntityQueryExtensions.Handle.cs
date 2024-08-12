@@ -1,6 +1,7 @@
 namespace Sia;
 
 using System.Runtime.CompilerServices;
+using static EntityExtensionsCommon;
 
 public static partial class EntityQueryExtensions
 {
@@ -46,6 +47,7 @@ public static partial class EntityQueryExtensions
             var handler = data.Handler;
             var hosts = data.Query.Hosts;
             var (host, hostIndex, slotIndex) = FindHost(hosts, from);
+            int version = host.Version;
 
             while (true) {
                 var slotCount = host.Count;
@@ -53,10 +55,12 @@ public static partial class EntityQueryExtensions
 
                 if (remainingCount <= slotCount) {
                     handler(host, slotIndex, remainingCount);
+                    GuardVersion(version, host.Version);
                     return;
                 }
                 else {
                     handler(host, slotIndex, slotCount);
+                    GuardVersion(version, host.Version);
                     host = hosts[++hostIndex];
                     slotIndex = 0;
                 }
@@ -85,13 +89,16 @@ public static partial class EntityQueryExtensions
             var handler = data.Handler;
             var hosts = data.Query.Hosts;
             var (host, hostIndex, slotIndex) = FindHost(hosts, from);
+            int version = host.Version;
 
             int slotCount = host.Count - slotIndex;
             if (remainingCount <= slotCount) {
                 handler(host, data.UserData, slotIndex, slotIndex + remainingCount);
+                GuardVersion(version, host.Version);
                 return;
             }
             handler(host, data.UserData, slotIndex, slotIndex + slotCount);
+            GuardVersion(version, host.Version);
             remainingCount -= slotCount;
             if (remainingCount == 0) { return; }
 
@@ -101,9 +108,11 @@ public static partial class EntityQueryExtensions
             while (true) {
                 if (remainingCount <= slotCount) {
                     handler(host, data.UserData, 0, remainingCount);
+                    GuardVersion(version, host.Version);
                     return;
                 }
                 handler(host, data.UserData, 0, slotCount);
+                GuardVersion(version, host.Version);
                 remainingCount -= slotCount;
 
                 host = hosts[++hostIndex];
