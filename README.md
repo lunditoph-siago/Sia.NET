@@ -1,6 +1,6 @@
 # Sia.NET
 [![Build Status](https://github.com/lunditoph-siago/Sia.NET/actions/workflows/nuget.yml/badge.svg?event=push)](https://github.com/lunditoph-siago/Sia.NET/actions/workflows/nuget.yml)
-[![NuGet Badge MimeKit](https://buildstats.info/nuget/Sia)](https://www.nuget.org/packages/Sia)
+[![NuGet Downloads](https://img.shields.io/nuget/dt/Sia)](https://www.nuget.org/packages/Sia)
 
 Modern ECS framework for .NET
 
