@@ -13,9 +13,7 @@ public sealed class UnmanagedArrayBuffer<T>(int initialCapacity) : IBuffer<T>
     public int Count {
         get => _count;
         set {
-            if (value == _count) {
-                return;
-            }
+            if (value == _count) return;
             if (value > _length) {
                 _length = CalculateArraySize(value);
                 var newMem = Marshal.AllocHGlobal(_length * Unsafe.SizeOf<T>());
@@ -54,5 +52,10 @@ public sealed class UnmanagedArrayBuffer<T>(int initialCapacity) : IBuffer<T>
     public unsafe Span<T> AsSpan() => new((void*)_mem, _count);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Dispose() {}
+    public void Dispose()
+    {
+        if (_mem == IntPtr.Zero) return;
+        Marshal.FreeHGlobal(_mem);
+        _mem = IntPtr.Zero;
+    }
 }

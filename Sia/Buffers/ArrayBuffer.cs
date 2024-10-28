@@ -10,14 +10,8 @@ public sealed class ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
     public int Count {
         get => _count;
         set {
-            if (value == _count) {
-                return;
-            }
-            if (value > _array.Length) {
-                var newArr = new T[CalculateArraySize(value)];
-                Array.Copy(_array, newArr, _count);
-                _array = newArr;
-            }
+            if (value == _count) return;
+            if (value > _array.Length) Array.Resize(ref _array, CalculateArraySize(value));
             _count = value;
         }
     }
@@ -41,7 +35,7 @@ public sealed class ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetRefOrNullRef(int index)
-        => ref index >= _array.Length ? ref Unsafe.NullRef<T>() : ref _array[index];
+        => ref index < 0 || index >= _array.Length ? ref Unsafe.NullRef<T>() : ref _array[index];
 
     public Span<T> AsSpan() => _array;
 
