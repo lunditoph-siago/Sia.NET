@@ -7,7 +7,7 @@ public static partial class EntityQueryExtensions
     #region ForEach
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe void ForEach<TRunner>(
+    public static void ForEach<TRunner>(
         this IEntityQuery query, EntityHandler handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => query.Handle(handler,
@@ -18,7 +18,7 @@ public static partial class EntityQueryExtensions
             }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe void ForEach<TRunner, TData>(
+    public static void ForEach<TRunner, TData>(
         this IEntityQuery query, in TData userData, EntityHandler<TData> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => query.Handle((userData, handler),
@@ -31,7 +31,7 @@ public static partial class EntityQueryExtensions
             }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe void ForEach<TRunner>(
+    public static void ForEach<TRunner>(
         this IEntityQuery query, SimpleEntityHandler handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => query.ForEach(handler,
@@ -39,7 +39,7 @@ public static partial class EntityQueryExtensions
                 => handler(entity), runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe void ForEach<TRunner, TData>(
+    public static void ForEach<TRunner, TData>(
         this IEntityQuery query, in TData userData, SimpleEntityHandler<TData> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => query.ForEach((handler, userData),
@@ -49,29 +49,29 @@ public static partial class EntityQueryExtensions
     #region CurrentThreadRunner
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe void ForEach(this IEntityQuery query, EntityHandler handler)
+    public static void ForEach(this IEntityQuery query, EntityHandler handler)
         => query.ForEach(handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe void ForEach<TData>(
+    public static void ForEach<TData>(
         this IEntityQuery query, in TData data, EntityHandler<TData> handler)
         => query.ForEach(data, handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe void ForEach(this IEntityQuery query, SimpleEntityHandler handler)
+    public static void ForEach(this IEntityQuery query, SimpleEntityHandler handler)
         => query.ForEach(handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe void ForEach<TData>(
+    public static void ForEach<TData>(
         this IEntityQuery query, in TData data, SimpleEntityHandler<TData> handler)
         => query.ForEach(data, handler, CurrentThreadRunner.Instance, barrier: null);
     
     #endregion // CurrentThreadRunner
 
-   #region ParallelRunner
+    #region ParallelRunner
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe void ForEachOnParallel(this IEntityQuery query, EntityHandler handler)
+    public static void ForEachOnParallel(this IEntityQuery query, EntityHandler handler)
     {
         var barrier = RunnerBarrier.Get();
         query.ForEach(handler, ParallelRunner.Default, barrier);
@@ -79,7 +79,7 @@ public static partial class EntityQueryExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe void ForEachOnParallel<TData>(
+    public static void ForEachOnParallel<TData>(
         this IEntityQuery query, in TData data, EntityHandler<TData> handler)
     {
         var barrier = RunnerBarrier.Get();
@@ -88,7 +88,7 @@ public static partial class EntityQueryExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe void ForEachOnParallel(this IEntityQuery query, SimpleEntityHandler handler)
+    public static void ForEachOnParallel(this IEntityQuery query, SimpleEntityHandler handler)
     {
         var barrier = RunnerBarrier.Get();
         query.ForEach(handler, ParallelRunner.Default, barrier);
@@ -96,7 +96,7 @@ public static partial class EntityQueryExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe void ForEachOnParallel<TData>(
+    public static void ForEachOnParallel<TData>(
         this IEntityQuery query, in TData data, SimpleEntityHandler<TData> handler)
     {
         var barrier = RunnerBarrier.Get();
@@ -111,7 +111,7 @@ public static partial class EntityQueryExtensions
     #region ForSlice
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, C1>(
+    public static void ForSlice<TRunner, C1>(
         this IEntityQuery query, ComponentHandler<C1> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => query.Handle(handler,
@@ -136,7 +136,7 @@ public static partial class EntityQueryExtensions
             }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, C1, C2>(
+    public static void ForSlice<TRunner, C1, C2>(
         this IEntityQuery query, ComponentHandler<C1, C2> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => query.Handle(handler,
@@ -166,7 +166,7 @@ public static partial class EntityQueryExtensions
             }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, C1, C2, C3>(
+    public static void ForSlice<TRunner, C1, C2, C3>(
         this IEntityQuery query, ComponentHandler<C1, C2, C3> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => query.Handle(handler,
@@ -199,7 +199,7 @@ public static partial class EntityQueryExtensions
             }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, C1, C2, C3, C4>(
+    public static void ForSlice<TRunner, C1, C2, C3, C4>(
         this IEntityQuery query, ComponentHandler<C1, C2, C3, C4> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => query.Handle(handler,
@@ -235,7 +235,7 @@ public static partial class EntityQueryExtensions
             }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, C1, C2, C3, C4, C5>(
+    public static void ForSlice<TRunner, C1, C2, C3, C4, C5>(
         this IEntityQuery query, ComponentHandler<C1, C2, C3, C4, C5> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => query.Handle(handler,
@@ -274,7 +274,7 @@ public static partial class EntityQueryExtensions
             }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, C1, C2, C3, C4, C5, C6>(
+    public static void ForSlice<TRunner, C1, C2, C3, C4, C5, C6>(
         this IEntityQuery query, ComponentHandler<C1, C2, C3, C4, C5, C6> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => query.Handle(handler,
@@ -316,7 +316,7 @@ public static partial class EntityQueryExtensions
             }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, TData, C1>(
+    public static void ForSlice<TRunner, TData, C1>(
         this IEntityQuery query, in TData userData, DataComponentHandler<TData, C1> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => query.Handle((handler, userData),
@@ -345,7 +345,7 @@ public static partial class EntityQueryExtensions
             }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, TData, C1, C2>(
+    public static void ForSlice<TRunner, TData, C1, C2>(
         this IEntityQuery query, in TData userData, DataComponentHandler<TData, C1, C2> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => query.Handle((handler, userData),
@@ -378,7 +378,7 @@ public static partial class EntityQueryExtensions
             }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, TData, C1, C2, C3>(
+    public static void ForSlice<TRunner, TData, C1, C2, C3>(
         this IEntityQuery query, in TData userData, DataComponentHandler<TData, C1, C2, C3> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => query.Handle((handler, userData),
@@ -414,7 +414,7 @@ public static partial class EntityQueryExtensions
             }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, TData, C1, C2, C3, C4>(
+    public static void ForSlice<TRunner, TData, C1, C2, C3, C4>(
         this IEntityQuery query, in TData userData, DataComponentHandler<TData, C1, C2, C3, C4> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => query.Handle((handler, userData),
@@ -453,7 +453,7 @@ public static partial class EntityQueryExtensions
             }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, TData, C1, C2, C3, C4, C5>(
+    public static void ForSlice<TRunner, TData, C1, C2, C3, C4, C5>(
         this IEntityQuery query, in TData userData, DataComponentHandler<TData, C1, C2, C3, C4, C5> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => query.Handle((handler, userData),
@@ -495,7 +495,7 @@ public static partial class EntityQueryExtensions
             }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, TData, C1, C2, C3, C4, C5, C6>(
+    public static void ForSlice<TRunner, TData, C1, C2, C3, C4, C5, C6>(
         this IEntityQuery query, in TData userData, DataComponentHandler<TData, C1, C2, C3, C4, C5, C6> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => query.Handle((handler, userData),
@@ -542,62 +542,62 @@ public static partial class EntityQueryExtensions
     #region CurrentThreadRunner
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<C1>(
+    public static void ForSlice<C1>(
         this IEntityQuery query, ComponentHandler<C1> handler)
         => query.ForSlice(handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<C1, C2>(
+    public static void ForSlice<C1, C2>(
         this IEntityQuery query, ComponentHandler<C1, C2> handler)
         => query.ForSlice(handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<C1, C2, C3>(
+    public static void ForSlice<C1, C2, C3>(
         this IEntityQuery query, ComponentHandler<C1, C2, C3> handler)
         => query.ForSlice(handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<C1, C2, C3, C4>(
+    public static void ForSlice<C1, C2, C3, C4>(
         this IEntityQuery query, ComponentHandler<C1, C2, C3, C4> handler)
         => query.ForSlice(handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<C1, C2, C3, C4, C5>(
+    public static void ForSlice<C1, C2, C3, C4, C5>(
         this IEntityQuery query, ComponentHandler<C1, C2, C3, C4, C5> handler)
         => query.ForSlice(handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<C1, C2, C3, C4, C5, C6>(
+    public static void ForSlice<C1, C2, C3, C4, C5, C6>(
         this IEntityQuery query, ComponentHandler<C1, C2, C3, C4, C5, C6> handler)
         => query.ForSlice(handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TData, C1>(
+    public static void ForSlice<TData, C1>(
         this IEntityQuery query, in TData userData, DataComponentHandler<TData, C1> handler)
         => query.ForSlice(userData, handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TData, C1, C2>(
+    public static void ForSlice<TData, C1, C2>(
         this IEntityQuery query, in TData userData, DataComponentHandler<TData, C1, C2> handler)
         => query.ForSlice(userData, handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TData, C1, C2, C3>(
+    public static void ForSlice<TData, C1, C2, C3>(
         this IEntityQuery query, in TData userData, DataComponentHandler<TData, C1, C2, C3> handler)
         => query.ForSlice(userData, handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TData, C1, C2, C3, C4>(
+    public static void ForSlice<TData, C1, C2, C3, C4>(
         this IEntityQuery query, in TData userData, DataComponentHandler<TData, C1, C2, C3, C4> handler)
         => query.ForSlice(userData, handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TData, C1, C2, C3, C4, C5>(
+    public static void ForSlice<TData, C1, C2, C3, C4, C5>(
         this IEntityQuery query, in TData userData, DataComponentHandler<TData, C1, C2, C3, C4, C5> handler)
         => query.ForSlice(userData, handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TData, C1, C2, C3, C4, C5, C6>(
+    public static void ForSlice<TData, C1, C2, C3, C4, C5, C6>(
         this IEntityQuery query, in TData userData, DataComponentHandler<TData, C1, C2, C3, C4, C5, C6> handler)
         => query.ForSlice(userData, handler, CurrentThreadRunner.Instance, barrier: null);
     
@@ -606,7 +606,7 @@ public static partial class EntityQueryExtensions
     #region ParallelRunner
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<C1>(
+    public static void ForSliceOnParallel<C1>(
         this IEntityQuery query, ComponentHandler<C1> handler)
     {
         var barrier = RunnerBarrier.Get();
@@ -615,7 +615,7 @@ public static partial class EntityQueryExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<C1, C2>(
+    public static void ForSliceOnParallel<C1, C2>(
         this IEntityQuery query, ComponentHandler<C1, C2> handler)
     {
         var barrier = RunnerBarrier.Get();
@@ -624,7 +624,7 @@ public static partial class EntityQueryExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<C1, C2, C3>(
+    public static void ForSliceOnParallel<C1, C2, C3>(
         this IEntityQuery query, ComponentHandler<C1, C2, C3> handler)
     {
         var barrier = RunnerBarrier.Get();
@@ -633,7 +633,7 @@ public static partial class EntityQueryExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<C1, C2, C3, C4>(
+    public static void ForSliceOnParallel<C1, C2, C3, C4>(
         this IEntityQuery query, ComponentHandler<C1, C2, C3, C4> handler)
     {
         var barrier = RunnerBarrier.Get();
@@ -642,7 +642,7 @@ public static partial class EntityQueryExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<C1, C2, C3, C4, C5>(
+    public static void ForSliceOnParallel<C1, C2, C3, C4, C5>(
         this IEntityQuery query, ComponentHandler<C1, C2, C3, C4, C5> handler)
     {
         var barrier = RunnerBarrier.Get();
@@ -651,7 +651,7 @@ public static partial class EntityQueryExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<C1, C2, C3, C4, C5, C6>(
+    public static void ForSliceOnParallel<C1, C2, C3, C4, C5, C6>(
         this IEntityQuery query, ComponentHandler<C1, C2, C3, C4, C5, C6> handler)
     {
         var barrier = RunnerBarrier.Get();
@@ -660,7 +660,7 @@ public static partial class EntityQueryExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<TData, C1>(
+    public static void ForSliceOnParallel<TData, C1>(
         this IEntityQuery query, in TData userData, DataComponentHandler<TData, C1> handler)
     {
         var barrier = RunnerBarrier.Get();
@@ -669,7 +669,7 @@ public static partial class EntityQueryExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<TData, C1, C2>(
+    public static void ForSliceOnParallel<TData, C1, C2>(
         this IEntityQuery query, in TData userData, DataComponentHandler<TData, C1, C2> handler)
     {
         var barrier = RunnerBarrier.Get();
@@ -678,7 +678,7 @@ public static partial class EntityQueryExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<TData, C1, C2, C3>(
+    public static void ForSliceOnParallel<TData, C1, C2, C3>(
         this IEntityQuery query, in TData userData, DataComponentHandler<TData, C1, C2, C3> handler)
     {
         var barrier = RunnerBarrier.Get();
@@ -687,7 +687,7 @@ public static partial class EntityQueryExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<TData, C1, C2, C3, C4>(
+    public static void ForSliceOnParallel<TData, C1, C2, C3, C4>(
         this IEntityQuery query, in TData userData, DataComponentHandler<TData, C1, C2, C3, C4> handler)
     {
         var barrier = RunnerBarrier.Get();
@@ -696,7 +696,7 @@ public static partial class EntityQueryExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<TData, C1, C2, C3, C4, C5>(
+    public static void ForSliceOnParallel<TData, C1, C2, C3, C4, C5>(
         this IEntityQuery query, in TData userData, DataComponentHandler<TData, C1, C2, C3, C4, C5> handler)
     {
         var barrier = RunnerBarrier.Get();
@@ -705,7 +705,7 @@ public static partial class EntityQueryExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<TData, C1, C2, C3, C4, C5, C6>(
+    public static void ForSliceOnParallel<TData, C1, C2, C3, C4, C5, C6>(
         this IEntityQuery query, in TData userData, DataComponentHandler<TData, C1, C2, C3, C4, C5, C6> handler)
     {
         var barrier = RunnerBarrier.Get();
@@ -720,7 +720,7 @@ public static partial class EntityQueryExtensions
     #region ForSlice_WithEntity
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, C1>(
+    public static void ForSlice<TRunner, C1>(
         this IEntityQuery query, ComponentHandlerWithEntity<C1> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => query.Handle(handler,
@@ -746,7 +746,7 @@ public static partial class EntityQueryExtensions
             }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, C1, C2>(
+    public static void ForSlice<TRunner, C1, C2>(
         this IEntityQuery query, ComponentHandlerWithEntity<C1, C2> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => query.Handle(handler,
@@ -777,7 +777,7 @@ public static partial class EntityQueryExtensions
             }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, C1, C2, C3>(
+    public static void ForSlice<TRunner, C1, C2, C3>(
         this IEntityQuery query, ComponentHandlerWithEntity<C1, C2, C3> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => query.Handle(handler,
@@ -811,7 +811,7 @@ public static partial class EntityQueryExtensions
             }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, C1, C2, C3, C4>(
+    public static void ForSlice<TRunner, C1, C2, C3, C4>(
         this IEntityQuery query, ComponentHandlerWithEntity<C1, C2, C3, C4> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => query.Handle(handler,
@@ -848,7 +848,7 @@ public static partial class EntityQueryExtensions
             }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, C1, C2, C3, C4, C5>(
+    public static void ForSlice<TRunner, C1, C2, C3, C4, C5>(
         this IEntityQuery query, ComponentHandlerWithEntity<C1, C2, C3, C4, C5> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => query.Handle(handler,
@@ -888,7 +888,7 @@ public static partial class EntityQueryExtensions
             }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, C1, C2, C3, C4, C5, C6>(
+    public static void ForSlice<TRunner, C1, C2, C3, C4, C5, C6>(
         this IEntityQuery query, ComponentHandlerWithEntity<C1, C2, C3, C4, C5, C6> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => query.Handle(handler,
@@ -931,7 +931,7 @@ public static partial class EntityQueryExtensions
             }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, TData, C1>(
+    public static void ForSlice<TRunner, TData, C1>(
         this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => query.Handle((handler, userData),
@@ -961,7 +961,7 @@ public static partial class EntityQueryExtensions
             }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, TData, C1, C2>(
+    public static void ForSlice<TRunner, TData, C1, C2>(
         this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1, C2> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => query.Handle((handler, userData),
@@ -995,7 +995,7 @@ public static partial class EntityQueryExtensions
             }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, TData, C1, C2, C3>(
+    public static void ForSlice<TRunner, TData, C1, C2, C3>(
         this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1, C2, C3> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => query.Handle((handler, userData),
@@ -1032,7 +1032,7 @@ public static partial class EntityQueryExtensions
             }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, TData, C1, C2, C3, C4>(
+    public static void ForSlice<TRunner, TData, C1, C2, C3, C4>(
         this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1, C2, C3, C4> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => query.Handle((handler, userData),
@@ -1072,7 +1072,7 @@ public static partial class EntityQueryExtensions
             }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, TData, C1, C2, C3, C4, C5>(
+    public static void ForSlice<TRunner, TData, C1, C2, C3, C4, C5>(
         this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1, C2, C3, C4, C5> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => query.Handle((handler, userData),
@@ -1115,7 +1115,7 @@ public static partial class EntityQueryExtensions
             }, runner, barrier);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TRunner, TData, C1, C2, C3, C4, C5, C6>(
+    public static void ForSlice<TRunner, TData, C1, C2, C3, C4, C5, C6>(
         this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1, C2, C3, C4, C5, C6> handler, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => query.Handle((handler, userData),
@@ -1163,62 +1163,62 @@ public static partial class EntityQueryExtensions
     #region CurrentThreadRunner
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<C1>(
+    public static void ForSlice<C1>(
         this IEntityQuery query, ComponentHandlerWithEntity<C1> handler)
         => query.ForSlice(handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<C1, C2>(
+    public static void ForSlice<C1, C2>(
         this IEntityQuery query, ComponentHandlerWithEntity<C1, C2> handler)
         => query.ForSlice(handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<C1, C2, C3>(
+    public static void ForSlice<C1, C2, C3>(
         this IEntityQuery query, ComponentHandlerWithEntity<C1, C2, C3> handler)
         => query.ForSlice(handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<C1, C2, C3, C4>(
+    public static void ForSlice<C1, C2, C3, C4>(
         this IEntityQuery query, ComponentHandlerWithEntity<C1, C2, C3, C4> handler)
         => query.ForSlice(handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<C1, C2, C3, C4, C5>(
+    public static void ForSlice<C1, C2, C3, C4, C5>(
         this IEntityQuery query, ComponentHandlerWithEntity<C1, C2, C3, C4, C5> handler)
         => query.ForSlice(handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<C1, C2, C3, C4, C5, C6>(
+    public static void ForSlice<C1, C2, C3, C4, C5, C6>(
         this IEntityQuery query, ComponentHandlerWithEntity<C1, C2, C3, C4, C5, C6> handler)
         => query.ForSlice(handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TData, C1>(
+    public static void ForSlice<TData, C1>(
         this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1> handler)
         => query.ForSlice(userData, handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TData, C1, C2>(
+    public static void ForSlice<TData, C1, C2>(
         this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1, C2> handler)
         => query.ForSlice(userData, handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TData, C1, C2, C3>(
+    public static void ForSlice<TData, C1, C2, C3>(
         this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1, C2, C3> handler)
         => query.ForSlice(userData, handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TData, C1, C2, C3, C4>(
+    public static void ForSlice<TData, C1, C2, C3, C4>(
         this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1, C2, C3, C4> handler)
         => query.ForSlice(userData, handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TData, C1, C2, C3, C4, C5>(
+    public static void ForSlice<TData, C1, C2, C3, C4, C5>(
         this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1, C2, C3, C4, C5> handler)
         => query.ForSlice(userData, handler, CurrentThreadRunner.Instance, barrier: null);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSlice<TData, C1, C2, C3, C4, C5, C6>(
+    public static void ForSlice<TData, C1, C2, C3, C4, C5, C6>(
         this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1, C2, C3, C4, C5, C6> handler)
         => query.ForSlice(userData, handler, CurrentThreadRunner.Instance, barrier: null);
     
@@ -1227,7 +1227,7 @@ public static partial class EntityQueryExtensions
     #region ParallelRunner
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<C1>(
+    public static void ForSliceOnParallel<C1>(
         this IEntityQuery query, ComponentHandlerWithEntity<C1> handler)
     {
         var barrier = RunnerBarrier.Get();
@@ -1236,7 +1236,7 @@ public static partial class EntityQueryExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<C1, C2>(
+    public static void ForSliceOnParallel<C1, C2>(
         this IEntityQuery query, ComponentHandlerWithEntity<C1, C2> handler)
     {
         var barrier = RunnerBarrier.Get();
@@ -1245,7 +1245,7 @@ public static partial class EntityQueryExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<C1, C2, C3>(
+    public static void ForSliceOnParallel<C1, C2, C3>(
         this IEntityQuery query, ComponentHandlerWithEntity<C1, C2, C3> handler)
     {
         var barrier = RunnerBarrier.Get();
@@ -1254,7 +1254,7 @@ public static partial class EntityQueryExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<C1, C2, C3, C4>(
+    public static void ForSliceOnParallel<C1, C2, C3, C4>(
         this IEntityQuery query, ComponentHandlerWithEntity<C1, C2, C3, C4> handler)
     {
         var barrier = RunnerBarrier.Get();
@@ -1263,7 +1263,7 @@ public static partial class EntityQueryExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<C1, C2, C3, C4, C5>(
+    public static void ForSliceOnParallel<C1, C2, C3, C4, C5>(
         this IEntityQuery query, ComponentHandlerWithEntity<C1, C2, C3, C4, C5> handler)
     {
         var barrier = RunnerBarrier.Get();
@@ -1272,7 +1272,7 @@ public static partial class EntityQueryExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<C1, C2, C3, C4, C5, C6>(
+    public static void ForSliceOnParallel<C1, C2, C3, C4, C5, C6>(
         this IEntityQuery query, ComponentHandlerWithEntity<C1, C2, C3, C4, C5, C6> handler)
     {
         var barrier = RunnerBarrier.Get();
@@ -1281,7 +1281,7 @@ public static partial class EntityQueryExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<TData, C1>(
+    public static void ForSliceOnParallel<TData, C1>(
         this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1> handler)
     {
         var barrier = RunnerBarrier.Get();
@@ -1290,7 +1290,7 @@ public static partial class EntityQueryExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<TData, C1, C2>(
+    public static void ForSliceOnParallel<TData, C1, C2>(
         this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1, C2> handler)
     {
         var barrier = RunnerBarrier.Get();
@@ -1299,7 +1299,7 @@ public static partial class EntityQueryExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<TData, C1, C2, C3>(
+    public static void ForSliceOnParallel<TData, C1, C2, C3>(
         this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1, C2, C3> handler)
     {
         var barrier = RunnerBarrier.Get();
@@ -1308,7 +1308,7 @@ public static partial class EntityQueryExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<TData, C1, C2, C3, C4>(
+    public static void ForSliceOnParallel<TData, C1, C2, C3, C4>(
         this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1, C2, C3, C4> handler)
     {
         var barrier = RunnerBarrier.Get();
@@ -1317,7 +1317,7 @@ public static partial class EntityQueryExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<TData, C1, C2, C3, C4, C5>(
+    public static void ForSliceOnParallel<TData, C1, C2, C3, C4, C5>(
         this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1, C2, C3, C4, C5> handler)
     {
         var barrier = RunnerBarrier.Get();
@@ -1326,7 +1326,7 @@ public static partial class EntityQueryExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void ForSliceOnParallel<TData, C1, C2, C3, C4, C5, C6>(
+    public static void ForSliceOnParallel<TData, C1, C2, C3, C4, C5, C6>(
         this IEntityQuery query, in TData userData, DataComponentHandlerWithEntity<TData, C1, C2, C3, C4, C5, C6> handler)
     {
         var barrier = RunnerBarrier.Get();

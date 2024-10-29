@@ -8,7 +8,7 @@ public static partial class EntityQueryExtensions
 {
     #region Record
 
-    public unsafe static void Record<TRunner, TResult>(
+    public static unsafe void Record<TRunner, TResult>(
         this IEntityQuery query, Span<TResult> span, EntityRecorder<TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
@@ -36,7 +36,7 @@ public static partial class EntityQueryExtensions
         }
     }
 
-    public unsafe static void Record<TRunner, TData, TResult>(
+    public static unsafe void Record<TRunner, TData, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, EntityRecorder<TData, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
@@ -68,22 +68,22 @@ public static partial class EntityQueryExtensions
     private static void IdEntityRecorder(Entity entity, out Entity result)
         => result = entity;
 
-    public unsafe static void Record<TRunner>(
+    public static void Record<TRunner>(
         this IEntityQuery query, Span<Entity> span, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
         => query.Record(span, IdEntityRecorder, runner, barrier);
 
     #region CurrentThreadRunner
 
-    public unsafe static void Record<TResult>(
+    public static void Record<TResult>(
         this IEntityQuery query, Span<TResult> span, EntityRecorder<TResult> recorder)
         => query.Record(span, recorder, CurrentThreadRunner.Instance, barrier: null);
 
-    public unsafe static void Record<TData, TResult>(
+    public static void Record<TData, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, EntityRecorder<TData, TResult> recorder)
         => query.Record(span, userData, recorder, CurrentThreadRunner.Instance, barrier: null);
 
-    public unsafe static void Record(
+    public static void Record(
         this IEntityQuery query, Span<Entity> span)
         => query.Record(span, IdEntityRecorder, CurrentThreadRunner.Instance, barrier: null);
 
@@ -91,7 +91,7 @@ public static partial class EntityQueryExtensions
     
     #region ParallelRunner
 
-    public unsafe static void RecordOnParallel<TResult>(
+    public static void RecordOnParallel<TResult>(
         this IEntityQuery query, Span<TResult> span, EntityRecorder<TResult> recorder)
     {
         var barrier = RunnerBarrier.Get();
@@ -99,7 +99,7 @@ public static partial class EntityQueryExtensions
         barrier.WaitAndReturn();
     }
 
-    public unsafe static void RecordOnParallel<TData, TResult>(
+    public static void RecordOnParallel<TData, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, EntityRecorder<TData, TResult> recorder)
     {
         var barrier = RunnerBarrier.Get();
@@ -107,7 +107,7 @@ public static partial class EntityQueryExtensions
         barrier.WaitAndReturn();
     }
 
-    public unsafe static void RecordOnParallel(
+    public static void RecordOnParallel(
         this IEntityQuery query, Span<Entity> span)
     {
         var barrier = RunnerBarrier.Get();
@@ -121,7 +121,7 @@ public static partial class EntityQueryExtensions
 
     #region RecordSlices
 
-    public unsafe static void RecordSlices<TRunner, C1, TResult>(
+    public static unsafe void RecordSlices<TRunner, C1, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorder<C1, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
@@ -143,7 +143,7 @@ public static partial class EntityQueryExtensions
         }
     }
 
-    public unsafe static void RecordSlices<TRunner, C1, C2, TResult>(
+    public static unsafe void RecordSlices<TRunner, C1, C2, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorder<C1, C2, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
@@ -165,7 +165,7 @@ public static partial class EntityQueryExtensions
         }
     }
 
-    public unsafe static void RecordSlices<TRunner, C1, C2, C3, TResult>(
+    public static unsafe void RecordSlices<TRunner, C1, C2, C3, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorder<C1, C2, C3, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
@@ -187,7 +187,7 @@ public static partial class EntityQueryExtensions
         }
     }
 
-    public unsafe static void RecordSlices<TRunner, C1, C2, C3, C4, TResult>(
+    public static unsafe void RecordSlices<TRunner, C1, C2, C3, C4, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorder<C1, C2, C3, C4, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
@@ -209,7 +209,7 @@ public static partial class EntityQueryExtensions
         }
     }
 
-    public unsafe static void RecordSlices<TRunner, C1, C2, C3, C4, C5, TResult>(
+    public static unsafe void RecordSlices<TRunner, C1, C2, C3, C4, C5, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorder<C1, C2, C3, C4, C5, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
@@ -231,7 +231,7 @@ public static partial class EntityQueryExtensions
         }
     }
 
-    public unsafe static void RecordSlices<TRunner, C1, C2, C3, C4, C5, C6, TResult>(
+    public static unsafe void RecordSlices<TRunner, C1, C2, C3, C4, C5, C6, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorder<C1, C2, C3, C4, C5, C6, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
@@ -253,7 +253,7 @@ public static partial class EntityQueryExtensions
         }
     }
 
-    public unsafe static void RecordSlices<TRunner, TData, C1, TResult>(
+    public static unsafe void RecordSlices<TRunner, TData, C1, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
@@ -277,7 +277,7 @@ public static partial class EntityQueryExtensions
         }
     }
 
-    public unsafe static void RecordSlices<TRunner, TData, C1, C2, TResult>(
+    public static unsafe void RecordSlices<TRunner, TData, C1, C2, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
@@ -301,7 +301,7 @@ public static partial class EntityQueryExtensions
         }
     }
 
-    public unsafe static void RecordSlices<TRunner, TData, C1, C2, C3, TResult>(
+    public static unsafe void RecordSlices<TRunner, TData, C1, C2, C3, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
@@ -325,7 +325,7 @@ public static partial class EntityQueryExtensions
         }
     }
 
-    public unsafe static void RecordSlices<TRunner, TData, C1, C2, C3, C4, TResult>(
+    public static unsafe void RecordSlices<TRunner, TData, C1, C2, C3, C4, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, C4, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
@@ -349,7 +349,7 @@ public static partial class EntityQueryExtensions
         }
     }
 
-    public unsafe static void RecordSlices<TRunner, TData, C1, C2, C3, C4, C5, TResult>(
+    public static unsafe void RecordSlices<TRunner, TData, C1, C2, C3, C4, C5, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, C4, C5, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
@@ -373,7 +373,7 @@ public static partial class EntityQueryExtensions
         }
     }
 
-    public unsafe static void RecordSlices<TRunner, TData, C1, C2, C3, C4, C5, C6, TResult>(
+    public static unsafe void RecordSlices<TRunner, TData, C1, C2, C3, C4, C5, C6, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, C4, C5, C6, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
@@ -399,51 +399,51 @@ public static partial class EntityQueryExtensions
 
     #region CurrentThreadRunner
 
-    public unsafe static void RecordSlices<C1, TResult>(
+    public static void RecordSlices<C1, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorder<C1, TResult> recorder)
         => query.RecordSlices(span, recorder, CurrentThreadRunner.Instance, barrier: null);
 
-    public unsafe static void RecordSlices<C1, C2, TResult>(
+    public static void RecordSlices<C1, C2, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorder<C1, C2, TResult> recorder)
         => query.RecordSlices(span, recorder, CurrentThreadRunner.Instance, barrier: null);
 
-    public unsafe static void RecordSlices<C1, C2, C3, TResult>(
+    public static void RecordSlices<C1, C2, C3, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorder<C1, C2, C3, TResult> recorder)
         => query.RecordSlices(span, recorder, CurrentThreadRunner.Instance, barrier: null);
 
-    public unsafe static void RecordSlices<C1, C2, C3, C4, TResult>(
+    public static void RecordSlices<C1, C2, C3, C4, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorder<C1, C2, C3, C4, TResult> recorder)
         => query.RecordSlices(span, recorder, CurrentThreadRunner.Instance, barrier: null);
 
-    public unsafe static void RecordSlices<C1, C2, C3, C4, C5, TResult>(
+    public static void RecordSlices<C1, C2, C3, C4, C5, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorder<C1, C2, C3, C4, C5, TResult> recorder)
         => query.RecordSlices(span, recorder, CurrentThreadRunner.Instance, barrier: null);
 
-    public unsafe static void RecordSlices<C1, C2, C3, C4, C5, C6, TResult>(
+    public static void RecordSlices<C1, C2, C3, C4, C5, C6, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorder<C1, C2, C3, C4, C5, C6, TResult> recorder)
         => query.RecordSlices(span, recorder, CurrentThreadRunner.Instance, barrier: null);
 
-    public unsafe static void RecordSlices<TData, C1, TResult>(
+    public static void RecordSlices<TData, C1, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, TResult> recorder)
         => query.RecordSlices(span, userData, recorder, CurrentThreadRunner.Instance, barrier: null);
 
-    public unsafe static void RecordSlices<TData, C1, C2, TResult>(
+    public static void RecordSlices<TData, C1, C2, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, TResult> recorder)
         => query.RecordSlices(span, userData, recorder, CurrentThreadRunner.Instance, barrier: null);
 
-    public unsafe static void RecordSlices<TData, C1, C2, C3, TResult>(
+    public static void RecordSlices<TData, C1, C2, C3, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, TResult> recorder)
         => query.RecordSlices(span, userData, recorder, CurrentThreadRunner.Instance, barrier: null);
 
-    public unsafe static void RecordSlices<TData, C1, C2, C3, C4, TResult>(
+    public static void RecordSlices<TData, C1, C2, C3, C4, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, C4, TResult> recorder)
         => query.RecordSlices(span, userData, recorder, CurrentThreadRunner.Instance, barrier: null);
 
-    public unsafe static void RecordSlices<TData, C1, C2, C3, C4, C5, TResult>(
+    public static void RecordSlices<TData, C1, C2, C3, C4, C5, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, C4, C5, TResult> recorder)
         => query.RecordSlices(span, userData, recorder, CurrentThreadRunner.Instance, barrier: null);
 
-    public unsafe static void RecordSlices<TData, C1, C2, C3, C4, C5, C6, TResult>(
+    public static void RecordSlices<TData, C1, C2, C3, C4, C5, C6, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, C4, C5, C6, TResult> recorder)
         => query.RecordSlices(span, userData, recorder, CurrentThreadRunner.Instance, barrier: null);
 
@@ -451,7 +451,7 @@ public static partial class EntityQueryExtensions
 
     #region ParallelRunner
 
-    public unsafe static void RecordSlicesOnParallel<C1, TResult>(
+    public static void RecordSlicesOnParallel<C1, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorder<C1, TResult> recorder)
     {
         var barrier = RunnerBarrier.Get();
@@ -459,7 +459,7 @@ public static partial class EntityQueryExtensions
         barrier.WaitAndReturn();
     }
 
-    public unsafe static void RecordSlicesOnParallel<C1, C2, TResult>(
+    public static void RecordSlicesOnParallel<C1, C2, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorder<C1, C2, TResult> recorder)
     {
         var barrier = RunnerBarrier.Get();
@@ -467,7 +467,7 @@ public static partial class EntityQueryExtensions
         barrier.WaitAndReturn();
     }
 
-    public unsafe static void RecordSlicesOnParallel<C1, C2, C3, TResult>(
+    public static void RecordSlicesOnParallel<C1, C2, C3, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorder<C1, C2, C3, TResult> recorder)
     {
         var barrier = RunnerBarrier.Get();
@@ -475,7 +475,7 @@ public static partial class EntityQueryExtensions
         barrier.WaitAndReturn();
     }
 
-    public unsafe static void RecordSlicesOnParallel<C1, C2, C3, C4, TResult>(
+    public static void RecordSlicesOnParallel<C1, C2, C3, C4, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorder<C1, C2, C3, C4, TResult> recorder)
     {
         var barrier = RunnerBarrier.Get();
@@ -483,7 +483,7 @@ public static partial class EntityQueryExtensions
         barrier.WaitAndReturn();
     }
 
-    public unsafe static void RecordSlicesOnParallel<C1, C2, C3, C4, C5, TResult>(
+    public static void RecordSlicesOnParallel<C1, C2, C3, C4, C5, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorder<C1, C2, C3, C4, C5, TResult> recorder)
     {
         var barrier = RunnerBarrier.Get();
@@ -491,7 +491,7 @@ public static partial class EntityQueryExtensions
         barrier.WaitAndReturn();
     }
 
-    public unsafe static void RecordSlicesOnParallel<C1, C2, C3, C4, C5, C6, TResult>(
+    public static void RecordSlicesOnParallel<C1, C2, C3, C4, C5, C6, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorder<C1, C2, C3, C4, C5, C6, TResult> recorder)
     {
         var barrier = RunnerBarrier.Get();
@@ -499,7 +499,7 @@ public static partial class EntityQueryExtensions
         barrier.WaitAndReturn();
     }
 
-    public unsafe static void RecordSlicesOnParallel<TData, C1, TResult>(
+    public static void RecordSlicesOnParallel<TData, C1, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, TResult> recorder)
     {
         var barrier = RunnerBarrier.Get();
@@ -507,7 +507,7 @@ public static partial class EntityQueryExtensions
         barrier.WaitAndReturn();
     }
 
-    public unsafe static void RecordSlicesOnParallel<TData, C1, C2, TResult>(
+    public static void RecordSlicesOnParallel<TData, C1, C2, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, TResult> recorder)
     {
         var barrier = RunnerBarrier.Get();
@@ -515,7 +515,7 @@ public static partial class EntityQueryExtensions
         barrier.WaitAndReturn();
     }
 
-    public unsafe static void RecordSlicesOnParallel<TData, C1, C2, C3, TResult>(
+    public static void RecordSlicesOnParallel<TData, C1, C2, C3, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, TResult> recorder)
     {
         var barrier = RunnerBarrier.Get();
@@ -523,7 +523,7 @@ public static partial class EntityQueryExtensions
         barrier.WaitAndReturn();
     }
 
-    public unsafe static void RecordSlicesOnParallel<TData, C1, C2, C3, C4, TResult>(
+    public static void RecordSlicesOnParallel<TData, C1, C2, C3, C4, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, C4, TResult> recorder)
     {
         var barrier = RunnerBarrier.Get();
@@ -531,7 +531,7 @@ public static partial class EntityQueryExtensions
         barrier.WaitAndReturn();
     }
 
-    public unsafe static void RecordSlicesOnParallel<TData, C1, C2, C3, C4, C5, TResult>(
+    public static void RecordSlicesOnParallel<TData, C1, C2, C3, C4, C5, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, C4, C5, TResult> recorder)
     {
         var barrier = RunnerBarrier.Get();
@@ -539,7 +539,7 @@ public static partial class EntityQueryExtensions
         barrier.WaitAndReturn();
     }
 
-    public unsafe static void RecordSlicesOnParallel<TData, C1, C2, C3, C4, C5, C6, TResult>(
+    public static void RecordSlicesOnParallel<TData, C1, C2, C3, C4, C5, C6, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, C4, C5, C6, TResult> recorder)
     {
         var barrier = RunnerBarrier.Get();
@@ -552,7 +552,7 @@ public static partial class EntityQueryExtensions
 
     #region RecordSlices_WithEntity
 
-    public unsafe static void RecordSlices<TRunner, C1, TResult>(
+    public static unsafe void RecordSlices<TRunner, C1, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorderWithEntity<C1, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
@@ -575,7 +575,7 @@ public static partial class EntityQueryExtensions
         }
     }
 
-    public unsafe static void RecordSlices<TRunner, C1, C2, TResult>(
+    public static unsafe void RecordSlices<TRunner, C1, C2, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorderWithEntity<C1, C2, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
@@ -598,7 +598,7 @@ public static partial class EntityQueryExtensions
         }
     }
 
-    public unsafe static void RecordSlices<TRunner, C1, C2, C3, TResult>(
+    public static unsafe void RecordSlices<TRunner, C1, C2, C3, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorderWithEntity<C1, C2, C3, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
@@ -621,7 +621,7 @@ public static partial class EntityQueryExtensions
         }
     }
 
-    public unsafe static void RecordSlices<TRunner, C1, C2, C3, C4, TResult>(
+    public static unsafe void RecordSlices<TRunner, C1, C2, C3, C4, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorderWithEntity<C1, C2, C3, C4, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
@@ -644,7 +644,7 @@ public static partial class EntityQueryExtensions
         }
     }
 
-    public unsafe static void RecordSlices<TRunner, C1, C2, C3, C4, C5, TResult>(
+    public static unsafe void RecordSlices<TRunner, C1, C2, C3, C4, C5, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorderWithEntity<C1, C2, C3, C4, C5, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
@@ -667,7 +667,7 @@ public static partial class EntityQueryExtensions
         }
     }
 
-    public unsafe static void RecordSlices<TRunner, C1, C2, C3, C4, C5, C6, TResult>(
+    public static unsafe void RecordSlices<TRunner, C1, C2, C3, C4, C5, C6, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorderWithEntity<C1, C2, C3, C4, C5, C6, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
@@ -690,7 +690,7 @@ public static partial class EntityQueryExtensions
         }
     }
 
-    public unsafe static void RecordSlices<TRunner, TData, C1, TResult>(
+    public static unsafe void RecordSlices<TRunner, TData, C1, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorderWithEntity<TData, C1, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
@@ -714,7 +714,7 @@ public static partial class EntityQueryExtensions
         }
     }
 
-    public unsafe static void RecordSlices<TRunner, TData, C1, C2, TResult>(
+    public static unsafe void RecordSlices<TRunner, TData, C1, C2, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorderWithEntity<TData, C1, C2, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
@@ -738,7 +738,7 @@ public static partial class EntityQueryExtensions
         }
     }
 
-    public unsafe static void RecordSlices<TRunner, TData, C1, C2, C3, TResult>(
+    public static unsafe void RecordSlices<TRunner, TData, C1, C2, C3, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorderWithEntity<TData, C1, C2, C3, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
@@ -762,7 +762,7 @@ public static partial class EntityQueryExtensions
         }
     }
 
-    public unsafe static void RecordSlices<TRunner, TData, C1, C2, C3, C4, TResult>(
+    public static unsafe void RecordSlices<TRunner, TData, C1, C2, C3, C4, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorderWithEntity<TData, C1, C2, C3, C4, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
@@ -786,7 +786,7 @@ public static partial class EntityQueryExtensions
         }
     }
 
-    public unsafe static void RecordSlices<TRunner, TData, C1, C2, C3, C4, C5, TResult>(
+    public static unsafe void RecordSlices<TRunner, TData, C1, C2, C3, C4, C5, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorderWithEntity<TData, C1, C2, C3, C4, C5, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
@@ -810,7 +810,7 @@ public static partial class EntityQueryExtensions
         }
     }
 
-    public unsafe static void RecordSlices<TRunner, TData, C1, C2, C3, C4, C5, C6, TResult>(
+    public static unsafe void RecordSlices<TRunner, TData, C1, C2, C3, C4, C5, C6, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorderWithEntity<TData, C1, C2, C3, C4, C5, C6, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
@@ -836,51 +836,51 @@ public static partial class EntityQueryExtensions
 
     #region CurrentThreadRunner
 
-    public unsafe static void RecordSlices<C1, TResult>(
+    public static void RecordSlices<C1, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorderWithEntity<C1, TResult> recorder)
         => query.RecordSlices(span, recorder, CurrentThreadRunner.Instance, barrier: null);
 
-    public unsafe static void RecordSlices<C1, C2, TResult>(
+    public static void RecordSlices<C1, C2, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorderWithEntity<C1, C2, TResult> recorder)
         => query.RecordSlices(span, recorder, CurrentThreadRunner.Instance, barrier: null);
 
-    public unsafe static void RecordSlices<C1, C2, C3, TResult>(
+    public static void RecordSlices<C1, C2, C3, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorderWithEntity<C1, C2, C3, TResult> recorder)
         => query.RecordSlices(span, recorder, CurrentThreadRunner.Instance, barrier: null);
 
-    public unsafe static void RecordSlices<C1, C2, C3, C4, TResult>(
+    public static void RecordSlices<C1, C2, C3, C4, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorderWithEntity<C1, C2, C3, C4, TResult> recorder)
         => query.RecordSlices(span, recorder, CurrentThreadRunner.Instance, barrier: null);
 
-    public unsafe static void RecordSlices<C1, C2, C3, C4, C5, TResult>(
+    public static void RecordSlices<C1, C2, C3, C4, C5, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorderWithEntity<C1, C2, C3, C4, C5, TResult> recorder)
         => query.RecordSlices(span, recorder, CurrentThreadRunner.Instance, barrier: null);
 
-    public unsafe static void RecordSlices<C1, C2, C3, C4, C5, C6, TResult>(
+    public static void RecordSlices<C1, C2, C3, C4, C5, C6, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorderWithEntity<C1, C2, C3, C4, C5, C6, TResult> recorder)
         => query.RecordSlices(span, recorder, CurrentThreadRunner.Instance, barrier: null);
 
-    public unsafe static void RecordSlices<TData, C1, TResult>(
+    public static void RecordSlices<TData, C1, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorderWithEntity<TData, C1, TResult> recorder)
         => query.RecordSlices(span, userData, recorder, CurrentThreadRunner.Instance, barrier: null);
 
-    public unsafe static void RecordSlices<TData, C1, C2, TResult>(
+    public static void RecordSlices<TData, C1, C2, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorderWithEntity<TData, C1, C2, TResult> recorder)
         => query.RecordSlices(span, userData, recorder, CurrentThreadRunner.Instance, barrier: null);
 
-    public unsafe static void RecordSlices<TData, C1, C2, C3, TResult>(
+    public static void RecordSlices<TData, C1, C2, C3, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorderWithEntity<TData, C1, C2, C3, TResult> recorder)
         => query.RecordSlices(span, userData, recorder, CurrentThreadRunner.Instance, barrier: null);
 
-    public unsafe static void RecordSlices<TData, C1, C2, C3, C4, TResult>(
+    public static void RecordSlices<TData, C1, C2, C3, C4, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorderWithEntity<TData, C1, C2, C3, C4, TResult> recorder)
         => query.RecordSlices(span, userData, recorder, CurrentThreadRunner.Instance, barrier: null);
 
-    public unsafe static void RecordSlices<TData, C1, C2, C3, C4, C5, TResult>(
+    public static void RecordSlices<TData, C1, C2, C3, C4, C5, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorderWithEntity<TData, C1, C2, C3, C4, C5, TResult> recorder)
         => query.RecordSlices(span, userData, recorder, CurrentThreadRunner.Instance, barrier: null);
 
-    public unsafe static void RecordSlices<TData, C1, C2, C3, C4, C5, C6, TResult>(
+    public static void RecordSlices<TData, C1, C2, C3, C4, C5, C6, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorderWithEntity<TData, C1, C2, C3, C4, C5, C6, TResult> recorder)
         => query.RecordSlices(span, userData, recorder, CurrentThreadRunner.Instance, barrier: null);
 
@@ -888,7 +888,7 @@ public static partial class EntityQueryExtensions
 
     #region ParallelRunner
 
-    public unsafe static void RecordSlicesOnParallel<C1, TResult>(
+    public static void RecordSlicesOnParallel<C1, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorderWithEntity<C1, TResult> recorder)
     {
         var barrier = RunnerBarrier.Get();
@@ -896,7 +896,7 @@ public static partial class EntityQueryExtensions
         barrier.WaitAndReturn();
     }
 
-    public unsafe static void RecordSlicesOnParallel<C1, C2, TResult>(
+    public static void RecordSlicesOnParallel<C1, C2, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorderWithEntity<C1, C2, TResult> recorder)
     {
         var barrier = RunnerBarrier.Get();
@@ -904,7 +904,7 @@ public static partial class EntityQueryExtensions
         barrier.WaitAndReturn();
     }
 
-    public unsafe static void RecordSlicesOnParallel<C1, C2, C3, TResult>(
+    public static void RecordSlicesOnParallel<C1, C2, C3, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorderWithEntity<C1, C2, C3, TResult> recorder)
     {
         var barrier = RunnerBarrier.Get();
@@ -912,7 +912,7 @@ public static partial class EntityQueryExtensions
         barrier.WaitAndReturn();
     }
 
-    public unsafe static void RecordSlicesOnParallel<C1, C2, C3, C4, TResult>(
+    public static void RecordSlicesOnParallel<C1, C2, C3, C4, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorderWithEntity<C1, C2, C3, C4, TResult> recorder)
     {
         var barrier = RunnerBarrier.Get();
@@ -920,7 +920,7 @@ public static partial class EntityQueryExtensions
         barrier.WaitAndReturn();
     }
 
-    public unsafe static void RecordSlicesOnParallel<C1, C2, C3, C4, C5, TResult>(
+    public static void RecordSlicesOnParallel<C1, C2, C3, C4, C5, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorderWithEntity<C1, C2, C3, C4, C5, TResult> recorder)
     {
         var barrier = RunnerBarrier.Get();
@@ -928,7 +928,7 @@ public static partial class EntityQueryExtensions
         barrier.WaitAndReturn();
     }
 
-    public unsafe static void RecordSlicesOnParallel<C1, C2, C3, C4, C5, C6, TResult>(
+    public static void RecordSlicesOnParallel<C1, C2, C3, C4, C5, C6, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorderWithEntity<C1, C2, C3, C4, C5, C6, TResult> recorder)
     {
         var barrier = RunnerBarrier.Get();
@@ -936,7 +936,7 @@ public static partial class EntityQueryExtensions
         barrier.WaitAndReturn();
     }
 
-    public unsafe static void RecordSlicesOnParallel<TData, C1, TResult>(
+    public static void RecordSlicesOnParallel<TData, C1, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorderWithEntity<TData, C1, TResult> recorder)
     {
         var barrier = RunnerBarrier.Get();
@@ -944,7 +944,7 @@ public static partial class EntityQueryExtensions
         barrier.WaitAndReturn();
     }
 
-    public unsafe static void RecordSlicesOnParallel<TData, C1, C2, TResult>(
+    public static void RecordSlicesOnParallel<TData, C1, C2, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorderWithEntity<TData, C1, C2, TResult> recorder)
     {
         var barrier = RunnerBarrier.Get();
@@ -952,7 +952,7 @@ public static partial class EntityQueryExtensions
         barrier.WaitAndReturn();
     }
 
-    public unsafe static void RecordSlicesOnParallel<TData, C1, C2, C3, TResult>(
+    public static void RecordSlicesOnParallel<TData, C1, C2, C3, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorderWithEntity<TData, C1, C2, C3, TResult> recorder)
     {
         var barrier = RunnerBarrier.Get();
@@ -960,7 +960,7 @@ public static partial class EntityQueryExtensions
         barrier.WaitAndReturn();
     }
 
-    public unsafe static void RecordSlicesOnParallel<TData, C1, C2, C3, C4, TResult>(
+    public static void RecordSlicesOnParallel<TData, C1, C2, C3, C4, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorderWithEntity<TData, C1, C2, C3, C4, TResult> recorder)
     {
         var barrier = RunnerBarrier.Get();
@@ -968,7 +968,7 @@ public static partial class EntityQueryExtensions
         barrier.WaitAndReturn();
     }
 
-    public unsafe static void RecordSlicesOnParallel<TData, C1, C2, C3, C4, C5, TResult>(
+    public static void RecordSlicesOnParallel<TData, C1, C2, C3, C4, C5, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorderWithEntity<TData, C1, C2, C3, C4, C5, TResult> recorder)
     {
         var barrier = RunnerBarrier.Get();
@@ -976,7 +976,7 @@ public static partial class EntityQueryExtensions
         barrier.WaitAndReturn();
     }
 
-    public unsafe static void RecordSlicesOnParallel<TData, C1, C2, C3, C4, C5, C6, TResult>(
+    public static void RecordSlicesOnParallel<TData, C1, C2, C3, C4, C5, C6, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorderWithEntity<TData, C1, C2, C3, C4, C5, C6, TResult> recorder)
     {
         var barrier = RunnerBarrier.Get();
