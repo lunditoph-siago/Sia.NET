@@ -8,12 +8,12 @@ using CommunityToolkit.HighPerformance;
 public static class BufferEntityHost<TEntity>
     where TEntity : struct, IHList
 {
-    public static BufferEntityHost<TEntity, TBuffer> Create<TBuffer>(TBuffer Buffer)
+    public static BufferEntityHost<TEntity, TBuffer> Create<TBuffer>(TBuffer buffer)
         where TBuffer : IBuffer<TEntity>
-        => new(Buffer);
+        => new(buffer);
 }
 
-public class BufferEntityHost<TEntity, TBuffer>(TBuffer Buffer)
+public class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     : IEntityHost<TEntity>, ISequentialEntityHost
     where TEntity : struct, IHList
     where TBuffer : IBuffer<TEntity>
@@ -27,10 +27,10 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer Buffer)
     public int Count => Buffer.Count;
     public int Version { get; private set; }
 
-    public unsafe Span<byte> Bytes =>
+    public Span<byte> Bytes =>
         Buffer.Count == 0 ? [] : MemoryMarshal.Cast<TEntity, byte>(Buffer.AsSpan());
 
-    public TBuffer Buffer { get; } = Buffer;
+    public TBuffer Buffer { get; } = buffer;
 
     private readonly List<Entity> _entities = [];
 
@@ -82,7 +82,7 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer Buffer)
         _entities.Add(entity);
     }
 
-    public unsafe ref byte GetByteRef(int slot)
+    public ref byte GetByteRef(int slot)
         => ref Unsafe.As<TEntity, byte>(ref GetRef(slot));
 
     public ref TEntity GetRef(int slot)
@@ -183,7 +183,7 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer Buffer)
             => !_types.Contains(typeof(T));
     }
 
-    private unsafe struct FilteredHListMover(Entity e)
+    private struct FilteredHListMover(Entity e)
         : IGenericStructHandler<IHList>
     {
         public readonly void Handle<T>(in T value)

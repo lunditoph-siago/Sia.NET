@@ -17,7 +17,7 @@ public static class EntityDescriptor<TEntity>
         List<ComponentInfo> components, Dictionary<Type, IntPtr> offsets, IntPtr entityPtr)
         : IRefGenericHandler<IHList>
     {
-        private unsafe struct HeadRecorder(
+        private struct HeadRecorder(
             List<ComponentInfo> components, Dictionary<Type, IntPtr> offsets, IntPtr entityPtr)
             : IRefGenericHandler
         {
@@ -41,7 +41,7 @@ public static class EntityDescriptor<TEntity>
         }
     }
 
-    unsafe static EntityDescriptor()
+    static unsafe EntityDescriptor()
     {
         if (typeof(TEntity) == typeof(EmptyHList)) {
             Components = [];
