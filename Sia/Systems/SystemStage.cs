@@ -3,7 +3,6 @@ namespace Sia;
 using System.Collections;
 using System.Collections.Frozen;
 using System.Collections.Immutable;
-using System.Reactive.Disposables;
 using System.Runtime.CompilerServices;
 using CommunityToolkit.HighPerformance;
 
@@ -346,6 +345,38 @@ public sealed class SystemStage : IDisposable
         }
     }
 
+    private class CompositeDisposable(params IDisposable[] disposables) : IDisposable
+    {
+        private List<IDisposable>? _disposables = [..disposables];
+        private readonly object _lock = new();
+
+        public int Count {
+            get {
+                lock (_lock) {
+                    return _disposables?.Count ?? 0;
+                }
+            }
+        }
+
+        public void Dispose()
+        {
+            List<IDisposable>? tempDisposables = null;
+
+            lock (_lock) {
+                if (_disposables is not null) {
+                    tempDisposables = _disposables;
+                    _disposables = null;
+                }
+            }
+
+            if (tempDisposables is not null) {
+                foreach (var disposable in tempDisposables) {
+                    disposable.Dispose();
+                }
+            }
+        }
+    }
+
     public World World { get; }
     public ImmutableArray<Entry> Entries { get; }
     public bool IsDisposed { get; private set; }
@@ -355,11 +386,12 @@ public sealed class SystemStage : IDisposable
     internal SystemStage(World world, IEnumerable<ISystem> systems)
     {
         World = world;
-        Entries = systems.Select(system =>
-            new Entry(system,
-                CreateSystemAction(world, system, out var disposable),
-                disposable))
-            .ToImmutableArray();
+        Entries = [
+            ..systems.Select(system =>
+                new Entry(system,
+                    CreateSystemAction(world, system, out var disposable),
+                    disposable))
+        ];
         
         var actions = Entries
             .Where(entry => entry.Action != null)
