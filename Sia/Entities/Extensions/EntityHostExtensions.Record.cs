@@ -4,7 +4,7 @@ namespace Sia;
 
 using static EntityExtensionsCommon;
 
-public static partial class EntityExtensions
+public static partial class EntityHostExtensions
 {
     #region Record
 
