@@ -3,12 +3,19 @@ using Sia_Examples;
 
 void Invoke(Action<World> action)
 {
-    Console.WriteLine("== " + action.Method.DeclaringType + " ==");
-    var world = new World();
-    Context<World>.Current = world;
-    action(world);
-    world.Dispose();
-    Console.WriteLine();
+    try
+    {
+        Console.WriteLine("== " + action.Method.DeclaringType + " ==");
+        var world = new World();
+        Context<World>.Current = world;
+        action(world);
+        world.Dispose();
+        Console.WriteLine();
+    }
+    catch (Exception e)
+    {
+        Console.WriteLine(e);
+    }
 }
 
 Tests.Run();

@@ -2,7 +2,7 @@ namespace Sia;
 
 using System.Runtime.CompilerServices;
 
-public static partial class EntityExtensions
+public static partial class EntityHostExtensions
 {
     #region ForEach
 

@@ -3,7 +3,7 @@ namespace Sia;
 using System.Runtime.CompilerServices;
 using static EntityExtensionsCommon;
 
-public static partial class EntityExtensions
+public static partial class EntityHostExtensions
 {
     private readonly record struct HandleData(
         IEntityHost Host, EntityHostRangeHandler Handler);
