@@ -17,4 +17,9 @@
     <ProjectReference Include="..\Sia.Prelude\Sia.Prelude.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Silk.NET" Version="2.*" />
+    <PackageReference Include="SkiaSharp" Version="3.*" />
+  </ItemGroup>
+
 </Project>
