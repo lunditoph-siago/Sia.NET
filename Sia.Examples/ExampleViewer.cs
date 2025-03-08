@@ -40,7 +40,7 @@ public class ExampleViewer : IDisposable
     {
         var options = WindowOptions.Default with
         {
-            Size = new Vector2D<int>(1400, 900),
+            Size = new Vector2D<int>(800, 600),
             Title = "Sia.NET Examples Viewer"
         };
 
@@ -56,6 +56,7 @@ public class ExampleViewer : IDisposable
         _gl = GL.GetApi(_window!);
         var inputContext = _window!.CreateInput();
         _textRenderer = new TextRenderer(_gl);
+        _textRenderer.SetWindowSize(_window!.Size.X, _window.Size.Y);
 
         _inputHandler = new InputHandler();
         _inputHandler.Initialize(inputContext);
