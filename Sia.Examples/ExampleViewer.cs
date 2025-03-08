@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Numerics;
 using Silk.NET.Input;
 using Silk.NET.OpenGL;
 using Silk.NET.Windowing;
@@ -10,19 +11,24 @@ public class ExampleViewer : IDisposable
 {
     private IWindow? _window;
     private GL? _gl;
-    private IInputContext? _inputContext;
     private ExampleRunner? _exampleRunner;
     private TextRenderer? _textRenderer;
-
-    private int _selectedExample = 0;
-    private bool _showingMenu = true;
-    private string _currentOutput = "";
-    private bool _needsUpdate = true;
+    private InputHandler? _inputHandler;
     private bool _disposed = false;
 
-    private float _menuScrollOffset = 0f;
-    private float _outputScrollOffset = 0f;
-    private const float ScrollSpeed = 30f;
+    private ViewState _state = new()
+    {
+        ShowingMenu = true,
+        SelectedExample = 0,
+        HoveredExample = -1,
+        CurrentOutput = string.Empty,
+        MenuScrollOffset = 0f,
+        OutputScrollOffset = 0f
+    };
+
+    private const int HeaderHeight = 120;
+    private const int ExampleLineHeight = 2;
+    private const int LinesPerPage = 5;
 
     public ExampleViewer()
     {
@@ -48,235 +54,317 @@ public class ExampleViewer : IDisposable
     private void OnLoad()
     {
         _gl = GL.GetApi(_window!);
-        _inputContext = _window!.CreateInput();
+        var inputContext = _window!.CreateInput();
         _textRenderer = new TextRenderer(_gl);
 
-        foreach (var keyboard in _inputContext.Keyboards)
-            keyboard.KeyDown += OnKeyDown;
-
-        foreach (var mouse in _inputContext.Mice)
-        {
-            mouse.Click += OnMouseClick;
-            mouse.Scroll += OnMouseScroll;
-        }
+        _inputHandler = new InputHandler();
+        _inputHandler.Initialize(inputContext);
+        _inputHandler.UserActionTriggered += HandleUserAction;
 
         _gl.ClearColor(0.1f, 0.1f, 0.15f, 1.0f);
-        UpdateDisplay();
+        _state.MarkDirty();
     }
 
-    private void OnKeyDown(IKeyboard keyboard, Key key, int scanCode)
+    private void HandleUserAction(UserActionEvent actionEvent)
     {
-        if (_showingMenu)
-            HandleMenuInput(key);
-        else
-            HandleOutputInput(key);
-    }
-
-    private void HandleMenuInput(Key key)
-    {
-        switch (key)
+        _state = actionEvent.Action switch
         {
-            case Key.Up:
-                ChangeSelection(-1);
-                break;
-            case Key.Down:
-                ChangeSelection(1);
-                break;
-            case Key.PageUp:
-                ChangeSelection(-5);
-                break;
-            case Key.PageDown:
-                ChangeSelection(5);
-                break;
-            case Key.Home:
-                _selectedExample = 0;
-                ResetScroll();
-                break;
-            case Key.End:
-                _selectedExample = _exampleRunner.Examples.Count - 1;
-                EnsureSelectedVisible();
-                break;
-            case Key.Enter:
-                RunSelectedExample();
-                break;
-            case Key.Escape:
-                _window.Close();
-                break;
-        }
+            UserAction.NavigateUp => ChangeSelection(-1),
+            UserAction.NavigateDown => ChangeSelection(1),
+            UserAction.NavigatePageUp => ChangeSelection(-LinesPerPage),
+            UserAction.NavigatePageDown => ChangeSelection(LinesPerPage),
+            UserAction.NavigateHome => NavigateToHome(),
+            UserAction.NavigateEnd => NavigateToEnd(),
+            UserAction.ExecuteAction => ExecuteSelectedExample(),
+            UserAction.CancelAction => HandleCancel(),
+            UserAction.RefreshAction => RefreshCurrentView(),
+            UserAction.GoBackAction => GoBackToMenu(),
+            UserAction.ScrollUp => HandleScroll(-(int)actionEvent.Context.ScrollDelta),
+            UserAction.ScrollDown => HandleScroll((int)actionEvent.Context.ScrollDelta),
+            UserAction.MouseClick => HandleMouseClick(actionEvent.Context),
+            UserAction.MouseMove => HandleMouseMove(actionEvent.Context),
+            UserAction.ExitApplication => ExitApplication(),
+            _ => _state
+        };
     }
 
-    private void HandleOutputInput(Key key)
+    private ViewState ChangeSelection(int delta)
     {
-        switch (key)
+        if (_state.Mode != ViewMode.Menu) return _state;
+
+        var newIndex = Math.Clamp(_state.SelectedExample + delta, 0, _exampleRunner!.Examples.Count - 1);
+        var newState = _state.With(builder => builder.SetSelectedExample(newIndex));
+
+        return EnsureSelectedVisible(newState);
+    }
+
+    private ViewState NavigateToHome() => _state.Mode switch
+    {
+        ViewMode.Menu => EnsureSelectedVisible(_state.With(builder =>
+            builder.SetSelectedExample(0).SetScrollOffsets(0f, _state.OutputScrollOffset))),
+        ViewMode.Output => ScrollToTop(),
+        _ => _state
+    };
+
+    private ViewState NavigateToEnd() => _state.Mode switch
+    {
+        ViewMode.Menu => EnsureSelectedVisible(_state.With(builder =>
+            builder.SetSelectedExample(_exampleRunner!.Examples.Count - 1))),
+        ViewMode.Output => ScrollToBottom(),
+        _ => _state
+    };
+
+    private ViewState ExecuteSelectedExample()
+    {
+        if (_state.Mode != ViewMode.Menu) return _state;
+
+        var output = _exampleRunner!.RunExample(_state.SelectedExample);
+        return _state.ToOutputMode(output);
+    }
+
+    private ViewState HandleCancel() => _state.Mode switch
+    {
+        ViewMode.Menu => ExitApplication(),
+        ViewMode.Output => _state.ToMenuMode(),
+        _ => _state
+    };
+
+    private ViewState RefreshCurrentView() => _state.Mode switch
+    {
+        ViewMode.Output => ExecuteSelectedExample(),
+        _ => _state
+    };
+
+    private ViewState GoBackToMenu() => _state.Mode switch
+    {
+        ViewMode.Output => _state.ToMenuMode(),
+        _ => _state
+    };
+
+    private ViewState HandleScroll(int linesDelta) => _state.Mode switch
+    {
+        ViewMode.Menu => ScrollMenu(linesDelta),
+        ViewMode.Output => ScrollOutput(linesDelta),
+        _ => _state
+    };
+
+    private ViewState ScrollMenu(int linesDelta)
+    {
+        var currentScrollLine = (int)(_state.MenuScrollOffset / _textRenderer!.LineHeight);
+        var newScrollLine = Math.Max(0, currentScrollLine + linesDelta);
+
+        var totalExamples = _exampleRunner!.Examples.Count;
+        var linesPerExample = ExampleLineHeight;
+        var totalContentLines = totalExamples * linesPerExample;
+        var visibleLines = GetVisibleMenuLines();
+        var maxScrollLine = Math.Max(0, totalContentLines - visibleLines + 1);
+
+        newScrollLine = Math.Min(newScrollLine, maxScrollLine);
+        var newOffset = newScrollLine * _textRenderer.LineHeight;
+
+        _textRenderer.ScrollOffset = newOffset;
+        return _state.With(builder => builder.SetScrollOffsets(newOffset, _state.OutputScrollOffset));
+    }
+
+    private ViewState ScrollOutput(int linesDelta)
+    {
+        var newOffset = _state.OutputScrollOffset + (linesDelta * _textRenderer!.LineHeight);
+        _textRenderer.Scroll(linesDelta * _textRenderer.LineHeight);
+
+        return _state.With(builder => builder.SetScrollOffsets(_state.MenuScrollOffset, newOffset));
+    }
+
+    private ViewState ScrollToTop() => _state.Mode switch
+    {
+        ViewMode.Menu => _state.With(builder => builder.SetScrollOffsets(0f, _state.OutputScrollOffset)),
+        ViewMode.Output => ScrollToTopOutput(),
+        _ => _state
+    };
+
+    private ViewState ScrollToTopOutput()
+    {
+        _textRenderer!.ScrollOffset = 0f;
+        return _state.With(builder => builder.SetScrollOffsets(_state.MenuScrollOffset, 0f));
+    }
+
+    private ViewState ScrollToBottom() => _state.Mode switch
+    {
+        ViewMode.Menu => ScrollToBottomMenu(),
+        ViewMode.Output => ScrollToBottomOutput(),
+        _ => _state
+    };
+
+    private ViewState ScrollToBottomMenu()
+    {
+        var maxScroll = CalculateMaxMenuScroll();
+        _textRenderer!.ScrollOffset = maxScroll;
+        return _state.With(builder => builder.SetScrollOffsets(maxScroll, _state.OutputScrollOffset));
+    }
+
+    private ViewState ScrollToBottomOutput()
+    {
+        var maxScroll = _textRenderer!.GetTotalLines() * _textRenderer.LineHeight;
+        _textRenderer.ScrollOffset = maxScroll;
+        return _state.With(builder => builder.SetScrollOffsets(_state.MenuScrollOffset, maxScroll));
+    }
+
+    private ViewState HandleMouseClick(ActionContext context)
+    {
+        if (_state.Mode != ViewMode.Menu || context.MousePosition is not { } position)
+            return _state;
+
+        var exampleIndex = GetExampleIndexFromPosition(position);
+        if (exampleIndex >= 0 && exampleIndex < _exampleRunner!.Examples.Count)
         {
-            case Key.Escape:
-            case Key.Backspace:
-                _showingMenu = true;
-                ResetScroll();
-                break;
-            case Key.R:
-                RunSelectedExample();
-                break;
-            case Key.Home:
-                ResetScroll();
-                break;
-            case Key.End:
-                ScrollToEnd();
-                break;
-            case Key.PageUp:
-                ScrollOutput(-_textRenderer.GetVisibleLines() * _textRenderer.LineHeight);
-                break;
-            case Key.PageDown:
-                ScrollOutput(_textRenderer.GetVisibleLines() * _textRenderer.LineHeight);
-                break;
+            var newState = _state.With(builder => builder.SetSelectedExample(exampleIndex));
+            var output = _exampleRunner.RunExample(exampleIndex);
+            return newState.ToOutputMode(output);
         }
+
+        return _state;
     }
 
-    private void ChangeSelection(int delta)
+    private ViewState HandleMouseMove(ActionContext context)
     {
-        _selectedExample = Math.Clamp(_selectedExample + delta, 0, _exampleRunner.Examples.Count - 1);
-        EnsureSelectedVisible();
-        _needsUpdate = true;
+        if (_state.Mode != ViewMode.Menu || context.MousePosition is not { } position)
+            return _state.With(builder => builder.SetHoveredExample(-1));
+
+        var exampleIndex = GetExampleIndexFromPosition(position);
+        var hoveredIndex = (exampleIndex >= 0 && exampleIndex < _exampleRunner!.Examples.Count) ? exampleIndex : -1;
+
+        return _state.With(builder => builder.SetHoveredExample(hoveredIndex));
     }
 
-    private void ResetScroll()
+    private int GetExampleIndexFromPosition(Vector2 position)
     {
-        _menuScrollOffset = _outputScrollOffset = 0;
-        _textRenderer.ScrollOffset = 0;
-        _needsUpdate = true;
+        if (position.Y <= HeaderHeight) return -1;
+
+        var relativeY = position.Y - HeaderHeight + _state.MenuScrollOffset;
+        var lineHeight = _textRenderer!.LineHeight;
+        var linesPerExample = ExampleLineHeight;
+
+        var exampleIndex = (int)(relativeY / (lineHeight * linesPerExample));
+        return exampleIndex;
     }
 
-    private void ScrollToEnd()
+    private ViewState EnsureSelectedVisible(ViewState state)
     {
-        _outputScrollOffset = _textRenderer.GetTotalLines() * _textRenderer.LineHeight;
-        _textRenderer.ScrollOffset = _outputScrollOffset;
-        _needsUpdate = true;
-    }
+        if (state.Mode != ViewMode.Menu) return state;
 
-    private void OnMouseClick(IMouse mouse, MouseButton button, System.Numerics.Vector2 position)
-    {
-        if (button != MouseButton.Left || !_showingMenu) return;
+        var selectedLine = state.SelectedExample * ExampleLineHeight;
+        var visibleLines = GetVisibleMenuLines();
+        var currentScrollLine = (int)(state.MenuScrollOffset / _textRenderer!.LineHeight);
 
-        var headerHeight = 120;
-        var lineHeight = _textRenderer.LineHeight * 2;
+        var newScrollLine = currentScrollLine;
 
-        if (position.Y > headerHeight)
+        if (selectedLine < currentScrollLine)
         {
-            int clickedIndex = (int)((position.Y - headerHeight + _menuScrollOffset) / lineHeight);
-            if (clickedIndex >= 0 && clickedIndex < _exampleRunner.Examples.Count)
-            {
-                _selectedExample = clickedIndex;
-                RunSelectedExample();
-            }
+            newScrollLine = selectedLine;
         }
+        else if (selectedLine >= currentScrollLine + visibleLines - ExampleLineHeight)
+        {
+            newScrollLine = selectedLine - visibleLines + ExampleLineHeight;
+        }
+
+        newScrollLine = Math.Max(0, newScrollLine);
+        var newOffset = newScrollLine * _textRenderer.LineHeight;
+
+        _textRenderer.ScrollOffset = newOffset;
+        return state.With(builder => builder.SetScrollOffsets(newOffset, state.OutputScrollOffset));
     }
 
-    private void OnMouseScroll(IMouse mouse, ScrollWheel scrollWheel)
+    private int GetVisibleMenuLines()
     {
-        float scrollDelta = scrollWheel.Y * ScrollSpeed;
-
-        if (_showingMenu)
-            ScrollMenu(-scrollDelta);
-        else
-            ScrollOutput(-scrollDelta);
+        return (_window!.Size.Y - HeaderHeight) / (int)_textRenderer!.LineHeight;
     }
 
-    private void ScrollMenu(float delta)
+    private float CalculateMaxMenuScroll()
     {
-        _menuScrollOffset += delta;
-
-        float totalHeight = _exampleRunner.Examples.Count * _textRenderer.LineHeight * 2;
-        float visibleHeight = _window.Size.Y - 120;
-        float maxScroll = Math.Max(0, totalHeight - visibleHeight);
-
-        _menuScrollOffset = Math.Clamp(_menuScrollOffset, 0, maxScroll);
-        _textRenderer.ScrollOffset = _menuScrollOffset;
-        _needsUpdate = true;
+        var totalExamples = _exampleRunner!.Examples.Count;
+        var totalContentLines = totalExamples * ExampleLineHeight;
+        var visibleLines = GetVisibleMenuLines();
+        var maxScrollLines = Math.Max(0, totalContentLines - visibleLines + 1);
+        return maxScrollLines * _textRenderer!.LineHeight;
     }
 
-    private void ScrollOutput(float delta)
+    private ViewState ExitApplication()
     {
-        _outputScrollOffset += delta;
-        _textRenderer.Scroll(delta);
-        _needsUpdate = true;
-    }
-
-    private void EnsureSelectedVisible()
-    {
-        if (!_showingMenu) return;
-
-        float selectedY = _selectedExample * _textRenderer.LineHeight * 2;
-        float visibleHeight = _window.Size.Y - 120;
-
-        if (selectedY < _menuScrollOffset)
-            _menuScrollOffset = selectedY;
-        else if (selectedY > _menuScrollOffset + visibleHeight - _textRenderer.LineHeight * 2)
-            _menuScrollOffset = selectedY - visibleHeight + _textRenderer.LineHeight * 2;
-
-        _textRenderer.ScrollOffset = _menuScrollOffset;
-    }
-
-    private void RunSelectedExample()
-    {
-        _showingMenu = false;
-        ResetScroll();
-        _currentOutput = _exampleRunner.RunExample(_selectedExample);
-        _needsUpdate = true;
+        _window?.Close();
+        return _state;
     }
 
     private void UpdateDisplay()
     {
-        if (!_needsUpdate) return;
+        if (!_state.ConsumeUpdateFlag()) return;
 
-        _textRenderer.Clear();
+        _textRenderer!.Clear();
 
-        if (_showingMenu)
+        if (_state.Mode == ViewMode.Menu)
             ShowMenu();
         else
             ShowOutput();
-
-        _needsUpdate = false;
     }
 
     private void ShowMenu()
     {
-        _textRenderer.AddLine("Sia.NET Examples Viewer", Color.Cyan);
+        _textRenderer!.AddLine("Sia.NET Examples Viewer", Color.Cyan);
         _textRenderer.AddLine("", Color.White);
         _textRenderer.AddLine("Navigation: Arrow Keys, Page Up/Down, Home/End, Mouse Wheel, Click", Color.Yellow);
         _textRenderer.AddLine("Actions: Enter to Run, ESC to Exit", Color.Yellow);
         _textRenderer.AddLine("", Color.White);
 
-        for (int i = 0; i < _exampleRunner.Examples.Count; i++)
+        for (int i = 0; i < _exampleRunner!.Examples.Count; i++)
         {
             var example = _exampleRunner.Examples[i];
-            var isSelected = i == _selectedExample;
+            var isSelected = i == _state.SelectedExample;
+            var isHovered = i == _state.HoveredExample;
 
-            var (nameColor, descColor, prefix) = isSelected
-                ? (Color.Black, Color.DarkGray, "> ")
-                : (Color.White, Color.Gray, "  ");
+            Color nameColor, descColor;
+            string prefix;
+
+            if (isSelected)
+            {
+                nameColor = Color.Yellow;
+                descColor = Color.Orange;
+                prefix = "► ";
+            }
+            else if (isHovered)
+            {
+                nameColor = Color.LightBlue;
+                descColor = Color.LightGray;
+                prefix = "  ";
+            }
+            else
+            {
+                nameColor = Color.White;
+                descColor = Color.Gray;
+                prefix = "  ";
+            }
 
             _textRenderer.AddLine($"{prefix}{i + 1:D2}. {example.Name}", nameColor);
             _textRenderer.AddLine($"    {example.Description}", descColor);
         }
 
         _textRenderer.AddLine("", Color.White);
-        _textRenderer.AddLine($"Total: {_exampleRunner.Examples.Count}, Selected: {_selectedExample + 1}", Color.Cyan);
+        _textRenderer.AddLine($"Total: {_exampleRunner.Examples.Count}, Selected: {_state.SelectedExample + 1}", Color.Cyan);
 
-        if (_exampleRunner.Examples.Count > _textRenderer.GetVisibleLines() / 2)
+        if (_exampleRunner.Examples.Count * ExampleLineHeight > GetVisibleMenuLines())
         {
-            var scrollPercent = _menuScrollOffset / Math.Max(1, _exampleRunner.Examples.Count * _textRenderer.LineHeight * 2 - (_window.Size.Y - 120));
-            _textRenderer.AddLine($"Scroll: {scrollPercent:P0}", Color.Yellow);
+            var currentScrollLine = (int)(_state.MenuScrollOffset / _textRenderer!.LineHeight);
+            var totalScrollableLines = _exampleRunner.Examples.Count * ExampleLineHeight - GetVisibleMenuLines();
+            var scrollPercent = totalScrollableLines > 0 ? (float)currentScrollLine / totalScrollableLines : 0f;
+            _textRenderer.AddLine($"Scroll: {scrollPercent:P0} (Line {currentScrollLine + 1})", Color.Yellow);
         }
     }
 
     private void ShowOutput()
     {
-        var selectedExample = _exampleRunner.Examples[_selectedExample];
+        var selectedExample = _exampleRunner!.Examples[_state.SelectedExample];
 
-        _textRenderer.AddLine($"Running: {selectedExample.Name}", Color.Cyan);
+        _textRenderer!.AddLine($"Running: {selectedExample.Name}", Color.Cyan);
         _textRenderer.AddLine("", Color.White);
 
-        var lines = _currentOutput.Split('\n', StringSplitOptions.None);
+        var lines = _state.CurrentOutput.Split('\n', StringSplitOptions.None);
         foreach (var line in lines)
             _textRenderer.AddLine(line, GetLineColor(line));
 
@@ -285,7 +373,7 @@ public class ExampleViewer : IDisposable
 
         if (_textRenderer.GetTotalLines() > _textRenderer.GetVisibleLines())
         {
-            var scrollPercent = _textRenderer.ScrollOffset / Math.Max(1, _textRenderer.GetTotalLines() * _textRenderer.LineHeight - (_window.Size.Y - 60));
+            var scrollPercent = _textRenderer.ScrollOffset / Math.Max(1, _textRenderer.GetTotalLines() * _textRenderer.LineHeight - (_window!.Size.Y - 60));
             _textRenderer.AddLine($"Scroll: {scrollPercent:P0} ({_textRenderer.GetTotalLines()} lines)", Color.Gray);
         }
     }
@@ -306,15 +394,15 @@ public class ExampleViewer : IDisposable
 
     private void OnRender(double deltaTime)
     {
-        _gl.Clear(ClearBufferMask.ColorBufferBit);
+        _gl!.Clear(ClearBufferMask.ColorBufferBit);
         UpdateDisplay();
-        _textRenderer.Render();
+        _textRenderer!.Render();
     }
 
     private void OnResize(Vector2D<int> newSize)
     {
-        _textRenderer.SetWindowSize(newSize.X, newSize.Y);
-        _needsUpdate = true;
+        _textRenderer!.SetWindowSize(newSize.X, newSize.Y);
+        _state.MarkDirty();
     }
 
     private void OnClosing() => Cleanup();
@@ -327,12 +415,12 @@ public class ExampleViewer : IDisposable
         {
             _textRenderer?.Dispose();
             _exampleRunner?.Dispose();
-            _inputContext?.Dispose();
+            _inputHandler?.Dispose();
             _gl?.Dispose();
 
             _textRenderer = null;
             _exampleRunner = null;
-            _inputContext = null;
+            _inputHandler = null;
             _gl = null;
         }
         catch (ObjectDisposedException) { }
