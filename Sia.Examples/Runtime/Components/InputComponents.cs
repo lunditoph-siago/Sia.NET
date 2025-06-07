@@ -18,11 +18,26 @@ public partial class InputEvents
 }
 
 public partial record struct InputReceiver(
-    [Sia] bool IsEnabled,
-    [Sia] bool CanReceiveKeyboard,
-    [Sia] bool CanReceiveMouse)
+    [Sia] bool IsEnabled)
 {
-    public InputReceiver() : this(true, false, true) { }
+    public InputReceiver() : this(true) { }
+}
+
+public partial record struct KeyboardReceiver(
+    [Sia] bool IsEnabled,
+    [Sia] bool ReceiveKeyDown,
+    [Sia] bool ReceiveKeyUp)
+{
+    public KeyboardReceiver() : this(true, true, true) { }
+}
+
+public partial record struct MouseReceiver(
+    [Sia] bool IsEnabled,
+    [Sia] bool ReceiveClick,
+    [Sia] bool ReceiveMove,
+    [Sia] bool ReceiveScroll)
+{
+    public MouseReceiver() : this(true, true, true, true) { }
 }
 
 public partial record struct Clickable(

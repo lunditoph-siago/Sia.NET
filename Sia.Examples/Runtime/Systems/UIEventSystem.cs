@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using Sia.Examples.Runtime.Components;
 
 namespace Sia.Examples.Runtime.Systems;
@@ -8,12 +9,19 @@ public class UIEventSystem : EventSystemBase
     private Vector2 _lastMousePosition;
     private readonly Dictionary<Entity, bool> _hoverStates = new();
 
+    private readonly List<Entity> _sortedUIElements = new();
+    private bool _uiListDirty = true;
+
     public override void Initialize(World world)
     {
         base.Initialize(world);
-        
+
         RecordEvent<InputEvents.MouseClick>();
         RecordEvent<InputEvents.MouseMove>();
+
+        RecordEvent<UIElement.SetPosition>();
+        RecordEvent<UIElement.SetSize>();
+        RecordEvent<UIElement.SetLayer>();
     }
 
     protected override void HandleEvent<TEvent>(Entity entity, in TEvent @event)
@@ -26,32 +34,49 @@ public class UIEventSystem : EventSystemBase
             case InputEvents.MouseMove mouseMove:
                 HandleMouseMove(mouseMove);
                 break;
+            case UIElement.SetPosition:
+            case UIElement.SetSize:
+            case UIElement.SetLayer:
+                _uiListDirty = true;
+                break;
         }
     }
 
-    private void HandleMouseClick(InputEvents.MouseClick mouseClick)
+    private void RefreshUIList()
     {
-        var mousePos = mouseClick.Position;
-        var button = mouseClick.Button;
-        
-        // Get all interactive UI elements, sorted by layer
-        var uiQuery = World.Query(Matchers.Of<UIElement, UIEventListener>());
-        var sortedElements = new List<(Entity entity, int layer)>();
+        if (!_uiListDirty) return;
 
+        _sortedUIElements.Clear();
+
+        var uiQuery = World.Query(Matchers.Of<UIElement, UIEventListener>());
         foreach (var entity in uiQuery)
         {
             ref var uiElement = ref entity.Get<UIElement>();
-            if (uiElement.IsVisible && uiElement.IsInteractable)
+            if (uiElement is { IsVisible: true, IsInteractable: true })
             {
-                sortedElements.Add((entity, uiElement.Layer));
+                _sortedUIElements.Add(entity);
             }
         }
 
         // Sort by layer (higher layer first)
-        sortedElements.Sort((a, b) => b.layer.CompareTo(a.layer));
+        _sortedUIElements.Sort((a, b) =>
+        {
+            var layerA = a.Get<UIElement>().Layer;
+            var layerB = b.Get<UIElement>().Layer;
+            return layerB.CompareTo(layerA);
+        });
 
-        // Find the first clicked UI element
-        foreach (var (entity, _) in sortedElements)
+        _uiListDirty = false;
+    }
+
+    private void HandleMouseClick(InputEvents.MouseClick mouseClick)
+    {
+        RefreshUIList();
+
+        var mousePos = mouseClick.Position;
+        var button = mouseClick.Button;
+
+        foreach (var entity in _sortedUIElements)
         {
             ref var uiElement = ref entity.Get<UIElement>();
             ref var eventListener = ref entity.Get<UIEventListener>();
@@ -59,7 +84,8 @@ public class UIEventSystem : EventSystemBase
             if (!eventListener.IsEnabled || !eventListener.ListenToClick)
                 continue;
 
-            if (uiElement.Contains(mousePos))
+            // AABB collision detection
+            if (IsPointInBounds(mousePos, uiElement.Position, uiElement.Size))
             {
                 // Update interaction state
                 if (entity.Contains<UIInteractionState>())
@@ -81,29 +107,15 @@ public class UIEventSystem : EventSystemBase
 
     private void HandleMouseMove(InputEvents.MouseMove mouseMove)
     {
+        RefreshUIList();
+
         var mousePos = mouseMove.Position;
         _lastMousePosition = mousePos;
-
-        // Get all interactive UI elements, sorted by layer
-        var uiQuery = World.Query(Matchers.Of<UIElement, UIEventListener>());
-        var sortedElements = new List<(Entity entity, int layer)>();
-
-        foreach (var entity in uiQuery)
-        {
-            ref var uiElement = ref entity.Get<UIElement>();
-            if (uiElement.IsVisible && uiElement.IsInteractable)
-            {
-                sortedElements.Add((entity, uiElement.Layer));
-            }
-        }
-
-        // Sort by layer (higher layer first)
-        sortedElements.Sort((a, b) => b.layer.CompareTo(a.layer));
 
         Entity? currentHoveredEntity = null;
 
         // Find the topmost hovered element
-        foreach (var (entity, _) in sortedElements)
+        foreach (var entity in _sortedUIElements)
         {
             ref var uiElement = ref entity.Get<UIElement>();
             ref var eventListener = ref entity.Get<UIEventListener>();
@@ -111,7 +123,7 @@ public class UIEventSystem : EventSystemBase
             if (!eventListener.IsEnabled || !eventListener.ListenToHover)
                 continue;
 
-            if (uiElement.Contains(mousePos))
+            if (IsPointInBounds(mousePos, uiElement.Position, uiElement.Size))
             {
                 currentHoveredEntity = entity;
                 break; // Only process the topmost element
@@ -124,7 +136,6 @@ public class UIEventSystem : EventSystemBase
         {
             if (kvp.Value && kvp.Key != currentHoveredEntity)
             {
-                // Exit hover state
                 var entity = kvp.Key;
                 entitiesToRemove.Add(entity);
 
@@ -135,9 +146,7 @@ public class UIEventSystem : EventSystemBase
                     stateView.IsPressed = false;
                 }
 
-                // Handle button hover exit logic
                 HandleButtonHoverExit(entity, mousePos);
-
                 World.Send(entity, new UIHoverExitEvent(entity, mousePos));
             }
         }
@@ -161,18 +170,24 @@ public class UIEventSystem : EventSystemBase
                     stateView.IsHovered = true;
                 }
 
-                // Handle button hover enter logic
                 HandleButtonHoverEnter(currentHoveredEntity, mousePos);
-
                 World.Send(currentHoveredEntity, new UIHoverEnterEvent(currentHoveredEntity, mousePos));
             }
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool IsPointInBounds(Vector2 point, Vector2 position, Vector2 size)
+    {
+        return point.X >= position.X &&
+               point.X <= position.X + size.X &&
+               point.Y >= position.Y &&
+               point.Y <= position.Y + size.Y;
+    }
+
     private void HandleButtonClick(Entity entity, Vector2 position, MouseButton button)
     {
         if (!IsButton(entity)) return;
-
         Console.WriteLine($"Button clicked, position: {position}");
     }
 
@@ -183,7 +198,6 @@ public class UIEventSystem : EventSystemBase
         ref var button = ref entity.Get<UIButton>();
         if (!button.IsEnabled) return;
 
-        // Update button color to hover color
         if (entity.Contains<UIPanel>())
         {
             var panelView = new UIPanel.View(entity);
@@ -200,7 +214,6 @@ public class UIEventSystem : EventSystemBase
         ref var button = ref entity.Get<UIButton>();
         if (!button.IsEnabled) return;
 
-        // Restore button color to normal color
         if (entity.Contains<UIPanel>())
         {
             var panelView = new UIPanel.View(entity);
@@ -212,14 +225,15 @@ public class UIEventSystem : EventSystemBase
 
     private static bool IsButton(Entity entity)
     {
-        return entity.Contains<UIButton>() && 
-               entity.Contains<UIElement>() && 
+        return entity.Contains<UIButton>() &&
+               entity.Contains<UIElement>() &&
                entity.Contains<UIEventListener>();
     }
 
     public override void Uninitialize(World world)
     {
         _hoverStates.Clear();
+        _sortedUIElements.Clear();
         base.Uninitialize(world);
     }
 }
