@@ -30,10 +30,10 @@ public static class Example2_HealthRecover
 
                 if (hp.Value < hp.Maximum) {
                     hp.Value = Math.Min(hp.Value + hp.AutoRecoverRate, hp.Maximum);
-                    Console.WriteLine("血量已自动回复。");
+                    Console.WriteLine("HP auto recovered.");
                 }
                 else {
-                    Console.WriteLine("血量已满，未自动回复。");
+                    Console.WriteLine("HP is full, no auto recovery.");
                 }
             }
         }
@@ -46,7 +46,7 @@ public static class Example2_HealthRecover
         public override void Execute(World world, IEntityQuery query)
         {
             foreach (var entity in query) {
-                Console.WriteLine($"[{entity.Get<Name>().Value}] 受到攻击！");
+                Console.WriteLine($"[{entity.Get<Name>().Value}] Received damage!");
             }
         }
     }
@@ -86,7 +86,7 @@ public static class Example2_HealthRecover
             .Add<KillSystem>()
             .CreateStage(world);
 
-        var player = Player.CreateResilient(world, "玩家");
+        var player = Player.CreateResilient(world, "Player");
         ref var hp = ref player.Get<HP>();
 
         Console.WriteLine("HP: " + hp.Value);
