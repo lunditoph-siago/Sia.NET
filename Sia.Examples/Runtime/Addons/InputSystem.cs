@@ -22,6 +22,9 @@ public class InputSystem : IAddon
     private Vector2 _lastMousePosition;
     private World? _world;
 
+    private IReactiveEntityQuery? _keyboardReceivers;
+    private IReactiveEntityQuery? _mouseReceivers;
+
     public Vector2 LastMousePosition => _lastMousePosition;
     public bool IsInitialized => _inputContext != null;
 
@@ -34,11 +37,18 @@ public class InputSystem : IAddon
     public void OnInitialize(World world)
     {
         _world = world;
+        
+        _keyboardReceivers = world.Query(Matchers.Of<Components.InputReceiver, Components.KeyboardReceiver>());
+        _mouseReceivers = world.Query(Matchers.Of<Components.InputReceiver, Components.MouseReceiver>());
     }
 
     public void OnUninitialize(World world)
     {
         CleanupInputHandlers();
+        _keyboardReceivers?.Dispose();
+        _mouseReceivers?.Dispose();
+        _keyboardReceivers = null;
+        _mouseReceivers = null;
         _world = null;
     }
 
@@ -87,31 +97,31 @@ public class InputSystem : IAddon
     private void OnKeyDown(IKeyboard keyboard, Key key, int scanCode)
     {
         _pressedKeys.Add(key);
-        BroadcastEvent(new Components.InputEvents.KeyDown(key));
+        BroadcastKeyboardEvent(new Components.InputEvents.KeyDown(key));
     }
 
     private void OnKeyUp(IKeyboard keyboard, Key key, int scanCode)
     {
         _pressedKeys.Remove(key);
-        BroadcastEvent(new Components.InputEvents.KeyUp(key));
+        BroadcastKeyboardEvent(new Components.InputEvents.KeyUp(key));
     }
 
     private void OnMouseClick(IMouse mouse, MouseButton button, Vector2 position)
     {
         var convertedButton = ConvertMouseButton(button);
-        BroadcastEvent(new Components.InputEvents.MouseClick(convertedButton, position));
+        BroadcastMouseEvent(new Components.InputEvents.MouseClick(convertedButton, position));
     }
 
     private void OnMouseMove(IMouse mouse, Vector2 position)
     {
         _lastMousePosition = position;
-        BroadcastEvent(new Components.InputEvents.MouseMove(position));
+        BroadcastMouseEvent(new Components.InputEvents.MouseMove(position));
     }
 
     private void OnMouseScroll(IMouse mouse, ScrollWheel scrollWheel)
     {
         var scrollDelta = new Vector2(scrollWheel.X, scrollWheel.Y);
-        BroadcastEvent(new Components.InputEvents.MouseScroll(scrollDelta));
+        BroadcastMouseEvent(new Components.InputEvents.MouseScroll(scrollDelta));
     }
 
     private static Components.MouseButton ConvertMouseButton(MouseButton silkButton)
@@ -125,25 +135,45 @@ public class InputSystem : IAddon
         };
     }
 
-    private void BroadcastEvent<TEvent>(TEvent inputEvent) where TEvent : IEvent
+    private void BroadcastKeyboardEvent<TEvent>(TEvent inputEvent) where TEvent : IEvent
     {
-        if (_world == null) return;
+        if (_world == null || _keyboardReceivers == null) return;
 
-        // Send events to all entities that can receive input
-        var inputQuery = _world.Query(Matchers.Of<Components.InputReceiver>());
-
-        foreach (var entity in inputQuery)
+        foreach (var entity in _keyboardReceivers)
         {
             ref var inputReceiver = ref entity.Get<Components.InputReceiver>();
+            ref var keyboardReceiver = ref entity.Get<Components.KeyboardReceiver>();
 
-            if (!inputReceiver.IsEnabled) continue;
+            if (!inputReceiver.IsEnabled || !keyboardReceiver.IsEnabled) continue;
 
-            // Filter events based on input receiver type
             var shouldReceive = inputEvent switch
             {
-                Components.InputEvents.KeyDown or Components.InputEvents.KeyUp => inputReceiver.CanReceiveKeyboard,
-                Components.InputEvents.MouseClick or Components.InputEvents.MouseMove
-                    or Components.InputEvents.MouseScroll => inputReceiver.CanReceiveMouse,
+                Components.InputEvents.KeyDown => keyboardReceiver.ReceiveKeyDown,
+                Components.InputEvents.KeyUp => keyboardReceiver.ReceiveKeyUp,
+                _ => false
+            };
+
+            if (shouldReceive)
+                entity.Send(inputEvent);
+        }
+    }
+
+    private void BroadcastMouseEvent<TEvent>(TEvent inputEvent) where TEvent : IEvent
+    {
+        if (_world == null || _mouseReceivers == null) return;
+
+        foreach (var entity in _mouseReceivers)
+        {
+            ref var inputReceiver = ref entity.Get<Components.InputReceiver>();
+            ref var mouseReceiver = ref entity.Get<Components.MouseReceiver>();
+
+            if (!inputReceiver.IsEnabled || !mouseReceiver.IsEnabled) continue;
+
+            var shouldReceive = inputEvent switch
+            {
+                Components.InputEvents.MouseClick => mouseReceiver.ReceiveClick,
+                Components.InputEvents.MouseMove => mouseReceiver.ReceiveMove,
+                Components.InputEvents.MouseScroll => mouseReceiver.ReceiveScroll,
                 _ => false
             };
 

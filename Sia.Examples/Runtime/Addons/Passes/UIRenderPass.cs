@@ -18,12 +18,157 @@ public class UIRenderPass : IRenderPass
     private int _windowWidth, _windowHeight;
 
     private readonly SKTypeface _typeface;
-    private readonly Dictionary<string, TextureInfo> _textCache = [];
+    private TextureCache _textureCache;
+
+    private readonly struct TextCacheKey : IEquatable<TextCacheKey>
+    {
+        public readonly int TextHash;
+        public readonly int ColorArgb;
+        public readonly float FontSize;
+
+        public TextCacheKey(string text, Color color, float fontSize)
+        {
+            TextHash = text.GetHashCode();
+            ColorArgb = color.ToArgb();
+            FontSize = fontSize;
+        }
+
+        public bool Equals(TextCacheKey other) =>
+            TextHash == other.TextHash &&
+            ColorArgb == other.ColorArgb &&
+            Math.Abs(FontSize - other.FontSize) < 0.001f;
+
+        public override int GetHashCode() => HashCode.Combine(TextHash, ColorArgb, FontSize);
+    }
 
     private struct TextureInfo
     {
         public uint TextureId;
         public Vector2 Size;
+    }
+
+    private class TextureCache : IDisposable
+    {
+        private readonly Dictionary<TextCacheKey, CacheNode> _cache = [];
+        private readonly int _maxSize;
+        private readonly GL _gl;
+        private CacheNode? _head;
+        private CacheNode? _tail;
+
+        private class CacheNode
+        {
+            public TextCacheKey Key;
+            public TextureInfo Value;
+            public CacheNode? Prev;
+            public CacheNode? Next;
+
+            public CacheNode(TextCacheKey key, TextureInfo value)
+            {
+                Key = key;
+                Value = value;
+            }
+        }
+
+        public TextureCache(GL gl, int maxSize = 500)
+        {
+            _gl = gl;
+            _maxSize = maxSize;
+        }
+
+        public bool TryGet(TextCacheKey key, out TextureInfo value)
+        {
+            if (_cache.TryGetValue(key, out var node))
+            {
+                MoveToHead(node);
+                value = node.Value;
+                return true;
+            }
+
+            value = default;
+            return false;
+        }
+
+        public void Put(TextCacheKey key, TextureInfo value)
+        {
+            if (_cache.TryGetValue(key, out var existingNode))
+            {
+                existingNode.Value = value;
+                MoveToHead(existingNode);
+                return;
+            }
+
+            var newNode = new CacheNode(key, value);
+            _cache[key] = newNode;
+            AddToHead(newNode);
+
+            // Check if we need to remove the oldest node
+            if (_cache.Count > _maxSize)
+            {
+                var lastNode = RemoveTail();
+                if (lastNode != null)
+                {
+                    _cache.Remove(lastNode.Key);
+                    _gl.DeleteTexture(lastNode.Value.TextureId);
+                }
+            }
+        }
+
+        private void AddToHead(CacheNode node)
+        {
+            node.Prev = null;
+            node.Next = _head;
+
+            if (_head != null)
+                _head.Prev = node;
+
+            _head = node;
+
+            if (_tail == null)
+                _tail = _head;
+        }
+
+        private void RemoveNode(CacheNode node)
+        {
+            if (node.Prev != null)
+                node.Prev.Next = node.Next;
+            else
+                _head = node.Next;
+
+            if (node.Next != null)
+                node.Next.Prev = node.Prev;
+            else
+                _tail = node.Prev;
+        }
+
+        private void MoveToHead(CacheNode node)
+        {
+            RemoveNode(node);
+            AddToHead(node);
+        }
+
+        private CacheNode? RemoveTail()
+        {
+            var lastNode = _tail;
+            if (lastNode != null)
+                RemoveNode(lastNode);
+            return lastNode;
+        }
+
+        public void Clear()
+        {
+            foreach (var node in _cache.Values)
+            {
+                _gl.DeleteTexture(node.Value.TextureId);
+            }
+            _cache.Clear();
+            _head = null;
+            _tail = null;
+        }
+
+        public void Dispose()
+        {
+            Clear();
+        }
     }
 
     public UIRenderPass(int windowWidth, int windowHeight)
@@ -39,6 +184,7 @@ public class UIRenderPass : IRenderPass
     public void Initialize(GL gl)
     {
         _gl = gl;
+        _textureCache = new TextureCache(_gl);
 
         try
         {
@@ -84,18 +230,18 @@ public class UIRenderPass : IRenderPass
                                       }
                                       """;
 
-        uint vs = CompileShader(ShaderType.VertexShader, vertexShader);
-        uint fs = CompileShader(ShaderType.FragmentShader, fragmentShader);
+        var vs = CompileShader(ShaderType.VertexShader, vertexShader);
+        var fs = CompileShader(ShaderType.FragmentShader, fragmentShader);
 
         _shaderProgram = _gl.CreateProgram();
         _gl.AttachShader(_shaderProgram, vs);
         _gl.AttachShader(_shaderProgram, fs);
         _gl.LinkProgram(_shaderProgram);
 
-        _gl.GetProgram(_shaderProgram, GLEnum.LinkStatus, out int success);
+        _gl.GetProgram(_shaderProgram, GLEnum.LinkStatus, out var success);
         if (success == 0)
         {
-            string infoLog = _gl.GetProgramInfoLog(_shaderProgram);
+            var infoLog = _gl.GetProgramInfoLog(_shaderProgram);
             throw new Exception($"Shader program linking failed: {infoLog}");
         }
 
@@ -110,7 +256,7 @@ public class UIRenderPass : IRenderPass
 
         _gl.BindVertexArray(_vao);
         _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
-        _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(sizeof(float) * 6 * 4), IntPtr.Zero,
+        _gl.BufferData(BufferTargetARB.ArrayBuffer, sizeof(float) * 6 * 4, IntPtr.Zero,
             BufferUsageARB.DynamicDraw);
 
         _gl.EnableVertexAttribArray(0);
@@ -127,7 +273,7 @@ public class UIRenderPass : IRenderPass
         _gl.BindVertexArray(_vao);
 
         var projection = Matrix4x4.CreateOrthographicOffCenter(0.0f, _windowWidth, 0.0f, _windowHeight, -1.0f, 1.0f);
-        int projectionLoc = _gl.GetUniformLocation(_shaderProgram, "projection");
+        var projectionLoc = _gl.GetUniformLocation(_shaderProgram, "projection");
 
         unsafe
         {
@@ -193,8 +339,8 @@ public class UIRenderPass : IRenderPass
 
         var textureInfo = CreateTextTexture(text, color, fontSize);
 
-        int textColorLoc = _gl.GetUniformLocation(_shaderProgram, "textColor");
-        int alphaLoc = _gl.GetUniformLocation(_shaderProgram, "alpha");
+        var textColorLoc = _gl.GetUniformLocation(_shaderProgram, "textColor");
+        var alphaLoc = _gl.GetUniformLocation(_shaderProgram, "alpha");
 
         _gl.Uniform3(textColorLoc, color.R / 255f, color.G / 255f, color.B / 255f);
         _gl.Uniform1(alphaLoc, color.A / 255f);
@@ -206,8 +352,8 @@ public class UIRenderPass : IRenderPass
     {
         var textureInfo = CreateColorTexture(color);
 
-        int textColorLoc = _gl.GetUniformLocation(_shaderProgram, "textColor");
-        int alphaLoc = _gl.GetUniformLocation(_shaderProgram, "alpha");
+        var textColorLoc = _gl.GetUniformLocation(_shaderProgram, "textColor");
+        var alphaLoc = _gl.GetUniformLocation(_shaderProgram, "alpha");
 
         _gl.Uniform3(textColorLoc, color.R / 255f, color.G / 255f, color.B / 255f);
         _gl.Uniform1(alphaLoc, color.A / 255f);
@@ -220,7 +366,7 @@ public class UIRenderPass : IRenderPass
         _gl.BindTexture(TextureTarget.Texture2D, textureId);
 
         // Flip Y coordinate since OpenGL origin is bottom-left, UI origin is top-left
-        float flippedY = _windowHeight - y - height;
+        var flippedY = _windowHeight - y - height;
 
         float[] vertices =
         [
@@ -250,8 +396,8 @@ public class UIRenderPass : IRenderPass
 
     private TextureInfo CreateTextTexture(string text, Color color, float fontSize)
     {
-        string cacheKey = $"{text}_{color.ToArgb()}_{fontSize}";
-        if (_textCache.TryGetValue(cacheKey, out var cached))
+        var cacheKey = new TextCacheKey(text, color, fontSize);
+        if (_textureCache.TryGet(cacheKey, out var cached))
             return cached;
 
         using var font = new SKFont(_typeface, fontSize);
@@ -270,7 +416,7 @@ public class UIRenderPass : IRenderPass
         canvas.Clear(SKColors.Transparent);
         canvas.DrawText(text, 4, 4 + font.Metrics.CapHeight, font, paint);
 
-        uint textureId = CreateTextureFromBitmap(bitmap);
+        var textureId = CreateTextureFromBitmap(bitmap);
 
         var textureInfo = new TextureInfo
         {
@@ -278,20 +424,20 @@ public class UIRenderPass : IRenderPass
             Size = new Vector2(width, height)
         };
 
-        _textCache[cacheKey] = textureInfo;
+        _textureCache.Put(cacheKey, textureInfo);
         return textureInfo;
     }
 
     private TextureInfo CreateColorTexture(Color color)
     {
-        string cacheKey = $"color_{color.ToArgb()}";
-        if (_textCache.TryGetValue(cacheKey, out var cached))
+        var cacheKey = new TextCacheKey(string.Empty, color, 0);
+        if (_textureCache.TryGet(cacheKey, out var cached))
             return cached;
 
         var bitmap = new SKBitmap(1, 1, SKColorType.Rgba8888, SKAlphaType.Premul);
-        bitmap.SetPixel(0, 0, new SKColor((byte)color.R, (byte)color.G, (byte)color.B, (byte)color.A));
+        bitmap.SetPixel(0, 0, new SKColor(color.R, color.G, color.B, color.A));
 
-        uint textureId = CreateTextureFromBitmap(bitmap);
+        var textureId = CreateTextureFromBitmap(bitmap);
 
         var textureInfo = new TextureInfo
         {
@@ -299,19 +445,19 @@ public class UIRenderPass : IRenderPass
             Size = new Vector2(1, 1)
         };
 
-        _textCache[cacheKey] = textureInfo;
+        _textureCache.Put(cacheKey, textureInfo);
         return textureInfo;
     }
 
     private uint CreateTextureFromBitmap(SKBitmap bitmap)
     {
         var pixels = bitmap.Pixels;
-        byte[] textureData = new byte[bitmap.Width * bitmap.Height];
+        var textureData = new byte[bitmap.Width * bitmap.Height];
 
-        for (int i = 0; i < pixels.Length; i++)
+        for (var i = 0; i < pixels.Length; i++)
             textureData[i] = pixels[i].Alpha;
 
-        uint texture = _gl.GenTexture();
+        var texture = _gl.GenTexture();
         _gl.BindTexture(TextureTarget.Texture2D, texture);
 
         unsafe
@@ -334,14 +480,14 @@ public class UIRenderPass : IRenderPass
 
     private uint CompileShader(ShaderType type, string source)
     {
-        uint shader = _gl.CreateShader(type);
+        var shader = _gl.CreateShader(type);
         _gl.ShaderSource(shader, source);
         _gl.CompileShader(shader);
 
-        _gl.GetShader(shader, ShaderParameterName.CompileStatus, out int success);
+        _gl.GetShader(shader, ShaderParameterName.CompileStatus, out var success);
         if (success == 0)
         {
-            string infoLog = _gl.GetShaderInfoLog(shader);
+            var infoLog = _gl.GetShaderInfoLog(shader);
             throw new Exception($"Shader compilation failed ({type}): {infoLog}");
         }
 
@@ -360,10 +506,7 @@ public class UIRenderPass : IRenderPass
         _gl.DeleteBuffer(_vbo);
         _gl.DeleteProgram(_shaderProgram);
 
-        foreach (var textureInfo in _textCache.Values)
-            _gl.DeleteTexture(textureInfo.TextureId);
-
-        _textCache.Clear();
+        _textureCache.Dispose();
         _typeface?.Dispose();
     }
 }
