@@ -8,9 +8,21 @@ public class UIEventSystem : EventSystemBase
 {
     private Vector2 _lastMousePosition;
     private readonly Dictionary<Entity, bool> _hoverStates = new();
-
     private readonly List<Entity> _sortedUIElements = new();
     private bool _uiListDirty = true;
+
+    private readonly ref struct UIBounds(Vector2 position, Vector2 size)
+    {
+        public readonly Vector2 Position = position;
+        public readonly Vector2 Size = size;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool Contains(Vector2 point) =>
+            point.X >= Position.X &&
+            point.X <= Position.X + Size.X &&
+            point.Y >= Position.Y &&
+            point.Y <= Position.Y + Size.Y;
+    }
 
     public override void Initialize(World world)
     {
@@ -51,7 +63,7 @@ public class UIEventSystem : EventSystemBase
         var uiQuery = World.Query(Matchers.Of<UIElement, UIEventListener>());
         foreach (var entity in uiQuery)
         {
-            ref var uiElement = ref entity.Get<UIElement>();
+            ref readonly var uiElement = ref entity.Get<UIElement>();
             if (uiElement is { IsVisible: true, IsInteractable: true })
             {
                 _sortedUIElements.Add(entity);
@@ -59,7 +71,7 @@ public class UIEventSystem : EventSystemBase
         }
 
         // Sort by layer (higher layer first)
-        _sortedUIElements.Sort((a, b) =>
+        _sortedUIElements.Sort(static (a, b) =>
         {
             var layerA = a.Get<UIElement>().Layer;
             var layerB = b.Get<UIElement>().Layer;
@@ -78,14 +90,14 @@ public class UIEventSystem : EventSystemBase
 
         foreach (var entity in _sortedUIElements)
         {
-            ref var uiElement = ref entity.Get<UIElement>();
-            ref var eventListener = ref entity.Get<UIEventListener>();
+            ref readonly var uiElement = ref entity.Get<UIElement>();
+            ref readonly var eventListener = ref entity.Get<UIEventListener>();
 
             if (!eventListener.IsEnabled || !eventListener.ListenToClick)
                 continue;
 
-            // AABB collision detection
-            if (IsPointInBounds(mousePos, uiElement.Position, uiElement.Size))
+            var bounds = new UIBounds(uiElement.Position, uiElement.Size);
+            if (bounds.Contains(mousePos))
             {
                 // Update interaction state
                 if (entity.Contains<UIInteractionState>())
@@ -95,7 +107,6 @@ public class UIEventSystem : EventSystemBase
                     stateView.PressedButton = button;
                 }
 
-                // Handle button click logic
                 HandleButtonClick(entity, mousePos, button);
 
                 // Send UI event
@@ -117,13 +128,14 @@ public class UIEventSystem : EventSystemBase
         // Find the topmost hovered element
         foreach (var entity in _sortedUIElements)
         {
-            ref var uiElement = ref entity.Get<UIElement>();
-            ref var eventListener = ref entity.Get<UIEventListener>();
+            ref readonly var uiElement = ref entity.Get<UIElement>();
+            ref readonly var eventListener = ref entity.Get<UIEventListener>();
 
             if (!eventListener.IsEnabled || !eventListener.ListenToHover)
                 continue;
 
-            if (IsPointInBounds(mousePos, uiElement.Position, uiElement.Size))
+            var bounds = new UIBounds(uiElement.Position, uiElement.Size);
+            if (bounds.Contains(mousePos))
             {
                 currentHoveredEntity = entity;
                 break; // Only process the topmost element
@@ -177,25 +189,18 @@ public class UIEventSystem : EventSystemBase
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static bool IsPointInBounds(Vector2 point, Vector2 position, Vector2 size)
-    {
-        return point.X >= position.X &&
-               point.X <= position.X + size.X &&
-               point.Y >= position.Y &&
-               point.Y <= position.Y + size.Y;
-    }
-
-    private void HandleButtonClick(Entity entity, Vector2 position, MouseButton button)
+    private static void HandleButtonClick(Entity entity, Vector2 position, MouseButton button)
     {
         if (!IsButton(entity)) return;
-        Console.WriteLine($"Button clicked, position: {position}");
+        Console.WriteLine($"Button clicked at {position}");
     }
 
-    private void HandleButtonHoverEnter(Entity entity, Vector2 position)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void HandleButtonHoverEnter(Entity entity, Vector2 position)
     {
         if (!IsButton(entity)) return;
 
-        ref var button = ref entity.Get<UIButton>();
+        ref readonly var button = ref entity.Get<UIButton>();
         if (!button.IsEnabled) return;
 
         if (entity.Contains<UIPanel>())
@@ -204,14 +209,15 @@ public class UIEventSystem : EventSystemBase
             panelView.BackgroundColor = button.HoverColor;
         }
 
-        Console.WriteLine($"Button hover enter, position: {position}");
+        Console.WriteLine($"Button hover enter at {position}");
     }
 
-    private void HandleButtonHoverExit(Entity entity, Vector2 position)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void HandleButtonHoverExit(Entity entity, Vector2 position)
     {
         if (!IsButton(entity)) return;
 
-        ref var button = ref entity.Get<UIButton>();
+        ref readonly var button = ref entity.Get<UIButton>();
         if (!button.IsEnabled) return;
 
         if (entity.Contains<UIPanel>())
@@ -220,15 +226,14 @@ public class UIEventSystem : EventSystemBase
             panelView.BackgroundColor = button.NormalColor;
         }
 
-        Console.WriteLine($"Button hover exit, position: {position}");
+        Console.WriteLine($"Button hover exit at {position}");
     }
 
-    private static bool IsButton(Entity entity)
-    {
-        return entity.Contains<UIButton>() &&
-               entity.Contains<UIElement>() &&
-               entity.Contains<UIEventListener>();
-    }
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool IsButton(Entity entity) =>
+        entity.Contains<UIButton>() &&
+        entity.Contains<UIElement>() &&
+        entity.Contains<UIEventListener>();
 
     public override void Uninitialize(World world)
     {

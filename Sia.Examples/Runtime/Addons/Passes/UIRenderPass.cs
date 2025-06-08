@@ -6,7 +6,7 @@ using SkiaSharp;
 
 namespace Sia.Examples.Runtime.Addons.Passes;
 
-public class UIRenderPass : IRenderPass
+public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
 {
     public string Name => "UI Render Pass";
     public int Priority => 1000; // UI renders last
@@ -15,187 +15,22 @@ public class UIRenderPass : IRenderPass
     private GL _gl = null!;
     private uint _vao, _vbo;
     private uint _shaderProgram;
-    private int _windowWidth, _windowHeight;
+    private int _windowWidth = windowWidth;
+    private int _windowHeight = windowHeight;
 
-    private readonly SKTypeface _typeface;
-    private TextureCache _textureCache;
+    private readonly Dictionary<TextCacheKey, uint> _textureCache = new(32);
 
-    private readonly struct TextCacheKey : IEquatable<TextCacheKey>
-    {
-        public readonly int TextHash;
-        public readonly int ColorArgb;
-        public readonly float FontSize;
+    private readonly SKTypeface _typeface = SKTypeface.FromFamilyName("Consolas") ??
+                                            SKTypeface.FromFamilyName("Courier New") ??
+                                            SKTypeface.Default;
 
-        public TextCacheKey(string text, Color color, float fontSize)
-        {
-            TextHash = text.GetHashCode();
-            ColorArgb = color.ToArgb();
-            FontSize = fontSize;
-        }
-
-        public bool Equals(TextCacheKey other) =>
-            TextHash == other.TextHash &&
-            ColorArgb == other.ColorArgb &&
-            Math.Abs(FontSize - other.FontSize) < 0.001f;
-
-        public override int GetHashCode() => HashCode.Combine(TextHash, ColorArgb, FontSize);
-    }
-
-    private struct TextureInfo
-    {
-        public uint TextureId;
-        public Vector2 Size;
-    }
-
-    private class TextureCache : IDisposable
-    {
-        private readonly Dictionary<TextCacheKey, CacheNode> _cache = [];
-        private readonly int _maxSize;
-        private readonly GL _gl;
-        private CacheNode? _head;
-        private CacheNode? _tail;
-
-        private class CacheNode
-        {
-            public TextCacheKey Key;
-            public TextureInfo Value;
-            public CacheNode? Prev;
-            public CacheNode? Next;
-
-            public CacheNode(TextCacheKey key, TextureInfo value)
-            {
-                Key = key;
-                Value = value;
-            }
-        }
-
-        public TextureCache(GL gl, int maxSize = 500)
-        {
-            _gl = gl;
-            _maxSize = maxSize;
-        }
-
-        public bool TryGet(TextCacheKey key, out TextureInfo value)
-        {
-            if (_cache.TryGetValue(key, out var node))
-            {
-                MoveToHead(node);
-                value = node.Value;
-                return true;
-            }
-
-            value = default;
-            return false;
-        }
-
-        public void Put(TextCacheKey key, TextureInfo value)
-        {
-            if (_cache.TryGetValue(key, out var existingNode))
-            {
-                existingNode.Value = value;
-                MoveToHead(existingNode);
-                return;
-            }
-
-            var newNode = new CacheNode(key, value);
-            _cache[key] = newNode;
-            AddToHead(newNode);
-
-            // Check if we need to remove the oldest node
-            if (_cache.Count > _maxSize)
-            {
-                var lastNode = RemoveTail();
-                if (lastNode != null)
-                {
-                    _cache.Remove(lastNode.Key);
-                    _gl.DeleteTexture(lastNode.Value.TextureId);
-                }
-            }
-        }
-
-        private void AddToHead(CacheNode node)
-        {
-            node.Prev = null;
-            node.Next = _head;
-
-            if (_head != null)
-                _head.Prev = node;
-
-            _head = node;
-
-            if (_tail == null)
-                _tail = _head;
-        }
-
-        private void RemoveNode(CacheNode node)
-        {
-            if (node.Prev != null)
-                node.Prev.Next = node.Next;
-            else
-                _head = node.Next;
-
-            if (node.Next != null)
-                node.Next.Prev = node.Prev;
-            else
-                _tail = node.Prev;
-        }
-
-        private void MoveToHead(CacheNode node)
-        {
-            RemoveNode(node);
-            AddToHead(node);
-        }
-
-        private CacheNode? RemoveTail()
-        {
-            var lastNode = _tail;
-            if (lastNode != null)
-                RemoveNode(lastNode);
-            return lastNode;
-        }
-
-        public void Clear()
-        {
-            foreach (var node in _cache.Values)
-            {
-                _gl.DeleteTexture(node.Value.TextureId);
-            }
-            _cache.Clear();
-            _head = null;
-            _tail = null;
-        }
-
-        public void Dispose()
-        {
-            Clear();
-        }
-    }
-
-    public UIRenderPass(int windowWidth, int windowHeight)
-    {
-        _windowWidth = windowWidth;
-        _windowHeight = windowHeight;
-
-        _typeface = SKTypeface.FromFamilyName("Consolas", SKFontStyle.Normal) ??
-                    SKTypeface.FromFamilyName("Courier New", SKFontStyle.Normal) ??
-                    SKTypeface.Default;
-    }
+    private readonly record struct TextCacheKey(int TextHash, int ColorArgb, float FontSize);
 
     public void Initialize(GL gl)
     {
         _gl = gl;
-        _textureCache = new TextureCache(_gl);
-
-        try
-        {
-            InitializeShaders();
-            InitializeGeometry();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[UIRenderPass] Initialization failed: {ex.Message}");
-            throw;
-        }
+        InitializeShaders();
+        InitializeGeometry();
     }
 
     private void InitializeShaders()
@@ -238,11 +73,10 @@ public class UIRenderPass : IRenderPass
         _gl.AttachShader(_shaderProgram, fs);
         _gl.LinkProgram(_shaderProgram);
 
-        _gl.GetProgram(_shaderProgram, GLEnum.LinkStatus, out var success);
-        if (success == 0)
+        if (_gl.GetProgram(_shaderProgram, GLEnum.LinkStatus) == 0)
         {
             var infoLog = _gl.GetProgramInfoLog(_shaderProgram);
-            throw new Exception($"Shader program linking failed: {infoLog}");
+            throw new InvalidOperationException($"Shader program linking failed: {infoLog}");
         }
 
         _gl.DeleteShader(vs);
@@ -256,8 +90,8 @@ public class UIRenderPass : IRenderPass
 
         _gl.BindVertexArray(_vao);
         _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
-        _gl.BufferData(BufferTargetARB.ArrayBuffer, sizeof(float) * 6 * 4, IntPtr.Zero,
-            BufferUsageARB.DynamicDraw);
+        _gl.BufferData(BufferTargetARB.ArrayBuffer, sizeof(float) * 6 * 4,
+            in IntPtr.Zero, BufferUsageARB.DynamicDraw);
 
         _gl.EnableVertexAttribArray(0);
         _gl.VertexAttribPointer(0, 4, VertexAttribPointerType.Float, false, 4 * sizeof(float), 0);
@@ -280,8 +114,8 @@ public class UIRenderPass : IRenderPass
             _gl.UniformMatrix4(projectionLoc, 1, false, (float*)&projection);
         }
 
-        RenderUITexts(world);
         RenderUIPanels(world);
+        RenderUITexts(world);
 
         _gl.BindVertexArray(0);
         _gl.BindTexture(TextureTarget.Texture2D, 0);
@@ -293,19 +127,12 @@ public class UIRenderPass : IRenderPass
 
         foreach (var entity in textQuery)
         {
-            ref var text = ref entity.Get<UIText>();
-            ref var uiElement = ref entity.Get<UIElement>();
+            ref readonly var text = ref entity.Get<UIText>();
+            ref readonly var uiElement = ref entity.Get<UIElement>();
 
-            if (!text.IsVisible || !uiElement.IsVisible) continue;
-
-            try
+            if (text.IsVisible && uiElement.IsVisible && !string.IsNullOrEmpty(text.Content))
             {
-                RenderText(text.Content, text.TextColor, text.FontSize,
-                    uiElement.Position.X, uiElement.Position.Y);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[UIRenderPass] Text rendering failed: {ex.Message}");
+                RenderText(text.Content, text.TextColor, text.FontSize, uiElement.Position);
             }
         }
     }
@@ -316,67 +143,60 @@ public class UIRenderPass : IRenderPass
 
         foreach (var entity in panelQuery)
         {
-            ref var panel = ref entity.Get<UIPanel>();
-            ref var uiElement = ref entity.Get<UIElement>();
+            ref readonly var panel = ref entity.Get<UIPanel>();
+            ref readonly var uiElement = ref entity.Get<UIElement>();
 
-            if (!panel.IsVisible || !uiElement.IsVisible) continue;
-
-            try
+            if (panel.IsVisible && uiElement.IsVisible)
             {
-                RenderPanel(uiElement.Size, panel.BackgroundColor,
-                    uiElement.Position.X, uiElement.Position.Y);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[UIRenderPass] Panel rendering failed: {ex.Message}");
+                RenderPanel(panel.BackgroundColor, uiElement.Position, uiElement.Size);
             }
         }
     }
 
-    private void RenderText(string text, Color color, float fontSize, float x, float y)
+    private void RenderText(string text, Color color, float fontSize, Vector2 position)
     {
-        if (string.IsNullOrEmpty(text)) return;
+        var textureId = GetOrCreateTextTexture(text, color, fontSize);
+        SetShaderColor(color);
 
-        var textureInfo = CreateTextTexture(text, color, fontSize);
+        using var font = new SKFont(_typeface, fontSize);
+        var textBounds = font.MeasureText(text, out _);
+        var size = new Vector2(textBounds + 8, fontSize + 4);
 
+        RenderQuad(textureId, position, size);
+    }
+
+    private void RenderPanel(Color color, Vector2 position, Vector2 size)
+    {
+        var textureId = GetOrCreateColorTexture(color);
+        SetShaderColor(color);
+        RenderQuad(textureId, position, size);
+    }
+
+    private void SetShaderColor(Color color)
+    {
         var textColorLoc = _gl.GetUniformLocation(_shaderProgram, "textColor");
         var alphaLoc = _gl.GetUniformLocation(_shaderProgram, "alpha");
 
         _gl.Uniform3(textColorLoc, color.R / 255f, color.G / 255f, color.B / 255f);
         _gl.Uniform1(alphaLoc, color.A / 255f);
-
-        RenderQuad(textureInfo.TextureId, x, y, textureInfo.Size.X, textureInfo.Size.Y);
     }
 
-    private void RenderPanel(Vector2 size, Color color, float x, float y)
-    {
-        var textureInfo = CreateColorTexture(color);
-
-        var textColorLoc = _gl.GetUniformLocation(_shaderProgram, "textColor");
-        var alphaLoc = _gl.GetUniformLocation(_shaderProgram, "alpha");
-
-        _gl.Uniform3(textColorLoc, color.R / 255f, color.G / 255f, color.B / 255f);
-        _gl.Uniform1(alphaLoc, color.A / 255f);
-
-        RenderQuad(textureInfo.TextureId, x, y, size.X, size.Y);
-    }
-
-    private void RenderQuad(uint textureId, float x, float y, float width, float height)
+    private void RenderQuad(uint textureId, Vector2 position, Vector2 size)
     {
         _gl.BindTexture(TextureTarget.Texture2D, textureId);
 
-        // Flip Y coordinate since OpenGL origin is bottom-left, UI origin is top-left
-        var flippedY = _windowHeight - y - height;
+        // Flip Y coordinate for UI coordinate system
+        var flippedY = _windowHeight - position.Y - size.Y;
 
-        float[] vertices =
+        Span<float> vertices =
         [
-            x, flippedY + height, 0.0f, 0.0f,
-            x, flippedY, 0.0f, 1.0f,
-            x + width, flippedY, 1.0f, 1.0f,
+            position.X,           flippedY + size.Y, 0.0f, 0.0f,
+            position.X,           flippedY,          0.0f, 1.0f,
+            position.X + size.X,  flippedY,          1.0f, 1.0f,
 
-            x, flippedY + height, 0.0f, 0.0f,
-            x + width, flippedY, 1.0f, 1.0f,
-            x + width, flippedY + height, 1.0f, 0.0f
+            position.X,           flippedY + size.Y, 0.0f, 0.0f,
+            position.X + size.X,  flippedY,          1.0f, 1.0f,
+            position.X + size.X,  flippedY + size.Y, 1.0f, 0.0f
         ];
 
         _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
@@ -384,75 +204,77 @@ public class UIRenderPass : IRenderPass
         {
             fixed (float* verticesPtr = vertices)
             {
-                _gl.BufferSubData(BufferTargetARB.ArrayBuffer, 0, (nuint)(vertices.Length * sizeof(float)),
-                    verticesPtr);
+                _gl.BufferSubData(BufferTargetARB.ArrayBuffer, 0,
+                    (nuint)(vertices.Length * sizeof(float)), verticesPtr);
             }
         }
-
-        _gl.BindBuffer(BufferTargetARB.ArrayBuffer, 0);
 
         _gl.DrawArrays(PrimitiveType.Triangles, 0, 6);
     }
 
-    private TextureInfo CreateTextTexture(string text, Color color, float fontSize)
+    private uint GetOrCreateTextTexture(string text, Color color, float fontSize)
     {
-        var cacheKey = new TextCacheKey(text, color, fontSize);
-        if (_textureCache.TryGet(cacheKey, out var cached))
-            return cached;
+        var key = new TextCacheKey(text.GetHashCode(), color.ToArgb(), fontSize);
 
+        if (_textureCache.TryGetValue(key, out var existingTexture))
+            return existingTexture;
+
+        var textureId = CreateTextTexture(text, color, fontSize);
+
+        if (_textureCache.Count >= 30)
+        {
+            var oldestKey = _textureCache.Keys.First();
+            _gl.DeleteTexture(_textureCache[oldestKey]);
+            _textureCache.Remove(oldestKey);
+        }
+
+        _textureCache[key] = textureId;
+        return textureId;
+    }
+
+    private uint GetOrCreateColorTexture(Color color)
+    {
+        var key = new TextCacheKey(0, color.ToArgb(), 0);
+
+        if (_textureCache.TryGetValue(key, out var existingTexture))
+            return existingTexture;
+
+        var textureId = CreateColorTexture(color);
+        _textureCache[key] = textureId;
+        return textureId;
+    }
+
+    private uint CreateTextTexture(string text, Color color, float fontSize)
+    {
         using var font = new SKFont(_typeface, fontSize);
         using var paint = new SKPaint();
         paint.IsAntialias = true;
         paint.Color = new SKColor(color.R, color.G, color.B, color.A);
 
         var textWidth = font.MeasureText(text, out _);
-
         var width = Math.Max(1, (int)Math.Ceiling(textWidth) + 8);
         var height = Math.Max(1, (int)Math.Ceiling(fontSize) + 4);
 
-        var bitmap = new SKBitmap(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        using var bitmap = new SKBitmap(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
         using var canvas = new SKCanvas(bitmap);
 
         canvas.Clear(SKColors.Transparent);
         canvas.DrawText(text, 4, 4 + font.Metrics.CapHeight, font, paint);
 
-        var textureId = CreateTextureFromBitmap(bitmap);
-
-        var textureInfo = new TextureInfo
-        {
-            TextureId = textureId,
-            Size = new Vector2(width, height)
-        };
-
-        _textureCache.Put(cacheKey, textureInfo);
-        return textureInfo;
+        return CreateTextureFromBitmap(bitmap);
     }
 
-    private TextureInfo CreateColorTexture(Color color)
+    private uint CreateColorTexture(Color color)
     {
-        var cacheKey = new TextCacheKey(string.Empty, color, 0);
-        if (_textureCache.TryGet(cacheKey, out var cached))
-            return cached;
-
-        var bitmap = new SKBitmap(1, 1, SKColorType.Rgba8888, SKAlphaType.Premul);
+        using var bitmap = new SKBitmap(1, 1, SKColorType.Rgba8888, SKAlphaType.Premul);
         bitmap.SetPixel(0, 0, new SKColor(color.R, color.G, color.B, color.A));
-
-        var textureId = CreateTextureFromBitmap(bitmap);
-
-        var textureInfo = new TextureInfo
-        {
-            TextureId = textureId,
-            Size = new Vector2(1, 1)
-        };
-
-        _textureCache.Put(cacheKey, textureInfo);
-        return textureInfo;
+        return CreateTextureFromBitmap(bitmap);
     }
 
     private uint CreateTextureFromBitmap(SKBitmap bitmap)
     {
         var pixels = bitmap.Pixels;
-        var textureData = new byte[bitmap.Width * bitmap.Height];
+        Span<byte> textureData = stackalloc byte[bitmap.Width * bitmap.Height];
 
         for (var i = 0; i < pixels.Length; i++)
             textureData[i] = pixels[i].Alpha;
@@ -484,11 +306,11 @@ public class UIRenderPass : IRenderPass
         _gl.ShaderSource(shader, source);
         _gl.CompileShader(shader);
 
-        _gl.GetShader(shader, ShaderParameterName.CompileStatus, out var success);
-        if (success == 0)
+        if (_gl.GetShader(shader, ShaderParameterName.CompileStatus) == 0)
         {
             var infoLog = _gl.GetShaderInfoLog(shader);
-            throw new Exception($"Shader compilation failed ({type}): {infoLog}");
+            _gl.DeleteShader(shader);
+            throw new InvalidOperationException($"Shader compilation failed ({type}): {infoLog}");
         }
 
         return shader;
@@ -502,11 +324,13 @@ public class UIRenderPass : IRenderPass
 
     public void Dispose()
     {
+        foreach (var textureId in _textureCache.Values)
+            _gl.DeleteTexture(textureId);
+        _textureCache.Clear();
+
         _gl.DeleteVertexArray(_vao);
         _gl.DeleteBuffer(_vbo);
         _gl.DeleteProgram(_shaderProgram);
-
-        _textureCache.Dispose();
         _typeface?.Dispose();
     }
 }
