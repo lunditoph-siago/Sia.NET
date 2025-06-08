@@ -39,17 +39,3 @@ public partial record struct MouseReceiver(
 {
     public MouseReceiver() : this(true, true, true, true) { }
 }
-
-public partial record struct Clickable(
-    [Sia] Vector2 Size,
-    [Sia] bool IsHovered,
-    [Sia] bool IsPressed)
-{
-    public Clickable() : this(Vector2.One * 100, false, false) { }
-
-    public readonly record struct Click() : IEvent;
-
-    public readonly record struct Hover() : IEvent;
-
-    public readonly record struct Leave() : IEvent;
-}

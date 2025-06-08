@@ -23,16 +23,18 @@ public interface IUIEvent : IEvent
     Vector2 Position { get; }
 }
 
-public readonly record struct UIClickEvent(Entity Target, Vector2 Position, MouseButton Button) : IUIEvent;
-public readonly record struct UIHoverEnterEvent(Entity Target, Vector2 Position) : IUIEvent;
-public readonly record struct UIHoverExitEvent(Entity Target, Vector2 Position) : IUIEvent;
-
-public enum MouseButton
+public enum MouseButton : byte
 {
     Left = 0,
     Right = 1,
     Middle = 2
 }
+
+public readonly record struct UIClickEvent(Entity Target, Vector2 Position, MouseButton Button) : IUIEvent;
+
+public readonly record struct UIHoverEnterEvent(Entity Target, Vector2 Position) : IUIEvent;
+
+public readonly record struct UIHoverExitEvent(Entity Target, Vector2 Position) : IUIEvent;
 
 public partial record struct UIInteractionState(
     [Sia] bool IsHovered,
