@@ -13,324 +13,317 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
     public bool IsEnabled { get; set; } = true;
 
     private GL _gl = null!;
-    private uint _vao, _vbo;
-    private uint _shaderProgram;
     private int _windowWidth = windowWidth;
     private int _windowHeight = windowHeight;
 
-    private readonly Dictionary<TextCacheKey, uint> _textureCache = new(32);
+    // SkiaSharp GL related resources
+    private GRContext? _grContext;
+    private GRBackendRenderTarget? _renderTarget;
+    private SKSurface? _surface;
+    private SKCanvas? _canvas;
 
-    private readonly SKTypeface _typeface = SKTypeface.FromFamilyName("Consolas") ??
-                                            SKTypeface.FromFamilyName("Courier New") ??
-                                            SKTypeface.Default;
+    // Font and paint cache - greatly reduce object creation
+    private readonly Dictionary<float, SKFont> _fontCache = [];
+    private readonly Dictionary<uint, SKPaint> _paintCache = [];
+    private readonly SKTypeface _typeface = SKTypeface.FromFamilyName("sans-serif") ??
+                                           SKTypeface.Default;
 
-    private readonly record struct TextCacheKey(int TextHash, int ColorArgb, float FontSize);
+    private readonly List<Entity> _sortedUIElements = [];
+    private bool _uiListDirty = true;
 
     public void Initialize(GL gl)
     {
         _gl = gl;
-        InitializeShaders();
-        InitializeGeometry();
+        InitializeSkiaGL();
     }
 
-    private void InitializeShaders()
+    private void InitializeSkiaGL()
     {
-        const string vertexShader = """
-                                    #version 330 core
-                                    layout (location = 0) in vec4 vertex; // <vec2 pos, vec2 tex>
-                                    out vec2 TexCoords;
+        // Create Skia GL context
+        var glInterface = GRGlInterface.Create();
+        _grContext = GRContext.CreateGl(glInterface);
 
-                                    uniform mat4 projection;
-
-                                    void main()
-                                    {
-                                        gl_Position = projection * vec4(vertex.xy, 0.0, 1.0);
-                                        TexCoords = vertex.zw;
-                                    }
-                                    """;
-
-        const string fragmentShader = """
-                                      #version 330 core
-                                      in vec2 TexCoords;
-                                      out vec4 color;
-
-                                      uniform sampler2D text;
-                                      uniform vec3 textColor;
-                                      uniform float alpha;
-
-                                      void main()
-                                      {    
-                                          vec4 sampled = vec4(1.0, 1.0, 1.0, texture(text, TexCoords).r);
-                                          color = vec4(textColor, alpha) * sampled;
-                                      }
-                                      """;
-
-        var vs = CompileShader(ShaderType.VertexShader, vertexShader);
-        var fs = CompileShader(ShaderType.FragmentShader, fragmentShader);
-
-        _shaderProgram = _gl.CreateProgram();
-        _gl.AttachShader(_shaderProgram, vs);
-        _gl.AttachShader(_shaderProgram, fs);
-        _gl.LinkProgram(_shaderProgram);
-
-        if (_gl.GetProgram(_shaderProgram, GLEnum.LinkStatus) == 0)
+        if (_grContext == null)
         {
-            var infoLog = _gl.GetProgramInfoLog(_shaderProgram);
-            throw new InvalidOperationException($"Shader program linking failed: {infoLog}");
+            throw new InvalidOperationException("Failed to create Skia GL context");
         }
 
-        _gl.DeleteShader(vs);
-        _gl.DeleteShader(fs);
+        // Set GL context state
+        _grContext.ResetContext();
+
+        CreateRenderTarget();
     }
 
-    private void InitializeGeometry()
+    private void CreateRenderTarget()
     {
-        _vao = _gl.GenVertexArray();
-        _vbo = _gl.GenBuffer();
+        if (_grContext == null) return;
 
-        _gl.BindVertexArray(_vao);
-        _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
-        _gl.BufferData(BufferTargetARB.ArrayBuffer, sizeof(float) * 6 * 4,
-            in IntPtr.Zero, BufferUsageARB.DynamicDraw);
+        // Get current framebuffer information
+        _gl.GetInteger(GLEnum.FramebufferBinding, out var framebuffer);
 
-        _gl.EnableVertexAttribArray(0);
-        _gl.VertexAttribPointer(0, 4, VertexAttribPointerType.Float, false, 4 * sizeof(float), 0);
+        // Create backend render target
+        var glInfo = new GRGlFramebufferInfo((uint)framebuffer, SKColorType.Rgba8888.ToGlSizedFormat());
+        _renderTarget = new GRBackendRenderTarget(_windowWidth, _windowHeight, 0, 8, glInfo);
 
-        _gl.BindBuffer(BufferTargetARB.ArrayBuffer, 0);
-        _gl.BindVertexArray(0);
+        // Create Skia surface
+        _surface = SKSurface.Create(_grContext, _renderTarget, GRSurfaceOrigin.BottomLeft, SKColorType.Rgba8888);
+        _canvas = _surface?.Canvas;
+
+        if (_canvas == null)
+        {
+            throw new InvalidOperationException("Failed to create Skia canvas from GL context");
+        }
     }
 
     public void Execute(World world, RenderPipeline pipeline)
     {
-        _gl.UseProgram(_shaderProgram);
-        _gl.ActiveTexture(TextureUnit.Texture0);
-        _gl.BindVertexArray(_vao);
+        if (_canvas == null || _grContext == null) return;
 
-        var projection = Matrix4x4.CreateOrthographicOffCenter(0.0f, _windowWidth, 0.0f, _windowHeight, -1.0f, 1.0f);
-        var projectionLoc = _gl.GetUniformLocation(_shaderProgram, "projection");
-
-        unsafe
+        if (_uiListDirty)
         {
-            _gl.UniformMatrix4(projectionLoc, 1, false, (float*)&projection);
+            RefreshUIElementsList(world);
         }
 
-        RenderUIPanels(world);
-        RenderUITexts(world);
+        BeginFrame();
 
-        _gl.BindVertexArray(0);
-        _gl.BindTexture(TextureTarget.Texture2D, 0);
+        try
+        {
+            RenderUIElements();
+        }
+        finally
+        {
+            EndFrame();
+        }
     }
 
-    private void RenderUITexts(World world)
+    private void RefreshUIElementsList(World world)
     {
-        var textQuery = world.Query(Matchers.Of<UIText, UIElement>());
+        _sortedUIElements.Clear();
 
-        foreach (var entity in textQuery)
+        // Collect all visible UI elements
+        var uiQuery = world.Query(Matchers.Of<UIElement>());
+        foreach (var entity in uiQuery)
         {
-            ref readonly var text = ref entity.Get<UIText>();
             ref readonly var uiElement = ref entity.Get<UIElement>();
-
-            if (text.IsVisible && uiElement.IsVisible && !string.IsNullOrEmpty(text.Content))
+            if (uiElement.IsVisible)
             {
-                RenderText(text.Content, text.TextColor, text.FontSize, uiElement.Position);
+                _sortedUIElements.Add(entity);
+            }
+        }
+
+        // Sort by layer (lower layer renders first)
+        _sortedUIElements.Sort(static (a, b) =>
+        {
+            var layerA = a.Get<UIElement>().Layer;
+            var layerB = b.Get<UIElement>().Layer;
+            return layerA.CompareTo(layerB);
+        });
+
+        _uiListDirty = false;
+    }
+
+    private void BeginFrame()
+    {
+        // Clear canvas
+        _canvas!.Clear(SKColors.Transparent);
+
+        // Save initial state
+        _canvas.Save();
+    }
+
+    private void EndFrame()
+    {
+        // Restore canvas state
+        _canvas!.Restore();
+
+        // Flush GPU commands and wait for completion
+        _grContext!.Flush();
+    }
+
+    private void RenderUIElements()
+    {
+        // Render UI elements in sorted order
+        foreach (var entity in _sortedUIElements)
+        {
+            RenderSingleUIElement(entity);
+        }
+    }
+
+    private void RenderSingleUIElement(Entity entity)
+    {
+        ref readonly var uiElement = ref entity.Get<UIElement>();
+
+        // Save current transformation state
+        _canvas!.Save();
+
+        try
+        {
+            // Apply element transformation
+            _canvas.Translate(uiElement.Position.X, uiElement.Position.Y);
+
+            // Render panel background
+            if (entity.Contains<UIPanel>())
+            {
+                RenderPanel(entity, uiElement.Size);
+            }
+
+            // Render button
+            if (entity.Contains<UIButton>())
+            {
+                RenderButton(entity, uiElement.Size);
+            }
+
+            // Render text - render last to ensure it's on top of other elements
+            if (entity.Contains<UIText>())
+            {
+                RenderText(entity, uiElement.Size);
+            }
+        }
+        finally
+        {
+            // Restore transformation state
+            _canvas.Restore();
+        }
+    }
+
+    private void RenderPanel(Entity entity, Vector2 size)
+    {
+        ref readonly var panel = ref entity.Get<UIPanel>();
+        if (!panel.IsVisible) return;
+
+        var paint = GetOrCreatePaint(panel.BackgroundColor);
+        var rect = new SKRect(0, 0, size.X, size.Y);
+
+        _canvas!.DrawRect(rect, paint);
+    }
+
+    private void RenderButton(Entity entity, Vector2 size)
+    {
+        ref readonly var button = ref entity.Get<UIButton>();
+        if (!button.IsEnabled) return;
+
+        // Determine button current state color
+        var color = button.NormalColor;
+        if (entity.Contains<UIInteractionState>())
+        {
+            ref readonly var state = ref entity.Get<UIInteractionState>();
+            color = state.IsPressed ? button.PressedColor :
+                   state.IsHovered ? button.HoverColor :
+                   button.NormalColor;
+        }
+
+        var paint = GetOrCreatePaint(color);
+        var rect = new SKRect(0, 0, size.X, size.Y);
+
+        // Draw rounded button
+        _canvas!.DrawRoundRect(rect, 8, 8, paint);
+
+        // Add inner shadow effect if button is pressed
+        if (entity.Contains<UIInteractionState>())
+        {
+            ref readonly var state = ref entity.Get<UIInteractionState>();
+            if (state.IsPressed)
+            {
+                DrawButtonPressedEffect(rect);
             }
         }
     }
 
-    private void RenderUIPanels(World world)
+    private void DrawButtonPressedEffect(SKRect rect)
     {
-        var panelQuery = world.Query(Matchers.Of<UIPanel, UIElement>());
-
-        foreach (var entity in panelQuery)
+        using var shadowPaint = new SKPaint
         {
-            ref readonly var panel = ref entity.Get<UIPanel>();
-            ref readonly var uiElement = ref entity.Get<UIElement>();
+            Color = new SKColor(0, 0, 0, 50),
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = 2,
+            IsAntialias = true
+        };
 
-            if (panel.IsVisible && uiElement.IsVisible)
-            {
-                RenderPanel(panel.BackgroundColor, uiElement.Position, uiElement.Size);
-            }
-        }
+        var innerRect = new SKRect(rect.Left + 1, rect.Top + 1, rect.Right - 1, rect.Bottom - 1);
+        _canvas!.DrawRoundRect(innerRect, 6, 6, shadowPaint);
     }
 
-    private void RenderText(string text, Color color, float fontSize, Vector2 position)
+    private void RenderText(Entity entity, Vector2 elementSize)
     {
-        var textureId = GetOrCreateTextTexture(text, color, fontSize);
-        SetShaderColor(color);
+        ref readonly var text = ref entity.Get<UIText>();
+        if (!text.IsVisible || string.IsNullOrEmpty(text.Content)) return;
 
-        using var font = new SKFont(_typeface, fontSize);
-        var textBounds = font.MeasureText(text, out _);
-        var size = new Vector2(textBounds + 8, fontSize + 4);
+        var font = GetOrCreateFont(text.FontSize);
+        var paint = GetOrCreatePaint(text.TextColor);
 
-        RenderQuad(textureId, position, size);
+        font.MeasureText(text.Content, out var textBounds, paint);
+
+        var x = (elementSize.X - textBounds.Width) * 0.5f;
+        var y = (elementSize.Y + textBounds.Height) * 0.5f;
+
+        _canvas!.DrawText(text.Content, x, y, SKTextAlign.Left, font, paint);
     }
 
-    private void RenderPanel(Color color, Vector2 position, Vector2 size)
+    private SKFont GetOrCreateFont(float fontSize)
     {
-        var textureId = GetOrCreateColorTexture(color);
-        SetShaderColor(color);
-        RenderQuad(textureId, position, size);
-    }
+        if (_fontCache.TryGetValue(fontSize, out var font))
+            return font;
 
-    private void SetShaderColor(Color color)
-    {
-        var textColorLoc = _gl.GetUniformLocation(_shaderProgram, "textColor");
-        var alphaLoc = _gl.GetUniformLocation(_shaderProgram, "alpha");
-
-        _gl.Uniform3(textColorLoc, color.R / 255f, color.G / 255f, color.B / 255f);
-        _gl.Uniform1(alphaLoc, color.A / 255f);
-    }
-
-    private void RenderQuad(uint textureId, Vector2 position, Vector2 size)
-    {
-        _gl.BindTexture(TextureTarget.Texture2D, textureId);
-
-        // Flip Y coordinate for UI coordinate system
-        var flippedY = _windowHeight - position.Y - size.Y;
-
-        Span<float> vertices =
-        [
-            position.X,           flippedY + size.Y, 0.0f, 0.0f,
-            position.X,           flippedY,          0.0f, 1.0f,
-            position.X + size.X,  flippedY,          1.0f, 1.0f,
-
-            position.X,           flippedY + size.Y, 0.0f, 0.0f,
-            position.X + size.X,  flippedY,          1.0f, 1.0f,
-            position.X + size.X,  flippedY + size.Y, 1.0f, 0.0f
-        ];
-
-        _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
-        unsafe
+        font = new SKFont(_typeface, fontSize)
         {
-            fixed (float* verticesPtr = vertices)
-            {
-                _gl.BufferSubData(BufferTargetARB.ArrayBuffer, 0,
-                    (nuint)(vertices.Length * sizeof(float)), verticesPtr);
-            }
-        }
+            Subpixel = true,
+            Edging = SKFontEdging.SubpixelAntialias
+        };
 
-        _gl.DrawArrays(PrimitiveType.Triangles, 0, 6);
+        _fontCache[fontSize] = font;
+        return font;
     }
 
-    private uint GetOrCreateTextTexture(string text, Color color, float fontSize)
+    private SKPaint GetOrCreatePaint(Color color)
     {
-        var key = new TextCacheKey(text.GetHashCode(), color.ToArgb(), fontSize);
+        var colorKey = (uint)color.ToArgb();
+        if (_paintCache.TryGetValue(colorKey, out var paint))
+            return paint;
 
-        if (_textureCache.TryGetValue(key, out var existingTexture))
-            return existingTexture;
-
-        var textureId = CreateTextTexture(text, color, fontSize);
-
-        if (_textureCache.Count >= 30)
+        paint = new SKPaint
         {
-            var oldestKey = _textureCache.Keys.First();
-            _gl.DeleteTexture(_textureCache[oldestKey]);
-            _textureCache.Remove(oldestKey);
-        }
+            Color = new SKColor(color.R, color.G, color.B, color.A),
+            IsAntialias = true,
+            Style = SKPaintStyle.Fill
+        };
 
-        _textureCache[key] = textureId;
-        return textureId;
-    }
-
-    private uint GetOrCreateColorTexture(Color color)
-    {
-        var key = new TextCacheKey(0, color.ToArgb(), 0);
-
-        if (_textureCache.TryGetValue(key, out var existingTexture))
-            return existingTexture;
-
-        var textureId = CreateColorTexture(color);
-        _textureCache[key] = textureId;
-        return textureId;
-    }
-
-    private uint CreateTextTexture(string text, Color color, float fontSize)
-    {
-        using var font = new SKFont(_typeface, fontSize);
-        using var paint = new SKPaint();
-        paint.IsAntialias = true;
-        paint.Color = new SKColor(color.R, color.G, color.B, color.A);
-
-        var textWidth = font.MeasureText(text, out _);
-        var width = Math.Max(1, (int)Math.Ceiling(textWidth) + 8);
-        var height = Math.Max(1, (int)Math.Ceiling(fontSize) + 4);
-
-        using var bitmap = new SKBitmap(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
-        using var canvas = new SKCanvas(bitmap);
-
-        canvas.Clear(SKColors.Transparent);
-        canvas.DrawText(text, 4, 4 + font.Metrics.CapHeight, font, paint);
-
-        return CreateTextureFromBitmap(bitmap);
-    }
-
-    private uint CreateColorTexture(Color color)
-    {
-        using var bitmap = new SKBitmap(1, 1, SKColorType.Rgba8888, SKAlphaType.Premul);
-        bitmap.SetPixel(0, 0, new SKColor(color.R, color.G, color.B, color.A));
-        return CreateTextureFromBitmap(bitmap);
-    }
-
-    private uint CreateTextureFromBitmap(SKBitmap bitmap)
-    {
-        var pixels = bitmap.Pixels;
-        Span<byte> textureData = stackalloc byte[bitmap.Width * bitmap.Height];
-
-        for (var i = 0; i < pixels.Length; i++)
-            textureData[i] = pixels[i].Alpha;
-
-        var texture = _gl.GenTexture();
-        _gl.BindTexture(TextureTarget.Texture2D, texture);
-
-        unsafe
-        {
-            fixed (byte* dataPtr = textureData)
-            {
-                _gl.TexImage2D(TextureTarget.Texture2D, 0, InternalFormat.Red,
-                    (uint)bitmap.Width, (uint)bitmap.Height, 0,
-                    PixelFormat.Red, PixelType.UnsignedByte, dataPtr);
-            }
-        }
-
-        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)GLEnum.ClampToEdge);
-        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)GLEnum.ClampToEdge);
-        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)GLEnum.Linear);
-        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)GLEnum.Linear);
-
-        return texture;
-    }
-
-    private uint CompileShader(ShaderType type, string source)
-    {
-        var shader = _gl.CreateShader(type);
-        _gl.ShaderSource(shader, source);
-        _gl.CompileShader(shader);
-
-        if (_gl.GetShader(shader, ShaderParameterName.CompileStatus) == 0)
-        {
-            var infoLog = _gl.GetShaderInfoLog(shader);
-            _gl.DeleteShader(shader);
-            throw new InvalidOperationException($"Shader compilation failed ({type}): {infoLog}");
-        }
-
-        return shader;
+        _paintCache[colorKey] = paint;
+        return paint;
     }
 
     public void OnResize(int width, int height)
     {
         _windowWidth = width;
         _windowHeight = height;
+
+        _surface?.Dispose();
+        _renderTarget?.Dispose();
+
+        CreateRenderTarget();
+
+        _uiListDirty = true;
     }
+
+    public void MarkUIListDirty() => _uiListDirty = true;
+
+    public bool IsUIListDirty => _uiListDirty;
 
     public void Dispose()
     {
-        foreach (var textureId in _textureCache.Values)
-            _gl.DeleteTexture(textureId);
-        _textureCache.Clear();
+        // Cleanup font cache
+        foreach (var font in _fontCache.Values)
+            font.Dispose();
+        _fontCache.Clear();
 
-        _gl.DeleteVertexArray(_vao);
-        _gl.DeleteBuffer(_vbo);
-        _gl.DeleteProgram(_shaderProgram);
+        // Cleanup paint cache
+        foreach (var paint in _paintCache.Values)
+            paint.Dispose();
+        _paintCache.Clear();
+
+        // Cleanup Skia resources
+        _surface?.Dispose();
+        _renderTarget?.Dispose();
+        _grContext?.Dispose();
         _typeface?.Dispose();
     }
 }
