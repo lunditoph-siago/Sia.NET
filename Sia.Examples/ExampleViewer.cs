@@ -91,13 +91,6 @@ public class ExampleViewer : IDisposable
         {
             keyboard.KeyDown += OnKeyDown;
         }
-
-        foreach (var mouse in _inputContext.Mice)
-        {
-            mouse.Click += OnMouseClick;
-            mouse.Scroll += OnMouseScroll;
-            mouse.MouseMove += OnMouseMove;
-        }
     }
 
     private void OnKeyDown(IKeyboard keyboard, Key key, int scanCode)
@@ -159,57 +152,6 @@ public class ExampleViewer : IDisposable
         }
     }
 
-    private void OnMouseClick(IMouse mouse, Silk.NET.Input.MouseButton button, Vector2 position)
-    {
-        if (!_state.IsMenu() || button != Silk.NET.Input.MouseButton.Left) return;
-
-        var menu = _state.AsMenu();
-        var exampleIndex = GetExampleIndexFromPosition(position);
-        if (exampleIndex >= 0 && exampleIndex < _exampleRunner!.Examples.Count)
-        {
-            _state = menu.WithSelection(exampleIndex);
-            ExecuteSelectedExample();
-        }
-    }
-
-    private void OnMouseMove(IMouse mouse, Vector2 position)
-    {
-        if (!_state.IsMenu()) return;
-
-        var menu = _state.AsMenu();
-        var exampleIndex = GetExampleIndexFromPosition(position);
-        var hoveredIndex = (exampleIndex >= 0 && exampleIndex < _exampleRunner!.Examples.Count)
-            ? exampleIndex : -1;
-
-        _state = menu.WithHover(hoveredIndex);
-    }
-
-    private void OnMouseScroll(IMouse mouse, ScrollWheel scrollWheel)
-    {
-        var scrollDelta = scrollWheel.Y * 20f;
-
-        _state = _state switch
-        {
-            ViewState.Menu menu => menu.WithScroll(scrollDelta),
-            ViewState.Output output => output.WithScroll(scrollDelta),
-            _ => _state
-        };
-    }
-
-    private int GetExampleIndexFromPosition(Vector2 position)
-    {
-        // Simple position to index mapping
-        const int headerHeight = 120;
-        const int itemHeight = 40;
-
-        if (position.Y <= headerHeight) return -1;
-
-        var relativeY = position.Y - headerHeight;
-        var index = (int)(relativeY / itemHeight);
-
-        return index;
-    }
-
     private void ChangeSelection(int delta)
     {
         if (_state is not ViewState.Menu menu) return;
@@ -217,6 +159,10 @@ public class ExampleViewer : IDisposable
         var newIndex = Math.Clamp(menu.SelectedExample + delta, 0,
             _exampleRunner!.Examples.Count - 1);
         _state = menu.WithSelection(newIndex);
+        
+        // Update UI to reflect the selection change
+        if (_state.IsMenu())
+            ShowMenu();
     }
 
     private void ExecuteSelectedExample()
@@ -281,63 +227,67 @@ public class ExampleViewer : IDisposable
         var menu = _state.AsMenu();
 
         // Create title
-        _world.Create(HList.From(
-            new UIElement(new Vector2(50, 550), new Vector2(700, 30), true, false, 1),
-            new UIText("Sia.NET Example Viewer", Color.Cyan, 24f, true),
-            new RenderLayer(1, true)
-        ));
+        Runtime.UI.Text(_world, new Vector2(50, 550), "Sia.NET Example Viewer", Color.Cyan, 24f);
 
-        // Create navigation instructions
-        _world.Create(HList.From(
-            new UIElement(new Vector2(50, 520), new Vector2(700, 20), true, false, 1),
-            new UIText("Navigation: Arrow keys, Execute: Enter, Exit: ESC", Color.Yellow, 14f, true),
-            new RenderLayer(1, true)
-        ));
+        // Create navigation instructions  
+        Runtime.UI.Text(_world, new Vector2(50, 520), "Navigation: Arrow keys, Execute: Enter, Exit: ESC", Color.Yellow, 14f);
 
-        // Create background panel
-        _world.Create(HList.From(
-            new UIElement(new Vector2(20, 50), new Vector2(760, 450), true, false, 0),
-            new UIPanel(Color.FromArgb(60, 30, 30, 40), true),
-            new RenderLayer(0, true)
-        ));
+        // Create scrollable menu list
+        var menuList = CreateScrollableMenuList(menu);
 
-        // Create example list
+        // Create statistics information
+        Runtime.UI.Text(_world, new Vector2(50, 30), 
+            $"Total: {_exampleRunner.Examples.Count}, Selected: {menu.SelectedExample + 1}", Color.Cyan, 12f);
+    }
+
+    private Entity CreateScrollableMenuList(ViewState.Menu menu)
+    {
+        if (_world == null || _exampleRunner == null) return default;
+
+        // Create scrollable menu container - fixed menu overflow issue
+        var menuContainer = Runtime.UI.ScrollableMenu(_world, new Vector2(20, 70), new Vector2(760, 430));
+
+        // Generate menu content text
+        var contentLines = new List<string>();
         for (int i = 0; i < _exampleRunner.Examples.Count; i++)
         {
             var example = _exampleRunner.Examples[i];
-            var yPos = 480 - i * 40;
             var isSelected = i == menu.SelectedExample;
             var isHovered = i == menu.HoveredExample;
 
-            var (nameColor, descColor, prefix) = (isSelected, isHovered) switch
+            var prefix = (isSelected, isHovered) switch
             {
-                (true, _) => (Color.Yellow, Color.Orange, "► "),
-                (false, true) => (Color.LightBlue, Color.LightGray, "  "),
-                _ => (Color.White, Color.Gray, "  ")
+                (true, _) => "► ",
+                (false, true) => "  ",
+                _ => "  "
             };
 
-            // Create example name
-            _world.Create(HList.From(
-                new UIElement(new Vector2(60, yPos + 8), new Vector2(400, 20), true, false, 2),
-                new UIText($"{prefix}{i + 1:D2}. {example.Name}", nameColor, 14f, true),
-                new RenderLayer(2, true)
-            ));
-
-            // Create example description
-            _world.Create(HList.From(
-                new UIElement(new Vector2(80, yPos - 8), new Vector2(500, 15), true, false, 2),
-                new UIText($"    {example.Description}", descColor, 11f, true),
-                new RenderLayer(2, true)
-            ));
+            contentLines.Add($"{prefix}{i + 1:D2}. {example.Name}");
+            contentLines.Add($"    {example.Description}");
+            contentLines.Add(""); // Empty line for spacing
         }
 
-        // Create statistics information
-        _world.Create(HList.From(
-            new UIElement(new Vector2(50, 30), new Vector2(400, 15), true, false, 1),
-            new UIText($"Total: {_exampleRunner.Examples.Count}, Selected: {menu.SelectedExample + 1}",
-                Color.Cyan, 12f, true),
-            new RenderLayer(1, true)
-        ));
+        // Set content to scrollable menu
+        var content = string.Join("\n", contentLines);
+        Runtime.UI.SetContent(menuContainer, content);
+
+        // Auto-scroll to selected item
+        ScrollToSelectedItem(menuContainer, menu.SelectedExample);
+
+        return menuContainer;
+    }
+
+    private void ScrollToSelectedItem(Entity scrollableEntity, int selectedIndex)
+    {
+        if (!scrollableEntity.Contains<UIScrollable>()) return;
+
+        const float itemHeight = 60f; // Each item takes about 3 lines * 20px
+        var targetY = selectedIndex * itemHeight;
+        var viewportHeight = scrollableEntity.Get<UIElement>().Size.Y;
+        
+        // Center the selected item in viewport
+        var scrollOffset = new Vector2(0, Math.Max(0, targetY - viewportHeight * 0.4f));
+        Runtime.UI.ScrollTo(scrollableEntity, scrollOffset);
     }
 
     private void CreateOutputUI()
@@ -348,36 +298,20 @@ public class ExampleViewer : IDisposable
         var selectedExample = _exampleRunner.Examples[output.SelectedExample];
 
         // Create title
-        _world.Create(HList.From(
-            new UIElement(new Vector2(50, 550), new Vector2(700, 30), true, false, 1),
-            new UIText($"Execution Result: {selectedExample.Name}", Color.Cyan, 20f, true),
-            new RenderLayer(1, true)
-        ));
+        Runtime.UI.Text(_world, new Vector2(50, 550), 
+            $"Execution Result: {selectedExample.Name}", Color.Cyan, 20f);
 
         // Create control instructions
-        _world.Create(HList.From(
-            new UIElement(new Vector2(50, 520), new Vector2(700, 20), true, false, 1),
-            new UIText("ESC=Return to menu, R=Re-run, Scroll wheel=Scroll", Color.Yellow, 14f, true),
-            new RenderLayer(1, true)
-        ));
+        Runtime.UI.Text(_world, new Vector2(50, 520), 
+            "ESC=Return to menu, R=Re-run, Scroll wheel=Scroll", Color.Yellow, 14f);
 
         // Create background panel
-        _world.Create(HList.From(
-            new UIElement(new Vector2(20, 50), new Vector2(760, 450), true, false, 0),
-            new UIPanel(Color.FromArgb(60, 20, 20, 30), true),
-            new RenderLayer(0, true)
-        ));
+        Runtime.UI.Panel(_world, new Vector2(20, 50), new Vector2(760, 450), 
+            Color.FromArgb(60, 20, 20, 30));
 
         // Create scrollable output text area
-        Runtime.UI.ScrollableText(
-            _world,
-            new Vector2(40, 70),
-            new Vector2(720, 410),
-            output.Content,
-            Color.White,
-            11f,
-            Color.FromArgb(60, 20, 20, 30)
-        );
+        Runtime.UI.ScrollableText(_world, new Vector2(40, 70), new Vector2(720, 410),
+            output.Content, Color.White, 11f, Color.FromArgb(60, 20, 20, 30));
     }
 
     private static Color GetLineColor(string line) => line switch

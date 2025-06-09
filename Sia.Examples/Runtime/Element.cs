@@ -76,4 +76,15 @@ public static class UI
         if (entity.Contains<UIScrollable>())
             new UIScrollable.View(entity).ScrollOffset = Vector2.Zero;
     }
+
+    public static Entity ScrollableMenu(World world, Vector2 position, Vector2 size, 
+        Color backgroundColor = default) =>
+        world.Create(HList.From(
+            new UIElement(position, size, true, true, 1),
+            new UIText("", Color.White, 12f, true), // Empty text, will be set later
+            new UIPanel(backgroundColor == default ? Color.FromArgb(60, 30, 30, 40) : backgroundColor, true),
+            new UIScrollable(Vector2.Zero, Vector2.Zero, new Vector2(20f), false, true, true, true),
+            new UIEventListener(),
+            new Node<UIHierarchyTag>()
+        ));
 }

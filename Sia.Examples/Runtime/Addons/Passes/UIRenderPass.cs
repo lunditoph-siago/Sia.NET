@@ -64,7 +64,7 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
         _renderTarget = new GRBackendRenderTarget(_windowWidth, _windowHeight, 0, 8, glInfo);
 
         // Create Skia surface
-        _surface = SKSurface.Create(_grContext, _renderTarget, GRSurfaceOrigin.BottomLeft, SKColorType.Rgba8888);
+        _surface = SKSurface.Create(_grContext, _renderTarget, GRSurfaceOrigin.TopLeft, SKColorType.Rgba8888);
         _canvas = _surface?.Canvas;
 
         if (_canvas == null)
@@ -128,6 +128,11 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
 
         // Save initial state
         _canvas.Save();
+
+        // Convert coordinate system: from bottom-left origin to top-left origin
+        // Flip Y axis and translate to move (0,0) to top-left
+        _canvas.Scale(1, -1);
+        _canvas.Translate(0, -_windowHeight);
     }
 
     private void EndFrame()
@@ -157,7 +162,6 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
 
         try
         {
-            // Apply element transformation
             _canvas.Translate(uiElement.Position.X, uiElement.Position.Y);
 
             if (entity.Contains<UIScrollable>())
@@ -191,7 +195,6 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
 
         try
         {
-            // Apply scroll offset
             _canvas.Translate(-scrollable.ScrollOffset.X, -scrollable.ScrollOffset.Y);
 
             if (entity.Contains<UIPanel>())
