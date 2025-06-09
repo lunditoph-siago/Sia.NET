@@ -1,169 +1,58 @@
-using System.Runtime.CompilerServices;
+namespace Sia.Examples;
 
-namespace Sia_Examples;
-
-public sealed class ViewState
+public abstract record ViewState
 {
-    private bool _needsUpdate = true;
-    private bool _showingMenu = true;
-    private int _selectedExample;
-    private int _hoveredExample = -1;
-    private string _currentOutput = string.Empty;
-    private float _menuScrollOffset;
-    private float _outputScrollOffset;
-
-    public ViewMode Mode => _showingMenu ? ViewMode.Menu : ViewMode.Output;
-
-    public required bool ShowingMenu
+    public sealed record Menu(
+        int SelectedExample = 0,
+        int HoveredExample = -1,
+        float ScrollOffset = 0f) : ViewState
     {
-        get => _showingMenu;
-        init => SetField(ref _showingMenu, value);
-    }
-
-    public required int SelectedExample
-    {
-        get => _selectedExample;
-        init => SetField(ref _selectedExample, value);
-    }
-
-    public required int HoveredExample
-    {
-        get => _hoveredExample;
-        init => SetField(ref _hoveredExample, value);
-    }
-
-    public required string CurrentOutput
-    {
-        get => _currentOutput;
-        init => SetField(ref _currentOutput, value);
-    }
-
-    public required float MenuScrollOffset
-    {
-        get => _menuScrollOffset;
-        init => SetField(ref _menuScrollOffset, value);
-    }
-
-    public required float OutputScrollOffset
-    {
-        get => _outputScrollOffset;
-        init => SetField(ref _outputScrollOffset, value);
-    }
-
-    public bool ConsumeUpdateFlag()
-    {
-        if (!_needsUpdate) return false;
-        _needsUpdate = false;
-        return true;
-    }
-
-    public void MarkDirty() => _needsUpdate = true;
-
-    public ViewState With(Action<ViewStateBuilder> configure)
-    {
-        var builder = new ViewStateBuilder(this);
-        configure(builder);
-        return builder.Build();
-    }
-
-    public ViewState ResetScroll() => With(builder =>
-        builder.SetScrollOffsets(menuOffset: 0f, outputOffset: 0f));
-
-    public ViewState ToMenuMode() => With(builder =>
-        builder.SetMode(showingMenu: true).ResetScrollOffsets());
-
-    public ViewState ToOutputMode(string output) => With(builder =>
-        builder.SetMode(showingMenu: false)
-               .SetCurrentOutput(output)
-               .ResetScrollOffsets());
-
-    private void SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
-    {
-        if (!EqualityComparer<T>.Default.Equals(field, value))
+        public Menu WithSelection(int selected) => this with { SelectedExample = selected };
+        public Menu WithHover(int hovered) => this with { HoveredExample = hovered };
+        public Menu WithScroll(float scrollDelta) => this with
         {
-            field = value;
-            _needsUpdate = true;
-        }
+            ScrollOffset = Math.Max(0, ScrollOffset + scrollDelta)
+        };
     }
+
+    public sealed record Output(
+        int SelectedExample,
+        string Content,
+        float ScrollOffset = 0f) : ViewState
+    {
+        public Output WithContent(string newContent) => this with { Content = newContent };
+        public Output WithScroll(float scrollDelta) => this with
+        {
+            ScrollOffset = Math.Max(0, ScrollOffset + scrollDelta)
+        };
+    }
+
+    public static ViewState InitialMenu() => new Menu();
+
+    public static ViewState MenuFromOutput(Output output) => new Menu(output.SelectedExample);
+
+    public static ViewState OutputFromMenu(Menu menu, string content) => new Output(menu.SelectedExample, content);
 }
 
-public enum ViewMode
+public static class ViewStateExtensions
 {
-    Menu,
-    Output
-}
+    public static bool IsMenu(this ViewState state) => state is ViewState.Menu;
+    public static bool IsOutput(this ViewState state) => state is ViewState.Output;
 
-public sealed class ViewStateBuilder
-{
-    private bool _showingMenu;
-    private int _selectedExample;
-    private int _hoveredExample;
-    private string _currentOutput;
-    private float _menuScrollOffset;
-    private float _outputScrollOffset;
+    public static ViewState.Menu AsMenu(this ViewState state) => (ViewState.Menu)state;
+    public static ViewState.Output AsOutput(this ViewState state) => (ViewState.Output)state;
 
-    internal ViewStateBuilder(ViewState source)
+    public static ViewState ToMenu(this ViewState state) => state switch
     {
-        _showingMenu = source.ShowingMenu;
-        _selectedExample = source.SelectedExample;
-        _hoveredExample = source.HoveredExample;
-        _currentOutput = source.CurrentOutput;
-        _menuScrollOffset = source.MenuScrollOffset;
-        _outputScrollOffset = source.OutputScrollOffset;
-    }
+        ViewState.Menu menu => menu,
+        ViewState.Output output => ViewState.MenuFromOutput(output),
+        _ => throw new InvalidOperationException($"Unknown state type: {state.GetType()}")
+    };
 
-    public ViewStateBuilder SetMode(bool showingMenu)
+    public static ViewState ToOutput(this ViewState state, string content) => state switch
     {
-        _showingMenu = showingMenu;
-        return this;
-    }
-
-    public ViewStateBuilder SetSelectedExample(int index)
-    {
-        _selectedExample = index;
-        return this;
-    }
-
-    public ViewStateBuilder SetHoveredExample(int index)
-    {
-        _hoveredExample = index;
-        return this;
-    }
-
-    public ViewStateBuilder SetCurrentOutput(string output)
-    {
-        _currentOutput = output;
-        return this;
-    }
-
-    public ViewStateBuilder SetScrollOffsets(float menuOffset, float outputOffset)
-    {
-        _menuScrollOffset = menuOffset;
-        _outputScrollOffset = outputOffset;
-        return this;
-    }
-
-    public ViewStateBuilder ResetScrollOffsets() => SetScrollOffsets(0f, 0f);
-
-    public ViewStateBuilder AdjustMenuScroll(float delta)
-    {
-        _menuScrollOffset += delta;
-        return this;
-    }
-
-    public ViewStateBuilder AdjustOutputScroll(float delta)
-    {
-        _outputScrollOffset += delta;
-        return this;
-    }
-
-    internal ViewState Build() => new()
-    {
-        ShowingMenu = _showingMenu,
-        SelectedExample = _selectedExample,
-        HoveredExample = _hoveredExample,
-        CurrentOutput = _currentOutput,
-        MenuScrollOffset = _menuScrollOffset,
-        OutputScrollOffset = _outputScrollOffset
+        ViewState.Menu menu => ViewState.OutputFromMenu(menu, content),
+        ViewState.Output output => output.WithContent(content),
+        _ => throw new InvalidOperationException($"Unknown state type: {state.GetType()}")
     };
 }

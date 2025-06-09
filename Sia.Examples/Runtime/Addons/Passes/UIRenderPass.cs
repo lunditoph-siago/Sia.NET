@@ -25,8 +25,9 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
     // Font and paint cache - greatly reduce object creation
     private readonly Dictionary<float, SKFont> _fontCache = [];
     private readonly Dictionary<uint, SKPaint> _paintCache = [];
+
     private readonly SKTypeface _typeface = SKTypeface.FromFamilyName("sans-serif") ??
-                                           SKTypeface.Default;
+                                            SKTypeface.Default;
 
     private readonly List<Entity> _sortedUIElements = [];
     private bool _uiListDirty = true;
@@ -161,28 +162,162 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
             // Apply element transformation
             _canvas.Translate(uiElement.Position.X, uiElement.Position.Y);
 
-            // Render panel background
-            if (entity.Contains<UIPanel>())
+            if (entity.Contains<UIScrollable>())
             {
-                RenderPanel(entity, uiElement.Size);
+                RenderScrollableElement(entity, uiElement.Size);
             }
-
-            // Render button
-            if (entity.Contains<UIButton>())
+            else
             {
-                RenderButton(entity, uiElement.Size);
-            }
-
-            // Render text - render last to ensure it's on top of other elements
-            if (entity.Contains<UIText>())
-            {
-                RenderText(entity, uiElement.Size);
+                RenderRegularElement(entity, uiElement.Size);
             }
         }
         finally
         {
             // Restore transformation state
             _canvas.Restore();
+        }
+    }
+
+    private void RenderScrollableElement(Entity entity, Vector2 size)
+    {
+        ref readonly var scrollable = ref entity.Get<UIScrollable>();
+
+        var clipRect = new SKRect(0, 0, size.X, size.Y);
+        _canvas!.ClipRect(clipRect);
+
+        _canvas.Save();
+
+        try
+        {
+            // Apply scroll offset
+            _canvas.Translate(-scrollable.ScrollOffset.X, -scrollable.ScrollOffset.Y);
+
+            if (entity.Contains<UIPanel>())
+            {
+                _canvas.Save();
+                _canvas.Translate(scrollable.ScrollOffset.X, scrollable.ScrollOffset.Y);
+                RenderPanel(entity, size);
+                _canvas.Restore();
+            }
+
+            RenderScrollableContent(entity, scrollable.ContentSize);
+        }
+        finally
+        {
+            _canvas.Restore();
+        }
+
+        if (scrollable.ShowScrollbars)
+        {
+            RenderScrollbars(entity, size, scrollable);
+        }
+    }
+
+    private void RenderScrollableContent(Entity entity, Vector2 contentSize)
+    {
+        if (entity.Contains<UIText>())
+        {
+            RenderScrollableText(entity, contentSize);
+        }
+    }
+
+    private void RenderScrollableText(Entity entity, Vector2 contentSize)
+    {
+        ref readonly var text = ref entity.Get<UIText>();
+        if (!text.IsVisible || string.IsNullOrEmpty(text.Content)) return;
+
+        var font = GetOrCreateFont(text.FontSize);
+        var paint = GetOrCreatePaint(text.TextColor);
+        var lines = text.Content?.Split('\n', StringSplitOptions.None) ?? [];
+        var lineHeight = text.FontSize * 1.2f;
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            if (string.IsNullOrEmpty(line)) continue;
+
+            var y = i * lineHeight + text.FontSize;
+            _canvas!.DrawText(line, 0, y, SKTextAlign.Left, font, paint);
+        }
+    }
+
+    private void RenderScrollbars(Entity entity, Vector2 viewportSize, UIScrollable scrollable)
+    {
+        var maxOffset = scrollable.GetMaxScrollOffset(viewportSize);
+
+        if (scrollable.EnableVertical && maxOffset.Y > 0)
+        {
+            RenderVerticalScrollbar(viewportSize, scrollable, maxOffset);
+        }
+
+        if (scrollable.EnableHorizontal && maxOffset.X > 0)
+        {
+            RenderHorizontalScrollbar(viewportSize, scrollable, maxOffset);
+        }
+    }
+
+    private void RenderVerticalScrollbar(Vector2 viewportSize, UIScrollable scrollable, Vector2 maxOffset)
+    {
+        // Android-style scrollbar: thin and close to edge
+        const float thumbWidth = 4f;
+        const float margin = 2f;
+
+        // Calculate thumb position and size
+        var thumbHeight = Math.Max(30f, viewportSize.Y * (viewportSize.Y / scrollable.ContentSize.Y));
+        var thumbPosition = (scrollable.ScrollOffset.Y / maxOffset.Y) * (viewportSize.Y - thumbHeight);
+
+        // Position thumb close to right edge
+        var thumbRect = new SKRect(
+            viewportSize.X - thumbWidth - margin,
+            thumbPosition,
+            viewportSize.X - margin,
+            thumbPosition + thumbHeight);
+
+        // Render Android-style thumb: semi-transparent, rounded
+        var thumbPaint = GetOrCreatePaint(Color.FromArgb(120, 100, 100, 100));
+        _canvas!.DrawRoundRect(thumbRect, thumbWidth / 2, thumbWidth / 2, thumbPaint);
+    }
+
+    private void RenderHorizontalScrollbar(Vector2 viewportSize, UIScrollable scrollable, Vector2 maxOffset)
+    {
+        // Android-style scrollbar: thin and close to edge
+        const float thumbHeight = 4f;
+        const float margin = 2f;
+
+        // Calculate thumb position and size
+        var thumbWidth = Math.Max(30f, viewportSize.X * (viewportSize.X / scrollable.ContentSize.X));
+        var thumbPosition = (scrollable.ScrollOffset.X / maxOffset.X) * (viewportSize.X - thumbWidth);
+
+        // Position thumb close to bottom edge
+        var thumbRect = new SKRect(
+            thumbPosition,
+            viewportSize.Y - thumbHeight - margin,
+            thumbPosition + thumbWidth,
+            viewportSize.Y - margin);
+
+        // Render Android-style thumb: semi-transparent, rounded
+        var thumbPaint = GetOrCreatePaint(Color.FromArgb(120, 100, 100, 100));
+        _canvas!.DrawRoundRect(thumbRect, thumbHeight / 2, thumbHeight / 2, thumbPaint);
+    }
+
+    private void RenderRegularElement(Entity entity, Vector2 size)
+    {
+        // Render panel background
+        if (entity.Contains<UIPanel>())
+        {
+            RenderPanel(entity, size);
+        }
+
+        // Render button
+        if (entity.Contains<UIButton>())
+        {
+            RenderButton(entity, size);
+        }
+
+        // Render text - render last to ensure it's on top of other elements
+        if (entity.Contains<UIText>())
+        {
+            RenderText(entity, size);
         }
     }
 
@@ -208,8 +343,8 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
         {
             ref readonly var state = ref entity.Get<UIInteractionState>();
             color = state.IsPressed ? button.PressedColor :
-                   state.IsHovered ? button.HoverColor :
-                   button.NormalColor;
+                state.IsHovered ? button.HoverColor :
+                button.NormalColor;
         }
 
         var paint = GetOrCreatePaint(color);
@@ -250,13 +385,14 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
 
         var font = GetOrCreateFont(text.FontSize);
         var paint = GetOrCreatePaint(text.TextColor);
+        var content = text.Content ?? string.Empty;
 
-        font.MeasureText(text.Content, out var textBounds, paint);
+        font.MeasureText(content, out var textBounds, paint);
 
         var x = (elementSize.X - textBounds.Width) * 0.5f;
         var y = (elementSize.Y + textBounds.Height) * 0.5f;
 
-        _canvas!.DrawText(text.Content, x, y, SKTextAlign.Left, font, paint);
+        _canvas!.DrawText(content, x, y, SKTextAlign.Left, font, paint);
     }
 
     private SKFont GetOrCreateFont(float fontSize)

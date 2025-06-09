@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using Sia.Examples.Runtime.Components;
+using Sia.Reactors;
 
 namespace Sia.Examples.Runtime.Systems;
 
@@ -30,6 +31,7 @@ public class UIEventSystem : EventSystemBase
 
         RecordEvent<InputEvents.MouseClick>();
         RecordEvent<InputEvents.MouseMove>();
+        RecordEvent<InputEvents.MouseScroll>();
 
         RecordEvent<UIElement.SetPosition>();
         RecordEvent<UIElement.SetSize>();
@@ -45,6 +47,9 @@ public class UIEventSystem : EventSystemBase
                 break;
             case InputEvents.MouseMove mouseMove:
                 HandleMouseMove(mouseMove);
+                break;
+            case InputEvents.MouseScroll mouseScroll:
+                HandleMouseScroll(mouseScroll);
                 break;
             case UIElement.SetPosition:
             case UIElement.SetSize:
@@ -184,6 +189,81 @@ public class UIEventSystem : EventSystemBase
 
                 HandleButtonHoverEnter(currentHoveredEntity, mousePos);
                 World.Send(currentHoveredEntity, new UIHoverEnterEvent(currentHoveredEntity, mousePos));
+            }
+        }
+    }
+
+    private void HandleMouseScroll(InputEvents.MouseScroll mouseScroll)
+    {
+        RefreshUIList();
+
+        var mousePos = _lastMousePosition;
+        var scrollDelta = mouseScroll.Delta;
+
+        // Find the topmost scrollable element under the mouse position
+        foreach (var entity in _sortedUIElements)
+        {
+            ref readonly var uiElement = ref entity.Get<UIElement>();
+
+            // Check if it contains a scrollable component
+            if (!entity.Contains<UIScrollable>()) continue;
+
+            ref readonly var eventListener = ref entity.Get<UIEventListener>();
+            if (!eventListener.IsEnabled || !eventListener.ListenToScroll) continue;
+
+            var bounds = new UIBounds(uiElement.Position, uiElement.Size);
+            if (bounds.Contains(mousePos))
+            {
+                ref var scrollable = ref entity.Get<UIScrollable>();
+                if (!scrollable.IsEnabled) continue;
+
+                // Calculate the new scroll offset
+                var newScrollOffset = scrollable.ScrollOffset;
+
+                if (scrollable.EnableVertical)
+                    newScrollOffset.Y -= scrollDelta.Y * scrollable.ScrollSpeed.Y;
+
+                if (scrollable.EnableHorizontal)
+                    newScrollOffset.X -= scrollDelta.X * scrollable.ScrollSpeed.X;
+
+                // Limit the scroll range
+                newScrollOffset = scrollable.ClampScrollOffset(newScrollOffset, uiElement.Size);
+
+                // Update the scroll offset
+                scrollable = scrollable with { ScrollOffset = newScrollOffset };
+
+                // Update the scrollbar positions (if any)
+                UpdateScrollbarPositions(entity, scrollable, uiElement.Size);
+
+                // Send the scroll event
+                World.Send(entity, new UIScrollEvent(entity, mousePos, scrollDelta));
+                break; // Only process the topmost scrollable element
+            }
+        }
+    }
+
+    private void UpdateScrollbarPositions(Entity entity, UIScrollable scrollable, Vector2 viewportSize)
+    {
+        if (!entity.Contains<Node<UIHierarchyTag>>()) return;
+
+        var maxOffset = scrollable.GetMaxScrollOffset(viewportSize);
+        foreach (var child in entity.Get<Node<UIHierarchyTag>>().Children)
+        {
+            if (!child.Contains<UIScrollbar>()) continue;
+
+            ref readonly var scrollbar = ref child.Get<UIScrollbar>();
+            var scrollbarView = new UIScrollbar.View(child);
+            var isVertical = !scrollbar.IsHorizontal;
+            var axis = isVertical ? maxOffset.Y : maxOffset.X;
+            var viewportAxis = isVertical ? viewportSize.Y : viewportSize.X;
+            var contentAxis = isVertical ? scrollable.ContentSize.Y : scrollable.ContentSize.X;
+            var scrollAxis = isVertical ? scrollable.ScrollOffset.Y : scrollable.ScrollOffset.X;
+
+            scrollbarView.IsVisible = axis > 0;
+            if (axis > 0)
+            {
+                scrollbarView.ThumbPosition = scrollAxis / axis;
+                scrollbarView.ThumbSize = Math.Clamp(viewportAxis / contentAxis, 0.1f, 1f);
             }
         }
     }

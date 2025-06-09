@@ -80,7 +80,7 @@ public class RenderPipeline : IAddon
             try
             {
                 pass.Initialize(_gl!);
-            _activePasses.Add(pass);
+                _activePasses.Add(pass);
             }
             catch (Exception ex)
             {
@@ -88,7 +88,7 @@ public class RenderPipeline : IAddon
                 pass.Dispose();
             }
         }
-        }
+    }
 
     private void ClearFramebuffer()
     {
@@ -132,8 +132,8 @@ public class RenderPipeline : IAddon
         {
             try
             {
-            pass.OnResize(width, height);
-    }
+                pass.OnResize(width, height);
+            }
             catch (Exception ex)
             {
                 Console.WriteLine($"[RenderPipeline] Pass '{pass.Name}' resize failed: {ex.Message}");
