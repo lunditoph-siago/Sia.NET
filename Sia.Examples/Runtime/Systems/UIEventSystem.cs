@@ -221,10 +221,10 @@ public class UIEventSystem : EventSystemBase
                 var newScrollOffset = scrollable.ScrollOffset;
 
                 if (scrollable.EnableVertical)
-                    newScrollOffset.Y -= scrollDelta.Y * scrollable.ScrollSpeed.Y;
+                    newScrollOffset.Y += scrollDelta.Y * scrollable.ScrollSpeed.Y;
 
                 if (scrollable.EnableHorizontal)
-                    newScrollOffset.X -= scrollDelta.X * scrollable.ScrollSpeed.X;
+                    newScrollOffset.X += scrollDelta.X * scrollable.ScrollSpeed.X;
 
                 // Limit the scroll range
                 newScrollOffset = scrollable.ClampScrollOffset(newScrollOffset, uiElement.Size);
