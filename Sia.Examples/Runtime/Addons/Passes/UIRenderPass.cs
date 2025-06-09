@@ -22,15 +22,12 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
     private SKSurface? _surface;
     private SKCanvas? _canvas;
 
-    // Font and paint cache - greatly reduce object creation
+    // Font and paint cache
     private readonly Dictionary<float, SKFont> _fontCache = [];
     private readonly Dictionary<uint, SKPaint> _paintCache = [];
 
     private readonly SKTypeface _typeface = SKTypeface.FromFamilyName("sans-serif") ??
                                             SKTypeface.Default;
-
-    private readonly List<Entity> _sortedUIElements = [];
-    private bool _uiListDirty = true;
 
     public void Initialize(GL gl)
     {
@@ -80,16 +77,12 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
     {
         if (_canvas == null || _grContext == null) return;
 
-        if (_uiListDirty)
-        {
-            RefreshUIElementsList(world);
-        }
-
         BeginFrame();
 
         try
         {
-            RenderUIElements();
+            var sortedUIElements = GetSortedUIElements(world);
+            RenderUIElements(sortedUIElements);
         }
         finally
         {
@@ -97,30 +90,35 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
         }
     }
 
-    private void RefreshUIElementsList(World world)
+    private List<Entity> GetSortedUIElements(World world)
     {
-        _sortedUIElements.Clear();
+        var uiElements = new List<Entity>();
 
-        // Collect all visible UI elements
         var uiQuery = world.Query(Matchers.Of<UIElement>());
         foreach (var entity in uiQuery)
         {
+            if (!entity.IsValid || !entity.Contains<UIElement>()) 
+                continue;
+
             ref readonly var uiElement = ref entity.Get<UIElement>();
             if (uiElement.IsVisible)
             {
-                _sortedUIElements.Add(entity);
+                uiElements.Add(entity);
             }
         }
 
         // Sort by layer (lower layer renders first)
-        _sortedUIElements.Sort(static (a, b) =>
+        uiElements.Sort(static (a, b) =>
         {
+            if (!a.IsValid || !a.Contains<UIElement>()) return 1;
+            if (!b.IsValid || !b.Contains<UIElement>()) return -1;
+            
             var layerA = a.Get<UIElement>().Layer;
             var layerB = b.Get<UIElement>().Layer;
             return layerA.CompareTo(layerB);
         });
 
-        _uiListDirty = false;
+        return uiElements;
     }
 
     private void BeginFrame()
@@ -141,10 +139,10 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
         _grContext!.Flush();
     }
 
-    private void RenderUIElements()
+    private void RenderUIElements(List<Entity> sortedUIElements)
     {
         // Render UI elements in sorted order
-        foreach (var entity in _sortedUIElements)
+        foreach (var entity in sortedUIElements)
         {
             RenderSingleUIElement(entity);
         }
@@ -170,6 +168,10 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
             {
                 RenderRegularElement(entity, uiElement.Size);
             }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[UIRenderPass] Failed to render entity: {ex.Message}");
         }
         finally
         {
@@ -228,7 +230,7 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
 
         var font = GetOrCreateFont(text.FontSize);
         var paint = GetOrCreatePaint(text.TextColor);
-        var lines = text.Content?.Split('\n', StringSplitOptions.None) ?? [];
+        var lines = text.Content?.Split('\n') ?? [];
         var lineHeight = text.FontSize * 1.2f;
 
         for (int i = 0; i < lines.Length; i++)
@@ -258,7 +260,6 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
 
     private void RenderVerticalScrollbar(Vector2 viewportSize, UIScrollable scrollable, Vector2 maxOffset)
     {
-        // Android-style scrollbar: thin and close to edge
         const float thumbWidth = 4f;
         const float margin = 2f;
 
@@ -280,7 +281,6 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
 
     private void RenderHorizontalScrollbar(Vector2 viewportSize, UIScrollable scrollable, Vector2 maxOffset)
     {
-        // Android-style scrollbar: thin and close to edge
         const float thumbHeight = 4f;
         const float margin = 2f;
 
@@ -436,13 +436,7 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
         _renderTarget?.Dispose();
 
         CreateRenderTarget();
-
-        _uiListDirty = true;
     }
-
-    public void MarkUIListDirty() => _uiListDirty = true;
-
-    public bool IsUIListDirty => _uiListDirty;
 
     public void Dispose()
     {
