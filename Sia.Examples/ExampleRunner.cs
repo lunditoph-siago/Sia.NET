@@ -1,84 +1,104 @@
-using Sia;
+using System.Text;
+using Sia_Examples;
 
-namespace Sia_Examples;
+namespace Sia.Examples;
 
-public class ExampleRunner
+public record struct ExampleItem(string Name, string Description, Action<World> Runner);
+
+public class ExampleRunner : IDisposable
 {
-    public delegate void ExampleDelegate(World world);
-
-    public record ExampleInfo(string Name, string Description, ExampleDelegate Runner);
-
-    private readonly List<ExampleInfo> _examples = [];
     private readonly StringWriter _outputWriter = new();
-    private readonly TextWriter _originalConsoleOut = Console.Out;
+    private bool _disposed = false;
 
-    public IReadOnlyList<ExampleInfo> Examples => _examples;
-    public string CurrentOutput => _outputWriter.ToString();
+    public IReadOnlyList<ExampleItem> Examples { get; private set; }
 
     public ExampleRunner()
     {
-        InitializeExamples();
+        Examples = CreateExampleList();
+        Console.WriteLine($"[ExampleRunner] Loaded {Examples.Count} examples");
     }
 
-    private void InitializeExamples()
-    {
-        var examples = new (string Name, string Description, ExampleDelegate Runner)[]
-        {
-            ("Health & Damage", "Demonstrates health and damage system", Example1_HealthDamage.Run),
-            ("Health Recovery", "Demonstrates automatic health recovery system", Example2_HealthRecover.Run),
-            ("Move & Rotate", "Demonstrates movement and rotation system", Example3_MoveRotator.Run),
-            ("Aggregator", "Demonstrates aggregator system", Example4_Aggregator.Run),
-            ("Component Bundle", "Demonstrates component bundles", Example5_ComponentBundle.Run),
-            ("Hierarchy", "Demonstrates hierarchy system", Example6_Hierarchy.Run),
-            ("Mapper", "Demonstrates mapper functionality", Example7_Mapper.Run),
-            ("SIMD", "Demonstrates SIMD operations", Example8_Sum.Run),
-            ("Duplicate System", "Demonstrates duplicate system", Example10_DuplicateSystem.Run),
-            ("RPG System", "Demonstrates RPG system", Example11_RPG.Run),
-            ("Addon", "Demonstrates addon system", Example12_Addon.Run),
-            ("Parallel", "Demonstrates parallel processing", Example13_Parallel.Run),
-            ("Runner Context", "Demonstrates runner context", Example14_RunnerWithContext.Run),
-            ("Serialization", "Demonstrates serialization", Example15_Serialization.Run),
-            ("Event System", "Demonstrates event system", Example16_EventSystem.Run)
-        };
-
-        foreach (var (name, description, runner) in examples)
-            _examples.Add(new ExampleInfo(name, description, runner));
-    }
+    private static List<ExampleItem> CreateExampleList() =>
+    [
+        new("Health Damage", "Basic health and damage system", Example1_HealthDamage.Run),
+        new("Health Recover", "Health recovery system", Example2_HealthRecover.Run),
+        new("Mover Rotator", "Movement and rotation system", Example3_MoveRotator.Run),
+        new("Aggregator", "Data aggregator example", Example4_Aggregator.Run),
+        new("Component Bundle", "Component bundle example", Example5_ComponentBundle.Run),
+        new("Hierarchy", "Hierarchy structure example", Example6_Hierarchy.Run),
+        new("Mapper", "Data mapper example", Example7_Mapper.Run),
+        new("SIMD", "SIMD vectorization example", Example8_Sum.Run),
+        new("Duplicate System", "Duplicate system detection", Example10_DuplicateSystem.Run),
+        new("RPG", "RPG game system example", Example11_RPG.Run),
+        new("Addon", "Addon system example", Example12_Addon.Run),
+        new("Parallel", "Parallel processing example", Example13_Parallel.Run),
+        new("Runner with Context", "Runner with context", Example14_RunnerWithContext.Run),
+        new("Serialization", "Serialization example", Example15_Serialization.Run),
+        new("Event System", "Event system example", Example16_EventSystem.Run),
+    ];
 
     public string RunExample(int index)
     {
-        if (index < 0 || index >= _examples.Count)
-            return "Invalid example index";
+        if (index < 0 || index >= Examples.Count)
+        {
+            return $"Error: Example index {index} out of range (0-{Examples.Count - 1})";
+        }
 
-        var example = _examples[index];
+        var example = Examples[index];
+        var originalOut = Console.Out;
 
         try
         {
+            // Clear previous output
             _outputWriter.GetStringBuilder().Clear();
+
+            // Redirect console output
             Console.SetOut(_outputWriter);
 
-            Console.WriteLine($"== {example.Name} ==");
-            var world = new World();
-            Context<World>.Current = world;
-            example.Runner(world);
-            world.Dispose();
+            Console.WriteLine($"== Running Example: {example.Name} ==");
+            Console.WriteLine($"Description: {example.Description}");
             Console.WriteLine();
 
+            // Create a new world to run the example
+            using var world = new World();
+            Context<World>.Current = world;
+
+            // Run the example
+            example.Runner(world);
+
+            Console.WriteLine();
+            Console.WriteLine("== Example execution completed ==");
+
+            // Restore console output
+            Console.SetOut(originalOut);
+
+            var output = _outputWriter.ToString();
+            Console.WriteLine($"[ExampleRunner] Example '{example.Name}' completed, output {output.Split('\n').Length} lines");
+
+            return output;
+        }
+        catch (Exception ex)
+        {
+            Console.SetOut(originalOut);
+
+            var errorOutput = $"== Example execution failed ==\n" +
+                             $"Example: {example.Name}\n" +
+                             $"Error: {ex.Message}\n" +
+                             $"Stack trace:\n{ex.StackTrace}";
+
+            _outputWriter.GetStringBuilder().Append(errorOutput);
+            Console.WriteLine($"[ExampleRunner] Example '{example.Name}' failed: {ex.Message}");
+
             return _outputWriter.ToString();
-        }
-        catch (Exception e)
-        {
-            return $"Error running example: {e.Message}\n{e.StackTrace}";
-        }
-        finally
-        {
-            Console.SetOut(_originalConsoleOut);
         }
     }
 
     public void Dispose()
     {
+        if (_disposed) return;
+        _disposed = true;
+
         _outputWriter.Dispose();
-        Console.SetOut(_originalConsoleOut);
+        Console.WriteLine("[ExampleRunner] Resources disposed");
     }
 }

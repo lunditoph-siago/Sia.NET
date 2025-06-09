@@ -37,7 +37,7 @@ public class InputSystem : IAddon
     public void OnInitialize(World world)
     {
         _world = world;
-        
+
         _keyboardReceivers = world.Query(Matchers.Of<Components.InputReceiver, Components.KeyboardReceiver>());
         _mouseReceivers = world.Query(Matchers.Of<Components.InputReceiver, Components.MouseReceiver>());
     }
