@@ -1,188 +1,208 @@
 using System.Numerics;
+using Sia.Examples.Runtime.Components;
 using Silk.NET.Input;
-using Silk.NET.OpenGL;
 
 namespace Sia.Examples.Runtime.Addons;
-
-public interface IRenderPass : IDisposable
-{
-    string Name { get; }
-    int Priority { get; }
-    bool IsEnabled { get; set; }
-
-    void Initialize(GL gl);
-    void Execute(World world, RenderPipeline pipeline);
-    void OnResize(int width, int height);
-}
 
 public class InputSystem : IAddon
 {
     private IInputContext? _inputContext;
-    private readonly HashSet<Key> _pressedKeys = [];
-    private Vector2 _lastMousePosition;
     private World? _world;
 
-    private IReactiveEntityQuery? _keyboardReceivers;
-    private IReactiveEntityQuery? _mouseReceivers;
-
-    public Vector2 LastMousePosition => _lastMousePosition;
+    public Vector2 LastMousePosition { get; private set; }
     public bool IsInitialized => _inputContext != null;
 
     public void Initialize(IInputContext inputContext)
     {
-        _inputContext = inputContext;
-        SetupInputHandlers();
+        _inputContext = inputContext ?? throw new ArgumentNullException(nameof(inputContext));
+        SetupHandlers();
     }
 
     public void OnInitialize(World world)
     {
-        _world = world;
-
-        _keyboardReceivers = world.Query(Matchers.Of<Components.InputReceiver, Components.KeyboardReceiver>());
-        _mouseReceivers = world.Query(Matchers.Of<Components.InputReceiver, Components.MouseReceiver>());
+        _world = world ?? throw new ArgumentNullException(nameof(world));
     }
 
     public void OnUninitialize(World world)
     {
-        CleanupInputHandlers();
-        _keyboardReceivers?.Dispose();
-        _mouseReceivers?.Dispose();
-        _keyboardReceivers = null;
-        _mouseReceivers = null;
+        CleanupHandlers();
         _world = null;
     }
 
-    private void SetupInputHandlers()
+    #region Setup and Cleanup
+
+    private void SetupHandlers()
     {
         if (_inputContext == null) return;
 
-        // Setup keyboard input handling
+        _inputContext.ConnectionChanged += OnConnectionChanged;
+
         foreach (var keyboard in _inputContext.Keyboards)
         {
             keyboard.KeyDown += OnKeyDown;
             keyboard.KeyUp += OnKeyUp;
         }
 
-        // Setup mouse input handling
         foreach (var mouse in _inputContext.Mice)
         {
+            mouse.MouseDown += OnMouseDown;
+            mouse.MouseUp += OnMouseUp;
             mouse.Click += OnMouseClick;
+            mouse.DoubleClick += OnMouseDoubleClick;
             mouse.MouseMove += OnMouseMove;
             mouse.Scroll += OnMouseScroll;
         }
     }
 
-    private void CleanupInputHandlers()
+    private void CleanupHandlers()
     {
         if (_inputContext == null) return;
 
-        // Cleanup keyboard input handling
+        _inputContext.ConnectionChanged -= OnConnectionChanged;
+
         foreach (var keyboard in _inputContext.Keyboards)
         {
             keyboard.KeyDown -= OnKeyDown;
             keyboard.KeyUp -= OnKeyUp;
         }
 
-        // Cleanup mouse input handling
         foreach (var mouse in _inputContext.Mice)
         {
+            mouse.MouseDown -= OnMouseDown;
+            mouse.MouseUp -= OnMouseUp;
             mouse.Click -= OnMouseClick;
+            mouse.DoubleClick -= OnMouseDoubleClick;
             mouse.MouseMove -= OnMouseMove;
             mouse.Scroll -= OnMouseScroll;
         }
-
-        _pressedKeys.Clear();
     }
+
+    #endregion
+
+    #region Device Management
+
+    private void OnConnectionChanged(IInputDevice device, bool isConnected)
+    {
+        if (_world == null) return;
+
+        if (isConnected)
+        {
+            CreateInputDevice(device.Name);
+        }
+        else
+        {
+            RemoveInputDevice(device.Name);
+        }
+    }
+
+    private void CreateInputDevice(string deviceId)
+    {
+        var entity = _world!.Create(HList.From(new InputDevice(deviceId, true)));
+        
+        // Add appropriate state components based on device type
+        entity.Add(new MouseState());
+        entity.Add(new KeyboardState());
+        entity.Add(new MouseButtonState());
+        entity.Add(new ScrollState());
+    }
+
+    private void RemoveInputDevice(string deviceId)
+    {
+        var query = _world!.Query(Matchers.Of<InputDevice>());
+        
+        foreach (var entity in query)
+        {
+            if (entity.IsValid && entity.Get<InputDevice>().DeviceId == deviceId)
+            {
+                entity.Destroy();
+                break;
+            }
+        }
+    }
+
+    #endregion
+
+    #region Keyboard Events
 
     private void OnKeyDown(IKeyboard keyboard, Key key, int scanCode)
     {
-        _pressedKeys.Add(key);
-        BroadcastKeyboardEvent(new Components.InputEvents.KeyDown(key));
+        SendEvent(new InputEvents.KeyPressed(key), keyboard.Name);
     }
 
     private void OnKeyUp(IKeyboard keyboard, Key key, int scanCode)
     {
-        _pressedKeys.Remove(key);
-        BroadcastKeyboardEvent(new Components.InputEvents.KeyUp(key));
+        SendEvent(new InputEvents.KeyReleased(key), keyboard.Name);
+    }
+
+    #endregion
+
+    #region Mouse Events
+
+    private void OnMouseDown(IMouse mouse, MouseButton button)
+    {
+        var position = mouse.Position;
+        LastMousePosition = position;
+        SendEvent(new InputEvents.MouseButtonPressed(button, position), mouse.Name);
+    }
+
+    private void OnMouseUp(IMouse mouse, MouseButton button)
+    {
+        var position = mouse.Position;
+        LastMousePosition = position;
+        SendEvent(new InputEvents.MouseButtonReleased(button, position), mouse.Name);
     }
 
     private void OnMouseClick(IMouse mouse, MouseButton button, Vector2 position)
     {
-        var convertedButton = ConvertMouseButton(button);
-        BroadcastMouseEvent(new Components.InputEvents.MouseClick(convertedButton, position));
+        LastMousePosition = position;
+        SendEvent(new InputEvents.Click(position, button), mouse.Name);
+    }
+
+    private void OnMouseDoubleClick(IMouse mouse, MouseButton button, Vector2 position)
+    {
+        LastMousePosition = position;
+        SendEvent(new InputEvents.DoubleClick(position, button), mouse.Name);
     }
 
     private void OnMouseMove(IMouse mouse, Vector2 position)
     {
-        _lastMousePosition = position;
-        BroadcastMouseEvent(new Components.InputEvents.MouseMove(position));
+        var delta = position - LastMousePosition;
+        LastMousePosition = position;
+        SendEvent(new InputEvents.MouseMoved(position, delta), mouse.Name);
     }
 
     private void OnMouseScroll(IMouse mouse, ScrollWheel scrollWheel)
     {
         var scrollDelta = new Vector2(scrollWheel.X, scrollWheel.Y);
-        BroadcastMouseEvent(new Components.InputEvents.MouseScroll(scrollDelta));
+        SendEvent(new InputEvents.MouseScrolled(scrollDelta, LastMousePosition), mouse.Name);
     }
 
-    private static Components.MouseButton ConvertMouseButton(MouseButton silkButton)
+    #endregion
+
+    #region Event Dispatch
+
+    private void SendEvent<T>(T inputEvent, string deviceId) where T : IEvent
     {
-        return silkButton switch
-        {
-            MouseButton.Left => Components.MouseButton.Left,
-            MouseButton.Right => Components.MouseButton.Right,
-            MouseButton.Middle => Components.MouseButton.Middle,
-            _ => Components.MouseButton.Left
-        };
+        var inputDevice = GetInputDevice(deviceId);
+        inputDevice?.Send(inputEvent);
     }
 
-    private void BroadcastKeyboardEvent<TEvent>(TEvent inputEvent) where TEvent : IEvent
+    private Entity? GetInputDevice(string deviceId)
     {
-        if (_world == null || _keyboardReceivers == null) return;
+        if (_world == null) return null;
 
-        foreach (var entity in _keyboardReceivers)
+        var query = _world.Query(Matchers.Of<InputDevice>());
+        
+        foreach (var entity in query)
         {
-            ref var inputReceiver = ref entity.Get<Components.InputReceiver>();
-            ref var keyboardReceiver = ref entity.Get<Components.KeyboardReceiver>();
-
-            if (!inputReceiver.IsEnabled || !keyboardReceiver.IsEnabled) continue;
-
-            var shouldReceive = inputEvent switch
+            if (entity.IsValid && entity.Get<InputDevice>().DeviceId == deviceId)
             {
-                Components.InputEvents.KeyDown => keyboardReceiver.ReceiveKeyDown,
-                Components.InputEvents.KeyUp => keyboardReceiver.ReceiveKeyUp,
-                _ => false
-            };
-
-            if (shouldReceive)
-                entity.Send(inputEvent);
+                return entity;
+            }
         }
+
+        return null;
     }
 
-    private void BroadcastMouseEvent<TEvent>(TEvent inputEvent) where TEvent : IEvent
-    {
-        if (_world == null || _mouseReceivers == null) return;
-
-        foreach (var entity in _mouseReceivers)
-        {
-            ref var inputReceiver = ref entity.Get<Components.InputReceiver>();
-            ref var mouseReceiver = ref entity.Get<Components.MouseReceiver>();
-
-            if (!inputReceiver.IsEnabled || !mouseReceiver.IsEnabled) continue;
-
-            var shouldReceive = inputEvent switch
-            {
-                Components.InputEvents.MouseClick => mouseReceiver.ReceiveClick,
-                Components.InputEvents.MouseMove => mouseReceiver.ReceiveMove,
-                Components.InputEvents.MouseScroll => mouseReceiver.ReceiveScroll,
-                _ => false
-            };
-
-            if (shouldReceive)
-                entity.Send(inputEvent);
-        }
-    }
-
-    public bool IsKeyPressed(Key key) => _pressedKeys.Contains(key);
-
-    public IReadOnlySet<Key> GetPressedKeys() => _pressedKeys;
+    #endregion
 }

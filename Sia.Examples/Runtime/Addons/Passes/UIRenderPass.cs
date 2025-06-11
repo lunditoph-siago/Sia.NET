@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Numerics;
 using Sia.Examples.Runtime.Components;
+using Sia.Reactors;
 using Silk.NET.OpenGL;
 using SkiaSharp;
 
@@ -94,12 +95,24 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
     {
         var uiElements = new List<Entity>();
 
-        var uiQuery = world.Query(Matchers.Of<UIElement>());
-        foreach (var entity in uiQuery)
+        // Query root nodes first, then traverse the hierarchy
+        var rootQuery = world.Query(Matchers.Of<UIElement, Node<UIHierarchyTag>>());
+        foreach (var entity in rootQuery)
         {
-            if (!entity.IsValid || !entity.Contains<UIElement>()) 
-                continue;
+            ref readonly var node = ref entity.Get<Node<UIHierarchyTag>>();
+            if (node.Parent == null) // Only process root nodes
+            {
+                CollectUIHierarchy(entity, uiElements);
+            }
+        }
 
+        // Collect non-hierarchical UI elements (avoid duplicate collection)
+        var standaloneQuery = world.Query(Matchers.Of<UIElement>());
+        foreach (var entity in standaloneQuery)
+        {
+            // Skip elements that have already been collected in the hierarchy
+            if (entity.Contains<Node<UIHierarchyTag>>()) continue;
+            
             ref readonly var uiElement = ref entity.Get<UIElement>();
             if (uiElement.IsVisible)
             {
@@ -107,18 +120,39 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
             }
         }
 
-        // Sort by layer (lower layer renders first)
+        // Sort by layer (hierarchy traversal ensures correct order, here only adjust layer)
         uiElements.Sort(static (a, b) =>
         {
             if (!a.IsValid || !a.Contains<UIElement>()) return 1;
             if (!b.IsValid || !b.Contains<UIElement>()) return -1;
             
-            var layerA = a.Get<UIElement>().Layer;
-            var layerB = b.Get<UIElement>().Layer;
-            return layerA.CompareTo(layerB);
+            var aLayer = a.Contains<UILayer>() ? a.Get<UILayer>().Value : 0;
+            var bLayer = b.Contains<UILayer>() ? b.Get<UILayer>().Value : 0;
+            return aLayer.CompareTo(bLayer);
         });
 
         return uiElements;
+    }
+
+    private static void CollectUIHierarchy(Entity entity, List<Entity> result)
+    {
+        if (!entity.IsValid || !entity.Contains<UIElement>()) return;
+
+        ref readonly var uiElement = ref entity.Get<UIElement>();
+        if (uiElement.IsVisible)
+        {
+            result.Add(entity);
+        }
+
+        // Recursively collect child elements
+        if (entity.Contains<Node<UIHierarchyTag>>())
+        {
+            ref readonly var node = ref entity.Get<Node<UIHierarchyTag>>();
+            foreach (var child in node.Children)
+            {
+                CollectUIHierarchy(child, result);
+            }
+        }
     }
 
     private void BeginFrame()
@@ -197,11 +231,12 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
         {
             _canvas.Translate(-scrollable.ScrollOffset.X, -scrollable.ScrollOffset.Y);
 
-            if (entity.Contains<UIPanel>())
+            // Render background style if present
+            if (entity.Contains<UIStyle>())
             {
                 _canvas.Save();
                 _canvas.Translate(scrollable.ScrollOffset.X, scrollable.ScrollOffset.Y);
-                RenderPanel(entity, size);
+                RenderStyle(entity, size);
                 _canvas.Restore();
             }
 
@@ -212,10 +247,7 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
             _canvas.Restore();
         }
 
-        if (scrollable.ShowScrollbars)
-        {
-            RenderScrollbars(entity, size, scrollable);
-        }
+        RenderScrollbars(entity, size, scrollable);
     }
 
     private void RenderScrollableContent(Entity entity, Vector2 contentSize)
@@ -229,11 +261,11 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
     private void RenderScrollableText(Entity entity, Vector2 contentSize)
     {
         ref readonly var text = ref entity.Get<UIText>();
-        if (!text.IsVisible || string.IsNullOrEmpty(text.Content)) return;
+        if (string.IsNullOrEmpty(text.Content)) return;
 
         var font = GetOrCreateFont(text.FontSize);
-        var paint = GetOrCreatePaint(text.TextColor);
-        var lines = text.Content?.Split('\n') ?? [];
+        var paint = GetOrCreatePaint(text.Color);
+        var lines = text.Content.Split('\n') ?? [];
         var lineHeight = text.FontSize * 1.2f;
 
         for (int i = 0; i < lines.Length; i++)
@@ -250,12 +282,12 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
     {
         var maxOffset = scrollable.GetMaxScrollOffset(viewportSize);
 
-        if (scrollable.EnableVertical && maxOffset.Y > 0)
+        if (scrollable.CanScroll(ScrollDirection.Vertical) && maxOffset.Y > 0)
         {
             RenderVerticalScrollbar(viewportSize, scrollable, maxOffset);
         }
 
-        if (scrollable.EnableHorizontal && maxOffset.X > 0)
+        if (scrollable.CanScroll(ScrollDirection.Horizontal) && maxOffset.X > 0)
         {
             RenderHorizontalScrollbar(viewportSize, scrollable, maxOffset);
         }
@@ -305,13 +337,13 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
 
     private void RenderRegularElement(Entity entity, Vector2 size)
     {
-        // Render panel background
-        if (entity.Contains<UIPanel>())
+        // Render background style
+        if (entity.Contains<UIStyle>())
         {
-            RenderPanel(entity, size);
+            RenderStyle(entity, size);
         }
 
-        // Render button
+        // Render button (if it has UIButton component)
         if (entity.Contains<UIButton>())
         {
             RenderButton(entity, size);
@@ -324,46 +356,58 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
         }
     }
 
-    private void RenderPanel(Entity entity, Vector2 size)
+    private void RenderStyle(Entity entity, Vector2 size)
     {
-        ref readonly var panel = ref entity.Get<UIPanel>();
-        if (!panel.IsVisible) return;
-
-        var paint = GetOrCreatePaint(panel.BackgroundColor);
+        ref readonly var style = ref entity.Get<UIStyle>();
+        
+        var paint = GetOrCreatePaint(style.BackgroundColor);
         var rect = new SKRect(0, 0, size.X, size.Y);
 
-        _canvas!.DrawRect(rect, paint);
+        if (style.CornerRadius > 0)
+        {
+            _canvas!.DrawRoundRect(rect, style.CornerRadius, style.CornerRadius, paint);
+        }
+        else
+        {
+            _canvas!.DrawRect(rect, paint);
+        }
+
+        // Draw border if needed
+        if (style.BorderWidth > 0 && style.BorderColor.A > 0)
+        {
+            var borderPaint = GetOrCreatePaint(style.BorderColor);
+            borderPaint.Style = SKPaintStyle.Stroke;
+            borderPaint.StrokeWidth = style.BorderWidth;
+
+            if (style.CornerRadius > 0)
+            {
+                _canvas!.DrawRoundRect(rect, style.CornerRadius, style.CornerRadius, borderPaint);
+            }
+            else
+            {
+                _canvas!.DrawRect(rect, borderPaint);
+            }
+        }
     }
 
     private void RenderButton(Entity entity, Vector2 size)
     {
         ref readonly var button = ref entity.Get<UIButton>();
-        if (!button.IsEnabled) return;
-
-        // Determine button current state color
-        var color = button.NormalColor;
-        if (entity.Contains<UIInteractionState>())
-        {
-            ref readonly var state = ref entity.Get<UIInteractionState>();
-            color = state.IsPressed ? button.PressedColor :
-                state.IsHovered ? button.HoverColor :
-                button.NormalColor;
-        }
-
-        var paint = GetOrCreatePaint(color);
+        
+        // Get current style based on UI state flags
+        var stateFlags = entity.Contains<UIState>() ? entity.Get<UIState>().Flags : UIStateFlags.None;
+        var currentStyle = button.GetStyleForState(stateFlags);
+        
+        var paint = GetOrCreatePaint(currentStyle.BackgroundColor);
         var rect = new SKRect(0, 0, size.X, size.Y);
 
         // Draw rounded button
-        _canvas!.DrawRoundRect(rect, 8, 8, paint);
+        _canvas!.DrawRoundRect(rect, currentStyle.CornerRadius, currentStyle.CornerRadius, paint);
 
         // Add inner shadow effect if button is pressed
-        if (entity.Contains<UIInteractionState>())
+        if ((stateFlags & UIStateFlags.Pressed) != 0)
         {
-            ref readonly var state = ref entity.Get<UIInteractionState>();
-            if (state.IsPressed)
-            {
-                DrawButtonPressedEffect(rect);
-            }
+            DrawButtonPressedEffect(rect);
         }
     }
 
@@ -384,15 +428,22 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
     private void RenderText(Entity entity, Vector2 elementSize)
     {
         ref readonly var text = ref entity.Get<UIText>();
-        if (!text.IsVisible || string.IsNullOrEmpty(text.Content)) return;
+        if (string.IsNullOrEmpty(text.Content)) return;
 
         var font = GetOrCreateFont(text.FontSize);
-        var paint = GetOrCreatePaint(text.TextColor);
-        var content = text.Content ?? string.Empty;
+        var paint = GetOrCreatePaint(text.Color);
+        var content = text.Content;
 
         font.MeasureText(content, out var textBounds, paint);
 
-        var x = (elementSize.X - textBounds.Width) * 0.5f;
+        var x = text.Alignment switch
+        {
+            TextAlignment.Left => 0,
+            TextAlignment.Center => (elementSize.X - textBounds.Width) * 0.5f,
+            TextAlignment.Right => elementSize.X - textBounds.Width,
+            _ => 0
+        };
+
         var y = (elementSize.Y + textBounds.Height) * 0.5f;
 
         _canvas!.DrawText(content, x, y, SKTextAlign.Left, font, paint);

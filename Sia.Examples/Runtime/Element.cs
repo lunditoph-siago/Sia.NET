@@ -5,86 +5,87 @@ using Sia.Reactors;
 
 namespace Sia.Examples.Runtime;
 
-public static class UI
+public static class UIFactory
 {
-    // Scrollable Text Area
-    public static Entity ScrollableText(World world, Vector2 position, Vector2 size,
-        string content, Color textColor, float fontSize = 12f, Color backgroundColor = default) =>
-        world.Create(HList.From(
-            new UIElement(position, size, true, true, 1),
-            new UIText(content, textColor, fontSize, true),
-            new UIPanel(backgroundColor == default ? Color.FromArgb(50, 30, 30, 40) : backgroundColor, true),
-            new UIScrollable(),
-            new UIEventListener(),
-            new Node<UIHierarchyTag>()
-        ));
-
-    // Button
-    public static Entity Button(World world, Vector2 position, Vector2 size, string text,
-        Color normalColor = default, Color hoverColor = default, Color pressedColor = default) =>
-        world.Create(HList.From(
-            new UIElement(position, size, true, true, 1),
-            new UIText(text, Color.White, 14f, true),
-            new UIButton(
-                normalColor == default ? Color.Gray : normalColor,
-                hoverColor == default ? Color.LightGray : hoverColor,
-                pressedColor == default ? Color.DarkGray : pressedColor,
-                true),
-            new UIEventListener(),
-            new UIInteractionState()
-        ));
-
-    // Panel
-    public static Entity Panel(World world, Vector2 position, Vector2 size, Color backgroundColor = default) =>
-        world.Create(HList.From(
-            new UIElement(position, size, true, false, 0),
-            new UIPanel(backgroundColor == default ? Color.Gray : backgroundColor, true)
-        ));
-
-    // Text Label
-    public static Entity Text(World world, Vector2 position, string content, Color color = default, float fontSize = 12f) =>
-        world.Create(HList.From(
-            new UIElement(position, new Vector2(content.Length * fontSize * 0.6f, fontSize * 1.2f), true, false, 1),
-            new UIText(content, color == default ? Color.White : color, fontSize, true)
-        ));
-
-    // Scrolling operations
-    public static void ScrollTo(Entity entity, Vector2 offset)
+    public static Entity CreatePanel(World world, Vector2 position, Vector2 size, Entity? parent = null)
     {
-        if (!entity.Contains<UIScrollable>()) return;
-        ref var scrollable = ref entity.Get<UIScrollable>();
-        scrollable = scrollable with
-        {
-            ScrollOffset = scrollable.ClampScrollOffset(offset, entity.Get<UIElement>().Size)
-        };
+        var entity = world.Create(HList.From(
+            new UIElement(position, size, true, true),
+            new UIStyle(Color.FromArgb(40, 40, 40, 40), Color.Transparent, 0f, 4f),
+            new Node<UIHierarchyTag>(parent),
+            new UILayer(0)
+        ));
+
+        return entity;
     }
 
-    public static void ScrollToTop(Entity entity) => ScrollTo(entity, Vector2.Zero);
-
-    public static void ScrollToBottom(Entity entity)
+    public static Entity CreateText(World world, Vector2 position, string content,
+        Color color, float fontSize, Entity? parent = null)
     {
-        if (!entity.Contains<UIScrollable>()) return;
-        var scrollable = entity.Get<UIScrollable>();
-        var element = entity.Get<UIElement>();
-        ScrollTo(entity, new Vector2(0, scrollable.GetMaxScrollOffset(element.Size).Y));
-    }
-
-    public static void SetContent(Entity entity, string content)
-    {
-        if (!entity.Contains<UIText>()) return;
-        new UIText.View(entity).Content = content;
-        if (entity.Contains<UIScrollable>())
-            new UIScrollable.View(entity).ScrollOffset = Vector2.Zero;
-    }
-
-    public static Entity ScrollableMenu(World world, Vector2 position, Vector2 size, 
-        Color backgroundColor = default) =>
-        world.Create(HList.From(
-            new UIElement(position, size, true, true, 1),
-            new UIText("", Color.White, 12f, true), // Empty text, will be set later
-            new UIPanel(backgroundColor == default ? Color.FromArgb(60, 30, 30, 40) : backgroundColor, true),
-            new UIScrollable(Vector2.Zero, Vector2.Zero, new Vector2(20f), false, true, true, true),
-            new UIEventListener(),
-            new Node<UIHierarchyTag>()
+        var entity = world.Create(HList.From(
+            new UIElement(position, Vector2.Zero, true, false),
+            new UIText(content, color, fontSize, TextAlignment.Left),
+            new Node<UIHierarchyTag>(parent),
+            new UILayer(1)
         ));
+
+        return entity;
+    }
+
+    public static Entity CreateTextArea(World world, Vector2 position, Vector2 size,
+        string content, Entity? parent = null)
+    {
+        var entity = world.Create(HList.From(
+            new UIElement(position, size, true, true),
+            new UIText(content, Color.White, 12f, TextAlignment.Left),
+            new UIScrollable(Vector2.Zero, Vector2.Zero, ScrollDirection.Vertical, 20f),
+            new UIEventListener(true, UIEventMask.Scroll),
+            new Node<UIHierarchyTag>(parent),
+            new UILayer(1)
+        ));
+
+        return entity;
+    }
+
+    public static Entity CreateScrollView(World world, Vector2 position, Vector2 size,
+        ScrollDirection direction, Entity? parent = null)
+    {
+        var entity = world.Create(HList.From(
+            new UIElement(position, size, true, true),
+            new UIScrollable(Vector2.Zero, Vector2.Zero, direction, 20f),
+            new UIEventListener(true, UIEventMask.Scroll),
+            new Node<UIHierarchyTag>(parent),
+            new UILayer(0)
+        ));
+
+        return entity;
+    }
+
+    public static Entity CreateVStackLayout(World world, Vector2 position, float spacing, Entity? parent = null)
+    {
+        var entity = world.Create(HList.From(
+            new UIElement(position, new Vector2(100, 100), true, false),
+            new UILayout(LayoutType.Vertical, new Vector2(0, spacing), LayoutAlignment.Start, true),
+            new Node<UIHierarchyTag>(parent),
+            new UILayer(0)
+        ));
+
+        return entity;
+    }
+
+    public static Entity CreateButton(World world, Vector2 position, Vector2 size,
+        string text, Entity? parent = null)
+    {
+        var entity = world.Create(HList.From(
+            new UIElement(position, size, true, true),
+            new UIText(text, Color.White, 14f, TextAlignment.Center),
+            new UIButton(),
+            new UIState(UIStateFlags.None),
+            new UIEventListener(true, UIEventMask.Click | UIEventMask.Hover),
+            new Node<UIHierarchyTag>(parent),
+            new UILayer(1)
+        ));
+
+        return entity;
+    }
 }
