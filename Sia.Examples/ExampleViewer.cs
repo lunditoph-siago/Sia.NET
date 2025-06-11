@@ -7,6 +7,8 @@ using Silk.NET.Input;
 using Sia.Examples.Runtime.Addons;
 using Sia.Examples.Runtime.Components;
 using Sia.Examples.Runtime.Systems;
+using Sia.Examples.Runtime;
+using Sia.Reactors;
 
 namespace Sia.Examples;
 
@@ -25,8 +27,9 @@ public class ExampleViewer : IDisposable
     // Application state
     private ViewState _state = ViewState.InitialMenu();
 
-    private int _frameCount = 0;
-    private double _totalTime = 0;
+    // UI Entities
+    private Entity? _rootContainer;
+    private Entity? _currentView;
 
     public ExampleViewer()
     {
@@ -51,36 +54,44 @@ public class ExampleViewer : IDisposable
 
     private void OnLoad()
     {
-        Console.WriteLine("[ExampleViewer] Initialization started");
-
-        // Initialize OpenGL and ECS
         _gl = GL.GetApi(_window!);
         _inputContext = _window!.CreateInput();
 
         _world = new World();
         Context<World>.Current = _world;
 
-        // Setup render pipeline
         _renderPipeline = _world.AcquireAddon<RenderPipeline>();
         _renderPipeline.Initialize(_gl, _window!.Size.X, _window!.Size.Y);
 
-        // Setup input system
         _inputAddon = _world.AcquireAddon<InputSystem>();
         _inputAddon.Initialize(_inputContext);
 
-        // Create UI event system
+        _world.AcquireAddon<Hierarchy<UIHierarchyTag>>();
+
         _systemStage = SystemChain.Empty
-            .Add<UIEventSystem>()
-            .Add<UIScrollSystem>()
+            .Add<KeyboardStateSystem>()
+            .Add<MouseStateSystem>()
+            .Add<MouseButtonStateSystem>()
+            .Add<MouseScrollStateSystem>()
+            .Add<UIClickHitTestSystem>()
+            .Add<UIHoverStateSystem>()
+            .Add<UIButtonInteractionSystem>()
+            .Add<UIScrollInteractionSystem>()
+            .Add<UILayoutSystem>()
+            .Add<UIScrollContentSizeSystem>()
+            .Add<UIVisibilitySystem>()
             .CreateStage(_world);
 
-        // Register input event handlers
+        CreateRootContainer();
         RegisterInputHandlers();
-
-        // Initially show menu
         ShowMenu();
+    }
 
-        Console.WriteLine("[ExampleViewer] Initialization completed!");
+    private void CreateRootContainer()
+    {
+        if (_world == null) return;
+
+        _rootContainer = UIFactory.CreatePanel(_world, Vector2.Zero, new Vector2(800, 600));
     }
 
     private void RegisterInputHandlers()
@@ -159,10 +170,8 @@ public class ExampleViewer : IDisposable
         var newIndex = Math.Clamp(menu.SelectedExample + delta, 0,
             _exampleRunner!.Examples.Count - 1);
         _state = menu.WithSelection(newIndex);
-        
-        // Update UI to reflect the selection change
-        if (_state.IsMenu())
-            ShowMenu();
+
+        ShowMenu();
     }
 
     private void ExecuteSelectedExample()
@@ -193,207 +202,156 @@ public class ExampleViewer : IDisposable
 
     private void ShowMenu()
     {
-        ClearUI();
-        CreateMenuUI();
+        ClearCurrentView();
+        CreateMenuView();
     }
 
     private void ShowOutput()
     {
-        ClearUI();
-        CreateOutputUI();
+        ClearCurrentView();
+        CreateOutputView();
     }
 
-    private void ClearUI()
+    private void ClearCurrentView()
     {
-        if (_world == null) return;
-
-        List<Entity> entitiesToRemove = [];
-        var uiQuery = _world.Query(Matchers.Of<UIElement>());
-        foreach (var entity in uiQuery)
+        if (_currentView?.IsValid == true)
         {
-            entitiesToRemove.Add(entity);
-        }
-
-        foreach (var entity in entitiesToRemove)
-        {
-            entity.Destroy();
+            _currentView.Destroy();
+            _currentView = null;
         }
     }
 
-    private void CreateMenuUI()
+    private static bool IsValidParent(Entity? entity)
+    {
+        return entity?.IsValid == true && entity.Contains<UIElement>();
+    }
+
+    private void CreateMenuView()
     {
         if (_world == null || _exampleRunner == null || !_state.IsMenu()) return;
+        if (!IsValidParent(_rootContainer)) return;
 
         var menu = _state.AsMenu();
 
-        // Create title
-        Runtime.UI.Text(_world, new Vector2(50, 550), "Sia.NET Example Viewer", Color.Cyan, 24f);
+        _currentView = UIFactory.CreateVStackLayout(_world, new Vector2(20, 20), 10f, _rootContainer);
+        if (!IsValidParent(_currentView)) return;
 
-        // Create navigation instructions  
-        Runtime.UI.Text(_world, new Vector2(50, 520), "Navigation: Arrow keys, Execute: Enter, Exit: ESC", Color.Yellow, 14f);
+        // Title
+        UIFactory.CreateText(_world, Vector2.Zero, "Sia.NET Examples", Color.Cyan, 24f, _currentView);
 
-        // Create scrollable menu list
-        var menuList = CreateScrollableMenuList(menu);
+        // Navigation
+        UIFactory.CreateText(_world, Vector2.Zero, "Navigation: ↑↓ Select, Enter=Run, ESC=Exit",
+            Color.Yellow, 14f, _currentView);
 
-        // Create statistics information
-        Runtime.UI.Text(_world, new Vector2(50, 30), 
-            $"Total: {_exampleRunner.Examples.Count}, Selected: {menu.SelectedExample + 1}", Color.Cyan, 12f);
+        // Example list with validation
+        var listContainer = UIFactory.CreateScrollView(_world, Vector2.Zero, new Vector2(760, 400), 
+            ScrollDirection.Vertical, _currentView);
+        if (IsValidParent(listContainer))
+        {
+            CreateExampleList(listContainer, menu);
+        }
+
+        // Stats
+        UIFactory.CreateText(_world, Vector2.Zero,
+            $"Total: {_exampleRunner.Examples.Count} | Selected: {menu.SelectedExample + 1}",
+            Color.LightBlue, 12f, _currentView);
     }
 
-    private Entity CreateScrollableMenuList(ViewState.Menu menu)
+    private void CreateExampleList(Entity listContainer, ViewState.Menu menu)
     {
-        if (_world == null || _exampleRunner == null) return default;
+        if (_world == null || _exampleRunner == null) return;
+        if (!IsValidParent(listContainer)) return;
 
-        // Create scrollable menu container - fixed menu overflow issue
-        var menuContainer = Runtime.UI.ScrollableMenu(_world, new Vector2(20, 70), new Vector2(760, 430));
+        var contentContainer = UIFactory.CreateVStackLayout(_world, Vector2.Zero, 5f, listContainer);
+        if (!IsValidParent(contentContainer)) return;
 
-        // Generate menu content text
-        var contentLines = new List<string>();
         for (int i = 0; i < _exampleRunner.Examples.Count; i++)
         {
             var example = _exampleRunner.Examples[i];
             var isSelected = i == menu.SelectedExample;
-            var isHovered = i == menu.HoveredExample;
 
-            var prefix = (isSelected, isHovered) switch
+            // Validate parent before creating children
+            if (!IsValidParent(contentContainer)) break;
+
+            var itemContainer = UIFactory.CreateVStackLayout(_world, Vector2.Zero, 2f, contentContainer);
+            if (!IsValidParent(itemContainer)) continue;
+
+            var prefix = isSelected ? "► " : "  ";
+            var titleColor = isSelected ? Color.Yellow : Color.White;
+
+            if (isSelected)
             {
-                (true, _) => "► ",
-                (false, true) => "  ",
-                _ => "  "
-            };
+                UIFactory.CreatePanel(_world, Vector2.Zero, new Vector2(740, 50), itemContainer);
+            }
 
-            contentLines.Add($"{prefix}{i + 1:D2}. {example.Name}");
-            contentLines.Add($"    {example.Description}");
-            contentLines.Add(""); // Empty line for spacing
+            UIFactory.CreateText(_world, Vector2.Zero, $"{prefix}{i + 1:D2}. {example.Name}",
+                titleColor, 16f, itemContainer);
+
+            UIFactory.CreateText(_world, Vector2.Zero, $"    {example.Description}",
+                Color.LightGray, 12f, itemContainer);
         }
-
-        // Set content to scrollable menu
-        var content = string.Join("\n", contentLines);
-        Runtime.UI.SetContent(menuContainer, content);
-
-        // Auto-scroll to selected item
-        ScrollToSelectedItem(menuContainer, menu.SelectedExample);
-
-        return menuContainer;
     }
 
-    private void ScrollToSelectedItem(Entity scrollableEntity, int selectedIndex)
-    {
-        if (!scrollableEntity.Contains<UIScrollable>()) return;
-
-        const float itemHeight = 60f; // Each item takes about 3 lines * 20px
-        var targetY = selectedIndex * itemHeight;
-        var viewportHeight = scrollableEntity.Get<UIElement>().Size.Y;
-        
-        // Center the selected item in viewport
-        var scrollOffset = new Vector2(0, Math.Max(0, targetY - viewportHeight * 0.4f));
-        Runtime.UI.ScrollTo(scrollableEntity, scrollOffset);
-    }
-
-    private void CreateOutputUI()
+    private void CreateOutputView()
     {
         if (_world == null || _exampleRunner == null || !_state.IsOutput()) return;
+        if (!IsValidParent(_rootContainer)) return;
 
         var output = _state.AsOutput();
         var selectedExample = _exampleRunner.Examples[output.SelectedExample];
 
-        // Create title
-        Runtime.UI.Text(_world, new Vector2(50, 550), 
-            $"Execution Result: {selectedExample.Name}", Color.Cyan, 20f);
+        _currentView = UIFactory.CreateVStackLayout(_world, new Vector2(20, 20), 10f, _rootContainer);
+        if (!IsValidParent(_currentView)) return;
 
-        // Create control instructions
-        Runtime.UI.Text(_world, new Vector2(50, 520), 
-            "ESC=Return to menu, R=Re-run, Scroll wheel=Scroll", Color.Yellow, 14f);
+        // Title
+        UIFactory.CreateText(_world, Vector2.Zero, $"Result: {selectedExample.Name}",
+            Color.Cyan, 20f, _currentView);
 
-        // Create background panel
-        Runtime.UI.Panel(_world, new Vector2(20, 50), new Vector2(760, 450), 
-            Color.FromArgb(60, 20, 20, 30));
+        // Controls
+        UIFactory.CreateText(_world, Vector2.Zero, "ESC=Menu, R=Re-run, Mouse Wheel=Scroll",
+            Color.Yellow, 14f, _currentView);
 
-        // Create scrollable output text area
-        Runtime.UI.ScrollableText(_world, new Vector2(40, 70), new Vector2(720, 410),
-            output.Content, Color.White, 11f, Color.FromArgb(60, 20, 20, 30));
+        // Output content
+        UIFactory.CreateTextArea(_world, Vector2.Zero, new Vector2(760, 500),
+            output.Content, _currentView);
     }
-
-    private static Color GetLineColor(string line) => line switch
-    {
-        _ when line.Contains("==") && (line.Contains("Running") || line.Contains("Example")) => Color.Cyan,
-        _ when line.Contains("Error") || line.Contains("Exception") => Color.Red,
-        _ when line.Contains("Dead") || line.Contains("Destroyed") => Color.Red,
-        _ when line.Contains("HP") || line.Contains("Health") || line.Contains("Heal") => Color.Green,
-        _ when line.Contains("Position") || line.Contains("Move") || line.Contains("Rotation") => Color.Yellow,
-        _ when line.Contains("Damage") || line.Contains("Attack") => Color.Orange,
-        _ when line.Contains("Entity") || line.Contains("Component") => Color.LightBlue,
-        _ when line.Contains("System") || line.Contains("Update") => Color.Magenta,
-        _ when line.Contains("Success") || line.Contains("Complete") => Color.LightGreen,
-        _ => Color.White
-    };
-
-    private ViewState _lastState = ViewState.InitialMenu();
 
     private void OnRender(double deltaTime)
     {
-        _frameCount++;
-        _totalTime += deltaTime;
-
         if (_world == null || _renderPipeline == null || _systemStage == null)
             return;
 
         try
         {
-            // Update display (if state has changed)
-            if (!_state.Equals(_lastState))
-            {
-                _lastState = _state;
-
-                if (_state.IsMenu())
-                    ShowMenu();
-                else
-                    ShowOutput();
-            }
-
-            // Update performance display
-            if (_frameCount % 30 == 0)
-                UpdatePerformanceDisplay();
-
-            // Execute UI systems
             _systemStage.Tick();
 
-            // Render
             _renderPipeline.BeginFrame((float)deltaTime);
             _renderPipeline.EndFrame();
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[ModernExampleViewer] Render exception: {ex.Message}");
+            Console.WriteLine($"[ExampleViewer] Render exception: {ex.Message}");
         }
-    }
-
-    private void UpdatePerformanceDisplay()
-    {
-        if (_world == null) return;
-
-        var fps = _totalTime > 0 ? _frameCount / _totalTime : 0;
-        var perfText = $"FPS: {fps:F1} | Entities: {_world.Count} | Frames: {_frameCount}";
-
-        // Performance display update logic can be added here
-        // Omitted for simplification
     }
 
     private void OnResize(Vector2D<int> newSize)
     {
         _renderPipeline?.Resize(newSize.X, newSize.Y);
-        // Force UI refresh by creating a new state instance
-        _state = _state switch
+
+        if (IsValidParent(_rootContainer))
         {
-            ViewState.Menu menu => menu with { },
-            ViewState.Output output => output with { },
-            _ => _state
-        };
+            new UIElement.View(_rootContainer).Size = new Vector2(newSize.X, newSize.Y);
+        }
+
+        // Rebuild UI safely
+        if (_state.IsMenu())
+            ShowMenu();
+        else
+            ShowOutput();
     }
 
     private void OnClosing()
     {
-        Console.WriteLine("[ExampleViewer] Closing example viewer...");
         Cleanup();
     }
 
@@ -403,6 +361,11 @@ public class ExampleViewer : IDisposable
 
         try
         {
+            _currentView?.Destroy();
+            _rootContainer?.Destroy();
+            _currentView = null;
+            _rootContainer = null;
+
             _systemStage?.Dispose();
             _world?.Dispose();
             _exampleRunner?.Dispose();

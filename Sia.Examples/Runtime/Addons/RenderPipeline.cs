@@ -74,7 +74,6 @@ public class RenderPipeline : IAddon
 
     private void ProcessNewRenderPasses()
     {
-        // Process all new render passes
         while (_renderPasses.TryDequeue(out var pass))
         {
             try
@@ -102,7 +101,6 @@ public class RenderPipeline : IAddon
         // Sort passes by priority (lower numbers render first)
         _activePasses.Sort(static (a, b) => a.Priority.CompareTo(b.Priority));
 
-        // Execute enabled passes with exception handling
         foreach (var pass in _activePasses.Where(static p => p.IsEnabled))
         {
             try
