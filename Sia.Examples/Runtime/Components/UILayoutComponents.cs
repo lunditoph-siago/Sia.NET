@@ -3,15 +3,6 @@ using System.Runtime.CompilerServices;
 
 namespace Sia.Examples.Runtime.Components;
 
-public partial record struct UILayout(
-    [Sia] LayoutType Type,
-    [Sia] Vector2 Spacing,
-    [Sia] LayoutAlignment Alignment,
-    [Sia] bool AutoResize)
-{
-    public UILayout() : this(LayoutType.None, new Vector2(5f), LayoutAlignment.Start, true) { }
-}
-
 public enum LayoutType : byte
 {
     None = 0,
@@ -27,6 +18,15 @@ public enum LayoutAlignment : byte
     Center = 1,    // Center Alignment
     End = 2,       // End Alignment (Right/Bottom)
     Stretch = 3    // Stretch Alignment
+}
+
+public partial record struct UILayout(
+    [Sia] LayoutType Type,
+    [Sia] Vector2 Spacing,
+    [Sia] LayoutAlignment Alignment,
+    [Sia] bool AutoResize)
+{
+    public UILayout() : this(LayoutType.None, new Vector2(5f), LayoutAlignment.Start, true) { }
 }
 
 public partial record struct UILayoutConstraints(

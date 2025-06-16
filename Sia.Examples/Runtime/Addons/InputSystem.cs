@@ -12,12 +12,6 @@ public class InputSystem : IAddon
     public Vector2 LastMousePosition { get; private set; }
     public bool IsInitialized => _inputContext != null;
 
-    public void Initialize(IInputContext inputContext)
-    {
-        _inputContext = inputContext ?? throw new ArgumentNullException(nameof(inputContext));
-        SetupHandlers();
-    }
-
     public void OnInitialize(World world)
     {
         _world = world ?? throw new ArgumentNullException(nameof(world));
@@ -27,6 +21,12 @@ public class InputSystem : IAddon
     {
         CleanupHandlers();
         _world = null;
+    }
+
+    public void Initialize(IInputContext inputContext)
+    {
+        _inputContext = inputContext ?? throw new ArgumentNullException(nameof(inputContext));
+        SetupHandlers();
     }
 
     #region Setup and Cleanup
@@ -86,19 +86,15 @@ public class InputSystem : IAddon
         if (_world == null) return;
 
         if (isConnected)
-        {
             CreateInputDevice(device.Name);
-        }
         else
-        {
             RemoveInputDevice(device.Name);
-        }
     }
 
     private void CreateInputDevice(string deviceId)
     {
         var entity = _world!.Create(HList.From(new InputDevice(deviceId, true)));
-        
+
         // Add appropriate state components based on device type
         entity.Add(new MouseState());
         entity.Add(new KeyboardState());
@@ -109,15 +105,13 @@ public class InputSystem : IAddon
     private void RemoveInputDevice(string deviceId)
     {
         var query = _world!.Query(Matchers.Of<InputDevice>());
-        
+
         foreach (var entity in query)
-        {
             if (entity.IsValid && entity.Get<InputDevice>().DeviceId == deviceId)
             {
                 entity.Destroy();
                 break;
             }
-        }
     }
 
     #endregion
@@ -192,14 +186,10 @@ public class InputSystem : IAddon
         if (_world == null) return null;
 
         var query = _world.Query(Matchers.Of<InputDevice>());
-        
+
         foreach (var entity in query)
-        {
             if (entity.IsValid && entity.Get<InputDevice>().DeviceId == deviceId)
-            {
                 return entity;
-            }
-        }
 
         return null;
     }

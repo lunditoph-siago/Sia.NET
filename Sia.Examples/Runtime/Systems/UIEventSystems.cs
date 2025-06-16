@@ -5,7 +5,7 @@ using Silk.NET.Input;
 
 namespace Sia.Examples.Runtime.Systems;
 
-public class UIClickHitTestSystem : EventSystemBase
+public sealed class UIClickHitTestSystem : EventSystemBase
 {
     private readonly List<Entity> _candidateElements = new(32);
 
@@ -96,7 +96,7 @@ public class UIClickHitTestSystem : EventSystemBase
     }
 }
 
-public class UIHoverStateSystem : EventSystemBase
+public sealed class UIHoverStateSystem : EventSystemBase
 {
     private Entity? _currentHoveredElement;
 
@@ -190,7 +190,7 @@ public class UIHoverStateSystem : EventSystemBase
     }
 }
 
-public class UIButtonInteractionSystem : EventSystemBase
+public sealed class UIButtonInteractionSystem : EventSystemBase
 {
     public override void Initialize(World world)
     {
@@ -299,7 +299,7 @@ public class UIButtonInteractionSystem : EventSystemBase
     }
 }
 
-public class UIScrollInteractionSystem : EventSystemBase
+public sealed class UIScrollInteractionSystem : EventSystemBase
 {
     public override void Initialize(World world)
     {
@@ -342,14 +342,10 @@ public class UIScrollInteractionSystem : EventSystemBase
         var newOffset = scrollable.ScrollOffset;
 
         if (scrollable.CanScroll(ScrollDirection.Vertical))
-        {
             newOffset.Y -= scrollDelta.Y * scrollable.ScrollSpeed;
-        }
 
         if (scrollable.CanScroll(ScrollDirection.Horizontal))
-        {
             newOffset.X += scrollDelta.X * scrollable.ScrollSpeed;
-        }
 
         return newOffset;
     }
