@@ -125,7 +125,7 @@ public class TextRenderer : IDisposable
 
         _gl.BindVertexArray(_vao);
         _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
-        _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(sizeof(float) * 6 * 4), IntPtr.Zero, BufferUsageARB.DynamicDraw);
+        _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(sizeof(float) * 6 * 4), in IntPtr.Zero, BufferUsageARB.DynamicDraw);
 
         _gl.EnableVertexAttribArray(0);
         _gl.VertexAttribPointer(0, 4, VertexAttribPointerType.Float, false, 4 * sizeof(float), 0);
