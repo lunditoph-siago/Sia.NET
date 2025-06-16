@@ -11,7 +11,64 @@ using Silk.NET.Windowing;
 
 namespace Sia.Examples.Runtime;
 
-public class ExampleViewer : IDisposable
+public abstract record ViewState
+{
+    public sealed record Menu(
+        int SelectedExample = 0,
+        int HoveredExample = -1,
+        float ScrollOffset = 0f) : ViewState
+    {
+        public Menu WithSelection(int selected) => this with { SelectedExample = selected };
+        public Menu WithHover(int hovered) => this with { HoveredExample = hovered };
+        public Menu WithScroll(float scrollDelta) => this with
+        {
+            ScrollOffset = Math.Max(0, ScrollOffset + scrollDelta)
+        };
+    }
+
+    public sealed record Output(
+        int SelectedExample,
+        string Content,
+        float ScrollOffset = 0f) : ViewState
+    {
+        public Output WithContent(string newContent) => this with { Content = newContent };
+        public Output WithScroll(float scrollDelta) => this with
+        {
+            ScrollOffset = Math.Max(0, ScrollOffset + scrollDelta)
+        };
+    }
+
+    public static ViewState InitialMenu() => new Menu();
+
+    public static ViewState MenuFromOutput(Output output) => new Menu(output.SelectedExample);
+
+    public static ViewState OutputFromMenu(Menu menu, string content) => new Output(menu.SelectedExample, content);
+}
+
+public static class ViewStateExtensions
+{
+    public static bool IsMenu(this ViewState state) => state is ViewState.Menu;
+    public static bool IsOutput(this ViewState state) => state is ViewState.Output;
+
+    public static ViewState.Menu AsMenu(this ViewState state) => (ViewState.Menu)state;
+    public static ViewState.Output AsOutput(this ViewState state) => (ViewState.Output)state;
+
+    public static ViewState ToMenu(this ViewState state) => state switch
+    {
+        ViewState.Menu menu => menu,
+        ViewState.Output output => ViewState.MenuFromOutput(output),
+        _ => throw new InvalidOperationException($"Unknown state type: {state.GetType()}")
+    };
+
+    public static ViewState ToOutput(this ViewState state, string content) => state switch
+    {
+        ViewState.Menu menu => ViewState.OutputFromMenu(menu, content),
+        ViewState.Output output => output.WithContent(content),
+        _ => throw new InvalidOperationException($"Unknown state type: {state.GetType()}")
+    };
+}
+
+public sealed class ExampleViewer(IReadOnlyList<ExampleItem> examples) : IDisposable
 {
     private IWindow? _window;
     private GL? _gl;
@@ -21,7 +78,7 @@ public class ExampleViewer : IDisposable
     private InputSystem? _inputAddon;
     private ExampleRunner? _exampleRunner;
     private IInputContext? _inputContext;
-    private bool _disposed = false;
+    private bool _disposed;
 
     // Application state
     private ViewState _state = ViewState.InitialMenu();
@@ -29,27 +86,6 @@ public class ExampleViewer : IDisposable
     // UI Entities
     private Entity? _rootContainer;
     private Entity? _currentView;
-
-    public ExampleViewer()
-    {
-        _exampleRunner = new ExampleRunner();
-        InitializeWindow();
-    }
-
-    private void InitializeWindow()
-    {
-        var options = WindowOptions.Default with
-        {
-            Size = new Vector2D<int>(800, 600),
-            Title = "Sia.NET Examples"
-        };
-
-        _window = Window.Create(options);
-        _window.Load += OnLoad;
-        _window.Render += OnRender;
-        _window.Closing += OnClosing;
-        _window.Resize += OnResize;
-    }
 
     private void OnLoad()
     {
@@ -88,14 +124,13 @@ public class ExampleViewer : IDisposable
 
     private void CreateRootContainer()
     {
-        if (_world == null) return;
-
-        _rootContainer = UIFactory.CreatePanel(_world, Vector2.Zero, new Vector2(800, 600));
+        if (_world is null) return;
+        _rootContainer = UIFactory.CreatePanel(_world, Vector2.Zero, new(800, 600));
     }
 
     private void RegisterInputHandlers()
     {
-        if (_inputContext == null) return;
+        if (_inputContext is null) return;
 
         foreach (var keyboard in _inputContext.Keyboards)
         {
@@ -137,7 +172,7 @@ public class ExampleViewer : IDisposable
                 _state = menu.WithSelection(0);
                 break;
             case Key.End:
-                _state = menu.WithSelection(_exampleRunner!.Examples.Count - 1);
+                _state = menu.WithSelection(examples.Count - 1);
                 break;
             case Key.Enter:
                 ExecuteSelectedExample();
@@ -152,8 +187,7 @@ public class ExampleViewer : IDisposable
     {
         switch (key)
         {
-            case Key.Escape:
-            case Key.Backspace:
+            case Key.Escape or Key.Backspace:
                 ReturnToMenu();
                 break;
             case Key.R:
@@ -167,7 +201,7 @@ public class ExampleViewer : IDisposable
         if (_state is not ViewState.Menu menu) return;
 
         var newIndex = Math.Clamp(menu.SelectedExample + delta, 0,
-            _exampleRunner!.Examples.Count - 1);
+            examples.Count - 1);
         _state = menu.WithSelection(newIndex);
 
         ShowMenu();
@@ -243,7 +277,7 @@ public class ExampleViewer : IDisposable
             Color.Yellow, 14f, _currentView);
 
         // Example list with validation
-        var listContainer = UIFactory.CreateScrollView(_world, Vector2.Zero, new Vector2(760, 400), 
+        var listContainer = UIFactory.CreateScrollView(_world, Vector2.Zero, new Vector2(760, 400),
             ScrollDirection.Vertical, _currentView);
         if (IsValidParent(listContainer))
         {
@@ -252,7 +286,7 @@ public class ExampleViewer : IDisposable
 
         // Stats
         UIFactory.CreateText(_world, Vector2.Zero,
-            $"Total: {_exampleRunner.Examples.Count} | Selected: {menu.SelectedExample + 1}",
+            $"Total: {examples.Count} | Selected: {menu.SelectedExample + 1}",
             Color.LightBlue, 12f, _currentView);
     }
 
@@ -264,9 +298,9 @@ public class ExampleViewer : IDisposable
         var contentContainer = UIFactory.CreateVStackLayout(_world, Vector2.Zero, 5f, listContainer);
         if (!IsValidParent(contentContainer)) return;
 
-        for (int i = 0; i < _exampleRunner.Examples.Count; i++)
+        for (int i = 0; i < examples.Count; i++)
         {
-            var example = _exampleRunner.Examples[i];
+            var example = examples[i];
             var isSelected = i == menu.SelectedExample;
 
             // Validate parent before creating children
@@ -297,7 +331,7 @@ public class ExampleViewer : IDisposable
         if (!IsValidParent(_rootContainer)) return;
 
         var output = _state.AsOutput();
-        var selectedExample = _exampleRunner.Examples[output.SelectedExample];
+        var selectedExample = examples[output.SelectedExample];
 
         _currentView = UIFactory.CreateVStackLayout(_world, new Vector2(20, 20), 10f, _rootContainer);
         if (!IsValidParent(_currentView)) return;
@@ -373,7 +407,21 @@ public class ExampleViewer : IDisposable
         catch (ObjectDisposedException) { }
     }
 
-    public void Run() => _window?.Run();
+    public void Run()
+    {
+        var options = WindowOptions.Default with
+        {
+            Size = new Vector2D<int>(800, 600),
+            Title = "Sia.NET Examples"
+        };
+
+        _window = Window.Create(options);
+        _window.Load += OnLoad;
+        _window.Render += OnRender;
+        _window.Closing += OnClosing;
+        _window.Resize += OnResize;
+        _window.Run();
+    }
 
     public void Dispose()
     {

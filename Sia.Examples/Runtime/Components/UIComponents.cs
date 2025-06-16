@@ -78,13 +78,9 @@ public partial record struct UIElement(
     public UIElement() : this(Vector2.Zero, new Vector2(100, 30), true, true) { }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly bool Contains(Vector2 point)
-    {
-        var min = Position;
-        var max = Position + Size;
-        return point.X >= min.X && point.X <= max.X &&
-               point.Y >= min.Y && point.Y <= max.Y;
-    }
+    public readonly bool Contains(Vector2 point) =>
+        point.X >= Position.X && point.X <= Position.X + Size.X &&
+        point.Y >= Position.Y && point.Y <= Position.Y + Size.Y;
 
     public readonly Vector2 Center => Position + Size * 0.5f;
     public readonly RectangleF Bounds => new(Position.X, Position.Y, Size.X, Size.Y);
@@ -95,7 +91,7 @@ public partial record struct UIElement(
         {
             if (!target.IsValid || !target.Contains<UIElement>()) return;
 
-            var element = target.Get<UIElement>();
+            ref readonly var element = ref target.Get<UIElement>();
             if (element.IsVisible == IsVisible) return;
 
             new View(target).IsVisible = IsVisible;
@@ -109,7 +105,7 @@ public partial record struct UIElement(
         {
             if (!target.IsValid || !target.Contains<UIElement>()) return;
 
-            var element = target.Get<UIElement>();
+            ref readonly var element = ref target.Get<UIElement>();
             if (element.IsInteractable == IsInteractable) return;
 
             new View(target).IsInteractable = IsInteractable;
@@ -121,7 +117,7 @@ public partial record struct UIElement(
     {
         public void Execute(World world, Entity target)
         {
-            if (!ValidateHierarchyOperation(target, Child)) return;
+            if (!IsValidHierarchyOperation(target, Child)) return;
 
             Child.Execute(new Node<UIHierarchyTag>.SetParent(target));
 
@@ -133,12 +129,10 @@ public partial record struct UIElement(
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static bool ValidateHierarchyOperation(Entity target, Entity child)
-        {
-            return target.IsValid && child.IsValid &&
-                   target.Contains<Node<UIHierarchyTag>>() &&
-                   child.Contains<Node<UIHierarchyTag>>();
-        }
+        private static bool IsValidHierarchyOperation(Entity target, Entity child) =>
+            target.IsValid && child.IsValid &&
+            target.Contains<Node<UIHierarchyTag>>() &&
+            child.Contains<Node<UIHierarchyTag>>();
     }
 }
 
@@ -206,13 +200,14 @@ public partial record struct UIButton(
     public UIButton() : this(
         NormalStyle: UIStyle.Button,
         HoverStyle: UIStyle.Button with { BackgroundColor = Color.FromArgb(255, 200, 200, 200) },
-        PressedStyle: UIStyle.Button with { BackgroundColor = Color.FromArgb(255, 150, 150, 150) }) { }
+        PressedStyle: UIStyle.Button with { BackgroundColor = Color.FromArgb(255, 150, 150, 150) })
+    { }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public readonly UIStyle GetStyleForState(UIStateFlags state) => state switch
     {
-        var s when (s & UIStateFlags.Pressed) != 0 => PressedStyle,
-        var s when (s & UIStateFlags.Hovered) != 0 => HoverStyle,
+        _ when (state & UIStateFlags.Pressed) != 0 => PressedStyle,
+        _ when (state & UIStateFlags.Hovered) != 0 => HoverStyle,
         _ => NormalStyle
     };
 }
