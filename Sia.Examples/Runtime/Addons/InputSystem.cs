@@ -10,7 +10,7 @@ public class InputSystem : IAddon
     private World? _world;
 
     public Vector2 LastMousePosition { get; private set; }
-    public bool IsInitialized => _inputContext != null;
+    public bool IsInitialized => _inputContext is not null;
 
     public void OnInitialize(World world)
     {
@@ -33,7 +33,7 @@ public class InputSystem : IAddon
 
     private void SetupHandlers()
     {
-        if (_inputContext == null) return;
+        if (_inputContext is null) return;
 
         _inputContext.ConnectionChanged += OnConnectionChanged;
 
@@ -56,7 +56,7 @@ public class InputSystem : IAddon
 
     private void CleanupHandlers()
     {
-        if (_inputContext == null) return;
+        if (_inputContext is null) return;
 
         _inputContext.ConnectionChanged -= OnConnectionChanged;
 
@@ -83,7 +83,7 @@ public class InputSystem : IAddon
 
     private void OnConnectionChanged(IInputDevice device, bool isConnected)
     {
-        if (_world == null) return;
+        if (_world is null) return;
 
         if (isConnected)
             CreateInputDevice(device.Name);
@@ -95,7 +95,6 @@ public class InputSystem : IAddon
     {
         var entity = _world!.Create(HList.From(new InputDevice(deviceId, true)));
 
-        // Add appropriate state components based on device type
         entity.Add(new MouseState());
         entity.Add(new KeyboardState());
         entity.Add(new MouseButtonState());
@@ -107,7 +106,7 @@ public class InputSystem : IAddon
         var query = _world!.Query(Matchers.Of<InputDevice>());
 
         foreach (var entity in query)
-            if (entity.IsValid && entity.Get<InputDevice>().DeviceId == deviceId)
+            if (entity is { IsValid: true } && entity.Get<InputDevice>().DeviceId == deviceId)
             {
                 entity.Destroy();
                 break;
@@ -177,18 +176,17 @@ public class InputSystem : IAddon
 
     private void SendEvent<T>(T inputEvent, string deviceId) where T : IEvent
     {
-        var inputDevice = GetInputDevice(deviceId);
-        inputDevice?.Send(inputEvent);
+        GetInputDevice(deviceId)?.Send(inputEvent);
     }
 
     private Entity? GetInputDevice(string deviceId)
     {
-        if (_world == null) return null;
+        if (_world is null) return null;
 
         var query = _world.Query(Matchers.Of<InputDevice>());
 
         foreach (var entity in query)
-            if (entity.IsValid && entity.Get<InputDevice>().DeviceId == deviceId)
+            if (entity is { IsValid: true } && entity.Get<InputDevice>().DeviceId == deviceId)
                 return entity;
 
         return null;

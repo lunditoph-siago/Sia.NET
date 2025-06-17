@@ -60,6 +60,7 @@ public static class UIFactory
     {
         return world.Create(HList.From(
             new UIElement(position, size, true, true),
+            new UILayout(LayoutType.Static, Vector2.Zero, LayoutAlignment.Start, false),
             new UIScrollable(Vector2.Zero, Vector2.Zero, direction, 20f),
             new UIEventListener(true, UIEventMask.Scroll),
             new Node<UIHierarchyTag>(parent),

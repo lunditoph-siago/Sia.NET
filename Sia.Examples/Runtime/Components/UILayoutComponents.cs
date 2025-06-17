@@ -8,8 +8,8 @@ public enum LayoutType : byte
     None = 0,
     Vertical = 1,      // Vertical Layout
     Horizontal = 2,    // Horizontal Layout
-    Grid = 3,          // Grid Layout
-    Absolute = 4       // Absolute Layout
+    Absolute = 3,      // Absolute Layout
+    Static = 4         // Static Layout (children positioned at container origin)
 }
 
 public enum LayoutAlignment : byte
