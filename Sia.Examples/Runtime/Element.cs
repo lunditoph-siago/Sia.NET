@@ -11,7 +11,6 @@ public static class UIFactory
         int layer = 0, UIEventMask eventMask = UIEventMask.None, bool isInteractable = true)
     {
         if (eventMask != UIEventMask.None)
-        {
             return world.Create(HList.From(
                 new UIElement(position, size, true, isInteractable),
                 new UIStyle(Color.FromArgb(40, 40, 40, 40), Color.Transparent, 0f, 4f),
@@ -19,16 +18,13 @@ public static class UIFactory
                 new UILayer(layer),
                 new UIEventListener(true, eventMask)
             ));
-        }
-        else
-        {
-            return world.Create(HList.From(
-                new UIElement(position, size, true, isInteractable),
-                new UIStyle(Color.FromArgb(40, 40, 40, 40), Color.Transparent, 0f, 4f),
-                new Node<UIHierarchyTag>(parent),
-                new UILayer(layer)
-            ));
-        }
+
+        return world.Create(HList.From(
+            new UIElement(position, size, true, isInteractable),
+            new UIStyle(Color.FromArgb(40, 40, 40, 40), Color.Transparent, 0f, 4f),
+            new Node<UIHierarchyTag>(parent),
+            new UILayer(layer)
+        ));
     }
 
     public static Entity CreateText(World world, Vector2 position, string content,
@@ -105,14 +101,16 @@ public static class UIFactory
         ));
     }
 
-    public static Entity CreateClickablePanel(World world, Vector2 position, Vector2 size, Entity? parent = null, int layer = 0)
+    public static Entity CreateClickablePanel(World world, Vector2 position, Vector2 size, Entity? parent = null,
+        int layer = 0)
     {
-        return CreatePanel(world, position, size, parent, layer, UIEventMask.Click, true);
+        return CreatePanel(world, position, size, parent, layer, UIEventMask.Click);
     }
 
-    public static Entity CreateScrollableClickablePanel(World world, Vector2 position, Vector2 size, Entity? parent = null, int layer = 0)
+    public static Entity CreateScrollableClickablePanel(World world, Vector2 position, Vector2 size,
+        Entity? parent = null, int layer = 0)
     {
-        return CreatePanel(world, position, size, parent, layer, UIEventMask.Click | UIEventMask.Scroll, true);
+        return CreatePanel(world, position, size, parent, layer, UIEventMask.Click | UIEventMask.Scroll);
     }
 
     public static Entity CreateLayoutPanel(World world, Vector2 position, Vector2 size, LayoutType layoutType,
@@ -140,7 +138,8 @@ public static class UIFactory
     }
 
     public static Entity CreateHorizontalLayoutPanel(World world, Vector2 position, Vector2 size, float spacing,
-        LayoutAlignment alignment = LayoutAlignment.Center, Entity? parent = null, int layer = 0, bool autoResize = true)
+        LayoutAlignment alignment = LayoutAlignment.Center, Entity? parent = null, int layer = 0,
+        bool autoResize = true)
     {
         return CreateLayoutPanel(world, position, size, LayoutType.Horizontal, new Vector2(spacing, 0),
             alignment, parent, layer, autoResize);

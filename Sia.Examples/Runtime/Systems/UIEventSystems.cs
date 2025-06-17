@@ -31,17 +31,13 @@ public sealed class UIClickHitTestSystem : EventSystemBase
     private void HandleClick(Vector2 position, MouseButton button)
     {
         if (FindTopUIElementAt(position) is { } hitElement)
-        {
             World.Send(hitElement, new UIEvents.ElementClicked(hitElement, position, button));
-        }
     }
 
     private void HandleDoubleClick(Vector2 position, MouseButton button)
     {
         if (FindTopUIElementAt(position) is { } hitElement)
-        {
             World.Send(hitElement, new UIEvents.ElementDoubleClicked(hitElement, position, button));
-        }
     }
 
     private Entity? FindTopUIElementAt(Vector2 position)
@@ -175,7 +171,7 @@ public sealed class UIHoverStateSystem : EventSystemBase
     {
         if (element.Contains<UIState>())
         {
-            var state = element.Get<UIState>();
+            ref readonly var state = ref element.Get<UIState>();
             new UIState.View(element).Flags = state.Flags | UIStateFlags.Hovered;
         }
     }
@@ -185,7 +181,7 @@ public sealed class UIHoverStateSystem : EventSystemBase
     {
         if (element.Contains<UIState>())
         {
-            var state = element.Get<UIState>();
+            ref readonly var state = ref element.Get<UIState>();
             new UIState.View(element).Flags = state.Flags & ~UIStateFlags.Hovered;
         }
     }
@@ -244,23 +240,17 @@ public sealed class UIButtonInteractionSystem : EventSystemBase
 
         var buttonQuery = World.Query(Matchers.Of<UIButton, UIState>());
         foreach (var entity in buttonQuery)
-        {
             if (entity.Get<UIState>().HasFlag(UIStateFlags.Pressed))
-            {
                 allPressedButtons.Add(entity);
-            }
-        }
 
         _pressedButtons.Clear();
 
         foreach (var button in allPressedButtons)
-        {
             if (button is { IsValid: true } && button.Contains<UIState>())
             {
                 SetPressedState(button, false);
                 World.Send(button, new UIEvents.ButtonReleased(button));
             }
-        }
     }
 
     private Entity? FindButtonAt(Vector2 position)
