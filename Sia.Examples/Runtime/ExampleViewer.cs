@@ -70,13 +70,14 @@ public static class ViewStateExtensions
 
 public sealed class ExampleViewer(IReadOnlyList<ExampleItem> examples) : IDisposable
 {
+    private readonly ExampleRunner _exampleRunner = new(examples);
+
     private IWindow? _window;
     private GL? _gl;
     private World? _world;
     private SystemStage? _systemStage;
     private RenderPipeline? _renderPipeline;
     private InputSystem? _inputAddon;
-    private ExampleRunner? _exampleRunner;
     private IInputContext? _inputContext;
     private bool _disposed;
 
@@ -209,7 +210,7 @@ public sealed class ExampleViewer(IReadOnlyList<ExampleItem> examples) : IDispos
 
     private void ExecuteSelectedExample()
     {
-        if (_exampleRunner == null || !_state.IsMenu()) return;
+        if (!_state.IsMenu()) return;
 
         var menu = _state.AsMenu();
         var output = _exampleRunner.RunExample(menu.SelectedExample);
@@ -219,7 +220,7 @@ public sealed class ExampleViewer(IReadOnlyList<ExampleItem> examples) : IDispos
 
     private void RefreshCurrentExample()
     {
-        if (_exampleRunner == null || !_state.IsOutput()) return;
+        if (!_state.IsOutput()) return;
 
         var output = _state.AsOutput();
         var newOutput = _exampleRunner.RunExample(output.SelectedExample);
@@ -261,7 +262,7 @@ public sealed class ExampleViewer(IReadOnlyList<ExampleItem> examples) : IDispos
 
     private void CreateMenuView()
     {
-        if (_world == null || _exampleRunner == null || !_state.IsMenu()) return;
+        if (_world == null || !_state.IsMenu()) return;
         if (!IsValidParent(_rootContainer)) return;
 
         var menu = _state.AsMenu();
@@ -327,7 +328,7 @@ public sealed class ExampleViewer(IReadOnlyList<ExampleItem> examples) : IDispos
 
     private void CreateOutputView()
     {
-        if (_world == null || _exampleRunner == null || !_state.IsOutput()) return;
+        if (_world == null || !_state.IsOutput()) return;
         if (!IsValidParent(_rootContainer)) return;
 
         var output = _state.AsOutput();

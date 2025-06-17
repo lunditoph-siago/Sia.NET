@@ -29,6 +29,15 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
 
     private readonly SKTypeface _typeface = SKTypeface.FromFamilyName("sans-serif") ??
                                             SKTypeface.Default;
+    private readonly List<RenderElement> _renderQueue = new(128);
+
+    private readonly record struct RenderElement(
+        Entity Entity,
+        int Layer,
+        int HierarchyDepth,
+        Vector2 WorldPosition,
+        Vector2 Size
+    );
 
     public void Initialize(GL gl)
     {
@@ -42,10 +51,8 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
         var glInterface = GRGlInterface.Create();
         _grContext = GRContext.CreateGl(glInterface);
 
-        if (_grContext == null)
-        {
+        if (_grContext is null)
             throw new InvalidOperationException("Failed to create Skia GL context");
-        }
 
         // Set GL context state
         _grContext.ResetContext();
@@ -55,7 +62,7 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
 
     private void CreateRenderTarget()
     {
-        if (_grContext == null) return;
+        if (_grContext is null) return;
 
         // Get current framebuffer information
         _gl.GetInteger(GLEnum.FramebufferBinding, out var framebuffer);
@@ -68,90 +75,24 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
         _surface = SKSurface.Create(_grContext, _renderTarget, GRSurfaceOrigin.TopLeft, SKColorType.Rgba8888);
         _canvas = _surface?.Canvas;
 
-        if (_canvas == null)
-        {
+        if (_canvas is null)
             throw new InvalidOperationException("Failed to create Skia canvas from GL context");
-        }
     }
 
     public void Execute(World world, RenderPipeline pipeline)
     {
-        if (_canvas == null || _grContext == null) return;
-
-        BeginFrame();
+        if (_canvas is null || _grContext is null) return;
 
         try
         {
-            var sortedUIElements = GetSortedUIElements(world);
-            RenderUIElements(sortedUIElements);
+            BeginFrame();
+            CollectRenderElements(world);
+            SortRenderElements();
+            RenderElements();
         }
         finally
         {
             EndFrame();
-        }
-    }
-
-    private List<Entity> GetSortedUIElements(World world)
-    {
-        var uiElements = new List<Entity>();
-
-        // Query root nodes first, then traverse the hierarchy
-        var rootQuery = world.Query(Matchers.Of<UIElement, Node<UIHierarchyTag>>());
-        foreach (var entity in rootQuery)
-        {
-            ref readonly var node = ref entity.Get<Node<UIHierarchyTag>>();
-            if (node.Parent == null) // Only process root nodes
-            {
-                CollectUIHierarchy(entity, uiElements);
-            }
-        }
-
-        // Collect non-hierarchical UI elements (avoid duplicate collection)
-        var standaloneQuery = world.Query(Matchers.Of<UIElement>());
-        foreach (var entity in standaloneQuery)
-        {
-            // Skip elements that have already been collected in the hierarchy
-            if (entity.Contains<Node<UIHierarchyTag>>()) continue;
-            
-            ref readonly var uiElement = ref entity.Get<UIElement>();
-            if (uiElement.IsVisible)
-            {
-                uiElements.Add(entity);
-            }
-        }
-
-        // Sort by layer (hierarchy traversal ensures correct order, here only adjust layer)
-        uiElements.Sort(static (a, b) =>
-        {
-            if (!a.IsValid || !a.Contains<UIElement>()) return 1;
-            if (!b.IsValid || !b.Contains<UIElement>()) return -1;
-            
-            var aLayer = a.Contains<UILayer>() ? a.Get<UILayer>().Value : 0;
-            var bLayer = b.Contains<UILayer>() ? b.Get<UILayer>().Value : 0;
-            return aLayer.CompareTo(bLayer);
-        });
-
-        return uiElements;
-    }
-
-    private static void CollectUIHierarchy(Entity entity, List<Entity> result)
-    {
-        if (!entity.IsValid || !entity.Contains<UIElement>()) return;
-
-        ref readonly var uiElement = ref entity.Get<UIElement>();
-        if (uiElement.IsVisible)
-        {
-            result.Add(entity);
-        }
-
-        // Recursively collect child elements
-        if (entity.Contains<Node<UIHierarchyTag>>())
-        {
-            ref readonly var node = ref entity.Get<Node<UIHierarchyTag>>();
-            foreach (var child in node.Children)
-            {
-                CollectUIHierarchy(child, result);
-            }
         }
     }
 
@@ -163,58 +104,119 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
         // Save initial state
         _canvas.Save();
 
-        // Convert coordinate system: from bottom-left origin to top-left origin
-        // Flip Y axis and translate to move (0,0) to top-left
+        // Convert OpenGL coordinate system: bottom-origin to top-origin
         _canvas.Scale(1, -1);
         _canvas.Translate(0, -_windowHeight);
     }
 
     private void EndFrame()
     {
-        // Restore canvas state
         _canvas!.Restore();
-
-        // Flush GPU commands and wait for completion
         _grContext!.Flush();
     }
 
-    private void RenderUIElements(List<Entity> sortedUIElements)
+    private void CollectRenderElements(World world)
     {
-        // Render UI elements in sorted order
-        foreach (var entity in sortedUIElements)
+        _renderQueue.Clear();
+
+        var query = world.Query(Matchers.Of<UIElement>());
+
+        query.ForSlice((Entity entity, ref UIElement element) =>
         {
-            RenderSingleUIElement(entity);
+            if (!element.IsVisible) return;
+
+            var layer = entity.Contains<UILayer>() ? entity.Get<UILayer>().Value : 0;
+            var depth = CalculateHierarchyDepth(entity);
+
+            _renderQueue.Add(new RenderElement(
+                entity, layer, depth, element.Position, element.Size
+            ));
+        });
+    }
+
+    private static int CalculateHierarchyDepth(Entity entity)
+    {
+        if (!entity.Contains<Node<UIHierarchyTag>>()) return 0;
+
+        int depth = 0;
+        var current = entity.Get<Node<UIHierarchyTag>>().Parent;
+        while (current is { } && depth < 100)
+        {
+            depth++;
+            current = current.Contains<Node<UIHierarchyTag>>()
+                ? current.Get<Node<UIHierarchyTag>>().Parent
+                : null;
+        }
+        return depth;
+    }
+
+    // Sort by layer first, then by hierarchy depth (parents before children)
+    private void SortRenderElements()
+    {
+        _renderQueue.Sort(static (a, b) =>
+        {
+            var layerComparison = a.Layer.CompareTo(b.Layer);
+            return layerComparison != 0 ? layerComparison : a.HierarchyDepth.CompareTo(b.HierarchyDepth);
+        });
+    }
+
+    private void RenderElements()
+    {
+        foreach (var renderElement in _renderQueue)
+        {
+            if (!IsInViewport(renderElement.WorldPosition, renderElement.Size))
+                continue;
+
+            RenderSingleElement(renderElement);
         }
     }
 
-    private void RenderSingleUIElement(Entity entity)
+    private bool IsInViewport(Vector2 position, Vector2 size) =>
+        position.X + size.X > 0 &&
+        position.Y + size.Y > 0 &&
+        position.X < _windowWidth &&
+        position.Y < _windowHeight;
+
+    private void RenderSingleElement(RenderElement renderElement)
     {
-        ref readonly var uiElement = ref entity.Get<UIElement>();
+        var entity = renderElement.Entity;
+        if (!entity.IsValid) return;
 
-        // Save current transformation state
         _canvas!.Save();
-
         try
         {
-            _canvas.Translate(uiElement.Position.X, uiElement.Position.Y);
+            _canvas.Translate(renderElement.WorldPosition.X, renderElement.WorldPosition.Y);
 
             if (entity.Contains<UIScrollable>())
             {
-                RenderScrollableElement(entity, uiElement.Size);
+                RenderScrollableElement(entity, renderElement.Size);
             }
             else
             {
-                RenderRegularElement(entity, uiElement.Size);
+                RenderStaticElement(entity, renderElement.Size);
             }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[UIRenderPass] Failed to render entity: {ex.Message}");
         }
         finally
         {
-            // Restore transformation state
             _canvas.Restore();
+        }
+    }
+
+    private void RenderStaticElement(Entity entity, Vector2 size)
+    {
+        if (entity.Contains<UIStyle>())
+        {
+            RenderElementStyle(entity, size);
+        }
+
+        if (entity.Contains<UIButton>())
+        {
+            RenderButtonState(entity, size);
+        }
+
+        if (entity.Contains<UIText>())
+        {
+            RenderElementText(entity, size);
         }
     }
 
@@ -226,21 +228,22 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
         _canvas!.ClipRect(clipRect);
 
         _canvas.Save();
-
         try
         {
             _canvas.Translate(-scrollable.ScrollOffset.X, -scrollable.ScrollOffset.Y);
 
-            // Render background style if present
             if (entity.Contains<UIStyle>())
             {
                 _canvas.Save();
                 _canvas.Translate(scrollable.ScrollOffset.X, scrollable.ScrollOffset.Y);
-                RenderStyle(entity, size);
+                RenderElementStyle(entity, size);
                 _canvas.Restore();
             }
 
-            RenderScrollableContent(entity, scrollable.ContentSize);
+            if (entity.Contains<UIText>())
+            {
+                RenderScrollableText(entity, scrollable.ContentSize);
+            }
         }
         finally
         {
@@ -250,12 +253,75 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
         RenderScrollbars(entity, size, scrollable);
     }
 
-    private void RenderScrollableContent(Entity entity, Vector2 contentSize)
+    private void RenderElementStyle(Entity entity, Vector2 size)
     {
-        if (entity.Contains<UIText>())
+        ref readonly var style = ref entity.Get<UIStyle>();
+        var rect = new SKRect(0, 0, size.X, size.Y);
+
+        if (style.HasBackground)
         {
-            RenderScrollableText(entity, contentSize);
+            var backgroundPaint = GetOrCreatePaint(style.BackgroundColor);
+            if (style.HasRoundedCorners)
+                _canvas!.DrawRoundRect(rect, style.CornerRadius, style.CornerRadius, backgroundPaint);
+            else
+                _canvas!.DrawRect(rect, backgroundPaint);
         }
+
+        if (style.HasBorder)
+        {
+            var borderPaint = GetOrCreatePaint(style.BorderColor);
+            borderPaint.Style = SKPaintStyle.Stroke;
+            borderPaint.StrokeWidth = style.BorderWidth;
+
+            if (style.HasRoundedCorners)
+                _canvas!.DrawRoundRect(rect, style.CornerRadius, style.CornerRadius, borderPaint);
+            else
+                _canvas!.DrawRect(rect, borderPaint);
+        }
+    }
+
+    private void RenderButtonState(Entity entity, Vector2 size)
+    {
+        ref readonly var button = ref entity.Get<UIButton>();
+        var stateFlags = entity.Contains<UIState>() ? entity.Get<UIState>().Flags : UIStateFlags.None;
+        var currentStyle = button.GetStyleForState(stateFlags);
+
+        var rect = new SKRect(0, 0, size.X, size.Y);
+        var paint = GetOrCreatePaint(currentStyle.BackgroundColor);
+
+        _canvas!.DrawRoundRect(rect, currentStyle.CornerRadius, currentStyle.CornerRadius, paint);
+
+        if ((stateFlags & UIStateFlags.Pressed) != 0)
+        {
+            var shadowPaint = GetOrCreatePaint(Color.FromArgb(50, 0, 0, 0));
+            shadowPaint.Style = SKPaintStyle.Stroke;
+            shadowPaint.StrokeWidth = 2;
+            var innerRect = new SKRect(rect.Left + 1, rect.Top + 1, rect.Right - 1, rect.Bottom - 1);
+            _canvas.DrawRoundRect(innerRect, currentStyle.CornerRadius - 1, currentStyle.CornerRadius - 1, shadowPaint);
+        }
+    }
+
+    private void RenderElementText(Entity entity, Vector2 size)
+    {
+        ref readonly var text = ref entity.Get<UIText>();
+        if (string.IsNullOrEmpty(text.Content)) return;
+
+        var font = GetOrCreateFont(text.FontSize);
+        var paint = GetOrCreatePaint(text.Color);
+
+        font.MeasureText(text.Content, out var textBounds, paint);
+
+        var x = text.Alignment switch
+        {
+            TextAlignment.Left => 0,
+            TextAlignment.Center => (size.X - textBounds.Width) * 0.5f,
+            TextAlignment.Right => size.X - textBounds.Width,
+            _ => 0
+        };
+
+        var y = (size.Y - textBounds.Height) * 0.5f + textBounds.Height;
+
+        _canvas!.DrawText(text.Content, x, y, SKTextAlign.Left, font, paint);
     }
 
     private void RenderScrollableText(Entity entity, Vector2 contentSize)
@@ -265,16 +331,14 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
 
         var font = GetOrCreateFont(text.FontSize);
         var paint = GetOrCreatePaint(text.Color);
-        var lines = text.Content.Split('\n') ?? [];
+        var lines = text.Content.Split('\n');
         var lineHeight = text.FontSize * 1.2f;
 
         for (int i = 0; i < lines.Length; i++)
         {
-            var line = lines[i];
-            if (string.IsNullOrEmpty(line)) continue;
-
+            if (string.IsNullOrEmpty(lines[i])) continue;
             var y = i * lineHeight + text.FontSize;
-            _canvas!.DrawText(line, 0, y, SKTextAlign.Left, font, paint);
+            _canvas!.DrawText(lines[i], 0, y, SKTextAlign.Left, font, paint);
         }
     }
 
@@ -298,18 +362,15 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
         const float thumbWidth = 4f;
         const float margin = 2f;
 
-        // Calculate thumb position and size
         var thumbHeight = Math.Max(30f, viewportSize.Y * (viewportSize.Y / scrollable.ContentSize.Y));
-        var thumbPosition = (scrollable.ScrollOffset.Y / maxOffset.Y) * (viewportSize.Y - thumbHeight);
+        var thumbPosition = maxOffset.Y > 0 ? (scrollable.ScrollOffset.Y / maxOffset.Y) * (viewportSize.Y - thumbHeight) : 0;
 
-        // Position thumb close to right edge
         var thumbRect = new SKRect(
             viewportSize.X - thumbWidth - margin,
             thumbPosition,
             viewportSize.X - margin,
             thumbPosition + thumbHeight);
 
-        // Render Android-style thumb: semi-transparent, rounded
         var thumbPaint = GetOrCreatePaint(Color.FromArgb(120, 100, 100, 100));
         _canvas!.DrawRoundRect(thumbRect, thumbWidth / 2, thumbWidth / 2, thumbPaint);
     }
@@ -319,134 +380,17 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
         const float thumbHeight = 4f;
         const float margin = 2f;
 
-        // Calculate thumb position and size
         var thumbWidth = Math.Max(30f, viewportSize.X * (viewportSize.X / scrollable.ContentSize.X));
-        var thumbPosition = (scrollable.ScrollOffset.X / maxOffset.X) * (viewportSize.X - thumbWidth);
+        var thumbPosition = maxOffset.X > 0 ? (scrollable.ScrollOffset.X / maxOffset.X) * (viewportSize.X - thumbWidth) : 0;
 
-        // Position thumb close to bottom edge
         var thumbRect = new SKRect(
             thumbPosition,
             viewportSize.Y - thumbHeight - margin,
             thumbPosition + thumbWidth,
             viewportSize.Y - margin);
 
-        // Render Android-style thumb: semi-transparent, rounded
         var thumbPaint = GetOrCreatePaint(Color.FromArgb(120, 100, 100, 100));
         _canvas!.DrawRoundRect(thumbRect, thumbHeight / 2, thumbHeight / 2, thumbPaint);
-    }
-
-    private void RenderRegularElement(Entity entity, Vector2 size)
-    {
-        // Render background style
-        if (entity.Contains<UIStyle>())
-        {
-            RenderStyle(entity, size);
-        }
-
-        // Render button (if it has UIButton component)
-        if (entity.Contains<UIButton>())
-        {
-            RenderButton(entity, size);
-        }
-
-        // Render text - render last to ensure it's on top of other elements
-        if (entity.Contains<UIText>())
-        {
-            RenderText(entity, size);
-        }
-    }
-
-    private void RenderStyle(Entity entity, Vector2 size)
-    {
-        ref readonly var style = ref entity.Get<UIStyle>();
-        
-        var paint = GetOrCreatePaint(style.BackgroundColor);
-        var rect = new SKRect(0, 0, size.X, size.Y);
-
-        if (style.CornerRadius > 0)
-        {
-            _canvas!.DrawRoundRect(rect, style.CornerRadius, style.CornerRadius, paint);
-        }
-        else
-        {
-            _canvas!.DrawRect(rect, paint);
-        }
-
-        // Draw border if needed
-        if (style.BorderWidth > 0 && style.BorderColor.A > 0)
-        {
-            var borderPaint = GetOrCreatePaint(style.BorderColor);
-            borderPaint.Style = SKPaintStyle.Stroke;
-            borderPaint.StrokeWidth = style.BorderWidth;
-
-            if (style.CornerRadius > 0)
-            {
-                _canvas!.DrawRoundRect(rect, style.CornerRadius, style.CornerRadius, borderPaint);
-            }
-            else
-            {
-                _canvas!.DrawRect(rect, borderPaint);
-            }
-        }
-    }
-
-    private void RenderButton(Entity entity, Vector2 size)
-    {
-        ref readonly var button = ref entity.Get<UIButton>();
-        
-        // Get current style based on UI state flags
-        var stateFlags = entity.Contains<UIState>() ? entity.Get<UIState>().Flags : UIStateFlags.None;
-        var currentStyle = button.GetStyleForState(stateFlags);
-        
-        var paint = GetOrCreatePaint(currentStyle.BackgroundColor);
-        var rect = new SKRect(0, 0, size.X, size.Y);
-
-        // Draw rounded button
-        _canvas!.DrawRoundRect(rect, currentStyle.CornerRadius, currentStyle.CornerRadius, paint);
-
-        // Add inner shadow effect if button is pressed
-        if ((stateFlags & UIStateFlags.Pressed) != 0)
-        {
-            DrawButtonPressedEffect(rect);
-        }
-    }
-
-    private void DrawButtonPressedEffect(SKRect rect)
-    {
-        using var shadowPaint = new SKPaint
-        {
-            Color = new SKColor(0, 0, 0, 50),
-            Style = SKPaintStyle.Stroke,
-            StrokeWidth = 2,
-            IsAntialias = true
-        };
-
-        var innerRect = new SKRect(rect.Left + 1, rect.Top + 1, rect.Right - 1, rect.Bottom - 1);
-        _canvas!.DrawRoundRect(innerRect, 6, 6, shadowPaint);
-    }
-
-    private void RenderText(Entity entity, Vector2 elementSize)
-    {
-        ref readonly var text = ref entity.Get<UIText>();
-        if (string.IsNullOrEmpty(text.Content)) return;
-
-        var font = GetOrCreateFont(text.FontSize);
-        var paint = GetOrCreatePaint(text.Color);
-        var content = text.Content;
-
-        font.MeasureText(content, out var textBounds, paint);
-
-        var x = text.Alignment switch
-        {
-            TextAlignment.Left => 0,
-            TextAlignment.Center => (elementSize.X - textBounds.Width) * 0.5f,
-            TextAlignment.Right => elementSize.X - textBounds.Width,
-            _ => 0
-        };
-
-        var y = (elementSize.Y + textBounds.Height) * 0.5f;
-
-        _canvas!.DrawText(content, x, y, SKTextAlign.Left, font, paint);
     }
 
     private SKFont GetOrCreateFont(float fontSize)
@@ -488,23 +432,19 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
 
         _surface?.Dispose();
         _renderTarget?.Dispose();
-
         CreateRenderTarget();
     }
 
     public void Dispose()
     {
-        // Cleanup font cache
         foreach (var font in _fontCache.Values)
             font.Dispose();
         _fontCache.Clear();
 
-        // Cleanup paint cache
         foreach (var paint in _paintCache.Values)
             paint.Dispose();
         _paintCache.Clear();
 
-        // Cleanup Skia resources
         _surface?.Dispose();
         _renderTarget?.Dispose();
         _grContext?.Dispose();

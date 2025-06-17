@@ -19,19 +19,18 @@ public sealed class UIClickHitTestSystem : EventSystemBase
     {
         switch (@event)
         {
-            case InputEvents.Click click:
-                HandleClick(click.Position, click.Button);
+            case InputEvents.Click { Position: var position, Button: var button }:
+                HandleClick(position, button);
                 break;
-            case InputEvents.DoubleClick doubleClick:
-                HandleDoubleClick(doubleClick.Position, doubleClick.Button);
+            case InputEvents.DoubleClick { Position: var position, Button: var button }:
+                HandleDoubleClick(position, button);
                 break;
         }
     }
 
     private void HandleClick(Vector2 position, MouseButton button)
     {
-        var hitElement = FindTopUIElementAt(position);
-        if (hitElement != null)
+        if (FindTopUIElementAt(position) is { } hitElement)
         {
             World.Send(hitElement, new UIEvents.ElementClicked(hitElement, position, button));
         }
@@ -39,8 +38,7 @@ public sealed class UIClickHitTestSystem : EventSystemBase
 
     private void HandleDoubleClick(Vector2 position, MouseButton button)
     {
-        var hitElement = FindTopUIElementAt(position);
-        if (hitElement != null)
+        if (FindTopUIElementAt(position) is { } hitElement)
         {
             World.Send(hitElement, new UIEvents.ElementDoubleClicked(hitElement, position, button));
         }
@@ -75,24 +73,31 @@ public sealed class UIClickHitTestSystem : EventSystemBase
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static Entity? FindTopElementByLayer(IReadOnlyList<Entity> candidates)
     {
-        if (candidates.Count == 0) return null;
-        if (candidates.Count == 1) return candidates[0];
-
-        var topElement = candidates[0];
-        var topLayer = topElement.Contains<UILayer>() ? topElement.Get<UILayer>().Value : 0;
-
-        for (var i = 1; i < candidates.Count; i++)
+        return candidates.Count switch
         {
-            var candidate = candidates[i];
-            var layer = candidate.Contains<UILayer>() ? candidate.Get<UILayer>().Value : 0;
-            if (layer > topLayer)
-            {
-                topElement = candidate;
-                topLayer = layer;
-            }
-        }
+            0 => null,
+            1 => candidates[0],
+            _ => FindTopElement(candidates)
+        };
 
-        return topElement;
+        static Entity FindTopElement(IReadOnlyList<Entity> candidates)
+        {
+            var topElement = candidates[0];
+            var topLayer = topElement.Contains<UILayer>() ? topElement.Get<UILayer>().Value : 0;
+
+            for (var i = 1; i < candidates.Count; i++)
+            {
+                var candidate = candidates[i];
+                var layer = candidate.Contains<UILayer>() ? candidate.Get<UILayer>().Value : 0;
+                if (layer > topLayer)
+                {
+                    topElement = candidate;
+                    topLayer = layer;
+                }
+            }
+
+            return topElement;
+        }
     }
 }
 
@@ -108,12 +113,8 @@ public sealed class UIHoverStateSystem : EventSystemBase
 
     protected override void HandleEvent<TEvent>(Entity entity, in TEvent @event)
     {
-        switch (@event)
-        {
-            case InputEvents.MouseMoved mouseMoved:
-                HandleHover(mouseMoved.Position);
-                break;
-        }
+        if (@event is InputEvents.MouseMoved { Position: var position })
+            HandleHover(position);
     }
 
     private void HandleHover(Vector2 position)
@@ -122,13 +123,13 @@ public sealed class UIHoverStateSystem : EventSystemBase
 
         if (hitElement != _currentHoveredElement)
         {
-            if (_currentHoveredElement?.IsValid == true)
+            if (_currentHoveredElement is { IsValid: true })
             {
                 ClearHoverState(_currentHoveredElement);
                 World.Send(_currentHoveredElement, new UIEvents.ElementHoverExit(_currentHoveredElement, position));
             }
 
-            if (hitElement?.IsValid == true)
+            if (hitElement is { IsValid: true })
             {
                 SetHoverState(hitElement);
                 World.Send(hitElement, new UIEvents.ElementHoverEnter(hitElement, position));
@@ -192,6 +193,8 @@ public sealed class UIHoverStateSystem : EventSystemBase
 
 public sealed class UIButtonInteractionSystem : EventSystemBase
 {
+    private readonly HashSet<Entity> _pressedButtons = [];
+
     public override void Initialize(World world)
     {
         base.Initialize(world);
@@ -203,13 +206,14 @@ public sealed class UIButtonInteractionSystem : EventSystemBase
     {
         switch (@event)
         {
-            case UIEvents.ElementClicked elementClicked when elementClicked.Target.Contains<UIButton>():
-                HandleButtonClick(elementClicked.Target, elementClicked.Position, elementClicked.Button);
+            case UIEvents.ElementClicked { Target: var target, Position: var position, Button: var button }
+                when target.Contains<UIButton>():
+                HandleButtonClick(target, position, button);
                 break;
-            case InputEvents.MouseButtonPressed mousePressed:
-                HandleGlobalMousePressed(mousePressed.Position, mousePressed.Button);
+            case InputEvents.MouseButtonPressed { Position: var position, Button: var button }:
+                HandleGlobalMousePressed(position, button);
                 break;
-            case InputEvents.MouseButtonReleased mouseReleased:
+            case InputEvents.MouseButtonReleased:
                 HandleGlobalMouseReleased();
                 break;
         }
@@ -227,32 +231,34 @@ public sealed class UIButtonInteractionSystem : EventSystemBase
     {
         if (button != MouseButton.Left) return;
 
-        var hitButton = FindButtonAt(position);
-        if (hitButton != null)
+        if (FindButtonAt(position) is { } hitButton)
         {
             SetPressedState(hitButton, true);
+            _pressedButtons.Add(hitButton);
         }
     }
 
     private void HandleGlobalMouseReleased()
     {
+        var allPressedButtons = new HashSet<Entity>(_pressedButtons);
+
         var buttonQuery = World.Query(Matchers.Of<UIButton, UIState>());
-
-        buttonQuery.ForSlice(static (Entity entity, ref UIState state) =>
-        {
-            if (state.HasFlag(UIStateFlags.Pressed))
-            {
-                SetPressedState(entity, false);
-            }
-        });
-
-        // Send events after state updates
         foreach (var entity in buttonQuery)
         {
-            var state = entity.Get<UIState>();
-            if (!state.HasFlag(UIStateFlags.Pressed))
+            if (entity.Get<UIState>().HasFlag(UIStateFlags.Pressed))
             {
-                World.Send(entity, new UIEvents.ButtonReleased(entity));
+                allPressedButtons.Add(entity);
+            }
+        }
+
+        _pressedButtons.Clear();
+
+        foreach (var button in allPressedButtons)
+        {
+            if (button is { IsValid: true } && button.Contains<UIState>())
+            {
+                SetPressedState(button, false);
+                World.Send(button, new UIEvents.ButtonReleased(button));
             }
         }
     }
@@ -309,18 +315,13 @@ public sealed class UIScrollInteractionSystem : EventSystemBase
 
     protected override void HandleEvent<TEvent>(Entity entity, in TEvent @event)
     {
-        switch (@event)
-        {
-            case InputEvents.MouseScrolled mouseScrolled:
-                HandleScroll(mouseScrolled.Position, mouseScrolled.Delta);
-                break;
-        }
+        if (@event is InputEvents.MouseScrolled { Position: var position, Delta: var scrollDelta })
+            HandleScroll(position, scrollDelta);
     }
 
     private void HandleScroll(Vector2 position, Vector2 scrollDelta)
     {
-        var scrollableElement = FindScrollableElementAt(position);
-        if (scrollableElement == null) return;
+        if (FindScrollableElementAt(position) is not { } scrollableElement) return;
 
         ref readonly var scrollable = ref scrollableElement.Get<UIScrollable>();
         ref readonly var element = ref scrollableElement.Get<UIElement>();

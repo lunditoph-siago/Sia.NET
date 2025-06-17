@@ -83,7 +83,7 @@ public class RenderPipeline : IAddon
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[RenderPipeline] Failed to initialize pass {pass.Name}: {ex.Message}");
+                Console.Error.WriteLine($"[RenderPipeline] Failed to initialize pass {pass.Name}: {ex.Message}");
                 pass.Dispose();
             }
         }
@@ -109,7 +109,7 @@ public class RenderPipeline : IAddon
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[RenderPipeline] Pass '{pass.Name}' execution failed: {ex.Message}");
+                Console.Error.WriteLine($"[RenderPipeline] Pass '{pass.Name}' execution failed: {ex.Message}");
             }
         }
     }
@@ -134,7 +134,7 @@ public class RenderPipeline : IAddon
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[RenderPipeline] Pass '{pass.Name}' resize failed: {ex.Message}");
+                Console.Error.WriteLine($"[RenderPipeline] Pass '{pass.Name}' resize failed: {ex.Message}");
             }
         }
     }
@@ -146,8 +146,7 @@ public class RenderPipeline : IAddon
 
     public bool RemovePass<TPass>() where TPass : class, IRenderPass
     {
-        var pass = GetPass<TPass>();
-        if (pass is null) return false;
+        if (GetPass<TPass>() is not { } pass) return false;
 
         _activePasses.Remove(pass);
         pass.Dispose();
