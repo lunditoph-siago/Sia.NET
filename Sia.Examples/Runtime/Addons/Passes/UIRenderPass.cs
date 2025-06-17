@@ -31,18 +31,54 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
                                             SKTypeface.Default;
     private readonly List<RenderElement> _renderQueue = new(128);
 
-    private readonly record struct RenderElement(
-        Entity Entity,
-        int Layer,
-        int HierarchyDepth,
-        Vector2 WorldPosition,
-        Vector2 Size
-    );
 
     public void Initialize(GL gl)
     {
         _gl = gl;
         InitializeSkiaGL();
+    }
+
+    public void Execute(World world, RenderPipeline pipeline)
+    {
+        if (_canvas is null || _grContext is null) return;
+
+        try
+        {
+            BeginFrame();
+            CollectRenderElements(world);
+            SortRenderElements();
+            RenderElements();
+        }
+        finally
+        {
+            EndFrame();
+        }
+    }
+
+    public void OnResize(int width, int height)
+    {
+        _windowWidth = width;
+        _windowHeight = height;
+
+        _surface?.Dispose();
+        _renderTarget?.Dispose();
+        CreateRenderTarget();
+    }
+
+    public void Dispose()
+    {
+        foreach (var font in _fontCache.Values)
+            font.Dispose();
+        _fontCache.Clear();
+
+        foreach (var paint in _paintCache.Values)
+            paint.Dispose();
+        _paintCache.Clear();
+
+        _surface?.Dispose();
+        _renderTarget?.Dispose();
+        _grContext?.Dispose();
+        _typeface?.Dispose();
     }
 
     private void InitializeSkiaGL()
@@ -79,23 +115,6 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
             throw new InvalidOperationException("Failed to create Skia canvas from GL context");
     }
 
-    public void Execute(World world, RenderPipeline pipeline)
-    {
-        if (_canvas is null || _grContext is null) return;
-
-        try
-        {
-            BeginFrame();
-            CollectRenderElements(world);
-            SortRenderElements();
-            RenderElements();
-        }
-        finally
-        {
-            EndFrame();
-        }
-    }
-
     private void BeginFrame()
     {
         // Clear canvas
@@ -121,9 +140,10 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
 
         var query = world.Query(Matchers.Of<UIElement>());
 
-        query.ForSlice((Entity entity, ref UIElement element) =>
+        foreach (var entity in query)
         {
-            if (!element.IsVisible) return;
+            ref readonly var element = ref entity.Get<UIElement>();
+            if (!element.IsVisible) continue;
 
             var layer = entity.Contains<UILayer>() ? entity.Get<UILayer>().Value : 0;
             var depth = CalculateHierarchyDepth(entity);
@@ -131,22 +151,23 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
             _renderQueue.Add(new RenderElement(
                 entity, layer, depth, element.Position, element.Size
             ));
-        });
+        }
     }
 
     private static int CalculateHierarchyDepth(Entity entity)
     {
         if (!entity.Contains<Node<UIHierarchyTag>>()) return 0;
 
-        int depth = 0;
+        var depth = 0;
         var current = entity.Get<Node<UIHierarchyTag>>().Parent;
-        while (current is { } && depth < 100)
+        while (current is not null && depth < 100)
         {
             depth++;
             current = current.Contains<Node<UIHierarchyTag>>()
                 ? current.Get<Node<UIHierarchyTag>>().Parent
                 : null;
         }
+
         return depth;
     }
 
@@ -171,11 +192,13 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
         }
     }
 
-    private bool IsInViewport(Vector2 position, Vector2 size) =>
-        position.X + size.X > 0 &&
-        position.Y + size.Y > 0 &&
-        position.X < _windowWidth &&
-        position.Y < _windowHeight;
+    private bool IsInViewport(Vector2 position, Vector2 size)
+    {
+        return position.X + size.X > 0 &&
+               position.Y + size.Y > 0 &&
+               position.X < _windowWidth &&
+               position.Y < _windowHeight;
+    }
 
     private void RenderSingleElement(RenderElement renderElement)
     {
@@ -188,13 +211,9 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
             _canvas.Translate(renderElement.WorldPosition.X, renderElement.WorldPosition.Y);
 
             if (entity.Contains<UIScrollable>())
-            {
                 RenderScrollableElement(entity, renderElement.Size);
-            }
             else
-            {
                 RenderStaticElement(entity, renderElement.Size);
-            }
         }
         finally
         {
@@ -204,20 +223,11 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
 
     private void RenderStaticElement(Entity entity, Vector2 size)
     {
-        if (entity.Contains<UIStyle>())
-        {
-            RenderElementStyle(entity, size);
-        }
+        if (entity.Contains<UIStyle>()) RenderElementStyle(entity, size);
 
-        if (entity.Contains<UIButton>())
-        {
-            RenderButtonState(entity, size);
-        }
+        if (entity.Contains<UIButton>()) RenderButtonState(entity, size);
 
-        if (entity.Contains<UIText>())
-        {
-            RenderElementText(entity, size);
-        }
+        if (entity.Contains<UIText>()) RenderElementText(entity, size);
     }
 
     private void RenderScrollableElement(Entity entity, Vector2 size)
@@ -334,7 +344,7 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
         var lines = text.Content.Split('\n');
         var lineHeight = text.FontSize * 1.2f;
 
-        for (int i = 0; i < lines.Length; i++)
+        for (var i = 0; i < lines.Length; i++)
         {
             if (string.IsNullOrEmpty(lines[i])) continue;
             var y = i * lineHeight + text.FontSize;
@@ -347,14 +357,10 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
         var maxOffset = scrollable.GetMaxScrollOffset(viewportSize);
 
         if (scrollable.CanScroll(ScrollDirection.Vertical) && maxOffset.Y > 0)
-        {
             RenderVerticalScrollbar(viewportSize, scrollable, maxOffset);
-        }
 
         if (scrollable.CanScroll(ScrollDirection.Horizontal) && maxOffset.X > 0)
-        {
             RenderHorizontalScrollbar(viewportSize, scrollable, maxOffset);
-        }
     }
 
     private void RenderVerticalScrollbar(Vector2 viewportSize, UIScrollable scrollable, Vector2 maxOffset)
@@ -363,7 +369,9 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
         const float margin = 2f;
 
         var thumbHeight = Math.Max(30f, viewportSize.Y * (viewportSize.Y / scrollable.ContentSize.Y));
-        var thumbPosition = maxOffset.Y > 0 ? (scrollable.ScrollOffset.Y / maxOffset.Y) * (viewportSize.Y - thumbHeight) : 0;
+        var thumbPosition = maxOffset.Y > 0
+            ? scrollable.ScrollOffset.Y / maxOffset.Y * (viewportSize.Y - thumbHeight)
+            : 0;
 
         var thumbRect = new SKRect(
             viewportSize.X - thumbWidth - margin,
@@ -381,7 +389,9 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
         const float margin = 2f;
 
         var thumbWidth = Math.Max(30f, viewportSize.X * (viewportSize.X / scrollable.ContentSize.X));
-        var thumbPosition = maxOffset.X > 0 ? (scrollable.ScrollOffset.X / maxOffset.X) * (viewportSize.X - thumbWidth) : 0;
+        var thumbPosition = maxOffset.X > 0
+            ? scrollable.ScrollOffset.X / maxOffset.X * (viewportSize.X - thumbWidth)
+            : 0;
 
         var thumbRect = new SKRect(
             thumbPosition,
@@ -425,29 +435,11 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
         return paint;
     }
 
-    public void OnResize(int width, int height)
-    {
-        _windowWidth = width;
-        _windowHeight = height;
-
-        _surface?.Dispose();
-        _renderTarget?.Dispose();
-        CreateRenderTarget();
-    }
-
-    public void Dispose()
-    {
-        foreach (var font in _fontCache.Values)
-            font.Dispose();
-        _fontCache.Clear();
-
-        foreach (var paint in _paintCache.Values)
-            paint.Dispose();
-        _paintCache.Clear();
-
-        _surface?.Dispose();
-        _renderTarget?.Dispose();
-        _grContext?.Dispose();
-        _typeface?.Dispose();
-    }
+    private readonly record struct RenderElement(
+        Entity Entity,
+        int Layer,
+        int HierarchyDepth,
+        Vector2 WorldPosition,
+        Vector2 Size
+    );
 }

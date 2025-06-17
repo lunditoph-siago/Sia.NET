@@ -117,14 +117,17 @@ public class UILayoutSystem() : SystemBase(Matchers.Of<UIElement, UILayout, Node
         _childrenBuffer.Clear();
     }
 
-    private LayoutResult CalculateLayoutResult(Vector2 availableSpace, UILayout layout) => layout.Type switch
+    private LayoutResult CalculateLayoutResult(Vector2 availableSpace, UILayout layout)
     {
-        LayoutType.Vertical => CalculateVerticalLayout(availableSpace, layout),
-        LayoutType.Horizontal => CalculateHorizontalLayout(availableSpace, layout),
-        LayoutType.Absolute => CalculateAbsoluteLayout(availableSpace),
-        LayoutType.Static => CalculateStaticLayout(),
-        _ => new LayoutResult(Vector2.Zero, [])
-    };
+        return layout.Type switch
+        {
+            LayoutType.Vertical => CalculateVerticalLayout(availableSpace, layout),
+            LayoutType.Horizontal => CalculateHorizontalLayout(availableSpace, layout),
+            LayoutType.Absolute => CalculateAbsoluteLayout(availableSpace),
+            LayoutType.Static => CalculateStaticLayout(),
+            _ => new LayoutResult(Vector2.Zero, [])
+        };
+    }
 
     private void CollectVisibleChildren(Entity container)
     {
@@ -132,12 +135,8 @@ public class UILayoutSystem() : SystemBase(Matchers.Of<UIElement, UILayout, Node
         if (!container.Contains<Node<UIHierarchyTag>>()) return;
 
         foreach (var child in container.Get<Node<UIHierarchyTag>>().Children)
-        {
-            if (child is { IsValid: true } &&
-                child.Contains<UIElement>() &&
-                child.Get<UIElement>().IsVisible)
+            if (child is { IsValid: true } && child.Contains<UIElement>() && child.Get<UIElement>().IsVisible)
                 _childrenBuffer.Add(child);
-        }
     }
 
     private LayoutResult CalculateVerticalLayout(Vector2 availableSpace, UILayout layout)
@@ -146,7 +145,7 @@ public class UILayoutSystem() : SystemBase(Matchers.Of<UIElement, UILayout, Node
         var currentY = 0f;
         var maxWidth = 0f;
 
-        for (int i = 0; i < _childrenBuffer.Count; i++)
+        for (var i = 0; i < _childrenBuffer.Count; i++)
         {
             var childSize = GetChildSize(_childrenBuffer[i], availableSpace);
             positions[i] = new Vector2(CalculateAlignment(layout.Alignment, availableSpace.X, childSize.X), currentY);
@@ -164,7 +163,7 @@ public class UILayoutSystem() : SystemBase(Matchers.Of<UIElement, UILayout, Node
         var currentX = 0f;
         var maxHeight = 0f;
 
-        for (int i = 0; i < _childrenBuffer.Count; i++)
+        for (var i = 0; i < _childrenBuffer.Count; i++)
         {
             var childSize = GetChildSize(_childrenBuffer[i], availableSpace);
             positions[i] = new Vector2(currentX, CalculateAlignment(layout.Alignment, availableSpace.Y, childSize.Y));
@@ -182,7 +181,7 @@ public class UILayoutSystem() : SystemBase(Matchers.Of<UIElement, UILayout, Node
         var minBounds = Vector2.Zero;
         var maxBounds = Vector2.Zero;
 
-        for (int i = 0; i < _childrenBuffer.Count; i++)
+        for (var i = 0; i < _childrenBuffer.Count; i++)
         {
             var childElement = _childrenBuffer[i].Get<UIElement>();
             positions[i] = childElement.Position;
@@ -199,7 +198,7 @@ public class UILayoutSystem() : SystemBase(Matchers.Of<UIElement, UILayout, Node
         var positions = new Vector2[_childrenBuffer.Count];
         var maxSize = Vector2.Zero;
 
-        for (int i = 0; i < _childrenBuffer.Count; i++)
+        for (var i = 0; i < _childrenBuffer.Count; i++)
         {
             var childElement = _childrenBuffer[i].Get<UIElement>();
             positions[i] = Vector2.Zero;
@@ -210,12 +209,15 @@ public class UILayoutSystem() : SystemBase(Matchers.Of<UIElement, UILayout, Node
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static float CalculateAlignment(LayoutAlignment alignment, float availableSize, float childSize) => alignment switch
+    private static float CalculateAlignment(LayoutAlignment alignment, float availableSize, float childSize)
     {
-        LayoutAlignment.Center => (availableSize - childSize) * 0.5f,
-        LayoutAlignment.End => availableSize - childSize,
-        _ => 0f
-    };
+        return alignment switch
+        {
+            LayoutAlignment.Center => (availableSize - childSize) * 0.5f,
+            LayoutAlignment.End => availableSize - childSize,
+            _ => 0f
+        };
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static Vector2 GetChildSize(Entity child, Vector2 availableSpace)
@@ -240,10 +242,10 @@ public class UILayoutSystem() : SystemBase(Matchers.Of<UIElement, UILayout, Node
     {
         if (!entity.Contains<Node<UIHierarchyTag>>()) return 0;
 
-        int depth = 0;
+        var depth = 0;
         var current = entity.Get<Node<UIHierarchyTag>>().Parent;
 
-        while (current is { } && depth < 100)
+        while (current is not null && depth < 100)
         {
             depth++;
             current = current.Contains<Node<UIHierarchyTag>>() ? current.Get<Node<UIHierarchyTag>>().Parent : null;
@@ -258,7 +260,7 @@ public class UILayoutSystem() : SystemBase(Matchers.Of<UIElement, UILayout, Node
         var paddingOffset = container.Contains<UIPadding>() ? container.Get<UIPadding>().TopLeft : Vector2.Zero;
         var basePosition = containerPos + paddingOffset;
 
-        for (int i = 0; i < _childrenBuffer.Count && i < result.Positions.Length; i++)
+        for (var i = 0; i < _childrenBuffer.Count && i < result.Positions.Length; i++)
         {
             var child = _childrenBuffer[i];
             var newPosition = basePosition + result.Positions[i];
@@ -330,7 +332,6 @@ public class UIVisibilitySystem : EventSystemBase
     protected override void HandleEvent<TEvent>(Entity entity, in TEvent @event)
     {
         if (@event is UIEvents.VisibilityChanged { Target: var target, IsVisible: var isVisible })
-        {
             try
             {
                 if (!target.IsValid) return;
@@ -344,7 +345,6 @@ public class UIVisibilitySystem : EventSystemBase
             {
                 Console.Error.WriteLine($"[UIVisibilitySystem] Visibility event error: {ex.Message}");
             }
-        }
     }
 
     private void SaveAndHideChildren(Entity parent)
