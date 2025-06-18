@@ -1,83 +1,155 @@
+using System.Drawing;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 
 namespace Sia.Examples.Runtime.Components;
 
-public enum LayoutType : byte
+[SiaEvents]
+public partial class UILayoutEvents
 {
-    None = 0,
-    Vertical = 1,      // Vertical Layout
-    Horizontal = 2,    // Horizontal Layout
-    Absolute = 3,      // Absolute Layout
-    Static = 4         // Static Layout (children positioned at container origin)
+    public readonly record struct LayoutInvalidated(Entity Target) : IEvent;
+    public readonly record struct LayoutComputed(Entity Target, Vector2 ComputedSize) : IEvent;
 }
 
-public enum LayoutAlignment : byte
+public enum LayoutType : byte
 {
-    Start = 0,     // Start Alignment (Left/Top)
-    Center = 1,    // Center Alignment
-    End = 2,       // End Alignment (Right/Bottom)
-    Stretch = 3    // Stretch Alignment
+    None,
+    Flex,
+    Absolute
+}
+
+public enum FlexDirection : byte
+{
+    Row,
+    Column
+}
+
+public enum Alignment : byte
+{
+    Start,
+    Center,
+    End,
+    Stretch
+}
+
+public enum SizeUnit : byte
+{
+    Pixel,
+    Percent,
+    Auto
+}
+
+public readonly record struct SizeValue(float Value, SizeUnit Unit)
+{
+    public static readonly SizeValue Auto = new(0, SizeUnit.Auto);
+    public static readonly SizeValue Zero = new(0, SizeUnit.Pixel);
+
+    public static SizeValue Pixels(float value) => new(value, SizeUnit.Pixel);
+    public static SizeValue Percent(float value) => new(value, SizeUnit.Percent);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public readonly float Resolve(float containerSize) => Unit switch
+    {
+        SizeUnit.Pixel => Value,
+        SizeUnit.Percent => containerSize * (Value / 100f),
+        SizeUnit.Auto => 0,
+        _ => 0
+    };
+}
+
+public readonly record struct LayoutConstraints(Vector2 AvailableSize)
+{
+    public static readonly LayoutConstraints Unconstrained = new(new Vector2(float.MaxValue));
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public readonly LayoutConstraints WithAvailableSize(Vector2 availableSize) =>
+        new(availableSize);
 }
 
 public partial record struct UILayout(
     [Sia] LayoutType Type,
-    [Sia] Vector2 Spacing,
-    [Sia] LayoutAlignment Alignment,
-    [Sia] bool AutoResize)
+    [Sia] SizeValue Width,
+    [Sia] SizeValue Height,
+    [Sia] Vector4 Margin,      // left, top, right, bottom
+    [Sia] Vector4 Padding,     // left, top, right, bottom
+    [Sia] bool NeedsLayout)
 {
-    public UILayout() : this(LayoutType.None, new Vector2(5f), LayoutAlignment.Start, true) { }
-}
-
-public partial record struct UILayoutConstraints(
-    [Sia] Vector2 MinSize,
-    [Sia] Vector2 MaxSize,
-    [Sia] Vector2 PreferredSize,
-    [Sia] bool ExpandHorizontal,
-    [Sia] bool ExpandVertical)
-{
-    public UILayoutConstraints() : this(
-        MinSize: Vector2.Zero,
-        MaxSize: new Vector2(float.MaxValue),
-        PreferredSize: new Vector2(100, 30),
-        ExpandHorizontal: false,
-        ExpandVertical: false)
+    public UILayout() : this(
+        LayoutType.None,
+        SizeValue.Auto, SizeValue.Auto,
+        Vector4.Zero, Vector4.Zero,
+        true)
     { }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly Vector2 ClampSize(Vector2 size) => Vector2.Clamp(size, MinSize, MaxSize);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly Vector2 GetActualSize(Vector2 availableSize, Vector2 contentSize)
+    public readonly Vector2 GetContentSize(Vector2 elementSize)
     {
-        var width = ExpandHorizontal ? availableSize.X :
-                   Math.Max(MinSize.X, Math.Min(MaxSize.X, contentSize.X));
+        return new Vector2(
+            Math.Max(0, elementSize.X - Padding.X - Padding.Z), // left + right padding
+            Math.Max(0, elementSize.Y - Padding.Y - Padding.W)  // top + bottom padding
+        );
+    }
 
-        var height = ExpandVertical ? availableSize.Y :
-                    Math.Max(MinSize.Y, Math.Min(MaxSize.Y, contentSize.Y));
+    public readonly record struct InvalidateLayout() : ICommand
+    {
+        public void Execute(World world, Entity target)
+        {
+            if (!target.Contains<UILayout>()) return;
 
-        return new Vector2(width, height);
+            new View(target).NeedsLayout = true;
+            world.Send(target, new UILayoutEvents.LayoutInvalidated(target));
+        }
     }
 }
 
-public readonly record struct UIMargin(float Left, float Top, float Right, float Bottom)
+public partial record struct UIComputedLayout(
+    [Sia] Vector2 Position,
+    [Sia] Vector2 Size,
+    [Sia] Vector2 ContentPosition,
+    [Sia] Vector2 ContentSize)
 {
-    public UIMargin(float all) : this(all, all, all, all) { }
-    public UIMargin(float horizontal, float vertical) : this(horizontal, vertical, horizontal, vertical) { }
+    public UIComputedLayout() : this(
+        Vector2.Zero, Vector2.Zero,
+        Vector2.Zero, Vector2.Zero)
+    { }
 
-    public readonly Vector2 Size => new(Left + Right, Top + Bottom);
-    public readonly Vector2 TopLeft => new(Left, Top);
-
-    public static readonly UIMargin Zero = new(0);
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public readonly RectangleF GetBounds() => new(Position.X, Position.Y, Size.X, Size.Y);
 }
 
-public readonly record struct UIPadding(float Left, float Top, float Right, float Bottom)
+public partial record struct UIFlexContainer(
+    [Sia] FlexDirection Direction,
+    [Sia] Alignment JustifyContent,
+    [Sia] Alignment AlignItems,
+    [Sia] float Gap)
 {
-    public UIPadding(float all) : this(all, all, all, all) { }
-    public UIPadding(float horizontal, float vertical) : this(horizontal, vertical, horizontal, vertical) { }
+    public UIFlexContainer() : this(
+        FlexDirection.Row,
+        Alignment.Start,
+        Alignment.Stretch,
+        0f)
+    { }
 
-    public readonly Vector2 Size => new(Left + Right, Top + Bottom);
-    public readonly Vector2 TopLeft => new(Left, Top);
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public readonly bool IsRowDirection() => Direction == FlexDirection.Row;
+}
 
-    public static readonly UIPadding Zero = new(0);
+public partial record struct UIFlexItem(
+    [Sia] float Grow,
+    [Sia] float Shrink,
+    [Sia] SizeValue Basis)
+{
+    public UIFlexItem() : this(0f, 1f, SizeValue.Auto) { }
+}
+
+public partial record struct UIAbsolutePosition(
+    [Sia] SizeValue Left,
+    [Sia] SizeValue Top,
+    [Sia] SizeValue Right,
+    [Sia] SizeValue Bottom)
+{
+    public UIAbsolutePosition() : this(
+        SizeValue.Auto, SizeValue.Auto,
+        SizeValue.Auto, SizeValue.Auto)
+    { }
 }

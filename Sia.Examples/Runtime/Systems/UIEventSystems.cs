@@ -67,33 +67,30 @@ public sealed class UIClickHitTestSystem : EventSystemBase
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static Entity? FindTopElementByLayer(IReadOnlyList<Entity> candidates)
+    private static Entity? FindTopElementByLayer(IReadOnlyList<Entity> candidates) => candidates.Count switch
     {
-        return candidates.Count switch
-        {
-            0 => null,
-            1 => candidates[0],
-            _ => FindTopElement(candidates)
-        };
+        0 => null,
+        1 => candidates[0],
+        _ => FindTopElement(candidates)
+    };
 
-        static Entity FindTopElement(IReadOnlyList<Entity> candidates)
-        {
-            var topElement = candidates[0];
-            var topLayer = topElement.Contains<UILayer>() ? topElement.Get<UILayer>().Value : 0;
+    private static Entity FindTopElement(IReadOnlyList<Entity> candidates)
+    {
+        var topElement = candidates[0];
+        var topLayer = topElement.Contains<UILayer>() ? topElement.Get<UILayer>().Value : 0;
 
-            for (var i = 1; i < candidates.Count; i++)
+        for (var i = 1; i < candidates.Count; i++)
+        {
+            var candidate = candidates[i];
+            var layer = candidate.Contains<UILayer>() ? candidate.Get<UILayer>().Value : 0;
+            if (layer > topLayer)
             {
-                var candidate = candidates[i];
-                var layer = candidate.Contains<UILayer>() ? candidate.Get<UILayer>().Value : 0;
-                if (layer > topLayer)
-                {
-                    topElement = candidate;
-                    topLayer = layer;
-                }
+                topElement = candidate;
+                topLayer = layer;
             }
-
-            return topElement;
         }
+
+        return topElement;
     }
 }
 

@@ -69,6 +69,36 @@ public enum UIEventMask : byte
 
 public sealed class UIHierarchyTag;
 
+public partial record struct UIStyle(
+    [Sia] Color BackgroundColor,
+    [Sia] Color BorderColor,
+    [Sia] float BorderWidth,
+    [Sia] float CornerRadius)
+{
+    public UIStyle() : this(Color.Transparent, Color.Transparent, 0f, 0f) { }
+
+    public readonly bool HasBorder => BorderWidth > 0 && BorderColor.A > 0;
+    public readonly bool HasBackground => BackgroundColor.A > 0;
+    public readonly bool HasRoundedCorners => CornerRadius > 0;
+
+    public static readonly UIStyle Button = new(Color.LightGray, Color.Gray, 1f, 4f);
+    public static readonly UIStyle Panel = new(Color.FromArgb(80, 40, 40, 50), Color.Transparent, 0f, 2f);
+    public static readonly UIStyle Input = new(Color.White, Color.Gray, 1f, 2f);
+}
+
+public partial record struct UILayer([Sia] int Value)
+{
+    public UILayer() : this(0) { }
+}
+
+public partial record struct UIState([Sia] UIStateFlags Flags)
+{
+    public UIState() : this(UIStateFlags.None) { }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public readonly bool HasFlag(UIStateFlags flag) => (Flags & flag) == flag;
+}
+
 public partial record struct UIElement(
     [Sia] Vector2 Position,
     [Sia] Vector2 Size,
@@ -119,12 +149,25 @@ public partial record struct UIElement(
         {
             if (!IsValidHierarchyOperation(target, Child)) return;
 
-            Child.Execute(new Node<UIHierarchyTag>.SetParent(target));
-
-            if (target.Contains<UILayer>() && Child.Contains<UILayer>())
+            try
             {
-                var parentLayer = target.Get<UILayer>().Value;
-                new UILayer.View(Child).Value = parentLayer + 1;
+                Child.Execute(new Node<UIHierarchyTag>.SetParent(target));
+
+                // Auto-increment layer for child elements
+                if (target.Contains<UILayer>() && Child.Contains<UILayer>())
+                {
+                    var parentLayer = target.Get<UILayer>().Value;
+                    new UILayer.View(Child).Value = parentLayer + 1;
+                }
+
+                if (Child.Contains<UILayout>())
+                {
+                    Child.Execute(new UILayout.InvalidateLayout());
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[UI Error]: Failed to add child {Child} to parent {target}: {ex.Message}");
             }
         }
 
@@ -134,82 +177,6 @@ public partial record struct UIElement(
             target.Contains<Node<UIHierarchyTag>>() &&
             child.Contains<Node<UIHierarchyTag>>();
     }
-}
-
-public partial record struct UILayer(
-    [Sia] int Value)
-{
-    public UILayer() : this(0) { }
-}
-
-public partial record struct UIState(
-    [Sia] UIStateFlags Flags)
-{
-    public UIState() : this(UIStateFlags.None) { }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly bool HasFlag(UIStateFlags flag) => (Flags & flag) == flag;
-}
-
-public partial record struct UIText(
-    [Sia] string Content,
-    [Sia] Color Color,
-    [Sia] float FontSize,
-    [Sia] TextAlignment Alignment)
-{
-    public UIText() : this(string.Empty, Color.Black, 14f, TextAlignment.Left) { }
-
-    public readonly bool IsEmpty => string.IsNullOrWhiteSpace(Content);
-
-    public readonly record struct SetText(string Content) : ICommand
-    {
-        public void Execute(World world, Entity target)
-        {
-            new View(target).Content = Content ?? string.Empty;
-
-            if (target.Contains<UIScrollable>())
-            {
-                new UIScrollable.View(target).ScrollOffset = Vector2.Zero;
-            }
-        }
-    }
-}
-
-public partial record struct UIStyle(
-    [Sia] Color BackgroundColor,
-    [Sia] Color BorderColor,
-    [Sia] float BorderWidth,
-    [Sia] float CornerRadius)
-{
-    public UIStyle() : this(Color.Transparent, Color.Transparent, 0f, 0f) { }
-
-    public readonly bool HasBorder => BorderWidth > 0 && BorderColor.A > 0;
-    public readonly bool HasBackground => BackgroundColor.A > 0;
-    public readonly bool HasRoundedCorners => CornerRadius > 0;
-
-    public static readonly UIStyle Button = new(Color.LightGray, Color.Gray, 1f, 4f);
-    public static readonly UIStyle Panel = new(Color.FromArgb(80, 40, 40, 50), Color.Transparent, 0f, 2f);
-    public static readonly UIStyle Input = new(Color.White, Color.Gray, 1f, 2f);
-}
-
-public partial record struct UIButton(
-    [Sia] UIStyle NormalStyle,
-    [Sia] UIStyle HoverStyle,
-    [Sia] UIStyle PressedStyle)
-{
-    public UIButton() : this(
-        NormalStyle: UIStyle.Button,
-        HoverStyle: UIStyle.Button with { BackgroundColor = Color.FromArgb(255, 200, 200, 200) },
-        PressedStyle: UIStyle.Button with { BackgroundColor = Color.FromArgb(255, 150, 150, 150) })
-    { }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly UIStyle GetStyleForState(UIStateFlags state) => state switch
-    {
-        _ when (state & UIStateFlags.Pressed) != 0 => PressedStyle,
-        _ when (state & UIStateFlags.Hovered) != 0 => HoverStyle,
-        _ => NormalStyle
-    };
 }
 
 public partial record struct UIScrollable(
@@ -252,4 +219,49 @@ public partial record struct UIEventListener(
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public readonly bool AcceptsEvent(UIEventMask eventType) => (EventMask & eventType) == eventType;
+}
+
+public partial record struct UIText(
+    [Sia] string Content,
+    [Sia] Color Color,
+    [Sia] float FontSize,
+    [Sia] TextAlignment Alignment)
+{
+    public UIText() : this(string.Empty, Color.Black, 14f, TextAlignment.Left) { }
+
+    public readonly bool IsEmpty => string.IsNullOrWhiteSpace(Content);
+
+    public readonly record struct SetText(string Content) : ICommand
+    {
+        public void Execute(World world, Entity target)
+        {
+            new View(target).Content = Content ?? string.Empty;
+
+            // Reset scroll position when text changes
+            if (target.Contains<UIScrollable>())
+            {
+                new UIScrollable.View(target).ScrollOffset = Vector2.Zero;
+            }
+        }
+    }
+}
+
+public partial record struct UIButton(
+    [Sia] UIStyle NormalStyle,
+    [Sia] UIStyle HoverStyle,
+    [Sia] UIStyle PressedStyle)
+{
+    public UIButton() : this(
+        NormalStyle: UIStyle.Button,
+        HoverStyle: UIStyle.Button with { BackgroundColor = Color.FromArgb(255, 200, 200, 200) },
+        PressedStyle: UIStyle.Button with { BackgroundColor = Color.FromArgb(255, 150, 150, 150) })
+    { }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public readonly UIStyle GetStyleForState(UIStateFlags state) => state switch
+    {
+        _ when (state & UIStateFlags.Pressed) != 0 => PressedStyle,
+        _ when (state & UIStateFlags.Hovered) != 0 => HoverStyle,
+        _ => NormalStyle
+    };
 }
