@@ -29,8 +29,8 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
 
     private readonly SKTypeface _typeface = SKTypeface.FromFamilyName("sans-serif") ??
                                             SKTypeface.Default;
-    private readonly List<RenderElement> _renderQueue = new(128);
 
+    private readonly List<RenderElement> _renderQueue = new(128);
 
     public void Initialize(GL gl)
     {
