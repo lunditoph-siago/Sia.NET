@@ -26,10 +26,20 @@ public class InputSystem : IAddon
     public void Initialize(IInputContext inputContext)
     {
         _inputContext = inputContext ?? throw new ArgumentNullException(nameof(inputContext));
+        CreateExistingDevices();
         SetupHandlers();
     }
 
     #region Setup and Cleanup
+
+    private void CreateExistingDevices()
+    {
+        if (_inputContext is null) return;
+        foreach (var keyboard in _inputContext.Keyboards)
+            CreateInputDevice(keyboard.Name);
+        foreach (var mouse in _inputContext.Mice)
+            CreateInputDevice(mouse.Name);
+    }
 
     private void SetupHandlers()
     {
@@ -93,12 +103,13 @@ public class InputSystem : IAddon
 
     private void CreateInputDevice(string deviceId)
     {
-        var entity = _world!.Create(HList.From(new InputDevice(deviceId, true)));
-
-        entity.Add(new MouseState());
-        entity.Add(new KeyboardState());
-        entity.Add(new MouseButtonState());
-        entity.Add(new ScrollState());
+        _world!.Create(HList.From(
+            new InputDevice(deviceId, true),
+            new MouseState(),
+            new KeyboardState(),
+            new MouseButtonState(),
+            new ScrollState()
+        ));
     }
 
     private void RemoveInputDevice(string deviceId)
