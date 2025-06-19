@@ -1,9 +1,38 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using Sia.Examples.Runtime.Components;
+using Sia.Reactors;
 using Silk.NET.Input;
 
 namespace Sia.Examples.Runtime.Systems;
+
+internal static class UIHitTestUtils
+{
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Vector2 GetScrollOffset(Entity entity)
+    {
+        Vector2 offset = Vector2.Zero;
+        var current = entity;
+        while (current.Contains<Node<UIHierarchyTag>>())
+        {
+            var parent = current.Get<Node<UIHierarchyTag>>().Parent;
+            if (parent is null) break;
+            if (parent.Contains<UIScrollable>())
+                offset += parent.Get<UIScrollable>().ScrollOffset;
+            current = parent;
+        }
+        return offset;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static bool ContainsWithScroll(Entity entity, Vector2 position)
+    {
+        if (!entity.Contains<UIElement>()) return false;
+        ref readonly var element = ref entity.Get<UIElement>();
+        var adjustedPos = position + GetScrollOffset(entity);
+        return element.Contains(adjustedPos);
+    }
+}
 
 public sealed class UIClickHitTestSystem : EventSystemBase
 {
@@ -57,7 +86,7 @@ public sealed class UIClickHitTestSystem : EventSystemBase
             if (!listener.AcceptsEvent(UIEventMask.Click))
                 continue;
 
-            if (!element.Contains(position))
+            if (!UIHitTestUtils.ContainsWithScroll(entity, position))
                 continue;
 
             _candidateElements.Add(entity);
@@ -149,7 +178,7 @@ public sealed class UIHoverStateSystem : EventSystemBase
             if (!listener.AcceptsEvent(UIEventMask.Hover))
                 continue;
 
-            if (!element.Contains(position))
+            if (!UIHitTestUtils.ContainsWithScroll(entity, position))
                 continue;
 
             var layer = entity.Contains<UILayer>() ? entity.Get<UILayer>().Value : 0;
@@ -264,7 +293,7 @@ public sealed class UIButtonInteractionSystem : EventSystemBase
             if (!element.IsVisible || !element.IsInteractable || !listener.IsEnabled)
                 continue;
 
-            if (!element.Contains(position))
+            if (!UIHitTestUtils.ContainsWithScroll(entity, position))
                 continue;
 
             var layer = entity.Contains<UILayer>() ? entity.Get<UILayer>().Value : 0;
@@ -355,7 +384,7 @@ public sealed class UIScrollInteractionSystem : EventSystemBase
             if (!listener.AcceptsEvent(UIEventMask.Scroll))
                 continue;
 
-            if (!element.Contains(position))
+            if (!UIHitTestUtils.ContainsWithScroll(entity, position))
                 continue;
 
             var layer = entity.Contains<UILayer>() ? entity.Get<UILayer>().Value : 0;

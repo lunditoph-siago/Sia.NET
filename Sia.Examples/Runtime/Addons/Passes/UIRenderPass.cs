@@ -142,6 +142,9 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
 
         foreach (var entity in query)
         {
+            if (HasScrollableAncestor(entity))
+                continue;
+
             ref readonly var element = ref entity.Get<UIElement>();
             if (!element.IsVisible) continue;
 
@@ -152,6 +155,22 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
                 entity, layer, depth, element.Position, element.Size
             ));
         }
+    }
+
+    private static bool HasScrollableAncestor(Entity entity)
+    {
+        if (!entity.Contains<Node<UIHierarchyTag>>()) return false;
+
+        var parent = entity.Get<Node<UIHierarchyTag>>().Parent;
+        while (parent is not null)
+        {
+            if (parent.Contains<UIScrollable>())
+                return true;
+            parent = parent.Contains<Node<UIHierarchyTag>>()
+                ? parent.Get<Node<UIHierarchyTag>>().Parent
+                : null;
+        }
+        return false;
     }
 
     private static int CalculateHierarchyDepth(Entity entity)
@@ -228,6 +247,9 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
         if (entity.Contains<UIButton>()) RenderButtonState(entity, size);
 
         if (entity.Contains<UIText>()) RenderElementText(entity, size);
+
+        if (entity.Contains<Node<UIHierarchyTag>>() && HasScrollableAncestor(entity))
+            RenderChildren(entity);
     }
 
     private void RenderScrollableElement(Entity entity, Vector2 size)
@@ -254,6 +276,8 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
             {
                 RenderScrollableText(entity, scrollable.ContentSize);
             }
+
+            RenderChildren(entity);
         }
         finally
         {
@@ -261,6 +285,36 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
         }
 
         RenderScrollbars(entity, size, scrollable);
+    }
+
+    private void RenderChildren(Entity parent)
+    {
+        if (!parent.Contains<Node<UIHierarchyTag>>()) return;
+
+        ref readonly var node = ref parent.Get<Node<UIHierarchyTag>>();
+        foreach (var child in node.Children)
+        {
+            if (!child.IsValid || !child.Contains<UIElement>()) continue;
+
+            ref readonly var childElement = ref child.Get<UIElement>();
+
+            _canvas!.Save();
+            try
+            {
+                var parentPos = parent.Contains<UIElement>() ? parent.Get<UIElement>().Position : Vector2.Zero;
+                var relativePos = childElement.Position - parentPos;
+                _canvas.Translate(relativePos.X, relativePos.Y);
+
+                if (child.Contains<UIScrollable>())
+                    RenderScrollableElement(child, childElement.Size);
+                else
+                    RenderStaticElement(child, childElement.Size);
+            }
+            finally
+            {
+                _canvas.Restore();
+            }
+        }
     }
 
     private void RenderElementStyle(Entity entity, Vector2 size)
