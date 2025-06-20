@@ -374,19 +374,34 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
         var font = GetOrCreateFont(text.FontSize);
         var paint = GetOrCreatePaint(text.Color);
 
-        font.MeasureText(text.Content, out var textBounds, paint);
+        var lines = text.Content.Split('\n');
+        var lineHeight = text.FontSize * 1.2f;
 
-        var x = text.Alignment switch
+        var totalTextHeight = lines.Length * lineHeight;
+
+        var startY = (size.Y - totalTextHeight) * 0.5f + text.FontSize;
+
+        for (var i = 0; i < lines.Length; i++)
         {
-            TextAlignment.Left => 0,
-            TextAlignment.Center => (size.X - textBounds.Width) * 0.5f,
-            TextAlignment.Right => size.X - textBounds.Width,
-            _ => 0
-        };
+            if (string.IsNullOrEmpty(lines[i])) continue;
 
-        var y = (size.Y - textBounds.Height) * 0.5f + textBounds.Height;
+            // Measure current line for horizontal alignment
+            font.MeasureText(lines[i], out var lineBounds, paint);
 
-        _canvas!.DrawText(text.Content, x, y, SKTextAlign.Left, font, paint);
+            var x = text.Alignment switch
+            {
+                TextAlignment.Left => 0,
+                TextAlignment.Center => (size.X - lineBounds.Width) * 0.5f,
+                TextAlignment.Right => size.X - lineBounds.Width,
+                _ => 0
+            };
+
+            var y = startY + i * lineHeight;
+
+            Console.WriteLine($"  Line {i}: X={x}, Y={y}, Content='{lines[i]}'");
+
+            _canvas!.DrawText(lines[i], x, y, SKTextAlign.Left, font, paint);
+        }
     }
 
     private void RenderScrollableText(Entity entity, Vector2 contentSize)
