@@ -60,10 +60,6 @@ public readonly record struct SizeValue(float Value, SizeUnit Unit)
 public readonly record struct LayoutConstraints(Vector2 AvailableSize)
 {
     public static readonly LayoutConstraints Unconstrained = new(new Vector2(float.MaxValue));
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly LayoutConstraints WithAvailableSize(Vector2 availableSize) =>
-        new(availableSize);
 }
 
 public partial record struct UILayout(
@@ -94,8 +90,6 @@ public partial record struct UILayout(
     {
         public void Execute(World world, Entity target)
         {
-            if (!target.Contains<UILayout>()) return;
-
             new View(target).NeedsLayout = true;
             world.Send(target, new UILayoutEvents.LayoutInvalidated(target));
         }

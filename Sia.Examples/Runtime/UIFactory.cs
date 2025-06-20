@@ -23,7 +23,7 @@ public static class UIFactory
             new UILayer(layer),
             new UIState(),
             new UIEventListener(),
-            new UILayout(),
+            new UILayout(LayoutType.None, SizeValue.Pixels(size.X), SizeValue.Pixels(size.Y), Vector4.Zero, Vector4.Zero, true),
             new UIComputedLayout(),
             new Node<UIHierarchyTag>(parent)
         ));
@@ -231,45 +231,6 @@ public static class UIFactory
             new Node<UIHierarchyTag>(parent)
         ));
 
-        return entity;
-    }
-
-    #endregion
-
-    #region Utility Methods
-
-    public static Entity UpdateText(Entity entity, string content, Color? color = null, float? fontSize = null)
-    {
-        if (!entity.Contains<UIText>()) return entity;
-
-        var textView = new UIText.View(entity);
-        textView.Content = content;
-
-        if (color.HasValue)
-            textView.Color = color.Value;
-
-        if (fontSize.HasValue)
-            textView.FontSize = fontSize.Value;
-
-        return entity;
-    }
-
-    public static Entity SetVisible(Entity entity, bool visible)
-    {
-        entity.Execute(new UIElement.SetVisible(visible));
-        return entity;
-    }
-
-    public static Entity SetInteractable(Entity entity, bool interactable)
-    {
-        entity.Execute(new UIElement.SetInteractable(interactable));
-        return entity;
-    }
-
-    public static Entity UpdateScrollContent(Entity entity, Vector2 contentSize)
-    {
-        if (entity.Contains<UIScrollable>())
-            new UIScrollable.View(entity).ContentSize = contentSize;
         return entity;
     }
 

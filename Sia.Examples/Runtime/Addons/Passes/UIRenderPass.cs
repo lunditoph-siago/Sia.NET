@@ -143,7 +143,7 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
         foreach (var entity in query)
         {
             if (HasScrollableAncestor(entity))
-                continue;
+                continue; // Skip elements handled by scroll container
 
             ref readonly var element = ref entity.Get<UIElement>();
             if (!element.IsVisible) continue;
@@ -190,9 +190,9 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
         return depth;
     }
 
-    // Sort by layer first, then by hierarchy depth (parents before children)
     private void SortRenderElements()
     {
+        // Sort render queue by layer then hierarchy depth
         _renderQueue.Sort(static (a, b) =>
         {
             var layerComparison = a.Layer.CompareTo(b.Layer);
@@ -205,7 +205,7 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
         foreach (var renderElement in _renderQueue)
         {
             if (!IsInViewport(renderElement.WorldPosition, renderElement.Size))
-                continue;
+                continue; // Cull elements outside viewport
 
             RenderSingleElement(renderElement);
         }
@@ -224,10 +224,10 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
         var entity = renderElement.Entity;
         if (!entity.IsValid) return;
 
-        _canvas!.Save();
+        _canvas!.Save(); // Push transform stack
         try
         {
-            _canvas.Translate(renderElement.WorldPosition.X, renderElement.WorldPosition.Y);
+            _canvas.Translate(renderElement.WorldPosition.X, renderElement.WorldPosition.Y); // Move to element origin
 
             if (entity.Contains<UIScrollable>())
                 RenderScrollableElement(entity, renderElement.Size);
@@ -248,6 +248,7 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
 
         if (entity.Contains<UIText>()) RenderElementText(entity, size);
 
+        // Render children if inside scroll hierarchy
         if (entity.Contains<Node<UIHierarchyTag>>() && HasScrollableAncestor(entity))
             RenderChildren(entity);
     }
@@ -284,7 +285,7 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
             _canvas.Restore();
         }
 
-        RenderScrollbars(entity, size, scrollable);
+        RenderScrollbars(size, scrollable);
     }
 
     private void RenderChildren(Entity parent)
@@ -406,7 +407,7 @@ public class UIRenderPass(int windowWidth, int windowHeight) : IRenderPass
         }
     }
 
-    private void RenderScrollbars(Entity entity, Vector2 viewportSize, UIScrollable scrollable)
+    private void RenderScrollbars(Vector2 viewportSize, UIScrollable scrollable)
     {
         var maxOffset = scrollable.GetMaxScrollOffset(viewportSize);
 
