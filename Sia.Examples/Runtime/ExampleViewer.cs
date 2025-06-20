@@ -15,12 +15,12 @@ public sealed class ExampleViewer(IReadOnlyList<ExampleItem> examples) : IDispos
 {
     private readonly IReadOnlyList<ExampleItem> _examples = examples;
     private readonly ExampleRunner _runner = new(examples);
-    
+
     private IWindow? _window;
     private World? _world;
     private SystemStage? _systemStage;
     private RenderPipeline? _renderPipeline;
-    
+
     private Entity? _outputTextEntity;
     private bool _disposed;
 
@@ -97,11 +97,15 @@ public sealed class ExampleViewer(IReadOnlyList<ExampleItem> examples) : IDispos
     private void CreateUI()
     {
         var windowSize = new Vector2(_window!.Size.X, _window.Size.Y);
-        
+
         var root = _world!.Create(HList.From(
             new UIElement(Vector2.Zero, windowSize, true, true),
             new UIStyle(),
             new UILayer(0),
+            new UIState(),
+            new UIEventListener(),
+            new UILayout(LayoutType.None, SizeValue.Pixels(windowSize.X), SizeValue.Pixels(windowSize.Y), Vector4.Zero, Vector4.Zero, true),
+            new UIComputedLayout(),
             new Node<UIHierarchyTag>()
         ));
 
@@ -115,8 +119,11 @@ public sealed class ExampleViewer(IReadOnlyList<ExampleItem> examples) : IDispos
             new UIElement(new Vector2(10, 10), new Vector2(300, _window!.Size.Y - 20), true, true),
             new UIStyle(Color.FromArgb(60, 40, 40, 40), Color.Gray, 1f, 4f),
             new UILayer(1),
-            new UIScrollable(new Vector2(300, _examples.Count * 50), Vector2.Zero, ScrollDirection.Vertical, 20f),
+            new UIState(),
             new UIEventListener(true, UIEventMask.Scroll),
+            new UILayout(LayoutType.None, SizeValue.Pixels(300), SizeValue.Pixels(_window.Size.Y - 20), Vector4.Zero, new Vector4(10, 10, 10, 10), true),
+            new UIComputedLayout(),
+            new UIScrollable(new Vector2(300, _examples.Count * 50), Vector2.Zero, ScrollDirection.Vertical, 20f),
             new Node<UIHierarchyTag>(parent)
         ));
 
@@ -124,17 +131,30 @@ public sealed class ExampleViewer(IReadOnlyList<ExampleItem> examples) : IDispos
         {
             var example = _examples[i];
             var yPos = i * 50 + 10;
-            
+
             var button = _world!.Create(HList.From(
                 new UIElement(new Vector2(10, yPos), new Vector2(280, 40), true, true),
                 new UIButton(),
-                new UIText($"{i + 1:D2}. {example.Name}", Color.Black, 14f, TextAlignment.Left),
                 new UIStyle(Color.LightGray, Color.Gray, 1f, 4f),
                 new UILayer(2),
-                new UIEventListener(true, UIEventMask.Click | UIEventMask.Hover),
                 new UIState(),
+                new UIEventListener(true, UIEventMask.Click | UIEventMask.Hover),
+                new UILayout(LayoutType.None, SizeValue.Pixels(280), SizeValue.Pixels(40), Vector4.Zero, new Vector4(8, 8, 8, 8), true),
+                new UIComputedLayout(),
                 new ExampleIndex(i),
                 new Node<UIHierarchyTag>(listPanel)
+            ));
+
+            var buttonText = _world!.Create(HList.From(
+                new UIElement(new Vector2(0, 0), new Vector2(280 - 16, 60), true, false),
+                new UIText($"{i + 1:D2}. {example.Name}", Color.Black, 14f, TextAlignment.Left),
+                new UIStyle(),
+                new UILayer(3),
+                new UIState(),
+                new UIEventListener(false, UIEventMask.None),
+                new UILayout(LayoutType.None, SizeValue.Auto, SizeValue.Auto, Vector4.Zero, Vector4.Zero, true),
+                new UIComputedLayout(),
+                new Node<UIHierarchyTag>(button)
             ));
         }
     }
@@ -145,8 +165,11 @@ public sealed class ExampleViewer(IReadOnlyList<ExampleItem> examples) : IDispos
             new UIElement(new Vector2(320, 10), new Vector2(_window!.Size.X - 330, _window.Size.Y - 20), true, true),
             new UIStyle(Color.FromArgb(80, 30, 30, 30), Color.DimGray, 1f, 4f),
             new UILayer(1),
-            new UIScrollable(new Vector2(_window.Size.X - 350, 1000), Vector2.Zero, ScrollDirection.Vertical, 25f),
+            new UIState(),
             new UIEventListener(true, UIEventMask.Scroll),
+            new UILayout(LayoutType.None, SizeValue.Pixels(_window.Size.X - 330), SizeValue.Pixels(_window.Size.Y - 20), Vector4.Zero, new Vector4(10, 10, 10, 10), true),
+            new UIComputedLayout(),
+            new UIScrollable(new Vector2(_window.Size.X - 350, 1000), Vector2.Zero, ScrollDirection.Vertical, 25f),
             new Node<UIHierarchyTag>(parent)
         ));
 
@@ -155,8 +178,12 @@ public sealed class ExampleViewer(IReadOnlyList<ExampleItem> examples) : IDispos
             new UIText("Please select an example from the left list to run.", Color.White, 13f, TextAlignment.Left),
             new UIStyle(),
             new UILayer(2),
-            new Node<UIHierarchyTag>(outputPanel),
-            new OutputTextTag()
+            new UIState(),
+            new UIEventListener(false, UIEventMask.None),
+            new UILayout(LayoutType.None, SizeValue.Auto, SizeValue.Auto, Vector4.Zero, Vector4.Zero, true),
+            new UIComputedLayout(),
+            new OutputTextTag(),
+            new Node<UIHierarchyTag>(outputPanel)
         ));
     }
 
@@ -165,11 +192,11 @@ public sealed class ExampleViewer(IReadOnlyList<ExampleItem> examples) : IDispos
         if (_outputTextEntity is null || !_outputTextEntity.IsValid) return;
 
         _outputTextEntity.Execute(new UIText.SetText(content));
-        
+
         var lines = content.Split('\n').Length;
         var textHeight = lines * 16f;
         new UIElement.View(_outputTextEntity).Size = new Vector2(
-            _outputTextEntity.Get<UIElement>().Size.X, 
+            _outputTextEntity.Get<UIElement>().Size.X,
             textHeight);
     }
 
@@ -207,10 +234,10 @@ public sealed class ExampleViewer(IReadOnlyList<ExampleItem> examples) : IDispos
         {
             if (@event is not UIEvents.ButtonPressed) return;
             if (!entity.Contains<ExampleIndex>()) return;
-            
+
             var exampleIndex = entity.Get<ExampleIndex>().Value;
             var output = _viewer?.RunExample(exampleIndex);
-            
+
             if (output is not null)
             {
                 _viewer!.DisplayOutput(output);
