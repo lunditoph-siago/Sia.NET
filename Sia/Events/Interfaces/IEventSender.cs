@@ -1,6 +1,6 @@
 namespace Sia;
 
-public interface IEventSender<TTarget, in TEvent>
+public interface IEventSender<in TTarget, in TEvent>
     where TEvent : IEvent
 {
     void Send<UEvent>(TTarget target, in UEvent e)

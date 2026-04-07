@@ -14,7 +14,7 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
         TComponentSerializer serializer, TBufferWriter* writer) : IRefGenericHandler<IHList>
         where TBufferWriter : IBufferWriter<byte>
     {
-        private unsafe struct HeadHandler(
+        private struct HeadHandler(
             TComponentSerializer serializer, TBufferWriter* writer) : IRefGenericHandler
         {
             public void Handle<T>(ref T component)
@@ -36,7 +36,7 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
         Dictionary<EntityId, Entity> entityMap)
         : IRefGenericHandler<IHList>
     {
-        private unsafe struct HeadHandler(
+        private struct HeadHandler(
             TComponentSerializer serializer, ReadOnlySequence<byte>* buffer,
             Dictionary<EntityId, Entity> entityMap)
             : IRefGenericHandler
@@ -109,7 +109,7 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
                 buffer = reader.UnreadSequence;
                 var comps = host.Descriptor.Components;
 
-                for (int i = 0; i != entityCount; ++i) {
+                for (var i = 0; i != entityCount; ++i) {
                     var e = host.Create();
                     EntityId id = default;
                     serializer.Deserialize(ref buffer, ref id, entityMap);

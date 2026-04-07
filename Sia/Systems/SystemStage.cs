@@ -49,11 +49,11 @@ public sealed class SystemStage : IDisposable
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Remove(Entity entity)
         {
-            if (!_entityMap.Remove(entity, out int index)) {
+            if (!_entityMap.Remove(entity, out var index)) {
                 return false;
             }
             Version++;
-            int lastIndex = _entities.Count - 1;
+            var lastIndex = _entities.Count - 1;
             if (index == lastIndex) {
                 _entities.RemoveAt(lastIndex);
             }
@@ -196,9 +196,9 @@ public sealed class SystemStage : IDisposable
         
         public int Count {
             get {
-                int count = 0;
+                var count = 0;
                 var span = _hosts.AsSpan();
-                for (int i = 0; i != span.Length; ++i) {
+                for (var i = 0; i != span.Length; ++i) {
                     count += span[i].Count;
                 }
                 return count;

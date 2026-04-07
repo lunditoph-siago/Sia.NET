@@ -29,7 +29,7 @@ public sealed class RunnerBarrier
     private int _callbackCount;
     private readonly CallbackEntry[] _callbacks = new CallbackEntry[32];
 
-    private readonly static DefaultObjectPool<RunnerBarrier> s_barrierPool
+    private static readonly DefaultObjectPool<RunnerBarrier> s_barrierPool
         = new(new PoolPolicy());
 
     public static RunnerBarrier Get() => s_barrierPool.Get();
@@ -64,7 +64,7 @@ public sealed class RunnerBarrier
         Exception? exception;
 
         try {
-            for (int i = 0; i != _callbackCount; ++i) {
+            for (var i = 0; i != _callbackCount; ++i) {
                 ref var entry = ref _callbacks[i];
                 entry.Callback(entry.UserData);
             }

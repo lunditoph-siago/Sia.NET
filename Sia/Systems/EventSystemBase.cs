@@ -198,7 +198,7 @@ public abstract class SnapshotEventSystemBase<TSnapshot>(SystemChain? children =
 
             TSnapshot lastSnapshot;
 
-            ref var snapshot = ref CollectionsMarshal.GetValueRefOrAddDefault(_snapshots, entity, out bool exists);
+            ref var snapshot = ref CollectionsMarshal.GetValueRefOrAddDefault(_snapshots, entity, out var exists);
             if (!exists) {
                 snapshot = Snapshot(entity, e);
                 lastSnapshot = snapshot;

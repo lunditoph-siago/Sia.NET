@@ -27,14 +27,14 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
     public void Listen<UEvent>(Listener<UEvent> listener)
         where UEvent : TEvent
     {
-        int typeIndex = EventTypeIndexer<UEvent>.Index;
+        var typeIndex = EventTypeIndexer<UEvent>.Index;
 
         List<Listener<UEvent>> listeners;
         ref var rawListeners = ref _eventListeners.GetRefOrNullRef(typeIndex);
         
         if (Unsafe.IsNullRef(ref rawListeners) || rawListeners == null) {
             listeners = [];
-            int count = _eventListeners.Count;
+            var count = _eventListeners.Count;
             if (count <= typeIndex) {
                 _eventListeners.Count = typeIndex + 1;
             }
@@ -68,7 +68,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
     {
         GuardNotSending();
 
-        int typeIndex = EventTypeIndexer<UEvent>.Index;
+        var typeIndex = EventTypeIndexer<UEvent>.Index;
         ref var rawListeners = ref _eventListeners.GetRefOrNullRef(typeIndex);
 
         if (Unsafe.IsNullRef(ref rawListeners) || rawListeners == null) {
@@ -76,13 +76,13 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
         }
 
         var listeners = (List<Listener<UEvent>>)rawListeners;
-        int index = listeners.IndexOf(listener);
+        var index = listeners.IndexOf(listener);
 
         if (index == -1) {
             return false;
         }
 
-        int lastIndex = listeners.Count - 1;
+        var lastIndex = listeners.Count - 1;
         if (index != lastIndex) {
             listeners[index] = listeners[lastIndex];
         }
@@ -105,12 +105,12 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
             return true;
         }
 
-        int index = listeners.IndexOf(listener);
+        var index = listeners.IndexOf(listener);
         if (index == -1) {
             return false;
         }
 
-        int lastIndex = listeners.Count - 1;
+        var lastIndex = listeners.Count - 1;
         if (index != lastIndex) {
             listeners[index] = listeners[lastIndex];
         }
@@ -123,7 +123,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
     {
         GuardNotSending();
 
-        int typeIndex = EventTypeIndexer<UEvent>.Index;
+        var typeIndex = EventTypeIndexer<UEvent>.Index;
         ref var rawListeners = ref _eventListeners.GetRefOrNullRef(typeIndex);
         if (Unsafe.IsNullRef(ref rawListeners) || rawListeners == null) {
             return;
@@ -164,12 +164,12 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
     {
         _sending = true;
 
-        int typeIndex = EventTypeIndexer<UEvent>.Index;
+        var typeIndex = EventTypeIndexer<UEvent>.Index;
 
         try {
-            int globalListenerCount = _globalListeners.Count;
-            int eventListenerCount = 0;
-            int targetListenerCount = 0;
+            var globalListenerCount = _globalListeners.Count;
+            var eventListenerCount = 0;
+            var targetListenerCount = 0;
 
             List<Listener<UEvent>>? eventListeners = null;
             ref var rawEventListeners = ref _eventListeners.GetRefOrNullRef(typeIndex);
@@ -203,11 +203,11 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
         TTarget target, List<IEventListener<TTarget>> listeners, in UEvent e, int length)
         where UEvent : TEvent
     {
-        int initialLength = length;
+        var initialLength = length;
 
         try {
-            for (int i = 0; i < length; ++i) {
-                bool exit = false;
+            for (var i = 0; i < length; ++i) {
+                var exit = false;
                 while (listeners[i].OnEvent(target, e)) {
                     listeners[i] = listeners[length - 1];
                     length--;
@@ -231,11 +231,11 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
         TTarget target, List<Listener<UEvent>> listeners, in UEvent e, int length)
         where UEvent : TEvent
     {
-        int initialLength = length;
+        var initialLength = length;
 
         try {
-            for (int i = 0; i < length; ++i) {
-                bool exit = false;
+            for (var i = 0; i < length; ++i) {
+                var exit = false;
                 while (listeners[i](target, e)) {
                     listeners[i] = listeners[length - 1];
                     length--;

@@ -14,7 +14,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     where TEntity : struct, IHList
     where TInnerHost : IEntityHost<TEntity>, new()
 {
-    private unsafe readonly struct SiblingInnerHostGetter<UEntity>(World world, IEntityHost<UEntity>* host)
+    private readonly unsafe struct SiblingInnerHostGetter<UEntity>(World world, IEntityHost<UEntity>* host)
         : IGenericConcreteTypeHandler<IEntityHost<UEntity>>
         where UEntity : struct, IHList
     {

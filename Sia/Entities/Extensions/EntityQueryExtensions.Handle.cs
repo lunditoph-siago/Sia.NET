@@ -16,8 +16,8 @@ public static partial class EntityQueryExtensions
     {
         IEntityHost host;
 
-        int hostIndex = -1;
-        int counter = 0;
+        var hostIndex = -1;
+        var counter = 0;
         int prevCounter;
 
         do {
@@ -38,7 +38,7 @@ public static partial class EntityQueryExtensions
         if (count == 0) {
             return;
         }
-        
+
         static void Action(in HandleData data, (int, int) range)
         {
             var (from, to) = range;
@@ -47,7 +47,7 @@ public static partial class EntityQueryExtensions
             var handler = data.Handler;
             var hosts = data.Query.Hosts;
             var (host, hostIndex, slotIndex) = FindHost(hosts, from);
-            int version = host.Version;
+            var version = host.Version;
 
             while (true) {
                 var slotCount = host.Count;
@@ -89,9 +89,9 @@ public static partial class EntityQueryExtensions
             var handler = data.Handler;
             var hosts = data.Query.Hosts;
             var (host, hostIndex, slotIndex) = FindHost(hosts, from);
-            int version = host.Version;
+            var version = host.Version;
 
-            int slotCount = host.Count - slotIndex;
+            var slotCount = host.Count - slotIndex;
             if (remainingCount <= slotCount) {
                 handler(host, data.UserData, slotIndex, slotIndex + remainingCount);
                 GuardVersion(version, host.Version);
@@ -157,6 +157,6 @@ public static partial class EntityQueryExtensions
         query.Handle(data, handler, ParallelRunner.Default, barrier);
         barrier.WaitAndReturn();
     }
-    
+
     #endregion // ParallelRunner
 }

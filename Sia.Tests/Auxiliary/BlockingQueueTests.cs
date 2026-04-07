@@ -22,14 +22,13 @@ public class BlockingQueueTests
     }
 
     [Fact]
-    public void BlockingQueue_Complete_UnblocksDequeue_Test()
+    public async Task BlockingQueue_Complete_UnblocksDequeue_Test()
     {
         var queue = new BlockingQueue<int>();
         var task = Task.Run(() => Assert.False(queue.Dequeue(out _)));
 
-        Thread.Sleep(100);
         queue.Complete();
-        task.Wait();
+        await task;
     }
 
     [Fact]
