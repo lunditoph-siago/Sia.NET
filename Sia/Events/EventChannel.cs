@@ -40,7 +40,7 @@ public class EventChannel<TTarget, TEvent> : IEventSender<TTarget, TEvent>
 
     private static readonly Comparison<EventEntry> CompareIndexedPriority
         = (e1, e2) => {
-            int pc = e1.Priority.CompareTo(e2.Priority);
+            var pc = e1.Priority.CompareTo(e2.Priority);
             return pc == 0 ? e1.Index.CompareTo(e2.Index) : pc;
         };
 
@@ -51,10 +51,10 @@ public class EventChannel<TTarget, TEvent> : IEventSender<TTarget, TEvent>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static int InterlockedXor(ref int location1, int value)
     {
-        int current = location1;
+        var current = location1;
         while (true) {
-            int newValue = current ^ value;
-            int oldValue = Interlocked.CompareExchange(ref location1, newValue, current);
+            var newValue = current ^ value;
+            var oldValue = Interlocked.CompareExchange(ref location1, newValue, current);
             if (oldValue == current) {
                 return oldValue;
             }
@@ -124,7 +124,7 @@ public class EventChannel<TTarget, TEvent> : IEventSender<TTarget, TEvent>
             var span = CollectionsMarshal.AsSpan(relayingEvents);
             relayingEvents.Sort(CompareIndexedPriority);
 
-            int count = 0;
+            var count = 0;
             try {
                 foreach (ref var entry in span) {
                     ++count;

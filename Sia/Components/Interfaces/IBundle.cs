@@ -11,6 +11,6 @@ public interface IBundle
 
 public interface IStaticBundle : IBundle
 {
-    abstract static void StaticHandleHListType<THandler>(in THandler handler)
+    static abstract void StaticHandleHListType<THandler>(in THandler handler)
         where THandler : IGenericStructTypeHandler<IHList>;
 }

@@ -40,8 +40,8 @@ public class SizedHistory<TTarget, TEvent> : IHistory<TTarget, TEvent>
                 throw new InvalidOperationException("History was modified during enumeration");
             }
 
-            int count = _history.Count;
-            int capacity = _history.Capacity;
+            var count = _history.Count;
+            var capacity = _history.Capacity;
 
             if (_accum >= count) {
                 return false;
@@ -131,7 +131,7 @@ public class SizedHistory<TTarget, TEvent> : IHistory<TTarget, TEvent>
         var span = _events.Span;
         var adder = _lastIndex + Capacity;
 
-        for (int i = 0; i < Count; ++i) {
+        for (var i = 0; i < Count; ++i) {
             if (span[(i + adder) % Capacity] == pair) {
                 return true;
             }
@@ -144,7 +144,7 @@ public class SizedHistory<TTarget, TEvent> : IHistory<TTarget, TEvent>
         var span = _events.Span;
         var adder = _lastIndex + Capacity;
 
-        for (int i = 0; i < Count; ++i) {
+        for (var i = 0; i < Count; ++i) {
             array[arrayIndex + i] = span[(i + adder) % Capacity];
         }
     }
@@ -154,7 +154,7 @@ public class SizedHistory<TTarget, TEvent> : IHistory<TTarget, TEvent>
         var span = _events.Span;
         var adder = _lastIndex + Capacity;
 
-        for (int i = 0; i < Count; ++i) {
+        for (var i = 0; i < Count; ++i) {
             if (span[(i + adder) % Capacity] == item) {
                 return i;
             }
@@ -168,7 +168,7 @@ public class SizedHistory<TTarget, TEvent> : IHistory<TTarget, TEvent>
         var span = _events.Span;
         var adder = _lastIndex + Capacity;
 
-        for (int i = 0; i < Count; ++i) {
+        for (var i = 0; i < Count; ++i) {
             result[i] = span[(i + adder) % Capacity];
         }
         return result;

@@ -1,6 +1,6 @@
 namespace Sia;
 
-public interface IConstructable<TComponent, TTemplate>
+public interface IConstructable<TComponent, in TTemplate>
 {
-    abstract static void Construct(TTemplate template, out TComponent component);
+    static abstract void Construct(TTemplate template, out TComponent component);
 }

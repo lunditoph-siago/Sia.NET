@@ -11,9 +11,9 @@ public sealed class UnmanagedArrayBuffer<T>(int initialCapacity) : IBuffer<T>
     public int Capacity => int.MaxValue;
 
     public int Count {
-        get => _count;
+        get;
         set {
-            if (value == _count) return;
+            if (value == field) return;
             if (value > _length) {
                 _length = CalculateArraySize(value);
                 var newMem = Marshal.AllocHGlobal(_length * Unsafe.SizeOf<T>());
@@ -23,11 +23,10 @@ public sealed class UnmanagedArrayBuffer<T>(int initialCapacity) : IBuffer<T>
                 Marshal.FreeHGlobal(_mem);
                 _mem = newMem;
             }
-            _count = value;
+            field = value;
         }
     }
 
-    private int _count;
     private int _length = initialCapacity;
     private IntPtr _mem = Marshal.AllocHGlobal(initialCapacity * Unsafe.SizeOf<T>());
 
@@ -36,20 +35,20 @@ public sealed class UnmanagedArrayBuffer<T>(int initialCapacity) : IBuffer<T>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static int CalculateArraySize(int requiredCapacity)
     {
-        int size = 8;
+        var size = 8;
         while (size < requiredCapacity) { size *= 2; }
         return size;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe ref T GetRef(int index)
-        => ref new Span<T>((void*)_mem, _count)[index];
+        => ref new Span<T>((void*)_mem, Count)[index];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe ref T GetRefOrNullRef(int index)
         => ref index < 0 || index >= Count ? ref Unsafe.NullRef<T>() : ref ((T*)_mem)[index];
 
-    public unsafe Span<T> AsSpan() => new((void*)_mem, _count);
+    public unsafe Span<T> AsSpan() => new((void*)_mem, Count);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Dispose()

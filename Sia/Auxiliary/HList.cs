@@ -45,7 +45,7 @@ public interface IHList
         where TValue : IEquatable<TValue>
         where THandler : IGenericStructHandler<IHList>;
     
-    virtual static void HandleTypes<THandler>(in THandler handler)
+    static virtual void HandleTypes<THandler>(in THandler handler)
         where THandler : IGenericTypeHandler
         => throw new NotImplementedException();
 }
@@ -89,7 +89,7 @@ public struct EmptyHList : IHList
         where THandler : IGenericStructHandler<IHList>
         => false;
 
-    public override readonly string ToString() => "Empty";
+    public readonly override string ToString() => "Empty";
 
     public static void HandleTypes<THandler>(in THandler handler)
         where THandler : IGenericTypeHandler
@@ -165,7 +165,7 @@ public struct HList<THead, TTail>(in THead head, in TTail tail) : IHList
         where THandler : IGenericStructHandler<IHList>
     {
         if (typeof(THead) == typeof(TValue)) {
-            ref TValue casted = ref Unsafe.As<THead, TValue>(ref Head);
+            ref var casted = ref Unsafe.As<THead, TValue>(ref Head);
             if (casted.Equals(value)) {
                 handler.Handle(Tail);
                 return true;

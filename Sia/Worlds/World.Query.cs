@@ -11,7 +11,7 @@ public partial class World
 
         public int Count {
             get {
-                int count = 0;
+                var count = 0;
                 foreach (var host in _hosts) {
                     count += host.Count;
                 }
@@ -114,7 +114,7 @@ public partial class World
     public void Query<TData>(IEntityMatcher matcher, in TData data, EntityHandler<TData> handler)
     {
         var hosts = _hosts.UnsafeRawValues;
-        for (int i = 0; i != hosts.Count; ++i) {
+        for (var i = 0; i != hosts.Count; ++i) {
             var host = hosts[i];
             if (host.Count != 0 && matcher.Match(host)) {
                 foreach (var entity in host) {

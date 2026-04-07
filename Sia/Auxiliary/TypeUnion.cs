@@ -49,8 +49,8 @@ public static class TypeUnionHelper
 
         if (typesA.Length != typesB.Length) { return false; }
 
-        int length = typesA.Length;
-        for (int i = 0; i != length; ++i) {
+        var length = typesA.Length;
+        for (var i = 0; i != length; ++i) {
             if (typesA[i] != typesB[i]) {
                 return false;
             }

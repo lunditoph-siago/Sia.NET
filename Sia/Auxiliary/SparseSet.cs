@@ -17,15 +17,13 @@ public sealed class SparseSet<T>(int pageSize = 256)
     public T this[int index] {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get {
-            ref var page = ref GetPage(index, out int entryIndex);
+            ref var page = ref GetPage(index, out var entryIndex);
             if (entryIndex == -1) {
                 throw new KeyNotFoundException("Index not found");
             }
             return _dense[page[entryIndex]];
         }
-        set {
-            GetOrAddValueRef(index, out bool _) = value;
-        }
+        set => GetOrAddValueRef(index, out var _) = value;
     }
 
     public IEnumerable<int> Keys => _reverse;
@@ -73,7 +71,7 @@ public sealed class SparseSet<T>(int pageSize = 256)
 
     public IEnumerator<KeyValuePair<int, T>> GetEnumerator()
     {
-        for (int i = 0; i < _dense.Count; ++i) {
+        for (var i = 0; i < _dense.Count; ++i) {
             yield return KeyValuePair.Create(_reverse[i], _dense[i]);
         }
     }
@@ -84,7 +82,7 @@ public sealed class SparseSet<T>(int pageSize = 256)
     public void CopyTo(KeyValuePair<int, T>[] array, int arrayIndex)
     {
         var count = _dense.Count;
-        for (int i = 0; i < count; ++i) {
+        for (var i = 0; i < count; ++i) {
             array[i + arrayIndex] = KeyValuePair.Create(_reverse[i], _dense[i]);
         }
     }
@@ -92,7 +90,7 @@ public sealed class SparseSet<T>(int pageSize = 256)
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Add(int index, T value)
     {
-        ref var valueRef = ref GetOrAddValueRef(index, out bool exists);
+        ref var valueRef = ref GetOrAddValueRef(index, out var exists);
         if (exists) {
             return false;
         }
@@ -120,12 +118,12 @@ public sealed class SparseSet<T>(int pageSize = 256)
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool ContainsKey(int index)
-        => !Unsafe.IsNullRef(ref GetPage(index, out int _));
+        => !Unsafe.IsNullRef(ref GetPage(index, out var _));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Contains(KeyValuePair<int, T> item)
     {
-        ref var page = ref GetPage(item.Key, out int entryIndex);
+        ref var page = ref GetPage(item.Key, out var entryIndex);
         if (entryIndex == -1) {
             return false;
         }
@@ -135,7 +133,7 @@ public sealed class SparseSet<T>(int pageSize = 256)
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool TryGetValue(int index, [MaybeNullWhen(false)] out T value)
     {
-        ref var page = ref GetPage(index, out int entryIndex);
+        ref var page = ref GetPage(index, out var entryIndex);
         if (entryIndex == -1) {
             value = default;
             return false;
@@ -146,13 +144,13 @@ public sealed class SparseSet<T>(int pageSize = 256)
 
     public bool Remove(int index, [MaybeNullWhen(false)] out T value)
     {
-        ref var page = ref GetPage(index, out int entryIndex);
+        ref var page = ref GetPage(index, out var entryIndex);
         if (entryIndex == -1) {
             value = default;
             return false;
         }
 
-        ref int valueIndexRef = ref page[entryIndex];
+        ref var valueIndexRef = ref page[entryIndex];
         value = _dense[valueIndexRef];
         RemoveValue(ref valueIndexRef);
 
@@ -162,12 +160,12 @@ public sealed class SparseSet<T>(int pageSize = 256)
 
     public bool Remove(int index)
     {
-        ref var page = ref GetPage(index, out int entryIndex);
+        ref var page = ref GetPage(index, out var entryIndex);
         if (entryIndex == -1) {
             return false;
         }
 
-        ref int valueIndexRef = ref page.Memory!.Span[entryIndex];
+        ref var valueIndexRef = ref page.Memory!.Span[entryIndex];
         RemoveValue(ref valueIndexRef);
 
         page.DecreaseRef();
@@ -176,12 +174,12 @@ public sealed class SparseSet<T>(int pageSize = 256)
 
     public bool Remove(KeyValuePair<int, T> item)
     {
-        ref var page = ref GetPage(item.Key, out int entryIndex);
+        ref var page = ref GetPage(item.Key, out var entryIndex);
         if (entryIndex == -1) {
             return false;
         }
 
-        ref int valueIndexRef = ref page.Memory!.Span[entryIndex];
+        ref var valueIndexRef = ref page.Memory!.Span[entryIndex];
         if (!_dense[valueIndexRef]!.Equals(item.Value)) {
             return false;
         }
@@ -212,7 +210,7 @@ public sealed class SparseSet<T>(int pageSize = 256)
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetValueRefOrNullRef(int index)
     {
-        ref var page = ref GetPage(index, out int entryIndex);
+        ref var page = ref GetPage(index, out var entryIndex);
         if (entryIndex == -1) {
             return ref Unsafe.NullRef<T>();
         }
@@ -223,8 +221,8 @@ public sealed class SparseSet<T>(int pageSize = 256)
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetOrAddValueRef(int index, out bool exists)
     {
-        int pageIndex = index / PageSize;
-        int entryIndex = index - pageIndex * PageSize;
+        var pageIndex = index / PageSize;
+        var entryIndex = index - pageIndex * PageSize;
 
         if (pageIndex >= _pages.Count) {
             CollectionsMarshal.SetCount(_pages, pageIndex + 1);
@@ -243,7 +241,7 @@ public sealed class SparseSet<T>(int pageSize = 256)
             return ref AddDefaultValue(ref span[entryIndex], index);
         }
 
-        ref int valueIndexRef = ref memory.Span[entryIndex];
+        ref var valueIndexRef = ref memory.Span[entryIndex];
         if (valueIndexRef == int.MaxValue) {
             page.Count++;
             exists = false;
@@ -271,11 +269,11 @@ public sealed class SparseSet<T>(int pageSize = 256)
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void RemoveValue(ref int valueIndexRef)
     {
-        int lastValueIndex = _dense.Count - 1;
+        var lastValueIndex = _dense.Count - 1;
         if (valueIndexRef != lastValueIndex) {
             _dense[valueIndexRef] = _dense[lastValueIndex];
-            int lastIndex = _reverse[lastValueIndex];
-            var page = UnsafeGetPage(lastIndex, out int entryIndex);
+            var lastIndex = _reverse[lastValueIndex];
+            var page = UnsafeGetPage(lastIndex, out var entryIndex);
             page[entryIndex] = valueIndexRef;
             _reverse[valueIndexRef] = _reverse[lastValueIndex];
         }
@@ -287,7 +285,7 @@ public sealed class SparseSet<T>(int pageSize = 256)
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private ref Page GetPage(int index, out int entryIndex)
     {
-        int pageIndex = index / PageSize;
+        var pageIndex = index / PageSize;
         if (pageIndex >= _pages.Count) {
             entryIndex = -1;
             return ref Unsafe.NullRef<Page>();
@@ -302,7 +300,7 @@ public sealed class SparseSet<T>(int pageSize = 256)
         }
 
         entryIndex = index - pageIndex * PageSize;
-        ref int valueIndex = ref memory.Span[entryIndex];
+        ref var valueIndex = ref memory.Span[entryIndex];
 
         if (valueIndex >= Count) {
             entryIndex = -1;
@@ -315,7 +313,7 @@ public sealed class SparseSet<T>(int pageSize = 256)
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private ref Page UnsafeGetPage(int index, out int pageEntryIndex)
     {
-        int pageIndex = index / PageSize;
+        var pageIndex = index / PageSize;
         pageEntryIndex = index - pageIndex * PageSize;
         return ref _pages.AsSpan()[pageIndex];
     }

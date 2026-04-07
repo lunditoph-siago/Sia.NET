@@ -120,7 +120,7 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
         }
 
         builder.Append("Sia.EmptyHList, Sia");
-        for (int i = 0; i != components.Length; ++i) {
+        for (var i = 0; i != components.Length; ++i) {
             builder.Append("]], Sia");
         }
 

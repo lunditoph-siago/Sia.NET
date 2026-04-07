@@ -56,8 +56,8 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     {
         Version++;
 
-        int slot = entity.Slot;
-        int lastSlot = Buffer.Count - 1;
+        var slot = entity.Slot;
+        var lastSlot = Buffer.Count - 1;
 
         if (slot != lastSlot) {
             Buffer.GetRef(slot) = Buffer.GetRef(lastSlot);
@@ -74,7 +74,7 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     {
         Version++;
 
-        int slot = Buffer.Count++;
+        var slot = Buffer.Count++;
         Buffer.GetRef(slot) = data;
 
         entity.Host = this;

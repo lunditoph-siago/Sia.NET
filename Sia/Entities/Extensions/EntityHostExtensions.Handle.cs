@@ -22,7 +22,7 @@ public static partial class EntityHostExtensions
         runner.Run(count, new(host, handler),
             static (in HandleData data, (int, int) range) => {
                 var host = data.Host;
-                int version = host.Version;
+                var version = host.Version;
                 data.Handler(host, range.Item1, range.Item2);
                 GuardVersion(version, host.Version);
             },
@@ -42,7 +42,7 @@ public static partial class EntityHostExtensions
         runner.Run(count, new(host, userData, handler),
             static (in HandleData<TData> data, (int, int) range) => {
                 var host = data.Host;
-                int version = host.Version;
+                var version = host.Version;
                 data.Handler(host, data.UserData, range.Item1, range.Item2);
                 GuardVersion(version, host.Version);
             },
@@ -82,6 +82,6 @@ public static partial class EntityHostExtensions
         host.Handle(data, handler, ParallelRunner.Default, barrier);
         barrier.WaitAndReturn();
     }
-    
+
     #endregion // ParallelRunner
 }

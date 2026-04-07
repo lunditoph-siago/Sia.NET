@@ -117,7 +117,7 @@ public partial record Entity
         return this;
     }
 
-    private unsafe struct BundleRemover(Entity entity)
+    private struct BundleRemover(Entity entity)
         : IGenericStructTypeHandler<IHList>
     {
         public readonly void Handle<T>()
@@ -128,7 +128,7 @@ public partial record Entity
     public Entity RemoveBundle<TBundle>()
         where TBundle : IStaticBundle
     {
-        Entity entity = this;
+        var entity = this;
         TBundle.StaticHandleHListType(new BundleRemover(entity));
         return entity;
     }

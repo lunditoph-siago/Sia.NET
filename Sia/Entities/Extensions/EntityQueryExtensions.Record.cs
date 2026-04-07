@@ -13,7 +13,7 @@ public static partial class EntityQueryExtensions
         where TRunner : IRunner
     {
         GuardSpanLength(span, query.Count);
-        int index = -1;
+        var index = -1;
 
         fixed (TResult* pointer = span) {
             var data = new EntityRecordData<TResult> {
@@ -28,7 +28,7 @@ public static partial class EntityQueryExtensions
                     var recorder = data.Recorder;
                     ref var index = ref *data.Index;
 
-                    for (int i = from; i != to; ++i) {
+                    for (var i = from; i != to; ++i) {
                         recorder(host.GetEntity(i),
                             out *(pointer + Interlocked.Increment(ref index)));
                     }
@@ -41,7 +41,7 @@ public static partial class EntityQueryExtensions
         where TRunner : IRunner
     {
         GuardSpanLength(span, query.Count);
-        int index = -1;
+        var index = -1;
 
         fixed (TResult* pointer = span) {
             var data = new EntityRecordData<TData, TResult> {
@@ -57,7 +57,7 @@ public static partial class EntityQueryExtensions
                     ref readonly var userData = ref data.UserData;
                     ref var index = ref *data.Index;
 
-                    for (int i = from; i != to; ++i) {
+                    for (var i = from; i != to; ++i) {
                         recorder(userData, host.GetEntity(i),
                             out *(pointer + Interlocked.Increment(ref index)));
                     }
@@ -88,7 +88,7 @@ public static partial class EntityQueryExtensions
         => query.Record(span, IdEntityRecorder, CurrentThreadRunner.Instance, barrier: null);
 
     #endregion // CurrentThreadRunner
-    
+
     #region ParallelRunner
 
     public static void RecordOnParallel<TResult>(
@@ -126,7 +126,7 @@ public static partial class EntityQueryExtensions
         where TRunner : IRunner
     {
         GuardSpanLength(span, query.Count);
-        int index = -1;
+        var index = -1;
 
         fixed (TResult* pointer = span) {
             var data = new CompRecordData<C1, TResult> {
@@ -148,7 +148,7 @@ public static partial class EntityQueryExtensions
         where TRunner : IRunner
     {
         GuardSpanLength(span, query.Count);
-        int index = -1;
+        var index = -1;
 
         fixed (TResult* pointer = span) {
             var data = new CompRecordData<C1, C2, TResult> {
@@ -170,7 +170,7 @@ public static partial class EntityQueryExtensions
         where TRunner : IRunner
     {
         GuardSpanLength(span, query.Count);
-        int index = -1;
+        var index = -1;
 
         fixed (TResult* pointer = span) {
             var data = new CompRecordData<C1, C2, C3, TResult> {
@@ -192,7 +192,7 @@ public static partial class EntityQueryExtensions
         where TRunner : IRunner
     {
         GuardSpanLength(span, query.Count);
-        int index = -1;
+        var index = -1;
 
         fixed (TResult* pointer = span) {
             var data = new CompRecordData<C1, C2, C3, C4, TResult> {
@@ -214,7 +214,7 @@ public static partial class EntityQueryExtensions
         where TRunner : IRunner
     {
         GuardSpanLength(span, query.Count);
-        int index = -1;
+        var index = -1;
 
         fixed (TResult* pointer = span) {
             var data = new CompRecordData<C1, C2, C3, C4, C5, TResult> {
@@ -236,7 +236,7 @@ public static partial class EntityQueryExtensions
         where TRunner : IRunner
     {
         GuardSpanLength(span, query.Count);
-        int index = -1;
+        var index = -1;
 
         fixed (TResult* pointer = span) {
             var data = new CompRecordData<C1, C2, C3, C4, C5, C6, TResult> {
@@ -258,7 +258,7 @@ public static partial class EntityQueryExtensions
         where TRunner : IRunner
     {
         GuardSpanLength(span, query.Count);
-        int index = -1;
+        var index = -1;
 
         fixed (TResult* pointer = span) {
             var data = new DataCompRecordData<TData, C1, TResult> {
@@ -282,7 +282,7 @@ public static partial class EntityQueryExtensions
         where TRunner : IRunner
     {
         GuardSpanLength(span, query.Count);
-        int index = -1;
+        var index = -1;
 
         fixed (TResult* pointer = span) {
             var data = new DataCompRecordData<TData, C1, C2, TResult> {
@@ -306,7 +306,7 @@ public static partial class EntityQueryExtensions
         where TRunner : IRunner
     {
         GuardSpanLength(span, query.Count);
-        int index = -1;
+        var index = -1;
 
         fixed (TResult* pointer = span) {
             var data = new DataCompRecordData<TData, C1, C2, C3, TResult> {
@@ -330,7 +330,7 @@ public static partial class EntityQueryExtensions
         where TRunner : IRunner
     {
         GuardSpanLength(span, query.Count);
-        int index = -1;
+        var index = -1;
 
         fixed (TResult* pointer = span) {
             var data = new DataCompRecordData<TData, C1, C2, C3, C4, TResult> {
@@ -354,7 +354,7 @@ public static partial class EntityQueryExtensions
         where TRunner : IRunner
     {
         GuardSpanLength(span, query.Count);
-        int index = -1;
+        var index = -1;
 
         fixed (TResult* pointer = span) {
             var data = new DataCompRecordData<TData, C1, C2, C3, C4, C5, TResult> {
@@ -378,7 +378,7 @@ public static partial class EntityQueryExtensions
         where TRunner : IRunner
     {
         GuardSpanLength(span, query.Count);
-        int index = -1;
+        var index = -1;
 
         fixed (TResult* pointer = span) {
             var data = new DataCompRecordData<TData, C1, C2, C3, C4, C5, C6, TResult> {
@@ -546,6 +546,7 @@ public static partial class EntityQueryExtensions
         query.RecordSlices(span, userData, recorder, ParallelRunner.Default, barrier);
         barrier.WaitAndReturn();
     }
+
     #endregion // ParallelRunner
 
     #endregion // RecordSlices
@@ -557,7 +558,7 @@ public static partial class EntityQueryExtensions
         where TRunner : IRunner
     {
         GuardSpanLength(span, query.Count);
-        int index = -1;
+        var index = -1;
 
         fixed (TResult* pointer = span) {
             var data = new CompRecordDataWithEntity<C1, TResult> {
@@ -580,7 +581,7 @@ public static partial class EntityQueryExtensions
         where TRunner : IRunner
     {
         GuardSpanLength(span, query.Count);
-        int index = -1;
+        var index = -1;
 
         fixed (TResult* pointer = span) {
             var data = new CompRecordDataWithEntity<C1, C2, TResult> {
@@ -603,7 +604,7 @@ public static partial class EntityQueryExtensions
         where TRunner : IRunner
     {
         GuardSpanLength(span, query.Count);
-        int index = -1;
+        var index = -1;
 
         fixed (TResult* pointer = span) {
             var data = new CompRecordDataWithEntity<C1, C2, C3, TResult> {
@@ -626,7 +627,7 @@ public static partial class EntityQueryExtensions
         where TRunner : IRunner
     {
         GuardSpanLength(span, query.Count);
-        int index = -1;
+        var index = -1;
 
         fixed (TResult* pointer = span) {
             var data = new CompRecordDataWithEntity<C1, C2, C3, C4, TResult> {
@@ -649,7 +650,7 @@ public static partial class EntityQueryExtensions
         where TRunner : IRunner
     {
         GuardSpanLength(span, query.Count);
-        int index = -1;
+        var index = -1;
 
         fixed (TResult* pointer = span) {
             var data = new CompRecordDataWithEntity<C1, C2, C3, C4, C5, TResult> {
@@ -672,7 +673,7 @@ public static partial class EntityQueryExtensions
         where TRunner : IRunner
     {
         GuardSpanLength(span, query.Count);
-        int index = -1;
+        var index = -1;
 
         fixed (TResult* pointer = span) {
             var data = new CompRecordDataWithEntity<C1, C2, C3, C4, C5, C6, TResult> {
@@ -695,7 +696,7 @@ public static partial class EntityQueryExtensions
         where TRunner : IRunner
     {
         GuardSpanLength(span, query.Count);
-        int index = -1;
+        var index = -1;
 
         fixed (TResult* pointer = span) {
             var data = new DataCompRecordDataWithEntity<TData, C1, TResult> {
@@ -719,7 +720,7 @@ public static partial class EntityQueryExtensions
         where TRunner : IRunner
     {
         GuardSpanLength(span, query.Count);
-        int index = -1;
+        var index = -1;
 
         fixed (TResult* pointer = span) {
             var data = new DataCompRecordDataWithEntity<TData, C1, C2, TResult> {
@@ -743,7 +744,7 @@ public static partial class EntityQueryExtensions
         where TRunner : IRunner
     {
         GuardSpanLength(span, query.Count);
-        int index = -1;
+        var index = -1;
 
         fixed (TResult* pointer = span) {
             var data = new DataCompRecordDataWithEntity<TData, C1, C2, C3, TResult> {
@@ -767,7 +768,7 @@ public static partial class EntityQueryExtensions
         where TRunner : IRunner
     {
         GuardSpanLength(span, query.Count);
-        int index = -1;
+        var index = -1;
 
         fixed (TResult* pointer = span) {
             var data = new DataCompRecordDataWithEntity<TData, C1, C2, C3, C4, TResult> {
@@ -791,7 +792,7 @@ public static partial class EntityQueryExtensions
         where TRunner : IRunner
     {
         GuardSpanLength(span, query.Count);
-        int index = -1;
+        var index = -1;
 
         fixed (TResult* pointer = span) {
             var data = new DataCompRecordDataWithEntity<TData, C1, C2, C3, C4, C5, TResult> {
@@ -815,7 +816,7 @@ public static partial class EntityQueryExtensions
         where TRunner : IRunner
     {
         GuardSpanLength(span, query.Count);
-        int index = -1;
+        var index = -1;
 
         fixed (TResult* pointer = span) {
             var data = new DataCompRecordDataWithEntity<TData, C1, C2, C3, C4, C5, C6, TResult> {
@@ -983,6 +984,7 @@ public static partial class EntityQueryExtensions
         query.RecordSlices(span, userData, recorder, ParallelRunner.Default, barrier);
         barrier.WaitAndReturn();
     }
+
     #endregion // ParallelRunner
 
     #endregion // RecordSlices_WithEntity

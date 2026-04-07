@@ -10,7 +10,7 @@ public partial class World
 
     public IEnumerable<IAddon> Addons {
         get {
-            for (int i = 0; i < _addonCount;) {
+            for (var i = 0; i < _addonCount;) {
                 var addon = _addons[i];
                 if (addon != null) {
                     i++;

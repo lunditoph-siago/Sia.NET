@@ -30,7 +30,7 @@ public static partial class EntityHostExtensions
 
     public static Enumerator GetEnumerator(this IEntityHost host) => new(host);
     public static Enumerator GetEnumerator(this IReactiveEntityHost host) => new(host);
-    
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe Span<byte> GetBytes(this IEntityHost host, int slot)
         => new(Unsafe.AsPointer(ref host.GetByteRef(slot)), host.Descriptor.MemorySize);

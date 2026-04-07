@@ -25,10 +25,10 @@ public struct MemoryPackComponentSerializer() : IComponentSerializer
             ref MemoryPackWriter<TBufferWriter> writer, scoped ref Entity? value)
             => writer.WriteValue(value != null ? value.Id.Value : 0);
 
-        public unsafe override void Deserialize(ref MemoryPackReader reader, scoped ref Entity? value)
+        public override void Deserialize(ref MemoryPackReader reader, scoped ref Entity? value)
         {
             var map = ((DeserializerServiceProvider)reader.Options.ServiceProvider!).EntityMap;
-            int id = reader.ReadValue<int>();
+            var id = reader.ReadValue<int>();
             if (id == 0) {
                 value = null;
                 return;

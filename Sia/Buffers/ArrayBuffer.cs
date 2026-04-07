@@ -8,15 +8,14 @@ public sealed class ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
     public int Capacity => int.MaxValue;
 
     public int Count {
-        get => _count;
+        get;
         set {
-            if (value == _count) return;
+            if (value == field) return;
             if (value > _array.Length) Array.Resize(ref _array, CalculateArraySize(value));
-            _count = value;
+            field = value;
         }
     }
 
-    private int _count;
     private T[] _array = new T[initialCapacity];
 
     public ArrayBuffer() : this(0) {}
@@ -24,7 +23,7 @@ public sealed class ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static int CalculateArraySize(int requiredCapacity)
     {
-        int size = 8;
+        var size = 8;
         while (size < requiredCapacity) { size *= 2; }
         return size;
     }

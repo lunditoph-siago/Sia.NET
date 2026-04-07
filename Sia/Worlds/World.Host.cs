@@ -33,7 +33,7 @@ public partial class World
         where THost : IEntityHost<TEntity>, new()
     {
         ref var rawHost = ref _hosts.GetOrAddValueRef(
-            WorldEntityHostIndexer<WorldEntityHost<TEntity, THost>>.Index, out bool exists);
+            WorldEntityHostIndexer<WorldEntityHost<TEntity, THost>>.Index, out var exists);
         if (exists) {
             throw new ArgumentException("Host with the same type already exists");
         }
@@ -49,7 +49,7 @@ public partial class World
         where THost : IEntityHost<TEntity>, new()
     {
         ref var rawHost = ref _hosts.GetOrAddValueRef(
-            WorldEntityHostIndexer<WorldEntityHost<TEntity, THost>>.Index, out bool exists);
+            WorldEntityHostIndexer<WorldEntityHost<TEntity, THost>>.Index, out var exists);
         if (exists) {
             return Unsafe.As<WorldEntityHost<TEntity, THost>>(rawHost);
         }
@@ -64,7 +64,7 @@ public partial class World
         where THost : IReactiveEntityHost
     {
         ref var rawHost = ref _hosts.GetOrAddValueRef(
-            WorldEntityHostIndexer<THost>.Index, out bool exists);
+            WorldEntityHostIndexer<THost>.Index, out var exists);
         if (exists) {
             throw new ArgumentException("Host with the same type already exists: " + typeof(THost));
         }
@@ -105,7 +105,7 @@ public partial class World
     {
         Version++;
         var hosts = _hosts.UnsafeRawValues;
-        for (int i = 0; i < hosts.Count; ++i) {
+        for (var i = 0; i < hosts.Count; ++i) {
             var host = hosts[i];
             OnEntityHostRemoved?.Invoke(host);
             host.Dispose();
@@ -116,7 +116,7 @@ public partial class World
     public int ClearEmptyHosts()
     {
         int[]? hostsToRemove = null;
-        int count = 0;
+        var count = 0;
 
         foreach (var (key, host) in _hosts) {
             if (host.Count == 0) {
@@ -129,7 +129,7 @@ public partial class World
         if (hostsToRemove != null) {
             Version++;
             try {
-                for (int i = 0; i != count; ++i) {
+                for (var i = 0; i != count; ++i) {
                     _hosts.Remove(hostsToRemove[i], out var host);
                     OnEntityHostRemoved?.Invoke(host!);
                     host!.Dispose();

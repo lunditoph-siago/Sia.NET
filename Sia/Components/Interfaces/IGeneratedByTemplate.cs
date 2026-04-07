@@ -1,7 +1,7 @@
 namespace Sia;
 
-public interface IGeneratedByTemplate<TComponent, TTemplate>
+public interface IGeneratedByTemplate<TComponent, in TTemplate>
     : IConstructable<TComponent, TTemplate>
 {
-    abstract static void HandleCommandTypes(IGenericTypeHandler<ICommand<TComponent>> handler);
+    static abstract void HandleCommandTypes(IGenericTypeHandler<ICommand<TComponent>> handler);
 }
