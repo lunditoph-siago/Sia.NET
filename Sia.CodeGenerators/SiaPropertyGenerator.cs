@@ -62,7 +62,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
                         }, syntax.Attributes)
                 );
             }).Collect();
-        
+
         context.RegisterSourceOutput(codeGenInfos, static (context, infos) => {
             var componentTypes = new HashSet<TypeDeclarationSyntax>();
 
@@ -346,7 +346,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         source.Write(info.Name);
         source.WriteLine(");");
         source.Indent--;
-        
+
         source.WriteLine("public void Execute(global::Sia.World _, global::Sia.Entity target)");
         if (info.GetArgument("InjectContext", false)) {
             source.WriteLine("{");
@@ -423,7 +423,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         WriteComponentType();
         source.WriteLine(">();");
 
-        bool injectContext = info.GetArgument("InjectContext", false);
+        var injectContext = info.GetArgument("InjectContext", false);
         if (injectContext) {
             WriteEntityContextHead(source);
         }
@@ -469,7 +469,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
                 WriteTypeParameters(source, componentTypeParams);
             }
         }
-        
+
         source.WriteLine("public readonly ref partial struct View(global::Sia.Entity entity, global::Sia.World world = null)");
         source.WriteLine("{");
         source.Indent++;
@@ -500,7 +500,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
 
         source.Write("public ");
         source.Write(GetDisplayType(info.Type));
-        
+
         source.Write(" ");
         source.Write(info.Name);
         source.WriteLine(" {");
@@ -514,7 +514,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
             source.WriteLine("set {");
             source.Indent++;
 
-            bool injectContext = info.GetArgument("InjectContext", false);
+            var injectContext = info.GetArgument("InjectContext", false);
             if (injectContext) {
                 WriteEntityContextHead(source);
             }
@@ -526,7 +526,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
             if (injectContext) {
                 WriteEntityContextTail(source);
             }
-            
+
             source.Write("_world.Dispatcher.Send(entity, new Set");
             source.Write(info.Name);
             source.WriteLine("(value));");

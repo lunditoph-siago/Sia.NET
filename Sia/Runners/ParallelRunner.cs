@@ -67,7 +67,7 @@ public class ParallelRunner : IRunner
             return base.TryReset();
         }
     }
-    
+
     private class GroupActionJob : GroupJobBase
     {
         public GroupAction Action = default!;
@@ -89,7 +89,7 @@ public class ParallelRunner : IRunner
     {
         public TData Data = default!;
         public GroupAction<TData> Action = default!;
-        
+
         public override void Invoke()
         {
             Action(Data, Range);
@@ -124,7 +124,7 @@ public class ParallelRunner : IRunner
             return true;
         }
     }
-    
+
     public static readonly ParallelRunner Default = new(Environment.ProcessorCount);
 
     public int DegreeOfParallelism { get; }

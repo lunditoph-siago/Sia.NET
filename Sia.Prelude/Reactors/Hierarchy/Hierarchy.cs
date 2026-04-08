@@ -12,7 +12,7 @@ public class Hierarchy<TTag> : ReactorBase<TypeUnion<Node<TTag>>>
     public override void OnInitialize(World world)
     {
         base.OnInitialize(world);
-        
+
         Listen((Entity entity, in Node<TTag>.SetParent cmd) => {
             ref var node = ref entity.Get<Node<TTag>>();
 
@@ -51,7 +51,7 @@ public class Hierarchy<TTag> : ReactorBase<TypeUnion<Node<TTag>>>
         var prevEnabled = node._enabled;
         var enabled = parentEnabled && node.IsSelfEnabled;
         node._enabled = enabled;
-        
+
         if (prevEnabled == enabled) {
             return;
         }

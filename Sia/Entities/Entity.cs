@@ -44,7 +44,7 @@ public partial record Entity
         return ref Unsafe.As<byte, TComponent>(
             ref Unsafe.AddByteOffset(ref byteRef, offset));
     }
-    
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref TComponent GetOrNullRef<TComponent>()
     {

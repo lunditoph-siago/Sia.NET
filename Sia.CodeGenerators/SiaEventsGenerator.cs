@@ -47,7 +47,7 @@ internal partial class SiaEventsGenerator : IIncrementalGenerator
                     Namespace: syntax.TargetSymbol.ContainingNamespace,
                     ComponentType: targetType,
                     ParentTypes: parentTypes,
-                    EventTypes: GetEventTypes(targetSymbol).ToImmutableArray());
+                    EventTypes: [..GetEventTypes(targetSymbol)]);
             });
 
         context.RegisterSourceOutput(codeGenInfos, static (context, info) => {
@@ -69,9 +69,8 @@ internal partial class SiaEventsGenerator : IIncrementalGenerator
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool IsValidEventType(INamedTypeSymbol symbol)
-        => symbol.DeclaredAccessibility == Accessibility.Public
-            && !symbol.IsAbstract
-            && symbol.AllInterfaces.Any(t => t.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Sia.IEvent");
+        => symbol is { DeclaredAccessibility: Accessibility.Public, IsAbstract: false }
+           && symbol.AllInterfaces.Any(t => t.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Sia.IEvent");
 
     private static string GenerateFileName(CodeGenerationInfo info)
     {
@@ -121,7 +120,7 @@ internal partial class SiaEventsGenerator : IIncrementalGenerator
         source.Write("= new global::Sia.TypeUnion(");
 
         var lastIndex = eventTypes.Length - 1;
-        for (int i = 0; i != lastIndex; ++i) {
+        for (var i = 0; i != lastIndex; ++i) {
             source.Write("typeof(");
             source.Write(eventTypes[i].Name);
             source.Write("), ");

@@ -29,11 +29,11 @@ public interface IHList
 
     void HandleTailRef<THandler>(ref THandler handler)
         where THandler : IRefGenericHandler<IHList>;
-    
+
     void Filter<TPredicate, THandler>(in TPredicate predicate, in THandler handler)
         where TPredicate : IGenericPredicate
         where THandler : IGenericStructHandler<IHList>;
-    
+
     void Concat<THList, THandler>(in THList list, in THandler handler)
         where THList : struct, IHList
         where THandler : IGenericStructHandler<IHList>;
@@ -44,7 +44,7 @@ public interface IHList
     bool Remove<TValue, THandler>(in TValue value, in THandler handler)
         where TValue : IEquatable<TValue>
         where THandler : IGenericStructHandler<IHList>;
-    
+
     static virtual void HandleTypes<THandler>(in THandler handler)
         where THandler : IGenericTypeHandler
         => throw new NotImplementedException();
@@ -190,7 +190,7 @@ public static class HList
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static HList<THead, EmptyHList> From<THead>(in THead head) =>
         new(head, EmptyHList.Default);
-    
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static HList<THead, TTail> Cons<THead, TTail>(in THead head, in TTail tail)
         where TTail : struct, IHList

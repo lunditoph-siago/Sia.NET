@@ -83,7 +83,7 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
         return GetHost(world, hostTypeName);
     }
 
-    private static readonly MethodInfo s_acquireHostMethod = 
+    private static readonly MethodInfo s_acquireHostMethod =
         typeof(ReflectionHostHeaderSerializer)
             .GetMethod("AcquireHost", BindingFlags.Static | BindingFlags.Public)!;
 

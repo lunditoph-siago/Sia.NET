@@ -36,7 +36,7 @@ public interface IEntityHost : IEnumerable<Entity>, IDisposable
     void GetSiblingHostType<UEntity>(
         IGenericConcreteTypeHandler<IEntityHost<UEntity>> hostTypeHandler)
         where UEntity : struct, IHList;
-    
+
     Span<Entity> UnsafeGetEntitySpan();
 }
 

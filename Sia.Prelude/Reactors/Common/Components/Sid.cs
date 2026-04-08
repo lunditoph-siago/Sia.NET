@@ -13,7 +13,7 @@ public partial struct Sid<TId>(TId value)
         }
     }
 
-    public TId Previous { get; private set; }
+    public TId? Previous { get; private set; }
 
     private TId _value = value;
 }
@@ -23,7 +23,7 @@ public static class Sid
     public static Sid<TId> From<TId>(in TId id)
         where TId : notnull
         => new(id);
-    
+
     public static void SetSid<TId>(this Entity entity, in TId id)
         where TId : notnull
         => entity.Execute(new Sid<TId>.SetValue(id));

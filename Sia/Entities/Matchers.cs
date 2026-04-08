@@ -4,7 +4,7 @@ public static class Matchers
 {
     public static IEntityMatcher Any { get; } = new AnyMatcher();
     public static IEntityMatcher None { get; } = new NoneMatcher();
-    
+
     public static IEntityMatcher Of<T1>()
         => From<TypeUnion<T1>>();
     public static IEntityMatcher Of<T1, T2>()
@@ -84,13 +84,13 @@ public static class Matchers
 
     public static IEntityMatcher ToExclusiveMatcher(this ITypeUnion typeUnion)
         => new ExclusiveMatcher(typeUnion);
-    
+
     public static IEntityMatcher And(this IEntityMatcher left, IEntityMatcher right)
         => new AndMatcher(left, right);
 
     public static IEntityMatcher Or(this IEntityMatcher left, IEntityMatcher right)
         => new OrMatcher(left, right);
-    
+
     public static IEntityMatcher Not(this IEntityMatcher inner)
         => inner switch {
             NotMatcher m => m.Inner,
@@ -99,7 +99,7 @@ public static class Matchers
             AnyMatcher => None,
             NoneMatcher => Any,
             _ => new NotMatcher(inner)
-    };
+        };
 
     public static IEntityMatcher With(this IEntityMatcher left, ITypeUnion right)
         => left switch {

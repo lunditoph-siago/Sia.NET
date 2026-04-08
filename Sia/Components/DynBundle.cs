@@ -16,7 +16,7 @@ public record DynBundle : IBundle
 
         bool Remove<TValue, THandler>(in TValue value, in THandler handler)
             where TValue : IEquatable<TValue>
-            where THandler : IGenericStructHandler<IHList>; 
+            where THandler : IGenericStructHandler<IHList>;
     }
 
     private class BundleImpl<THList>(in THList list) : IBundleImpl

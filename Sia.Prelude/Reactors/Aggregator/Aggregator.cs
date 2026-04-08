@@ -23,7 +23,7 @@ public abstract class AggregatorBase<TId> : ReactorBase<TypeUnion<Sid<TId>>>
             host.OnEntityCreated += OnAggregationCreated;
             host.OnEntityReleased += OnAggregationReleased;
         };
-        
+
         Listen((Entity entity, in WorldEvents.Add<Aggregation<TId>> e) => {
             ref var aggr = ref entity.Get<Aggregation<TId>>();
             if (aggr.Aggregator != this) {
@@ -85,11 +85,11 @@ public abstract class AggregatorBase<TId> : ReactorBase<TypeUnion<Sid<TId>>>
     private bool OnEntityIdChanged(Entity entity, in Sid<TId>.SetValue e)
     {
         ref var id = ref entity.Get<Sid<TId>>();
-        RemoveFromAggregation(entity, id.Previous);
+        RemoveFromAggregation(entity, id.Previous!);
         AddToAggregation(entity, id.Value);
         return false;
     }
-    
+
     protected override void OnEntityAdded(Entity entity)
     {
         var id = entity.Get<Sid<TId>>().Value;

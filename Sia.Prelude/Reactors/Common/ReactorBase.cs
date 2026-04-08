@@ -42,7 +42,7 @@ public abstract class ReactorBase : IAddon
         World.Dispatcher.Listen(target, listener);
         OnUnlisten += () => World.Dispatcher.Unlisten(target, listener);
     }
-    
+
     public virtual void OnInitialize(World world)
     {
         World = world;

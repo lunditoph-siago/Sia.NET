@@ -7,7 +7,7 @@ public record SystemChain
 {
     public readonly record struct Entry(
         Type Type, Func<ISystem> Creator);
-    
+
     public static readonly SystemChain Empty = new([]);
 
     public ImmutableList<Entry> Entries { get; }

@@ -216,7 +216,7 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         IGenericConcreteTypeHandler<IEntityHost<UEntity>> hostTypeHandler)
         where UEntity : struct, IHList
         => throw new NotSupportedException("Sibling host not supported");
-    
+
     public Span<Entity> UnsafeGetEntitySpan()
         => _entities.AsSpan();
 

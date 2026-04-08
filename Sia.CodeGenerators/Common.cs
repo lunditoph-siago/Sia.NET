@@ -28,13 +28,12 @@ internal static class Common
         public PropertyInfo(string name, ITypeSymbol symbol, IEnumerable<AttributeData> attributes)
             : this(name, symbol, GetDisplayType(symbol),
                 symbol is INamedTypeSymbol namedSymbol
-                    ? namedSymbol.TypeArguments.Select(a => a.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))
-                        .ToImmutableArray()
+                    ? [.. namedSymbol.TypeArguments.Select(a => a.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))]
                     : ImmutableArray<string>.Empty,
-                (attributes
+                attributes
                     .FirstOrDefault(data =>
                         data!.AttributeClass!.ToDisplayString() == "Sia.SiaAttribute")
-                    ?.NamedArguments.ToImmutableDictionary())
+                    ?.NamedArguments.ToImmutableDictionary()
                         ?? ImmutableDictionary<string, TypedConstant>.Empty)
         {
         }
@@ -68,7 +67,7 @@ internal static class Common
         SyntaxNode node, out TNode? result)
         where TNode : SyntaxNode
     {
-        SyntaxNode? currNode = node;
+        var currNode = node;
         while (currNode != null) {
             var parent = currNode.Parent;
             if (parent is TNode casted) {
@@ -100,7 +99,7 @@ internal static class Common
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ITypeSymbol GetNodeType(SemanticModel model, SyntaxNode typeNode, CancellationToken token)
         => model.GetTypeInfo(typeNode, token).Type!;
-    
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ITypeSymbol GetVariableType(SemanticModel model, VariableDeclaratorSyntax syntax, CancellationToken token) {
         var parentDecl = (VariableDeclarationSyntax)syntax.Parent!;
@@ -137,7 +136,7 @@ internal static class Common
 
         public void Dispose()
         {
-            for (int i = 0; i < _count; ++i) {
+            for (var i = 0; i < _count; ++i) {
                 _source.Indent--;
                 _source.WriteLine("}");
             }
@@ -160,7 +159,7 @@ internal static class Common
 
     public static IDisposable GenerateInPartialTypes(IndentedTextWriter source, IEnumerable<TypeDeclarationSyntax> typeDecls)
     {
-        int indent = 0;
+        var indent = 0;
         foreach (var typeDecl in typeDecls) {
             if (typeDecl.Modifiers.Any(SyntaxKind.StaticKeyword)) {
                 source.Write("static ");
@@ -221,7 +220,7 @@ internal static class Common
     {
         var paramsList = typeParams.Parameters;
         var lastIndex = paramsList.Count - 1;
-        for (int i = 0; i != paramsList.Count; ++i) {
+        for (var i = 0; i != paramsList.Count; ++i) {
             source.Write(paramsList[i].Identifier.ToString());
             if (i != lastIndex) {
                 source.Write(", ");
@@ -232,7 +231,7 @@ internal static class Common
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static string? GetTypeConstraints(INamedTypeSymbol targetSymbol)
     {
-        var fullTemplateTypeString = 
+        var fullTemplateTypeString =
             targetSymbol.ToDisplayString(QualifiedTypeNameWithTypeConstraints);
         var endIndex = fullTemplateTypeString.IndexOf('>');
         if (endIndex == -1) {

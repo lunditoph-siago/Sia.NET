@@ -58,7 +58,7 @@ public static class EntityDescriptor<TEntity>
 
         new OffsetRecorder(components, offsets, entityPtr).Handle(ref defaultEntity);
         Offsets = offsets.ToFrozenDictionary();
-        Components = [..components];
+        Components = [.. components];
 
         var slots = new nint[Components.Select(info => info.TypeIndex).Max() + 1];
         foreach (var info in Components) {

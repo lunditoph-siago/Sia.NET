@@ -57,7 +57,7 @@ public abstract class EventSystemBase(SystemChain? children = null)
 
     protected abstract void HandleEvent<TEvent>(Entity entity, in TEvent @event)
         where TEvent : IEvent;
-    
+
     protected virtual void HandleException<TEvent>(Entity entity, in TEvent @event, Exception exception)
         => Console.Error.WriteLine(exception);
 
@@ -155,7 +155,7 @@ public abstract class SnapshotEventSystemBase<TSnapshot>(SystemChain? children =
 
     public override void Uninitialize(World world)
         => OnUninitialize?.Invoke();
-    
+
     protected abstract TSnapshot Snapshot<TEvent>(Entity entity, in TEvent @event)
         where TEvent : IEvent;
 
@@ -166,14 +166,14 @@ public abstract class SnapshotEventSystemBase<TSnapshot>(SystemChain? children =
         Entity entity, in TSnapshot snapshot, in TEvent @event, Exception exception)
         where TEvent : IEvent
         => Console.Error.WriteLine(exception);
-    
+
     protected void RecordFor<TComponent>()
     {
         RecordOnAdded<TComponent>();
         RecordOnSet<TComponent>();
         RecordRemovalEvent<WorldEvents.Remove<TComponent>>();
     }
-    
+
     protected void RecordOnAdded<TComponent>()
         => RecordEvent<WorldEvents.Add<TComponent>>();
 
