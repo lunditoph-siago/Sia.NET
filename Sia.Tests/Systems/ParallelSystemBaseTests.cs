@@ -35,7 +35,7 @@ public class ParallelSystemBaseTests
 
         var stage = SystemChain.Empty
             .Add<UpdateSingleComponentSystem>()
-            .Add<AssertSystem>(() => new (1))
+            .Add<AssertSystem>(() => new(1))
             .CreateStage(fixture.World);
 
         stage.Tick();

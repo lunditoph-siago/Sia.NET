@@ -22,7 +22,7 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
         string ComponentName,
         ImmutableArray<PropertyInfo> Properties,
         bool Immutable);
-    
+
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         context.RegisterPostInitializationOutput(static context => {
@@ -153,8 +153,8 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
         source.WriteLine("(");
         source.Indent++;
 
-        int index = 0;
-        int lastIndex = properties.Length - 1;
+        var index = 0;
+        var lastIndex = properties.Length - 1;
 
         foreach (var prop in properties) {
             source.Write(prop.DisplayType);
@@ -197,8 +197,8 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
         source.WriteLine(": this(");
         source.Indent++;
 
-        int index = 0;
-        int lastIndex = properties.Length - 1;
+        var index = 0;
+        var lastIndex = properties.Length - 1;
 
         foreach (var prop in properties) {
             source.Write(prop.Name);

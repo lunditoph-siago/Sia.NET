@@ -14,7 +14,7 @@ public static class WorldCommonHostExtensions
     public static Entity Create<TEntity>(this World world, in TEntity initial)
         where TEntity : struct, IHList
         => world.GetArrayHost<TEntity>().Create(initial);
-    
+
     #endregion // ArrayHost
 
     #region UnmanagedArrayHost
@@ -29,6 +29,6 @@ public static class WorldCommonHostExtensions
     public static Entity CreateUnmanaged<TEntity>(this World world, in TEntity initial)
         where TEntity : struct, IHList
         => world.GetUnmanagedArrayHost<TEntity>().Create(initial);
-    
+
     #endregion // ArrayHost
 }

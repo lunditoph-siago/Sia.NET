@@ -34,7 +34,7 @@ public sealed class SystemStage : IDisposable
             Host = host;
             Host.OnEntityReleased += (Entity e) => Remove(e);
         }
-        
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Add(Entity entity)
         {
@@ -127,7 +127,7 @@ public sealed class SystemStage : IDisposable
             IGenericConcreteTypeHandler<IEntityHost<UEntity>> hostTypeHandler)
             where UEntity : struct, IHList
             => Host.GetSiblingHostType(hostTypeHandler);
-        
+
         public Span<Entity> UnsafeGetEntitySpan()
             => _entities.AsSpan();
     }
@@ -193,7 +193,7 @@ public sealed class SystemStage : IDisposable
     {
         public readonly record struct HostEntry(
             CollectedEntityHost WrappedHost, EntityHandler EntityHandler, IEventListener? Listener);
-        
+
         public int Count {
             get {
                 var count = 0;
@@ -347,7 +347,7 @@ public sealed class SystemStage : IDisposable
 
     private class CompositeDisposable(params IDisposable[] disposables) : IDisposable
     {
-        private List<IDisposable>? _disposables = [..disposables];
+        private List<IDisposable>? _disposables = [.. disposables];
         private readonly object _lock = new();
 
         public int Count {
@@ -392,7 +392,7 @@ public sealed class SystemStage : IDisposable
                     CreateSystemAction(world, system, out var disposable),
                     disposable))
         ];
-        
+
         var actions = Entries
             .Where(entry => entry.Action != null)
             .Select(entry => entry.Action!)
@@ -471,7 +471,7 @@ public sealed class SystemStage : IDisposable
         }
         else {
             var filterTypes = filter?.EventTypes.TypeSet ?? FrozenSet<Type>.Empty;
-            var triggerTypes = 
+            var triggerTypes =
                 (filter != null
                     ? trigger?.EventTypes.Types.Except(filter.EventTypes.TypeSet).ToFrozenSet()
                     : trigger?.EventTypes.TypeSet)

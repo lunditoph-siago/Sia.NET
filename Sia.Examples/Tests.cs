@@ -167,7 +167,7 @@ public unsafe static class Tests
             Matcher = Matchers.Of<Position>();
             Trigger = EventUnion.Of<Position.Set>();
         }
-        
+
         public override void Execute(World world, IEntityQuery query)
         {
             foreach (var entity in query) {

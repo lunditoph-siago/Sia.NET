@@ -31,7 +31,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
 
         List<Listener<UEvent>> listeners;
         ref var rawListeners = ref _eventListeners.GetRefOrNullRef(typeIndex);
-        
+
         if (Unsafe.IsNullRef(ref rawListeners) || rawListeners == null) {
             listeners = [];
             var count = _eventListeners.Count;
@@ -90,7 +90,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
         listeners.RemoveAt(lastIndex);
         return true;
     }
-    
+
     public bool Unlisten(TTarget target, IEventListener<TTarget> listener)
     {
         GuardNotSending();
@@ -140,7 +140,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
             _targetListenersPool.Push(listeners);
         }
     }
-    
+
     public void Clear()
     {
         GuardNotSending();

@@ -90,7 +90,7 @@ public abstract class ParallelSystemBase<C1, C2, C3, C4, C5, C6>(
     SystemChain? children = null, IRunner? runner = null)
     : SystemBase(matcher ?? Matchers.Of<C1, C2, C3, C4, C5>(), trigger, filter, children)
 {
-   public IRunner Runner { get; } = runner ?? ParallelRunner.Default;
+    public IRunner Runner { get; } = runner ?? ParallelRunner.Default;
 
     public override void Execute(World world, IEntityQuery query)
     {

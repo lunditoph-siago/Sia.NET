@@ -39,7 +39,7 @@ public class InfiniteHistory<TTarget, TEvent> : IHistory<TTarget, TEvent>
 
     IEnumerator IEnumerable.GetEnumerator()
         => ((IEnumerable)_list).GetEnumerator();
-    
+
     private void Dispose(bool disposing)
     {
         if (_disposed) { return; }

@@ -18,7 +18,7 @@ public class FSystem(QueryHandler queryHandler,
 
     public FSystemWithRunner WithRunner(IRunner runner)
         => new(_queryHandler, runner, Matcher, Trigger, Filter);
-    
+
     public static FSystem<T1> From<T1>(ComponentHandler<T1> handler,
         IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
         => new(handler, matcher, trigger, filter);
@@ -168,7 +168,7 @@ public class FSystemWithEntity<T1, T2, T3, T4, T5, T6>(ComponentHandlerWithEntit
     : FSystem(
         (query, runner, barrier) => query.ForSlice(handler, runner, barrier),
         matcher ?? Matchers.Of<T1, T2, T3, T4, T5, T6>(), trigger, filter);
-    
+
 public static class FSystemSystemChainExtensions
 {
     public static SystemChain Add<T1>(this SystemChain chain, ComponentHandler<T1> handler,
@@ -194,7 +194,7 @@ public static class FSystemSystemChainExtensions
     public static SystemChain Add<T1, T2, T3, T4, T5, T6>(this SystemChain chain, ComponentHandler<T1, T2, T3, T4, T5, T6> handler,
         IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
         => chain.Add(() => FSystem.From(handler, matcher, trigger, filter));
-    
+
     public static SystemChain Add<T1>(this SystemChain chain, ComponentHandlerWithEntity<T1> handler,
         IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
         => chain.Add(() => FSystem.From(handler, matcher, trigger, filter));

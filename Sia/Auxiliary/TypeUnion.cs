@@ -17,12 +17,12 @@ public static class TypeUnionHelper
         foreach (var type in types) {
             set.Add(type);
         }
-        return [..set];
+        return [.. set];
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ImmutableArray<Type> CreateSortedArray(IEnumerable<Type> types)
-        => [..new SortedSet<Type>(types, TypeComparer)];
+        => [.. new SortedSet<Type>(types, TypeComparer)];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int CalculateHash(ImmutableArray<Type> types)

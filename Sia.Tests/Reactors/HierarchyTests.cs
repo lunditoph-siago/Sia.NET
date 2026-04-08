@@ -61,7 +61,7 @@ public class HierarchyTests(HierarchyTests.HierarchyContext context) : IClassFix
         // Act
         context.World.Execute(context.Entities[target],
             new Node<HierarchyContext.TestTag>.SetParent(context.Entities[0]));
-    
+
         // Assert
         Assert.True(
             context.Entities[0].Get<Node<HierarchyContext.TestTag>>().Children

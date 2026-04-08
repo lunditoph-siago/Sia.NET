@@ -2,7 +2,6 @@ namespace Sia;
 
 using Microsoft.Extensions.ObjectPool;
 
-
 public sealed class RunnerBarrier
 {
     private class PoolPolicy : IPooledObjectPolicy<RunnerBarrier>
@@ -15,15 +14,25 @@ public sealed class RunnerBarrier
                 barrier.RemoveParticipants(parCount);
             }
             barrier.Exception = null;
+#if BROWSER
+            barrier.ResetTcs();
+#endif
             return true;
         }
     }
 
     private readonly record struct CallbackEntry(Action<object?> Callback, object? UserData);
 
-    public int ParticipantCount => Raw.ParticipantCount;
-
+#if BROWSER
+    private int _participantCount;
+    private int _remaining;
+    private TaskCompletionSource<bool> _tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public int ParticipantCount => Volatile.Read(ref _participantCount);
+#else
     public Barrier Raw { get; } = new(0);
+    public int ParticipantCount => Raw.ParticipantCount;
+#endif
+
     public Exception? Exception { get; private set; }
 
     private int _callbackCount;
@@ -45,21 +54,56 @@ public sealed class RunnerBarrier
         _callbackCount++;
     }
 
-    public void AddParticipants(int count) => Raw.AddParticipants(count);
-    public void RemoveParticipants(int count) => Raw.RemoveParticipants(count);
+    public void AddParticipants(int count)
+    {
+#if BROWSER
+        Interlocked.Add(ref _participantCount, count);
+        Interlocked.Add(ref _remaining, count); 
+#else
+        Raw.AddParticipants(count);
+#endif
+    }
 
-    public void Signal() => Raw.RemoveParticipant();
+    public void RemoveParticipants(int count)
+    {
+#if BROWSER
+        Interlocked.Add(ref _participantCount, -count);
+        if (Interlocked.Add(ref _remaining, -count) == 0) {
+            _tcs.TrySetResult(true);
+        }
+#else
+        Raw.RemoveParticipants(count);
+#endif
+    }
+
+    public void Signal() => RemoveParticipants(1);
+
+    public void SignalAndWait()
+    {
+#if BROWSER
+        var remaining = Interlocked.Decrement(ref _remaining);
+        Interlocked.Decrement(ref _participantCount);
+        if (remaining == 0) {
+            _tcs.TrySetResult(true);
+        } else if (remaining < 0) {
+            throw new InvalidOperationException("Barrier already completed or participant count exceeded");
+        }
+        _tcs.Task.Wait();
+#else
+        Raw.SignalAndWait();
+#endif
+    }
 
     public void Throw(Exception e)
     {
         Exception = e;
-        Raw.RemoveParticipant();
+        RemoveParticipants(1);
     }
 
     public void Wait()
     {
-        Raw.AddParticipant();
-        Raw.SignalAndWait();
+        AddParticipants(1);
+        SignalAndWait();
 
         Exception? exception;
 
@@ -89,4 +133,12 @@ public sealed class RunnerBarrier
             s_barrierPool.Return(this);
         }
     }
+
+#if BROWSER
+    internal void ResetTcs() {
+        _tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        _participantCount = 0;
+        _remaining = 0;
+    }
+#endif
 }
