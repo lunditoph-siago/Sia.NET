@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="Sia.CodeGenerators/Sia.CodeGenerators.csproj" />
+  <Project Path="Sia.Examples/Sia.Examples.csproj" />
+  <Project Path="Sia.Prelude/Sia.Prelude.csproj" />
+  <Project Path="Sia.Tests/Sia.Tests.csproj" />
+  <Project Path="Sia/Sia.csproj" />
+</Solution>
