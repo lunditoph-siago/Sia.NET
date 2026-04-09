@@ -1,0 +1,83 @@
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: system-ui, monospace;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+}
+
+#app {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+}
+
+#sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    border-right: 1px solid;
+    overflow-y: auto;
+    padding: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.example-btn {
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 0.4rem 0.6rem;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    font: inherit;
+}
+
+.example-btn .name {
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.example-btn .desc {
+    font-size: 0.72rem;
+    opacity: 0.5;
+}
+
+#content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+#output-bar {
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid;
+    font-size: 0.8rem;
+    opacity: 0.6;
+}
+
+#output-title {
+    opacity: 1;
+    font-weight: 500;
+}
+
+#output {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem 1.25rem;
+    font-size: 0.82rem;
+    line-height: 1.65;
+    white-space: pre-wrap;
+}
