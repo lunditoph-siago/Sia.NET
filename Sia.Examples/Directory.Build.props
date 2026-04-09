@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Sia.Examples'">
+    <MSBuildProjectExtensionsPath>$(MSBuildProjectDirectory)\obj_desktop\</MSBuildProjectExtensionsPath>
+    <BaseIntermediateOutputPath>$(MSBuildProjectDirectory)\obj_desktop\</BaseIntermediateOutputPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Sia.Examples.Browser'">
+    <MSBuildProjectExtensionsPath>$(MSBuildProjectDirectory)\obj_browser\</MSBuildProjectExtensionsPath>
+    <BaseIntermediateOutputPath>$(MSBuildProjectDirectory)\obj_browser\</BaseIntermediateOutputPath>
+  </PropertyGroup>
+</Project>
