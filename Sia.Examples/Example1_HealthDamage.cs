@@ -53,15 +53,21 @@ public static partial class Example1_HealthDamage
     public class DeathSystem() : SystemBase(
         Matchers.Of<Health>())
     {
+        private readonly List<Entity> _dead = [];
+
         public override void Execute(World world, IEntityQuery query)
         {
             // faster than foreach
             query.ForSlice((Entity entity, ref Health health) => {
                 if (health.Value <= 0) {
-                    entity.Destroy();
-                    Console.WriteLine("Dead!");
+                    _dead.Add(entity);
                 }
             });
+            foreach (var entity in _dead) {
+                entity.Destroy();
+                Console.WriteLine("Dead!");
+            }
+            _dead.Clear();
         }
     }
 
