@@ -20,14 +20,25 @@ public static class Example15_Serialization
 {
     public static void Run(World world)
     {
-        var compressor = new BrotliCompressor();
-
         var e1 = world.Create(HList.From(new C1("?"), 0, "asdf"));
         var e2 = world.Create(HList.From(1234, "asdf", 1324f, Math.PI));
         e2.Add(new Likes<float>(e1));
         e2.Add(new Has(31415, e2));
         world.Create(HList.From(1234, "asdf", 1324f, Math.PI));
 
+#if BROWSER
+        var buffer = new ArrayBufferWriter<byte>();
+        BinaryWorldSerializer.Serialize(ref buffer, world);
+
+        var seq = new ReadOnlySequence<byte>(buffer.WrittenMemory);
+        Console.WriteLine("Serialized:");
+        Console.WriteLine(Encoding.Unicode.GetString(seq));
+
+        Console.WriteLine();
+        var newWorld = new World();
+        BinaryWorldSerializer.Deserialize(ref seq, newWorld);
+#else
+        var compressor = new BrotliCompressor();
         BinaryWorldSerializer.Serialize(ref compressor, world);
 
         var seq = new ReadOnlySequence<byte>(compressor.ToArray());
@@ -48,6 +59,7 @@ public static class Example15_Serialization
 
         var newWorld = new World();
         BinaryWorldSerializer.Deserialize(ref seq, newWorld);
+#endif
 
         Console.WriteLine();
         foreach (var e in newWorld) {
