@@ -32,13 +32,14 @@ public class ExampleRunner
             ("Hierarchy", "Demonstrates hierarchy system", Example6_Hierarchy.Run),
             ("Mapper", "Demonstrates mapper functionality", Example7_Mapper.Run),
             ("SIMD", "Demonstrates SIMD operations", Example8_Sum.Run),
+            ("SubWorld", "Game-thread physics → render-thread draw-call pipeline with bidirectional sync", Example9_SubWorld.Run),
             ("Duplicate System", "Demonstrates duplicate system", Example10_DuplicateSystem.Run),
             ("RPG System", "Demonstrates RPG system", Example11_RPG.Run),
             ("Addon", "Demonstrates addon system", Example12_Addon.Run),
             ("Parallel", "Demonstrates parallel processing", Example13_Parallel.Run),
             ("Runner Context", "Demonstrates runner context", Example14_RunnerWithContext.Run),
             ("Serialization", "Demonstrates serialization", Example15_Serialization.Run),
-            ("Event System", "Demonstrates event system", Example16_EventSystem.Run)
+            ("Event System", "Demonstrates event system", Example16_EventSystem.Run),
         };
 
         foreach (var (name, description, runner) in examples)
