@@ -173,27 +173,51 @@ public static class FSystemSystemChainExtensions
 {
     public static SystemChain Add<T1>(this SystemChain chain, ComponentHandler<T1> handler,
         IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
-        => chain.Add(() => FSystem.From(handler, matcher, trigger, filter));
+        => chain.Add(SystemId.ForDelegate(handler), handler, matcher, trigger, filter);
+
+    public static SystemChain Add<T1>(this SystemChain chain, SystemId id, ComponentHandler<T1> handler,
+        IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
+        => chain.Add(id, () => FSystem.From(handler, matcher, trigger, filter));
 
     public static SystemChain Add<T1, T2>(this SystemChain chain, ComponentHandler<T1, T2> handler,
         IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
-        => chain.Add(() => FSystem.From(handler, matcher, trigger, filter));
+        => chain.Add(SystemId.ForDelegate(handler), handler, matcher, trigger, filter);
+
+    public static SystemChain Add<T1, T2>(this SystemChain chain, SystemId id, ComponentHandler<T1, T2> handler,
+        IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
+        => chain.Add(id, () => FSystem.From(handler, matcher, trigger, filter));
 
     public static SystemChain Add<T1, T2, T3>(this SystemChain chain, ComponentHandler<T1, T2, T3> handler,
         IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
-        => chain.Add(() => FSystem.From(handler, matcher, trigger, filter));
+        => chain.Add(SystemId.ForDelegate(handler), handler, matcher, trigger, filter);
+
+    public static SystemChain Add<T1, T2, T3>(this SystemChain chain, SystemId id, ComponentHandler<T1, T2, T3> handler,
+        IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
+        => chain.Add(id, () => FSystem.From(handler, matcher, trigger, filter));
 
     public static SystemChain Add<T1, T2, T3, T4>(this SystemChain chain, ComponentHandler<T1, T2, T3, T4> handler,
         IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
-        => chain.Add(() => FSystem.From(handler, matcher, trigger, filter));
+        => chain.Add(SystemId.ForDelegate(handler), handler, matcher, trigger, filter);
+
+    public static SystemChain Add<T1, T2, T3, T4>(this SystemChain chain, SystemId id, ComponentHandler<T1, T2, T3, T4> handler,
+        IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
+        => chain.Add(id, () => FSystem.From(handler, matcher, trigger, filter));
 
     public static SystemChain Add<T1, T2, T3, T4, T5>(this SystemChain chain, ComponentHandler<T1, T2, T3, T4, T5> handler,
         IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
-        => chain.Add(() => FSystem.From(handler, matcher, trigger, filter));
+        => chain.Add(SystemId.ForDelegate(handler), handler, matcher, trigger, filter);
+
+    public static SystemChain Add<T1, T2, T3, T4, T5>(this SystemChain chain, SystemId id, ComponentHandler<T1, T2, T3, T4, T5> handler,
+        IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
+        => chain.Add(id, () => FSystem.From(handler, matcher, trigger, filter));
 
     public static SystemChain Add<T1, T2, T3, T4, T5, T6>(this SystemChain chain, ComponentHandler<T1, T2, T3, T4, T5, T6> handler,
         IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
-        => chain.Add(() => FSystem.From(handler, matcher, trigger, filter));
+        => chain.Add(SystemId.ForDelegate(handler), handler, matcher, trigger, filter);
+
+    public static SystemChain Add<T1, T2, T3, T4, T5, T6>(this SystemChain chain, SystemId id, ComponentHandler<T1, T2, T3, T4, T5, T6> handler,
+        IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
+        => chain.Add(id, () => FSystem.From(handler, matcher, trigger, filter));
 
     public static SystemChain Add<T1>(this SystemChain chain, ComponentHandlerWithEntity<T1> handler,
         IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
