@@ -36,6 +36,9 @@ jobs:
       - name: Restore solution
         run: dotnet restore "$SOLUTION"
 
+      - name: Restore browser examples
+        run: dotnet restore "$EXAMPLES_PROJECT"
+
       - name: Build solution
         run: dotnet build "$SOLUTION" --configuration "$BUILD_CONFIG" --no-restore
 
