@@ -32,7 +32,7 @@ public class ExampleRunner
             ("Hierarchy", "Demonstrates hierarchy system", Example6_Hierarchy.Run),
             ("Mapper", "Demonstrates mapper functionality", Example7_Mapper.Run),
             ("SIMD", "Demonstrates SIMD operations", Example8_Sum.Run),
-            ("SubWorld", "Game-thread physics → render-thread draw-call pipeline with bidirectional sync", Example9_SubWorld.Run),
+            ("SubWorld", "Demonstrates subworld render system ", Example9_SubWorld.Run),
             ("Duplicate System", "Demonstrates duplicate system", Example10_DuplicateSystem.Run),
             ("RPG System", "Demonstrates RPG system", Example11_RPG.Run),
             ("Addon", "Demonstrates addon system", Example12_Addon.Run),
