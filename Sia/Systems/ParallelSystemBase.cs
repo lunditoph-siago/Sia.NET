@@ -88,7 +88,7 @@ public abstract class ParallelSystemBase<C1, C2, C3, C4, C5>(
 public abstract class ParallelSystemBase<C1, C2, C3, C4, C5, C6>(
     IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null,
     SystemChain? children = null, IRunner? runner = null)
-    : SystemBase(matcher ?? Matchers.Of<C1, C2, C3, C4, C5>(), trigger, filter, children)
+    : SystemBase(matcher ?? Matchers.Of<C1, C2, C3, C4, C5, C6>(), trigger, filter, children)
 {
     public IRunner Runner { get; } = runner ?? ParallelRunner.Default;
 
