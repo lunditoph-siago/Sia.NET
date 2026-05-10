@@ -145,10 +145,10 @@ public class SchedulingTests
 
         using var stage = SystemChain.Empty
             .Add<AdvancedRenderPrepSystem>()
-            .Add(commitInput, () => LogFunctionSystem(nameof(commitInput)))
+            .Add(commitInput, () => new FSystem((_, _, _) => InitOrder.Add(nameof(commitInput)), Matchers.Any))
             .Add<AdvancedPhysicsSystem>()
-            .Add(telemetry, () => LogFunctionSystem(nameof(telemetry)))
-            .Add(collectInput, () => LogFunctionSystem(nameof(collectInput)))
+            .Add(telemetry, () => new FSystem((_, _, _) => InitOrder.Add(nameof(telemetry)), Matchers.Any))
+            .Add(collectInput, () => new FSystem((_, _, _) => InitOrder.Add(nameof(collectInput)), Matchers.Any))
             .Add<AdvancedInputBridgeSystem>()
             .With(commitInput, descriptor => descriptor
                 .After(collectInput)
@@ -200,7 +200,4 @@ public class SchedulingTests
             [nameof(StartupInitSystem), nameof(UpdateInitSystem)],
             InitOrder);
     }
-
-    private static FSystem LogFunctionSystem(string name)
-        => new((_, _, _) => InitOrder.Add(name), Matchers.Any);
 }
