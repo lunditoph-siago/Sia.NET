@@ -87,7 +87,7 @@ public abstract class ReactorBase<TTypeUnion> : ReactorBase
 
     public override void OnUninitialize(World world)
     {
-        base.OnInitialize(world);
+        base.OnUninitialize(world);
 
         foreach (var host in Query.Hosts) {
             host.OnEntityCreated -= OnEntityAdded;
