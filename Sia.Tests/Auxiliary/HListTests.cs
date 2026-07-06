@@ -16,7 +16,7 @@ public class HListTests
 
     public class MockGenericHandler : IGenericStructHandler<IHList>
     {
-        public List<IHList> HandledValues { get; } = new();
+        public List<IHList> HandledValues { get; } = [];
 
         public void Handle<T>(in T value) where T : struct, IHList
         {
