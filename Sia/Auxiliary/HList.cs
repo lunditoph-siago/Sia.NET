@@ -154,7 +154,8 @@ public struct HList<THead, TTail>(in THead head, in TTail tail) : IHList
         where THandler : IGenericStructHandler<IHList>
     {
         if (typeof(THead) == typeof(TValue)) {
-            handler.Handle(Tail);
+            var tail = Tail;
+            handler.Handle(tail);
             return true;
         }
         return Tail.Remove(proxy, new TailConcater<THandler>(Head, handler));
@@ -167,7 +168,8 @@ public struct HList<THead, TTail>(in THead head, in TTail tail) : IHList
         if (typeof(THead) == typeof(TValue)) {
             ref var casted = ref Unsafe.As<THead, TValue>(ref Head);
             if (casted.Equals(value)) {
-                handler.Handle(Tail);
+                var tail = Tail;
+                handler.Handle(tail);
                 return true;
             }
         }

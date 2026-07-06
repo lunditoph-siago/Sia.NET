@@ -99,8 +99,9 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         }
         ref var data = ref Buffer.GetRef(entity.Slot);
         var host = entity.Host.GetSiblingHost<HList<TComponent, TEntity>>();
-        host.MoveIn(entity, HList.Cons(initial, data));
+        var moved = HList.Cons(initial, data);
         MoveOut(entity);
+        host.MoveIn(entity, moved);
     }
 
     private struct EntityMover(Entity e)
