@@ -9,7 +9,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
     public delegate bool Listener<UEvent>(TTarget target, in UEvent e)
         where UEvent : TEvent;
 
-    private bool _sending = false;
+    private int _sendDepth;
 
     private readonly List<IEventListener<TTarget>> _globalListeners = [];
     private ArrayBuffer<object> _eventListeners = new();
@@ -154,7 +154,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void GuardNotSending()
     {
-        if (_sending) {
+        if (_sendDepth != 0) {
             throw new InvalidOperationException("This operation is not allowed while sending event.");
         }
     }
@@ -162,7 +162,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
     public void Send<UEvent>(TTarget target, in UEvent e)
         where UEvent : TEvent
     {
-        _sending = true;
+        _sendDepth++;
 
         var typeIndex = EventTypeIndexer<UEvent>.Index;
 
@@ -194,7 +194,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
             }
         }
         finally {
-            _sending = false;
+            _sendDepth--;
         }
     }
 
