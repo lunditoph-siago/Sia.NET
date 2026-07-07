@@ -95,11 +95,16 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
     {
         GuardNotSending();
 
-        if (!_targetListeners.TryGetValue(GetKey(target), out var listeners)) {
+        var key = GetKey(target);
+        if (!_targetListeners.TryGetValue(key, out var listeners)) {
             return false;
         }
 
         if (listeners.Count == 1) {
+            if (!Equals(listeners[0], listener)) {
+                return false;
+            }
+            _targetListeners.Remove(key);
             listeners.Clear();
             _targetListenersPool.Push(listeners);
             return true;
@@ -137,6 +142,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
         GuardNotSending();
 
         if (_targetListeners.Remove(GetKey(target), out var listeners)) {
+            listeners.Clear();
             _targetListenersPool.Push(listeners);
         }
     }
