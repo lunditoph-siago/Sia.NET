@@ -5,19 +5,21 @@ using System.Collections.Immutable;
 [Serializable]
 public class SystemCycleException : InvalidSystemDependencyException
 {
-    public ImmutableArray<Type> Cycle { get; }
+    public ImmutableArray<SystemId> Cycle { get; }
 
     public SystemCycleException() { }
     public SystemCycleException(string message) : base(message) { }
     public SystemCycleException(string message, Exception inner) : base(message, inner) { }
 
-    public SystemCycleException(IReadOnlyList<Type> cycle)
+    public SystemCycleException(IReadOnlyList<SystemId> cycle)
         : base(FormatMessage(cycle))
     {
-        ArgumentNullException.ThrowIfNull(cycle);
-        Cycle = cycle.ToImmutableArray();
+        Cycle = [.. cycle];
     }
 
-    private static string FormatMessage(IReadOnlyList<Type> cycle) =>
-        $"Cycle detected in system dependency graph: {string.Join(" -> ", cycle.Select(t => t.FullName))}";
+    private static string FormatMessage(IReadOnlyList<SystemId> cycle)
+    {
+        ArgumentNullException.ThrowIfNull(cycle);
+        return $"Cycle detected in system dependency graph: {string.Join(" -> ", cycle)}";
+    }
 }
