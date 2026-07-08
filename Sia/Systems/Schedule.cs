@@ -25,7 +25,7 @@ public sealed record Schedule(
 
     public Schedule Configure<TSystem>(Func<SystemDescriptor, SystemDescriptor> configure)
         where TSystem : ISystem
-        => this with { Chain = Chain.With<TSystem>(configure) };
+        => this with { Chain = Chain.Configure<TSystem>(configure) };
 
     public Schedule Before(ScheduleLabel other)
         => this with { RunsBefore = RunsBefore.Add(other) };
@@ -33,5 +33,10 @@ public sealed record Schedule(
     public Schedule After(ScheduleLabel other)
         => this with { RunsAfter = RunsAfter.Add(other) };
 
-    internal SystemStage Build(World world) => Chain.CreateSortedStage(world);
+    public bool Manual { get; init; }
+
+    public Schedule AsManual()
+        => this with { Manual = true };
+
+    internal SystemStage Build(World world) => Chain.CreateStage(world);
 }

@@ -6,7 +6,7 @@ using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using CommunityToolkit.HighPerformance;
 
-public sealed class SystemStage : IDisposable
+public sealed class SystemStage : IScheduleEntry, IDisposable
 {
     public record struct Entry(ISystem System, Action? Action, IDisposable? Disposable);
 
@@ -408,6 +408,11 @@ public sealed class SystemStage : IDisposable
             entry.System.Initialize(world);
         }
     }
+
+    public SystemStage(World world, ExecutionPlan plan)
+        : this(world, (plan ?? throw new ArgumentNullException(nameof(plan)))
+            .Entries.Select(static entry => entry.Creator()))
+    { }
 
     ~SystemStage()
     {
