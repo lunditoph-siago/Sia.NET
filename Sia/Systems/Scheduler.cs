@@ -1,5 +1,7 @@
 namespace Sia;
 
+using System.Runtime.ExceptionServices;
+
 public sealed class Scheduler : IAddon, IDisposable
 {
     private enum SchedulerPhase
@@ -15,7 +17,67 @@ public sealed class Scheduler : IAddon, IDisposable
         public ScheduleLabel Label { get; } = label;
         public Schedule? Schedule { get; set; }
         public SystemStage? Stage { get; set; }
-        public List<IScheduleEntry> Entries { get; } = [];
+        public List<EntryRegistration> Entries { get; } = [];
+        public bool EntriesNeedCompaction { get; set; }
+    }
+
+    private sealed class SourceRegistration(
+        Scheduler scheduler,
+        IScheduleSource source) : ScheduleRegistration
+    {
+        public override bool IsAttached => Active;
+        public bool Active { get; private set; } = true;
+        public IScheduleSource? Source { get; private set; } = source;
+
+        private Scheduler? _scheduler = scheduler;
+
+        public override void Dispose() => _scheduler?.DetachSource(this);
+
+        public bool TryDeactivate(out IScheduleSource source)
+        {
+            if (!Active) {
+                source = null!;
+                return false;
+            }
+            Active = false;
+            _scheduler = null;
+            source = Source!;
+            Source = null;
+            return true;
+        }
+    }
+
+    private sealed class EntryRegistration(
+        Scheduler scheduler,
+        ScheduleSlot slot,
+        IScheduleEntry entry) : ScheduleRegistration
+    {
+        public override bool IsAttached => Active;
+        public bool Active { get; private set; } = true;
+        public IScheduleEntry? Entry { get; private set; } = entry;
+        public ScheduleSlot? Slot { get; private set; } = slot;
+
+        private Scheduler? _scheduler = scheduler;
+
+        public override void Dispose() => _scheduler?.DetachEntry(this);
+
+        public bool TryDeactivate(
+            out IScheduleEntry entry,
+            out ScheduleSlot slot)
+        {
+            if (!Active) {
+                entry = null!;
+                slot = null!;
+                return false;
+            }
+            Active = false;
+            _scheduler = null;
+            entry = Entry!;
+            slot = Slot!;
+            Entry = null;
+            Slot = null;
+            return true;
+        }
     }
 
     public bool IsDisposed { get; private set; }
@@ -23,10 +85,13 @@ public sealed class Scheduler : IAddon, IDisposable
     private readonly Dictionary<ScheduleLabel, ScheduleSlot> _slots = [];
     private readonly List<ScheduleSlot> _registrationOrder = [];
     private readonly List<ScheduleSlot> _executionOrder = [];
-    private readonly List<IScheduleSource> _sources = [];
-    private IScheduleSource[] _sourceSnapshot = [];
+    private readonly List<SourceRegistration> _sourceRegistrations = [];
+    private readonly List<ScheduleSlot> _dirtyEntrySlots = [];
+    private SourceRegistration[] _sourceSnapshot = [];
     private bool _sourcesChanged;
+    private bool _sourcesNeedCompaction;
     private bool _planValid;
+    private int _lifecycleCallbackDepth;
     private SchedulerPhase _phase;
     private World _world = null!;
 
@@ -36,7 +101,7 @@ public sealed class Scheduler : IAddon, IDisposable
     public Scheduler AddSchedule(Schedule schedule)
     {
         ArgumentNullException.ThrowIfNull(schedule);
-        EnsureMutable();
+        EnsureActive();
         EnsureScheduleMutable();
         var slot = GetOrCreateSlot(schedule.Label);
         slot.Schedule = schedule;
@@ -49,14 +114,16 @@ public sealed class Scheduler : IAddon, IDisposable
         Func<Schedule, Schedule> configure)
     {
         ArgumentNullException.ThrowIfNull(configure);
-        EnsureMutable();
+        EnsureActive();
         EnsureScheduleMutable();
         var current = _slots.TryGetValue(label, out var existing)
             ? existing.Schedule
             : null;
         var schedule = configure(current ?? new Schedule(label));
         if (schedule.Label != label) {
-            throw new ArgumentException("A schedule configuration cannot change its label.", nameof(configure));
+            throw new ArgumentException(
+                "A schedule configuration cannot change its label.",
+                nameof(configure));
         }
         var slot = GetOrCreateSlot(label);
         slot.Schedule = schedule;
@@ -78,58 +145,58 @@ public sealed class Scheduler : IAddon, IDisposable
             .ConfigureSchedule(CoreSchedules.PostUpdate,
                 static schedule => schedule.Before(CoreSchedules.Last));
 
-    public void AddEntry(ScheduleLabel label, IScheduleEntry entry)
+    public ScheduleRegistration RegisterEntry(
+        ScheduleLabel label,
+        IScheduleEntry entry)
     {
         ArgumentNullException.ThrowIfNull(entry);
-        EnsureMutable();
-        var entries = GetOrCreateSlot(label).Entries;
-        for (var i = 0; i < entries.Count; i++) {
-            if (ReferenceEquals(entries[i], entry)) {
-                return;
+        EnsureActive();
+        var slot = GetOrCreateSlot(label);
+        foreach (var registration in slot.Entries) {
+            if (registration.Active && ReferenceEquals(registration.Entry, entry)) {
+                throw new InvalidOperationException(
+                    "The schedule entry is already registered for this label.");
             }
         }
-        entries.Add(entry);
+
+        var state = new EntryRegistration(this, slot, entry);
+        slot.Entries.Add(state);
+        try {
+            InvokeLifecycle(() => entry.OnAttached(this, label));
+        }
+        catch {
+            state.TryDeactivate(out _, out _);
+            MarkEntriesForCompaction(slot);
+            CompactIfIdle();
+            throw;
+        }
+        return state;
     }
 
-    public void RemoveEntry(ScheduleLabel label, IScheduleEntry entry)
-    {
-        ArgumentNullException.ThrowIfNull(entry);
-        EnsureMutable();
-        if (!_slots.TryGetValue(label, out var slot)) {
-            return;
-        }
-        for (var i = 0; i < slot.Entries.Count; i++) {
-            if (ReferenceEquals(slot.Entries[i], entry)) {
-                slot.Entries.RemoveAt(i);
-                return;
-            }
-        }
-    }
-
-    public void AddSource(IScheduleSource source)
+    public ScheduleRegistration RegisterSource(IScheduleSource source)
     {
         ArgumentNullException.ThrowIfNull(source);
-        EnsureMutable();
-        for (var i = 0; i < _sources.Count; i++) {
-            if (ReferenceEquals(_sources[i], source)) {
-                return;
+        EnsureActive();
+        foreach (var registration in _sourceRegistrations) {
+            if (registration.Active && ReferenceEquals(registration.Source, source)) {
+                throw new InvalidOperationException(
+                    "The schedule source is already registered.");
             }
         }
-        _sources.Add(source);
+
+        var state = new SourceRegistration(this, source);
+        _sourceRegistrations.Add(state);
         _sourcesChanged = true;
-    }
-
-    public void RemoveSource(IScheduleSource source)
-    {
-        ArgumentNullException.ThrowIfNull(source);
-        EnsureMutable();
-        for (var i = 0; i < _sources.Count; i++) {
-            if (ReferenceEquals(_sources[i], source)) {
-                _sources.RemoveAt(i);
-                _sourcesChanged = true;
-                return;
-            }
+        try {
+            InvokeLifecycle(() => source.OnAttached(this));
         }
+        catch {
+            state.TryDeactivate(out _);
+            _sourcesNeedCompaction = true;
+            CompactIfIdle();
+            throw;
+        }
+        return state;
     }
 
     private void Build()
@@ -155,12 +222,15 @@ public sealed class Scheduler : IAddon, IDisposable
 
     public void Tick()
     {
-        EnsureMutable();
+        EnsureActive();
         BeginTick();
         try {
             var sources = GetSourceSnapshot();
             for (var i = 0; i < sources.Length; i++) {
-                sources[i].OnBeginTick();
+                var registration = sources[i];
+                if (registration.Active) {
+                    registration.Source!.OnBeginTick();
+                }
             }
             if (!_planValid) {
                 Build();
@@ -171,7 +241,10 @@ public sealed class Scheduler : IAddon, IDisposable
                 var slot = _executionOrder[i];
                 _phase = SchedulerPhase.BeforeSchedule;
                 for (var j = 0; j < sources.Length; j++) {
-                    sources[j].OnBeforeSchedule(slot.Label);
+                    var registration = sources[j];
+                    if (registration.Active) {
+                        registration.Source!.OnBeforeSchedule(slot.Label);
+                    }
                 }
                 if (slot.Schedule is not { Manual: true }) {
                     _phase = SchedulerPhase.Executing;
@@ -182,18 +255,22 @@ public sealed class Scheduler : IAddon, IDisposable
         }
         finally {
             _phase = SchedulerPhase.Idle;
+            CompactRegistrations();
         }
     }
 
     public void TickSchedule(ScheduleLabel label)
     {
-        EnsureMutable();
+        EnsureActive();
         BeginTick();
         try {
             var sources = GetSourceSnapshot();
             _phase = SchedulerPhase.BeforeSchedule;
             for (var i = 0; i < sources.Length; i++) {
-                sources[i].OnBeforeSchedule(label);
+                var registration = sources[i];
+                if (registration.Active) {
+                    registration.Source!.OnBeforeSchedule(label);
+                }
             }
             if (_slots.TryGetValue(label, out var slot)) {
                 EnsureStage(slot);
@@ -203,6 +280,7 @@ public sealed class Scheduler : IAddon, IDisposable
         }
         finally {
             _phase = SchedulerPhase.Idle;
+            CompactRegistrations();
         }
     }
 
@@ -211,27 +289,108 @@ public sealed class Scheduler : IAddon, IDisposable
         if (IsDisposed) {
             return;
         }
-        if (_phase != SchedulerPhase.Idle) {
-            throw new InvalidOperationException("The scheduler cannot be disposed during a tick.");
+        if (_phase != SchedulerPhase.Idle || _lifecycleCallbackDepth != 0) {
+            throw new InvalidOperationException(
+                "The scheduler cannot be disposed during a tick or lifecycle callback.");
         }
         IsDisposed = true;
+
+        var detachedEntries = new List<(IScheduleEntry Entry, ScheduleLabel Label)>();
         foreach (var slot in _registrationOrder) {
-            slot.Stage?.Dispose();
-            slot.Stage = null;
+            foreach (var registration in slot.Entries) {
+                if (registration.TryDeactivate(out var entry, out _)) {
+                    detachedEntries.Add((entry, slot.Label));
+                }
+            }
         }
+
+        var detachedSources = new List<IScheduleSource>(_sourceRegistrations.Count);
+        foreach (var registration in _sourceRegistrations) {
+            if (registration.TryDeactivate(out var source)) {
+                detachedSources.Add(source);
+            }
+        }
+
+        var stages = new List<SystemStage>();
+        foreach (var slot in _registrationOrder) {
+            if (slot.Stage is { } stage) {
+                stages.Add(stage);
+                slot.Stage = null;
+            }
+        }
+
         _slots.Clear();
         _registrationOrder.Clear();
         _executionOrder.Clear();
-        _sources.Clear();
+        _sourceRegistrations.Clear();
         _sourceSnapshot = [];
+        _dirtyEntrySlots.Clear();
         _sourcesChanged = false;
+        _sourcesNeedCompaction = false;
         _planValid = false;
+
+        List<Exception>? errors = null;
+        foreach (var (entry, label) in detachedEntries) {
+            try {
+                InvokeLifecycle(() => entry.OnDetached(this, label));
+            }
+            catch (Exception error) {
+                AddError(ref errors, error);
+            }
+        }
+        foreach (var source in detachedSources) {
+            try {
+                InvokeLifecycle(() => source.OnDetached(this));
+            }
+            catch (Exception error) {
+                AddError(ref errors, error);
+            }
+        }
+        foreach (var stage in stages) {
+            try {
+                stage.Dispose();
+            }
+            catch (Exception error) {
+                AddError(ref errors, error);
+            }
+        }
+        ThrowErrors(errors);
+    }
+
+    private void DetachSource(SourceRegistration registration)
+    {
+        if (!registration.TryDeactivate(out var source)) {
+            return;
+        }
+        _sourcesNeedCompaction = true;
+        _sourcesChanged = true;
+        try {
+            InvokeLifecycle(() => source.OnDetached(this));
+        }
+        finally {
+            CompactIfIdle();
+        }
+    }
+
+    private void DetachEntry(EntryRegistration registration)
+    {
+        if (!registration.TryDeactivate(out var entry, out var slot)) {
+            return;
+        }
+        MarkEntriesForCompaction(slot);
+        try {
+            InvokeLifecycle(() => entry.OnDetached(this, slot.Label));
+        }
+        finally {
+            CompactIfIdle();
+        }
     }
 
     private void BeginTick()
     {
-        if (_phase != SchedulerPhase.Idle) {
-            throw new InvalidOperationException("Scheduler ticks cannot be nested.");
+        if (_phase != SchedulerPhase.Idle || _lifecycleCallbackDepth != 0) {
+            throw new InvalidOperationException(
+                "Scheduler ticks cannot be nested or started from a lifecycle callback.");
         }
         _phase = SchedulerPhase.BeginTick;
     }
@@ -239,8 +398,13 @@ public sealed class Scheduler : IAddon, IDisposable
     private static void TickSlot(ScheduleSlot slot)
     {
         slot.Stage?.Tick();
-        for (var i = 0; i < slot.Entries.Count; i++) {
-            slot.Entries[i].Tick();
+        var entries = slot.Entries;
+        var count = entries.Count;
+        for (var i = 0; i < count; i++) {
+            var registration = entries[i];
+            if (registration.Active) {
+                registration.Entry!.Tick();
+            }
         }
     }
 
@@ -272,30 +436,99 @@ public sealed class Scheduler : IAddon, IDisposable
         _planValid = false;
     }
 
-    private void EnsureMutable()
+    private void MarkEntriesForCompaction(ScheduleSlot slot)
     {
-        ObjectDisposedException.ThrowIf(IsDisposed, this);
-        if (_phase == SchedulerPhase.Executing) {
-            throw new InvalidOperationException(
-                "Scheduler structure cannot be changed while schedules are executing.");
+        if (slot.EntriesNeedCompaction) {
+            return;
+        }
+        slot.EntriesNeedCompaction = true;
+        _dirtyEntrySlots.Add(slot);
+    }
+
+    private void CompactIfIdle()
+    {
+        if (_phase == SchedulerPhase.Idle && _lifecycleCallbackDepth == 0) {
+            CompactRegistrations();
         }
     }
+
+    private void CompactRegistrations()
+    {
+        if (_sourcesNeedCompaction) {
+            _sourceRegistrations.RemoveAll(
+                static registration => !registration.Active);
+            _sourcesNeedCompaction = false;
+            _sourcesChanged = true;
+            _sourceSnapshot = [];
+        }
+
+        foreach (var slot in _dirtyEntrySlots) {
+            slot.Entries.RemoveAll(static registration => !registration.Active);
+            slot.EntriesNeedCompaction = false;
+            if (slot.Schedule is null && slot.Entries.Count == 0) {
+                _slots.Remove(slot.Label);
+                _registrationOrder.Remove(slot);
+                _executionOrder.Remove(slot);
+                _planValid = false;
+            }
+        }
+        _dirtyEntrySlots.Clear();
+    }
+
+    private void EnsureActive()
+        => ObjectDisposedException.ThrowIf(IsDisposed, this);
 
     private void EnsureScheduleMutable()
     {
-        if (_phase == SchedulerPhase.BeforeSchedule) {
+        if (_phase is SchedulerPhase.BeforeSchedule or SchedulerPhase.Executing) {
             throw new InvalidOperationException(
-                "Schedules cannot be changed from an OnBeforeSchedule callback.");
+                "Schedules can only be changed while idle or from OnBeginTick.");
         }
     }
 
-    private IScheduleSource[] GetSourceSnapshot()
+    private SourceRegistration[] GetSourceSnapshot()
     {
         if (_sourcesChanged) {
-            _sourceSnapshot = [.. _sources];
+            _sourceSnapshot = [.. _sourceRegistrations.Where(
+                static registration => registration.Active)];
             _sourcesChanged = false;
         }
         return _sourceSnapshot;
+    }
+
+    private void InvokeLifecycle(Action callback)
+    {
+        _lifecycleCallbackDepth++;
+        try {
+            callback();
+        }
+        finally {
+            _lifecycleCallbackDepth--;
+            if (_lifecycleCallbackDepth == 0
+                && _phase == SchedulerPhase.Idle
+                && !IsDisposed) {
+                CompactRegistrations();
+            }
+        }
+    }
+
+    private static void AddError(
+        ref List<Exception>? errors,
+        Exception error)
+    {
+        errors ??= [];
+        errors.Add(error);
+    }
+
+    private static void ThrowErrors(List<Exception>? errors)
+    {
+        if (errors is null) {
+            return;
+        }
+        if (errors.Count == 1) {
+            ExceptionDispatchInfo.Capture(errors[0]).Throw();
+        }
+        throw new AggregateException(errors);
     }
 
     private static ScheduleSlot[] TopologicalSort(IReadOnlyList<ScheduleSlot> slots)
