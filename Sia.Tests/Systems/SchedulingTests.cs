@@ -345,6 +345,24 @@ public class SchedulingTests
     }
 
     [Fact]
+    public void Scheduler_ReportsOnlyExactScheduleCycle()
+    {
+        using var world = new World();
+        var upstream = new ScheduleLabel("upstream");
+        var first = new ScheduleLabel("cycle.first");
+        var second = new ScheduleLabel("cycle.second");
+        var scheduler = world.AddAddon<Scheduler>()
+            .ConfigureSchedule(upstream, schedule => schedule.Before(first))
+            .ConfigureSchedule(first, schedule => schedule.Before(second))
+            .ConfigureSchedule(second, schedule => schedule.Before(first));
+
+        var exception = Assert.Throws<ScheduleCycleException>(scheduler.Tick);
+
+        Assert.Equal([first, second, first], exception.Cycle.ToArray());
+        Assert.DoesNotContain(upstream, exception.Cycle);
+    }
+
+    [Fact]
     public void Scheduler_AppliesSourceContributionsBeforeFirstPlan()
     {
         InitOrder.Clear();
