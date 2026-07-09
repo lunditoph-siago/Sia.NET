@@ -1,5 +1,6 @@
 namespace Sia;
 
+using System.Collections.Immutable;
 using System.Runtime.ExceptionServices;
 
 public sealed class Scheduler : IAddon, IDisposable
@@ -531,64 +532,36 @@ public sealed class Scheduler : IAddon, IDisposable
         throw new AggregateException(errors);
     }
 
-    private static ScheduleSlot[] TopologicalSort(IReadOnlyList<ScheduleSlot> slots)
+    private static ImmutableArray<ScheduleSlot> TopologicalSort(
+        IReadOnlyList<ScheduleSlot> slots)
     {
         var labelIndex = new Dictionary<ScheduleLabel, int>(slots.Count);
         for (var i = 0; i < slots.Count; i++) {
             labelIndex[slots[i].Label] = i;
         }
 
-        var edges = new HashSet<(int From, int To)>();
+        var edges = new HashSet<DependencyEdge>();
         for (var i = 0; i < slots.Count; i++) {
             if (slots[i].Schedule is not { } schedule) {
                 continue;
             }
             foreach (var before in schedule.RunsBefore) {
                 if (labelIndex.TryGetValue(before, out var target) && target != i) {
-                    edges.Add((i, target));
+                    edges.Add(new(i, target));
                 }
             }
             foreach (var after in schedule.RunsAfter) {
                 if (labelIndex.TryGetValue(after, out var predecessor) && predecessor != i) {
-                    edges.Add((predecessor, i));
+                    edges.Add(new(predecessor, i));
                 }
             }
         }
 
-        var inDegree = new int[slots.Count];
-        var successors = new List<int>[slots.Count];
-        for (var i = 0; i < successors.Length; i++) {
-            successors[i] = [];
+        var sorted = DependencyGraph.Sort(slots, edges);
+        if (sorted.HasCycle) {
+            throw new ScheduleCycleException(
+                sorted.Cycle.Select(slot => slot.Label).ToArray());
         }
-        foreach (var (from, to) in edges) {
-            successors[from].Add(to);
-            inDegree[to]++;
-        }
-        foreach (var list in successors) {
-            list.Sort();
-        }
-
-        var ready = new PriorityQueue<int, int>(slots.Count);
-        for (var i = 0; i < slots.Count; i++) {
-            if (inDegree[i] == 0) {
-                ready.Enqueue(i, i);
-            }
-        }
-
-        var result = new ScheduleSlot[slots.Count];
-        var count = 0;
-        while (ready.TryDequeue(out var current, out _)) {
-            result[count++] = slots[current];
-            foreach (var successor in successors[current]) {
-                if (--inDegree[successor] == 0) {
-                    ready.Enqueue(successor, successor);
-                }
-            }
-        }
-        if (count != slots.Count) {
-            throw new InvalidSystemDependencyException(
-                "Cycle detected in schedule dependency graph.");
-        }
-        return result;
+        return sorted.Order;
     }
 }
