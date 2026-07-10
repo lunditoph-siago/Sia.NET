@@ -8,9 +8,10 @@ using CommunityToolkit.HighPerformance;
 
 public sealed class SystemStage : IScheduleEntry, IDisposable
 {
-    public record struct Entry(ISystem System, Action? Action, IDisposable? Disposable);
+    public readonly record struct Entry(
+        ISystem System, Action? Action, IDisposable? Disposable);
 
-    private class CollectedEntityHost : IEntityHost
+    private sealed class CollectedEntityHost : IEntityHost
     {
         public IReactiveEntityHost Host { get; }
 
@@ -28,11 +29,14 @@ public sealed class SystemStage : IScheduleEntry, IDisposable
 
         private readonly List<Entity> _entities = [];
         private readonly Dictionary<Entity, int> _entityMap = [];
+        private readonly EntityHandler _onEntityReleased;
+        private bool _detached;
 
         public CollectedEntityHost(IReactiveEntityHost host)
         {
             Host = host;
-            Host.OnEntityReleased += (Entity e) => Remove(e);
+            _onEntityReleased = entity => Remove(entity);
+            Host.OnEntityReleased += _onEntityReleased;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -75,12 +79,16 @@ public sealed class SystemStage : IScheduleEntry, IDisposable
         public IEnumerator<Entity> GetEnumerator() => _entities.GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => _entities.GetEnumerator();
 
-        public void Dispose()
+        public void Dispose() => Detach();
+
+        public void Detach()
         {
-            Version++;
-            _entities.Clear();
-            _entityMap.Clear();
-            Host.Dispose();
+            if (_detached) {
+                return;
+            }
+            _detached = true;
+            Host.OnEntityReleased -= _onEntityReleased;
+            ClearCollected();
         }
 
         public Entity Create() => Host.Create();
@@ -189,7 +197,7 @@ public sealed class SystemStage : IScheduleEntry, IDisposable
         }
     }
 
-    private class ReactiveQuery : IEntityQuery
+    private sealed class ReactiveQuery : IEntityQuery
     {
         public readonly record struct HostEntry(
             CollectedEntityHost WrappedHost, EntityHandler EntityHandler, IEventListener? Listener);
@@ -235,11 +243,18 @@ public sealed class SystemStage : IScheduleEntry, IDisposable
 
             _onlyHasAddEventTrigger = OnlyHasAddEventTrigger(triggerTypes);
 
-            _query.OnEntityHostAdded += OnEntityHostAdded;
-            _query.OnEntityHostRemoved += OnEntityHostRemoved;
+            try {
+                _query.OnEntityHostAdded += OnEntityHostAdded;
+                _query.OnEntityHostRemoved += OnEntityHostRemoved;
 
-            foreach (var host in _query.Hosts) {
-                OnEntityHostAdded(host);
+                foreach (var host in _query.Hosts) {
+                    OnEntityHostAdded(host);
+                }
+            }
+            catch (Exception attachmentError) {
+                Outcome<Exception>.Failure(attachmentError)
+                    .Attempt(Dispose)
+                    .ThrowFailure();
             }
         }
 
@@ -306,15 +321,17 @@ public sealed class SystemStage : IScheduleEntry, IDisposable
             var wrappedHost = entry.WrappedHost;
             _hosts.Remove(wrappedHost);
 
-            wrappedHost.ClearCollected();
+            wrappedHost.Detach();
             wrappedHost.Host.OnEntityCreated -= entry.EntityHandler;
 
+            var result = Outcome<Exception>.Success;
             var listener = entry.Listener;
             if (listener != null) {
                 foreach (var entity in wrappedHost.Host) {
-                    _dispatcher.Unlisten(entity, listener);
+                    result = result.Attempt(() => _dispatcher.Unlisten(entity, listener));
                 }
             }
+            result.ThrowIfFailed();
         }
 
         public void ClearCollected()
@@ -329,51 +346,41 @@ public sealed class SystemStage : IScheduleEntry, IDisposable
             _query.OnEntityHostAdded -= OnEntityHostAdded;
             _query.OnEntityHostRemoved -= OnEntityHostRemoved;
 
+            var result = Outcome<Exception>.Success;
             foreach (var (host, (wrappedHost, handler, listener)) in _hostMap) {
-                wrappedHost.ClearCollected();
+                wrappedHost.Detach();
                 Unsafe.As<IReactiveEntityHost>(host).OnEntityCreated -= handler;
 
                 if (listener != null) {
                     foreach (var entity in host) {
-                        _dispatcher.Unlisten(entity, listener);
+                        result = result.Attempt(
+                            () => _dispatcher.Unlisten(entity, listener));
                     }
                 }
             }
 
             _hostMap.Clear();
             _hosts.Clear();
+            result.ThrowIfFailed();
         }
     }
 
-    private class CompositeDisposable(params IDisposable[] disposables) : IDisposable
+    private sealed class CompositeDisposable(params IDisposable[] disposables)
+        : IDisposable
     {
-        private List<IDisposable>? _disposables = [.. disposables];
-        private readonly object _lock = new();
+        private IDisposable[]? _disposables = disposables;
 
-        public int Count {
-            get {
-                lock (_lock) {
-                    return _disposables?.Count ?? 0;
-                }
-            }
-        }
+        public int Count => Volatile.Read(ref _disposables)?.Length ?? 0;
 
         public void Dispose()
         {
-            List<IDisposable>? tempDisposables = null;
-
-            lock (_lock) {
-                if (_disposables is not null) {
-                    tempDisposables = _disposables;
-                    _disposables = null;
-                }
+            var owned = Interlocked.Exchange(ref _disposables, null);
+            var result = Outcome<Exception>.Success;
+            for (var i = (owned?.Length ?? 0) - 1; i >= 0; i--) {
+                var disposable = owned![i];
+                result = result.Attempt(disposable.Dispose);
             }
-
-            if (tempDisposables is not null) {
-                foreach (var disposable in tempDisposables) {
-                    disposable.Dispose();
-                }
-            }
+            result.ThrowIfFailed();
         }
     }
 
@@ -385,27 +392,35 @@ public sealed class SystemStage : IScheduleEntry, IDisposable
 
     internal SystemStage(World world, IEnumerable<ISystem> systems)
     {
+        ArgumentNullException.ThrowIfNull(world);
+        ArgumentNullException.ThrowIfNull(systems);
         World = world;
-        Entries = [
-            ..systems.Select(system =>
-                new Entry(system,
-                    CreateSystemAction(world, system, out var disposable),
-                    disposable))
-        ];
-
-        var actions = Entries
-            .Where(entry => entry.Action != null)
-            .Select(entry => entry.Action!)
-            .ToArray();
-
-        _combinedAction = () => {
-            foreach (var action in actions) {
-                action();
+        var entries = ImmutableArray.CreateBuilder<Entry>();
+        try {
+            foreach (var system in systems) {
+                var action = CreateSystemAction(
+                    world, system, out var disposable);
+                entries.Add(new(system, action, disposable));
             }
-        };
+        }
+        catch (Exception compilationError) {
+            DisposeResources(entries, Outcome<Exception>.Failure(compilationError))
+                .ThrowFailure();
+        }
 
-        foreach (var entry in Entries) {
-            entry.System.Initialize(world);
+        Entries = entries.ToImmutable();
+        _combinedAction = ComposeActions(Entries);
+
+        for (var i = 0; i < Entries.Length; i++) {
+            try {
+                Entries[i].System.Initialize(world);
+            }
+            catch (Exception initializationError) {
+                IsDisposed = true;
+                CleanupInitialized(
+                    world, Entries, i, Outcome<Exception>.Failure(initializationError))
+                    .ThrowFailure();
+            }
         }
     }
 
@@ -414,30 +429,64 @@ public sealed class SystemStage : IScheduleEntry, IDisposable
             .Entries.Select(static entry => entry.Creator()))
     { }
 
-    ~SystemStage()
-    {
-        DoDispose();
-    }
-
     public void Dispose()
-    {
-        DoDispose();
-        GC.SuppressFinalize(this);
-    }
-
-    private void DoDispose()
     {
         if (IsDisposed) {
             return;
         }
-        foreach (var entry in Entries) {
-            entry.System.Uninitialize(World);
-            entry.Disposable?.Dispose();
-        }
         IsDisposed = true;
+        CleanupInitialized(World, Entries, Entries.Length, Outcome<Exception>.Success)
+            .ThrowIfFailed();
     }
 
-    public void Tick() => _combinedAction();
+    public void Tick()
+    {
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
+        _combinedAction();
+    }
+
+    private static Outcome<Exception> CleanupInitialized(
+        World world,
+        IReadOnlyList<Entry> entries,
+        int initializedCount,
+        Outcome<Exception> result)
+    {
+        for (var i = initializedCount - 1; i >= 0; i--) {
+            var system = entries[i].System;
+            result = result.Attempt(() => system.Uninitialize(world));
+        }
+        return DisposeResources(entries, result);
+    }
+
+    private static Outcome<Exception> DisposeResources(
+        IReadOnlyList<Entry> entries,
+        Outcome<Exception> result)
+    {
+        for (var i = entries.Count - 1; i >= 0; i--) {
+            if (entries[i].Disposable is { } disposable) {
+                result = result.Attempt(disposable.Dispose);
+            }
+        }
+        return result;
+    }
+
+    private static Action ComposeActions(ImmutableArray<Entry> entries)
+    {
+        var actions = entries
+            .Where(static entry => entry.Action != null)
+            .Select(static entry => entry.Action!)
+            .ToArray();
+
+        return actions.Length switch {
+            0 => static () => { },
+            1 => actions[0],
+            _ => () => {
+                foreach (var action in actions) {
+                    action();
+                }
+            }
+        };
+    }
 
     private static Action? CreateSystemAction(World world, ISystem system, out IDisposable? disposable)
     {
@@ -496,14 +545,32 @@ public sealed class SystemStage : IScheduleEntry, IDisposable
                     return;
                 }
                 reactiveQuery.Frozen = true;
-                system.Execute(world, reactiveQuery);
-                reactiveQuery.ClearCollected();
-                reactiveQuery.Frozen = false;
+                try {
+                    system.Execute(world, reactiveQuery);
+                }
+                finally {
+                    try {
+                        reactiveQuery.ClearCollected();
+                    }
+                    finally {
+                        reactiveQuery.Frozen = false;
+                    }
+                }
             };
         }
 
         if (children != null) {
-            var childrenStage = children.CreateStage(world);
+            SystemStage childrenStage;
+            try {
+                childrenStage = children.CreateStage(world);
+            }
+            catch (Exception creationError) {
+                var result = Outcome<Exception>.Failure(creationError);
+                if (selfDisposable != null) {
+                    result = result.Attempt(selfDisposable.Dispose);
+                }
+                childrenStage = result.ThrowFailure<SystemStage>();
+            }
             var childrenStageAction = childrenStage._combinedAction;
 
             disposable = selfDisposable != null

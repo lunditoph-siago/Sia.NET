@@ -1,7 +1,6 @@
 namespace Sia;
 
 using System.Collections.Immutable;
-using System.Runtime.ExceptionServices;
 
 public sealed class Scheduler : IAddon, IDisposable
 {
@@ -330,32 +329,19 @@ public sealed class Scheduler : IAddon, IDisposable
         _sourcesNeedCompaction = false;
         _planValid = false;
 
-        List<Exception>? errors = null;
+        var result = Outcome<Exception>.Success;
         foreach (var (entry, label) in detachedEntries) {
-            try {
-                InvokeLifecycle(() => entry.OnDetached(this, label));
-            }
-            catch (Exception error) {
-                AddError(ref errors, error);
-            }
+            result = result.Attempt(
+                () => InvokeLifecycle(() => entry.OnDetached(this, label)));
         }
         foreach (var source in detachedSources) {
-            try {
-                InvokeLifecycle(() => source.OnDetached(this));
-            }
-            catch (Exception error) {
-                AddError(ref errors, error);
-            }
+            result = result.Attempt(
+                () => InvokeLifecycle(() => source.OnDetached(this)));
         }
         foreach (var stage in stages) {
-            try {
-                stage.Dispose();
-            }
-            catch (Exception error) {
-                AddError(ref errors, error);
-            }
+            result = result.Attempt(stage.Dispose);
         }
-        ThrowErrors(errors);
+        result.ThrowIfFailed();
     }
 
     private void DetachSource(SourceRegistration registration)
@@ -511,25 +497,6 @@ public sealed class Scheduler : IAddon, IDisposable
                 CompactRegistrations();
             }
         }
-    }
-
-    private static void AddError(
-        ref List<Exception>? errors,
-        Exception error)
-    {
-        errors ??= [];
-        errors.Add(error);
-    }
-
-    private static void ThrowErrors(List<Exception>? errors)
-    {
-        if (errors is null) {
-            return;
-        }
-        if (errors.Count == 1) {
-            ExceptionDispatchInfo.Capture(errors[0]).Throw();
-        }
-        throw new AggregateException(errors);
     }
 
     private static ImmutableArray<ScheduleSlot> TopologicalSort(
