@@ -69,10 +69,12 @@ public partial class World
             return false;
         }
         var removedAddon = addon;
-        addon.OnUninitialize(this);
         addon = null;
         _addonCount--;
-        OnAddonRemoved?.Invoke(removedAddon);
+        Outcome<Exception>.Success
+            .Attempt(() => removedAddon.OnUninitialize(this))
+            .Attempt(() => OnAddonRemoved?.Invoke(removedAddon))
+            .ThrowIfFailed();
         return true;
     }
 
@@ -138,13 +140,21 @@ public partial class World
 
     public void ClearAddons()
     {
-        for (var i = 0; _addonCount != 0; ++i) {
+        var addons = new List<IAddon>(_addonCount);
+        for (var i = 0; addons.Count < _addonCount; ++i) {
             if (_addons[i] is { } addon) {
-                addon.OnUninitialize(this);
+                addons.Add(addon);
                 _addons[i] = null;
-                _addonCount--;
-                OnAddonRemoved?.Invoke(addon);
             }
         }
+        _addonCount = 0;
+
+        var result = Outcome<Exception>.Success;
+        foreach (var addon in addons) {
+            result = result
+                .Attempt(() => addon.OnUninitialize(this))
+                .Attempt(() => OnAddonRemoved?.Invoke(addon));
+        }
+        result.ThrowIfFailed();
     }
 }
