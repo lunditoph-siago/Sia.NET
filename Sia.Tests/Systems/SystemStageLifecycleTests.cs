@@ -44,6 +44,16 @@ public class SystemStageLifecycleTests
         }
     }
 
+    private sealed class CountingReactiveSystem() : SystemBase(
+        Matchers.Any,
+        EventUnion.Of<ProbeEvent>())
+    {
+        public int ExecutionCount { get; private set; }
+
+        public override void Execute(World world, IEntityQuery query)
+            => ExecutionCount++;
+    }
+
     [Fact]
     public void InitializationFailureRollsBackSystemsAndChildrenInReverseOrder()
     {
@@ -124,5 +134,24 @@ public class SystemStageLifecycleTests
         stage.Tick();
 
         Assert.Equal(2, system.ExecutionCount);
+    }
+
+    [Fact]
+    public void ReleasedEntityIsUncollectedAfterItsSlotChanges()
+    {
+        using var world = new World();
+        var first = world.Create(HList.From(new ProbeComponent()));
+        var target = world.Create(HList.From(new ProbeComponent()));
+        var system = new CountingReactiveSystem();
+        using var stage = SystemChain.Empty
+            .Add(SystemId.Func("reactive"), () => system)
+            .CreateStage(world);
+
+        world.Send(target, new ProbeEvent());
+        first.Destroy();
+        target.Destroy();
+        stage.Tick();
+
+        Assert.Equal(0, system.ExecutionCount);
     }
 }

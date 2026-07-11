@@ -14,6 +14,18 @@ public class DispatcherTests
         }
     }
 
+    private sealed class EntityCountingListener : IEventListener
+    {
+        public int Count { get; private set; }
+
+        public bool OnEvent<TEvent>(Entity target, in TEvent e)
+            where TEvent : IEvent
+        {
+            Count++;
+            return false;
+        }
+    }
+
     public readonly record struct AssertCommand(int Expected) : ICommand
     {
         public void Execute(World world, Entity target) { }
@@ -77,5 +89,20 @@ public class DispatcherTests
         dispatcher.Send(2, new AssertCommand(2));
         Assert.Equal(0, first.Count);
         Assert.Equal(1, second.Count);
+    }
+
+    [Fact]
+    public void TargetListenerSurvivesEntitySlotCompaction()
+    {
+        using var world = new World();
+        var first = world.Create();
+        var target = world.Create();
+        var listener = new EntityCountingListener();
+        world.Dispatcher.Listen(target, listener);
+
+        first.Destroy();
+        world.Send(target, new AssertCommand(0));
+
+        Assert.Equal(1, listener.Count);
     }
 }
