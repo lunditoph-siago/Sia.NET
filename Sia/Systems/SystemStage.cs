@@ -28,7 +28,7 @@ public sealed class SystemStage : IScheduleEntry, IDisposable
         public int Version { get; private set; }
 
         private readonly List<Entity> _entities = [];
-        private readonly Dictionary<Entity, int> _entityMap = [];
+        private readonly Dictionary<EntityId, int> _entityMap = [];
         private readonly EntityHandler _onEntityReleased;
         private bool _detached;
 
@@ -43,7 +43,7 @@ public sealed class SystemStage : IScheduleEntry, IDisposable
         public void Add(Entity entity)
         {
             var index = _entities.Count;
-            if (!_entityMap.TryAdd(entity, index)) {
+            if (!_entityMap.TryAdd(entity.Id, index)) {
                 return;
             }
             Version++;
@@ -53,7 +53,7 @@ public sealed class SystemStage : IScheduleEntry, IDisposable
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Remove(Entity entity)
         {
-            if (!_entityMap.Remove(entity, out var index)) {
+            if (!_entityMap.Remove(entity.Id, out var index)) {
                 return false;
             }
             Version++;
@@ -64,7 +64,7 @@ public sealed class SystemStage : IScheduleEntry, IDisposable
             else {
                 var lastEntity = _entities[lastIndex];
                 _entities[index] = lastEntity;
-                _entityMap[lastEntity] = index;
+                _entityMap[lastEntity.Id] = index;
             }
             return true;
         }
