@@ -44,9 +44,9 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
 
     public virtual void Release(Entity entity)
     {
+        MoveOut(entity);
         entity.Host = null!;
         Entity.Pool.Return(entity);
-        MoveOut(entity);
     }
 
     public Entity GetEntity(int slot)
