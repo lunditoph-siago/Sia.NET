@@ -7,11 +7,11 @@ public interface IEventSender<in TEvent> : IEventSender<Entity, TEvent>
 
 public interface IEventSender : IEventSender<IEvent>;
 
-public class Dispatcher<TEvent> : Dispatcher<Entity, Entity, TEvent>
+public class Dispatcher<TEvent> : Dispatcher<Entity, EntityId, TEvent>
     where TEvent : IEvent
 {
-    protected override Entity GetKey(Entity target)
-        => target;
+    protected override EntityId GetKey(Entity target)
+        => target.Id;
 }
 
 public class Dispatcher : Dispatcher<IEvent>;

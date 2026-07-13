@@ -29,10 +29,11 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
         if (IsDisposed) { return; }
         IsDisposed = true;
 
-        ClearHosts();
-        ClearAddons();
-
-        OnDisposed?.Invoke(this);
+        Outcome<Exception>.Success
+            .Attempt(ClearHosts)
+            .Attempt(ClearAddons)
+            .Attempt(() => OnDisposed?.Invoke(this))
+            .ThrowIfFailed();
     }
 
     public void Dispose()

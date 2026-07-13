@@ -10,10 +10,9 @@ public partial class World
 
     public IEnumerable<IAddon> Addons {
         get {
-            for (var i = 0; i < _addonCount;) {
-                var addon = _addons[i];
-                if (addon != null) {
-                    i++;
+            for (int i = 0, addonAcc = 0; addonAcc < _addonCount; ++i) {
+                if (_addons[i] is { } addon) {
+                    addonAcc++;
                     yield return addon;
                 }
             }
@@ -70,10 +69,12 @@ public partial class World
             return false;
         }
         var removedAddon = addon;
-        addon.OnUninitialize(this);
         addon = null;
         _addonCount--;
-        OnAddonRemoved?.Invoke(removedAddon);
+        Outcome<Exception>.Success
+            .Attempt(() => removedAddon.OnUninitialize(this))
+            .Attempt(() => OnAddonRemoved?.Invoke(removedAddon))
+            .ThrowIfFailed();
         return true;
     }
 
@@ -81,14 +82,12 @@ public partial class World
     public TAddon GetAddon<TAddon>()
         where TAddon : class, IAddon
     {
-        var addon = _addons[WorldAddonIndexer<TAddon>.Index];
-        if (addon != null) {
-            return Unsafe.As<TAddon>(addon);
+        if (_addons[WorldAddonIndexer<TAddon>.Index] is { } exact) {
+            return Unsafe.As<TAddon>(exact);
         }
 
         for (int i = 0, addonAcc = 0; addonAcc < _addonCount; ++i) {
-            addon = _addons[i];
-            if (addon != null) {
+            if (_addons[i] is { } addon) {
                 if (addon is TAddon converted) {
                     return converted;
                 }
@@ -102,18 +101,17 @@ public partial class World
     public IEnumerable<TAddon> GetAddons<TAddon>()
         where TAddon : class, IAddon
     {
-        var addon = _addons[WorldAddonIndexer<TAddon>.Index];
-        if (addon != null) {
-            yield return Unsafe.As<TAddon>(addon);
+        var exactIndex = WorldAddonIndexer<TAddon>.Index;
+        if (_addons[exactIndex] is { } exact) {
+            yield return Unsafe.As<TAddon>(exact);
         }
 
         for (int i = 0, addonAcc = 0; addonAcc < _addonCount; ++i) {
-            addon = _addons[i];
-            if (addon != null) {
-                if (addon is TAddon converted) {
+            if (_addons[i] is { } addon) {
+                addonAcc++;
+                if (i != exactIndex && addon is TAddon converted) {
                     yield return converted;
                 }
-                addonAcc++;
             }
         }
     }
@@ -121,17 +119,14 @@ public partial class World
     public bool TryGetAddon<TAddon>([MaybeNullWhen(false)] out TAddon addon)
         where TAddon : class, IAddon
     {
-        var rawAddon = _addons[WorldAddonIndexer<TAddon>.Index];
-
-        if (rawAddon != null) {
-            addon = Unsafe.As<TAddon>(rawAddon);
+        if (_addons[WorldAddonIndexer<TAddon>.Index] is { } exact) {
+            addon = Unsafe.As<TAddon>(exact);
             return true;
         }
 
         for (int i = 0, addonAcc = 0; addonAcc < _addonCount; ++i) {
-            rawAddon = _addons[i];
-            if (rawAddon != null) {
-                if (rawAddon is TAddon converted) {
+            if (_addons[i] is { } candidate) {
+                if (candidate is TAddon converted) {
                     addon = converted;
                     return true;
                 }
@@ -145,15 +140,21 @@ public partial class World
 
     public void ClearAddons()
     {
-        for (int i = 0, addonAcc = 0; addonAcc < _addonCount; ++i) {
-            var addon = _addons[i];
-            if (addon != null) {
-                addon.OnUninitialize(this);
+        var addons = new List<IAddon>(_addonCount);
+        for (var i = 0; addons.Count < _addonCount; ++i) {
+            if (_addons[i] is { } addon) {
+                addons.Add(addon);
                 _addons[i] = null;
-                _addonCount--;
-                OnAddonRemoved?.Invoke(addon);
-                addonAcc++;
             }
         }
+        _addonCount = 0;
+
+        var result = Outcome<Exception>.Success;
+        foreach (var addon in addons) {
+            result = result
+                .Attempt(() => addon.OnUninitialize(this))
+                .Attempt(() => OnAddonRemoved?.Invoke(addon));
+        }
+        result.ThrowIfFailed();
     }
 }

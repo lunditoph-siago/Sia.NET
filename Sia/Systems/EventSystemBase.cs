@@ -148,7 +148,7 @@ public abstract class SnapshotEventSystemBase<TSnapshot>(SystemChain? children =
     private List<(Entity, IEventCache, int)> _events = [];
     private List<(Entity, IEventCache, int)> _eventsBack = [];
 
-    private readonly Dictionary<Entity, TSnapshot> _snapshots = [];
+    private readonly Dictionary<EntityId, TSnapshot> _snapshots = [];
 
     public override void Initialize(World world)
         => World = world;
@@ -198,7 +198,8 @@ public abstract class SnapshotEventSystemBase<TSnapshot>(SystemChain? children =
 
             TSnapshot lastSnapshot;
 
-            ref var snapshot = ref CollectionsMarshal.GetValueRefOrAddDefault(_snapshots, entity, out var exists);
+            ref var snapshot = ref CollectionsMarshal.GetValueRefOrAddDefault(
+                _snapshots, entity.Id, out var exists);
             if (!exists) {
                 snapshot = Snapshot(entity, e);
                 lastSnapshot = snapshot;
@@ -234,7 +235,7 @@ public abstract class SnapshotEventSystemBase<TSnapshot>(SystemChain? children =
                 eventCache = Unsafe.As<EventCache<TEvent>>(rawCache);
             }
 
-            if (!_snapshots.Remove(entity, out var snapshot)) {
+            if (!_snapshots.Remove(entity.Id, out var snapshot)) {
                 return false;
             }
 

@@ -18,7 +18,7 @@ public static partial class EntityQueryExtensions
         private readonly IReadOnlyList<IEntityHost> _hosts = query.Hosts;
         private readonly int _hostCount = query.Hosts.Count;
 
-        private IEntityHost _host;
+        private IEntityHost _host = null!;
         private int _hostIndex;
         private int _hostVersion;
 
