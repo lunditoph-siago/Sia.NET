@@ -35,6 +35,7 @@ internal sealed class FnSpec<TProps, TTree>(ExpandFn<TProps, TTree> expand)
             props,
             new PrevTree<TTree>(),
             new Cell {
+                Identity = reconciler.NextIdentity(),
                 Parent = parent,
                 Depth = depth,
                 SlotInParent = slotInParent,

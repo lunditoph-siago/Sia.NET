@@ -1,7 +1,16 @@
 namespace Sia.Reactive;
 
+internal readonly record struct CellIdentity(long Value)
+{
+    private static long s_next;
+
+    public static CellIdentity Create()
+        => new(Interlocked.Increment(ref s_next));
+}
+
 public struct Cell
 {
+    internal CellIdentity Identity;
     public Entity? Parent;
     public int Depth;
     public int SlotInParent;

@@ -13,7 +13,7 @@ public class ReconcilerLifecycleTests
         var reconciler = world.AcquireAddon<Reconciler>();
         var probe = new LifecycleProbe();
 
-        var cell = reconciler.Mount(new LifecycleSpec(probe));
+        var mount = reconciler.Mount(new LifecycleSpec(probe));
         var output = FindOutput(world);
 
         probe.State.Set(2);
@@ -24,11 +24,30 @@ public class ReconcilerLifecycleTests
         Assert.Equal(3, output.Get<ReactiveValue>().Value);
         Assert.Equal(2, probe.Expansions);
 
-        reconciler.Unmount(cell);
+        mount.Unmount();
 
-        Assert.False(cell.IsValid);
+        Assert.False(mount.IsMounted);
         Assert.False(output.IsValid);
         Assert.Equal(0, world.Count);
+    }
+
+    [Fact]
+    public void StaleHandle_CannotMutateAReusedCell()
+    {
+        using var world = new World();
+        var reconciler = world.AcquireAddon<Reconciler>();
+        var stale = reconciler.Mount(new HandleSpec(1));
+        stale.Unmount();
+
+        var current = reconciler.Mount(new HandleSpec(2));
+
+        Assert.False(stale.IsMounted);
+        Assert.Throws<ObjectDisposedException>(
+            () => stale.Update(new HandleSpec(99)));
+
+        current.Update(new HandleSpec(3));
+        reconciler.Flush();
+        Assert.Equal(3, FindOutput(world).Get<ReactiveValue>().Value);
     }
 
     private static Entity FindOutput(World world)
@@ -60,4 +79,14 @@ public readonly record struct LifecycleSpec(LifecycleProbe Probe)
         props.Probe.Expansions++;
         return Term.Entity(HList.From(new ReactiveValue(state)));
     }
+}
+
+public readonly record struct HandleSpec(int Value)
+    : ISpec<HandleSpec, int, EntityTerm<ValueList, UnitTerm>>
+{
+    public static EntityTerm<ValueList, UnitTerm> Expand(
+        in HandleSpec props,
+        in int state,
+        in ExpandContext context)
+        => Term.Entity(HList.From(new ReactiveValue(props.Value)));
 }
