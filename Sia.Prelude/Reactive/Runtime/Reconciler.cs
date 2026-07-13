@@ -157,7 +157,6 @@ public sealed class Reconciler : ReactorBase<TypeUnion<Cell>>
             SlotIndex = slotIndex,
             Entry = new(
                 SystemId.For<TSystem>(),
-                typeof(TSystem),
                 () => instance,
                 SystemDescriptorProvider.GetOrDefault(typeof(TSystem))),
         });
@@ -224,11 +223,11 @@ public sealed class Reconciler : ReactorBase<TypeUnion<Cell>>
         var chain = SystemChain.Empty;
         foreach (var slot in registry.Slots) {
             var entry = slot.Entry;
-            chain = chain.Add(entry.Id, entry.Type, entry.Creator, entry.Descriptor);
+            chain = chain.Add(entry.Id, entry.Creator, entry.Descriptor);
         }
 
         DisposeStage(registry);
-        registry.Stage = new SystemGraph(chain).CreateStage(World);
+        registry.Stage = chain.CreateStage(World);
         registry.Version++;
     }
 
