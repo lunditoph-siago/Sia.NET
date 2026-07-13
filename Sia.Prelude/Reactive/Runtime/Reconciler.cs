@@ -5,7 +5,9 @@ using Sia.Reactors;
 
 public sealed class Reconciler : ReactorBase<TypeUnion<Cell>>
 {
-    private readonly List<Entity> _dirty = [];
+    private readonly record struct DirtyEntry(Entity Cell, CellIdentity Identity);
+
+    private readonly List<DirtyEntry> _dirty = [];
     private int _dirtyHead;
     private bool _flushing;
 
@@ -29,25 +31,49 @@ public sealed class Reconciler : ReactorBase<TypeUnion<Cell>>
         base.OnUninitialize(world);
     }
 
-    public Entity Mount<TSpec>(in TSpec props)
+    public MountHandle<TSpec> Mount<TSpec>(in TSpec props)
         where TSpec : struct, ISpec
     {
         var cell = MountSub(
             props, parent: null, depth: 0, slotInParent: -1, schedule: null, scope: null);
         Flush();
-        return cell;
+        return new(this, cell, cell.Get<Cell>().Identity);
     }
 
-    public Entity Mount<TProps>(Spec<TProps> spec, in TProps props)
+    public MountHandle<TProps> Mount<TProps>(Spec<TProps> spec, in TProps props)
         where TProps : struct, IEquatable<TProps>
     {
         var cell = spec.MountCell(
             this, props, parent: null, depth: 0, slotInParent: -1, schedule: null, scope: null);
         Flush();
-        return cell;
+        return new(this, cell, cell.Get<Cell>().Identity);
     }
 
-    public void Unmount(Entity cell) => cell.Destroy();
+    internal void Unmount(Entity cell, CellIdentity identity)
+    {
+        if (!IsCell(cell, identity)) {
+            throw new ObjectDisposedException(nameof(MountHandle<int>));
+        }
+        cell.Destroy();
+    }
+
+    internal void UpdateMount<TProps>(Entity cell, in TProps props)
+        where TProps : struct
+    {
+        cell.Get<TProps>() = props;
+        EnqueueDirty(cell);
+    }
+
+    internal void InvalidateMount(Entity cell)
+        => EnqueueDirty(cell);
+
+    internal bool IsCell(Entity cell, CellIdentity identity)
+        => cell.IsValid
+            && cell.Contains<Cell>()
+            && cell.Get<Cell>().Identity == identity;
+
+    internal CellIdentity NextIdentity()
+        => CellIdentity.Create();
 
     internal Entity MountSub<TSpec>(
         in TSpec props, Entity? parent, int depth, int slotInParent,
@@ -70,7 +96,7 @@ public sealed class Reconciler : ReactorBase<TypeUnion<Cell>>
             return;
         }
         cellData.InDirty = true;
-        InsertByDepth(cell, cellData.Depth);
+        InsertByDepth(new(cell, cellData.Identity), cellData.Depth);
     }
 
     public void Flush()
@@ -82,11 +108,12 @@ public sealed class Reconciler : ReactorBase<TypeUnion<Cell>>
         try {
             while (true) {
                 if (_dirtyHead < _dirty.Count) {
-                    var cell = _dirty[_dirtyHead];
-                    _dirty[_dirtyHead] = null!;
+                    var entry = _dirty[_dirtyHead];
+                    _dirty[_dirtyHead] = default;
                     _dirtyHead++;
 
-                    if (!cell.IsValid) {
+                    var cell = entry.Cell;
+                    if (!IsCell(cell, entry.Identity)) {
                         continue;
                     }
                     ref var cellData = ref cell.Get<Cell>();
@@ -295,19 +322,21 @@ public sealed class Reconciler : ReactorBase<TypeUnion<Cell>>
     }
 
     // Pending cells are kept sorted by depth so parents expand before children.
-    private void InsertByDepth(Entity cell, int depth)
+    private void InsertByDepth(DirtyEntry entry, int depth)
     {
         var dirty = _dirty;
         var index = dirty.Count;
         while (index > _dirtyHead && GetDepth(dirty[index - 1]) > depth) {
             index--;
         }
-        dirty.Insert(index, cell);
+        dirty.Insert(index, entry);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static int GetDepth(Entity cell)
-        => cell.IsValid ? cell.Get<Cell>().Depth : int.MinValue;
+    private int GetDepth(DirtyEntry entry)
+        => IsCell(entry.Cell, entry.Identity)
+            ? entry.Cell.Get<Cell>().Depth
+            : int.MinValue;
 
     private struct CellFactory<TProps>(
         Reconciler reconciler, TProps props, Entity? parent, int depth, int slotInParent,
@@ -332,6 +361,7 @@ public sealed class Reconciler : ReactorBase<TypeUnion<Cell>>
                 TSpec.InitialState(typedProps),
                 new PrevTree<TTree>(),
                 new Cell {
+                    Identity = reconciler.NextIdentity(),
                     Parent = parent,
                     Depth = depth,
                     SlotInParent = slotInParent,
