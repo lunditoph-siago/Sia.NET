@@ -61,8 +61,16 @@ internal sealed class FnExpander<TProps, TTree>(ExpandFn<TProps, TTree> expand)
         var cellData = cell.Get<Cell>();
         var prevTree = cell.Get<PrevTree<TTree>>();
 
-        cellData.States?.ResetCursor();
-        var next = expand(props, new ExpandContext(world, cell));
+        reconciler.BeginExpansion(cell);
+        TTree next;
+        try {
+            next = expand(props, new ExpandContext(reconciler, cell));
+            reconciler.CompleteExpansion(cell);
+        }
+        catch {
+            reconciler.AbortExpansion();
+            throw;
+        }
 
         var ctx = new GraphContext(
             reconciler, world, cell, cellData.Slots, cellData.Depth,

@@ -10,6 +10,7 @@ public sealed class Reconciler : ReactorBase
     private readonly List<DirtyEntry> _dirty = [];
     private readonly Dictionary<long, Entity> _roots = [];
     private World? _graphWorld;
+    private Entity? _expandingCell;
     private int _dirtyHead;
     private bool _flushing;
 
@@ -24,7 +25,6 @@ public sealed class Reconciler : ReactorBase
     {
         base.OnInitialize(world);
         _graphWorld = new World();
-        Listen((Entity target, in CellEvents.Invalidate e) => EnqueueDirty(target));
     }
 
     public override void OnUninitialize(World world)
@@ -42,6 +42,7 @@ public sealed class Reconciler : ReactorBase
         _schedules.Clear();
         _graphWorld?.Dispose();
         _graphWorld = null;
+        _expandingCell = null;
         base.OnUninitialize(world);
     }
 
@@ -85,6 +86,36 @@ public sealed class Reconciler : ReactorBase
 
     internal void InvalidateMount(Entity cell)
         => EnqueueDirty(cell);
+
+    internal void BeginExpansion(Entity cell)
+    {
+        if (_expandingCell != null) {
+            throw new InvalidOperationException("Reactive expansions cannot be nested.");
+        }
+        _expandingCell = cell;
+        cell.Get<Cell>().States?.BeginExpansion();
+    }
+
+    internal void CompleteExpansion(Entity cell)
+    {
+        try {
+            cell.Get<Cell>().States?.CompleteExpansion();
+        }
+        finally {
+            _expandingCell = null;
+        }
+    }
+
+    internal void AbortExpansion()
+        => _expandingCell = null;
+
+    internal void GuardStateMutation(Entity owner)
+    {
+        if (ReferenceEquals(_expandingCell, owner)) {
+            throw new InvalidOperationException(
+                "State cannot be mutated while its spec is expanding.");
+        }
+    }
 
     internal bool IsCell(Entity cell, NodeIdentity identity)
         => cell.IsValid

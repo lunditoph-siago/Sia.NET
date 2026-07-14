@@ -1,16 +1,41 @@
 namespace Sia.Reactive;
 
-public readonly record struct StateRef<TState>(World World, Entity Cell)
+public readonly struct StateRef<TState>
     where TState : struct
 {
-    public ref TState Value => ref Cell.Get<TState>();
+    private readonly Reconciler? _reconciler;
+    private readonly Entity? _owner;
+    private readonly NodeIdentity _identity;
+
+    internal StateRef(Reconciler reconciler, Entity owner, NodeIdentity identity)
+        => (_reconciler, _owner, _identity) = (reconciler, owner, identity);
+
+    public TState Value => GetOwner().Get<TState>();
 
     public void Set(in TState value)
     {
-        Cell.Get<TState>() = value;
-        Notify();
+        var owner = GetOwner();
+        var reconciler = GetReconciler();
+        reconciler.GuardStateMutation(owner);
+        owner.Get<TState>() = value;
+        reconciler.EnqueueDirty(owner);
     }
 
     public void Notify()
-        => World.Send(Cell, CellEvents.Invalidate.Instance);
+    {
+        var owner = GetOwner();
+        var reconciler = GetReconciler();
+        reconciler.GuardStateMutation(owner);
+        reconciler.EnqueueDirty(owner);
+    }
+
+    private Entity GetOwner()
+        => _reconciler != null
+            && _owner != null
+            && _reconciler.IsCell(_owner, _identity)
+                ? _owner
+                : throw new ObjectDisposedException(nameof(StateRef<TState>));
+
+    private Reconciler GetReconciler()
+        => _reconciler ?? throw new ObjectDisposedException(nameof(StateRef<TState>));
 }

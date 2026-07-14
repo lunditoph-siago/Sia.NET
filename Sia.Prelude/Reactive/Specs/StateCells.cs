@@ -11,8 +11,17 @@ public sealed class StateCells
     private object[] _cells = new object[4];
     private int _count;
     private int _cursor;
+    private bool _initialized;
 
-    internal void ResetCursor() => _cursor = 0;
+    internal void BeginExpansion() => _cursor = 0;
+
+    internal void CompleteExpansion()
+    {
+        if (_cursor != _count) {
+            throw HookCountChanged();
+        }
+        _initialized = true;
+    }
 
     internal StateCell<T> NextState<T>(in T initial)
         where T : struct
@@ -24,6 +33,9 @@ public sealed class StateCells
                     $"Hook #{index} was previously a different type; " +
                     "hooks must be called in the same order on every expansion.");
         }
+        if (_initialized) {
+            throw HookCountChanged();
+        }
         if (_count == _cells.Length) {
             Array.Resize(ref _cells, _cells.Length * 2);
         }
@@ -31,32 +43,58 @@ public sealed class StateCells
         _cells[_count++] = cell;
         return cell;
     }
+
+    private InvalidOperationException HookCountChanged()
+        => new($"Hook count changed from {_count} to {_cursor}; " +
+            "hooks must be called unconditionally in the same order.");
 }
 
 public readonly struct State<T>
     where T : struct
 {
     private readonly StateCell<T> _cell;
-    private readonly World _world;
+    private readonly Reconciler _reconciler;
     private readonly Entity _owner;
+    private readonly NodeIdentity _identity;
 
-    internal State(StateCell<T> cell, World world, Entity owner)
+    internal State(
+        StateCell<T> cell,
+        Reconciler reconciler,
+        Entity owner,
+        NodeIdentity identity)
     {
         _cell = cell;
-        _world = world;
+        _reconciler = reconciler;
         _owner = owner;
+        _identity = identity;
     }
 
-    public T Value => _cell.Value;
-
-    public ref T Ref => ref _cell.Value;
+    public T Value {
+        get {
+            ValidateOwner();
+            return _cell.Value;
+        }
+    }
 
     public void Set(in T value)
     {
+        ValidateOwner();
+        _reconciler.GuardStateMutation(_owner);
         _cell.Value = value;
-        Notify();
+        _reconciler.EnqueueDirty(_owner);
     }
 
     public void Notify()
-        => _world.Send(_owner, CellEvents.Invalidate.Instance);
+    {
+        ValidateOwner();
+        _reconciler.GuardStateMutation(_owner);
+        _reconciler.EnqueueDirty(_owner);
+    }
+
+    private void ValidateOwner()
+    {
+        if (!_reconciler.IsCell(_owner, _identity)) {
+            throw new ObjectDisposedException(nameof(State<T>));
+        }
+    }
 }

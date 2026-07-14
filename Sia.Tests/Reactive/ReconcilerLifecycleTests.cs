@@ -26,6 +26,12 @@ public class ReconcilerLifecycleTests
         Assert.Equal(3, output.Get<ReactiveValue>().Value);
         Assert.Equal(2, probe.Expansions);
 
+        probe.MutateDuringExpansion = true;
+        mount.Invalidate();
+        var error = Assert.Throws<InvalidOperationException>(reconciler.Flush);
+        Assert.Contains("while its spec is expanding", error.Message);
+        Assert.Equal(3, output.Get<ReactiveValue>().Value);
+
         mount.Unmount();
 
         Assert.False(mount.IsMounted);
@@ -65,6 +71,7 @@ public sealed class LifecycleProbe
 {
     public StateRef<int> State;
     public int Expansions;
+    public bool MutateDuringExpansion;
 }
 
 public readonly record struct LifecycleSpec(LifecycleProbe Probe)
@@ -79,6 +86,9 @@ public readonly record struct LifecycleSpec(LifecycleProbe Probe)
     {
         props.Probe.State = context.UseState<int>();
         props.Probe.Expansions++;
+        if (props.Probe.MutateDuringExpansion) {
+            props.Probe.State.Set(4);
+        }
         return Term.Entity(HList.From(new ReactiveValue(state)));
     }
 }
