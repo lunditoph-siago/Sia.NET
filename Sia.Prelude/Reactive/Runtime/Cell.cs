@@ -34,6 +34,7 @@ public struct Cell
     public ContextScope? Scope;
     public StateCells? States;
     public bool InDirty;
+    internal bool IsDestroying;
 }
 
 public struct PrevTree<TTree>

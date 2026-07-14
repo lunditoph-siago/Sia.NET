@@ -31,7 +31,7 @@ internal sealed class FnSpec<TProps, TTree>(ExpandFn<TProps, TTree> expand)
         Reconciler reconciler, in TProps props, Entity? parent, int depth,
         int slotInParent, ScheduleRegistry? schedule, ContextScope? scope)
     {
-        var cell = reconciler.World.Create(HList.From(
+        var cell = reconciler.GraphWorld.Create(HList.From(
             props,
             new PrevTree<TTree>(),
             new Cell {

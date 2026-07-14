@@ -16,6 +16,8 @@ public class ReconcilerLifecycleTests
         var mount = reconciler.Mount(new LifecycleSpec(probe));
         var output = FindOutput(world);
 
+        Assert.Equal(1, world.Count);
+
         probe.State.Set(2);
         probe.State.Set(3);
         reconciler.Flush();
