@@ -1,20 +1,34 @@
 namespace Sia.Reactive;
 
-internal readonly record struct CellIdentity(long Value)
+internal readonly record struct NodeIdentity(long Value)
 {
     private static long s_next;
 
-    public static CellIdentity Create()
+    public static NodeIdentity Create()
         => new(Interlocked.Increment(ref s_next));
+}
+
+internal struct CellSlot
+{
+    public Entity? Entity;
+    public NodeIdentity Identity;
+
+    public void Set(Reconciler reconciler, Entity entity)
+        => (Entity, Identity) = (entity, reconciler.GetIdentity(entity));
+}
+
+internal struct ReactiveNode
+{
+    public NodeIdentity Identity;
 }
 
 public struct Cell
 {
-    internal CellIdentity Identity;
+    internal NodeIdentity Identity;
     public Entity? Parent;
     public int Depth;
     public int SlotInParent;
-    public Entity?[] Slots;
+    internal CellSlot[] Slots;
     public Expander Expander;
     public ScheduleRegistry? Schedule;
     public ContextScope? Scope;
