@@ -23,7 +23,7 @@ public readonly record struct ScopeTerm<TCtx, TChildren>(TCtx Value, TChildren C
 
     public static void Mount(in ScopeTerm<TCtx, TChildren> self, ref GraphContext ctx)
     {
-        var slot = ctx.World.Create(HList.From(new ContextNode<TCtx>(self.Value)));
+        var slot = ctx.Reconciler.CreateNode(new ContextNode<TCtx>(self.Value));
         var scope = new ContextScope(typeof(TCtx), slot, ctx.Scope);
         slot.Get<ContextNode<TCtx>>().Scope = scope;
         ctx.SetSlot(slot);

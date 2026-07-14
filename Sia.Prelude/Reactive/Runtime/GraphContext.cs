@@ -2,20 +2,36 @@ namespace Sia.Reactive;
 
 using System.Runtime.CompilerServices;
 
-public ref struct GraphContext(
-    Reconciler reconciler, World world, Entity cell, Entity?[] slots, int depth,
-    ScheduleRegistry? schedule, ContextScope? scope)
+public ref struct GraphContext
 {
-    public readonly Reconciler Reconciler = reconciler;
-    public readonly World World = world;
-    public readonly Entity Cell = cell;
-    public readonly int Depth = depth;
+    public readonly Reconciler Reconciler;
+    public readonly World World;
+    public readonly Entity Cell;
+    public readonly int Depth;
 
-    public ScheduleRegistry? Schedule = schedule;
-    public ContextScope? Scope = scope;
+    public ScheduleRegistry? Schedule;
+    public ContextScope? Scope;
 
-    private readonly Entity?[] _slots = slots;
+    private readonly CellSlot[] _slots;
     private int _cursor;
+
+    internal GraphContext(
+        Reconciler reconciler,
+        World world,
+        Entity cell,
+        CellSlot[] slots,
+        int depth,
+        ScheduleRegistry? schedule,
+        ContextScope? scope)
+    {
+        Reconciler = reconciler;
+        World = world;
+        Cell = cell;
+        Depth = depth;
+        Schedule = schedule;
+        Scope = scope;
+        _slots = slots;
+    }
 
     public readonly int NextSlotIndex {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -23,10 +39,10 @@ public ref struct GraphContext(
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void SetSlot(Entity entity) => _slots[_cursor++] = entity;
+    public void SetSlot(Entity entity) => _slots[_cursor++].Set(Reconciler, entity);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly Entity? PeekSlot() => _slots[_cursor];
+    public readonly Entity? PeekSlot() => Reconciler.Validate(_slots[_cursor]);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Advance() => _cursor++;
@@ -39,11 +55,9 @@ public ref struct GraphContext(
         var slots = _slots;
         var end = _cursor + count;
         for (var i = _cursor; i < end; i++) {
-            var entity = slots[i];
-            if (entity is { IsValid: true }) {
-                Reconciler.DestroySlot(entity);
-            }
-            slots[i] = null;
+            var slot = slots[i];
+            slots[i] = default;
+            Reconciler.DestroySlot(slot);
         }
         _cursor = end;
     }

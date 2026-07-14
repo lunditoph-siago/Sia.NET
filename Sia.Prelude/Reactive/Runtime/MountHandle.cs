@@ -5,9 +5,9 @@ public readonly struct MountHandle<TProps>
 {
     private readonly Reconciler? _owner;
     private readonly Entity? _cell;
-    private readonly CellIdentity _identity;
+    private readonly NodeIdentity _identity;
 
-    internal MountHandle(Reconciler owner, Entity cell, CellIdentity identity)
+    internal MountHandle(Reconciler owner, Entity cell, NodeIdentity identity)
         => (_owner, _cell, _identity) = (owner, cell, identity);
 
     public bool IsMounted

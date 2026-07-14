@@ -39,7 +39,7 @@ internal sealed class FnSpec<TProps, TTree>(ExpandFn<TProps, TTree> expand)
                 Parent = parent,
                 Depth = depth,
                 SlotInParent = slotInParent,
-                Slots = TTree.SlotCount > 0 ? new Entity?[TTree.SlotCount] : [],
+                Slots = TTree.SlotCount > 0 ? new CellSlot[TTree.SlotCount] : [],
                 Expander = _expander,
                 Schedule = schedule,
                 Scope = scope,

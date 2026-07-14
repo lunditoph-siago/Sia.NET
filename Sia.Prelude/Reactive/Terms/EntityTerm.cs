@@ -11,7 +11,7 @@ public readonly record struct EntityTerm<TList, TChildren>(TList Components, TCh
 
     public static void Mount(in EntityTerm<TList, TChildren> self, ref GraphContext ctx)
     {
-        ctx.SetSlot(ctx.World.Create(self.Components));
+        ctx.SetSlot(ctx.Reconciler.CreateOutput(self.Components));
         TChildren.Mount(self.Children, ref ctx);
     }
 
@@ -25,7 +25,7 @@ public readonly record struct EntityTerm<TList, TChildren>(TList Components, TCh
             ctx.Advance();
         }
         else {
-            ctx.SetSlot(ctx.World.Create(next.Components));
+            ctx.SetSlot(ctx.Reconciler.CreateOutput(next.Components));
         }
         TChildren.Reconcile(prev.Children, next.Children, ref ctx);
     }

@@ -68,7 +68,7 @@ public readonly record struct ForEachTerm<TKey, TSpec>(ReadOnlyMemory<Keyed<TKey
     {
         var slotIndex = ctx.NextSlotIndex;
         var index = new EachIndex<TKey>();
-        ctx.SetSlot(ctx.World.Create(HList.From(new EachNode { Cleanup = index })));
+        ctx.SetSlot(ctx.Reconciler.CreateNode(new EachNode { Cleanup = index }));
         Upsert(index, self.Items.Span, slotIndex, ref ctx);
     }
 

@@ -5,7 +5,7 @@ using Sia.Reactors;
 
 public sealed class Reconciler : ReactorBase<TypeUnion<Cell>>
 {
-    private readonly record struct DirtyEntry(Entity Cell, CellIdentity Identity);
+    private readonly record struct DirtyEntry(Entity Cell, NodeIdentity Identity);
 
     private readonly List<DirtyEntry> _dirty = [];
     private int _dirtyHead;
@@ -49,7 +49,7 @@ public sealed class Reconciler : ReactorBase<TypeUnion<Cell>>
         return new(this, cell, cell.Get<Cell>().Identity);
     }
 
-    internal void Unmount(Entity cell, CellIdentity identity)
+    internal void Unmount(Entity cell, NodeIdentity identity)
     {
         if (!IsCell(cell, identity)) {
             throw new ObjectDisposedException(nameof(MountHandle<int>));
@@ -67,13 +67,45 @@ public sealed class Reconciler : ReactorBase<TypeUnion<Cell>>
     internal void InvalidateMount(Entity cell)
         => EnqueueDirty(cell);
 
-    internal bool IsCell(Entity cell, CellIdentity identity)
+    internal bool IsCell(Entity cell, NodeIdentity identity)
         => cell.IsValid
             && cell.Contains<Cell>()
             && cell.Get<Cell>().Identity == identity;
 
-    internal CellIdentity NextIdentity()
-        => CellIdentity.Create();
+    internal NodeIdentity NextIdentity()
+        => NodeIdentity.Create();
+
+    internal NodeIdentity GetIdentity(Entity entity)
+        => entity.Contains<Cell>()
+            ? entity.Get<Cell>().Identity
+            : entity.Get<ReactiveNode>().Identity;
+
+    internal Entity? Validate(in CellSlot slot)
+    {
+        if (slot.Entity is not { IsValid: true } entity) {
+            return null;
+        }
+        if (entity.Contains<Cell>()) {
+            return entity.Get<Cell>().Identity == slot.Identity ? entity : null;
+        }
+        return entity.Contains<ReactiveNode>()
+            && entity.Get<ReactiveNode>().Identity == slot.Identity
+                ? entity
+                : null;
+    }
+
+    internal Entity CreateOutput<TList>(in TList components)
+        where TList : struct, IHList
+    {
+        var entity = World.Create(components);
+        entity.Add(new ReactiveNode { Identity = NextIdentity() });
+        return entity;
+    }
+
+    internal Entity CreateNode<T>(in T component)
+        => World.Create(HList.From(
+            component,
+            new ReactiveNode { Identity = NextIdentity() }));
 
     internal Entity MountSub<TSpec>(
         in TSpec props, Entity? parent, int depth, int slotInParent,
@@ -177,7 +209,7 @@ public sealed class Reconciler : ReactorBase<TypeUnion<Cell>>
                 "Term.System must be declared inside a Term.Schedule subtree.");
         }
         var instance = new TSystem();
-        var slotEntity = World.Create(HList.From(new SystemNode { Registry = registry }));
+        var slotEntity = CreateNode(new SystemNode { Registry = registry });
         registry.Slots.Add(new ScheduleRegistry.Slot {
             SlotEntity = slotEntity,
             OwnerCell = ownerCell,
@@ -208,6 +240,13 @@ public sealed class Reconciler : ReactorBase<TypeUnion<Cell>>
         slot.Destroy();
     }
 
+    internal void DestroySlot(in CellSlot slot)
+    {
+        if (Validate(slot) is { } entity) {
+            DestroySlot(entity);
+        }
+    }
+
     protected override void OnEntityAdded(Entity entity) {}
 
     protected override void OnEntityRemoved(Entity entity)
@@ -215,10 +254,8 @@ public sealed class Reconciler : ReactorBase<TypeUnion<Cell>>
         var slots = entity.Get<Cell>().Slots;
         for (var i = 0; i < slots.Length; i++) {
             var slot = slots[i];
-            if (slot is { IsValid: true }) {
-                DestroySlot(slot);
-            }
-            slots[i] = null;
+            slots[i] = default;
+            DestroySlot(slot);
         }
     }
 
@@ -365,7 +402,7 @@ public sealed class Reconciler : ReactorBase<TypeUnion<Cell>>
                     Parent = parent,
                     Depth = depth,
                     SlotInParent = slotInParent,
-                    Slots = TTree.SlotCount > 0 ? new Entity?[TTree.SlotCount] : [],
+                    Slots = TTree.SlotCount > 0 ? new CellSlot[TTree.SlotCount] : [],
                     Expander = Expander<TSpec, TState, TTree>.Instance,
                     Schedule = schedule,
                     Scope = scope,
