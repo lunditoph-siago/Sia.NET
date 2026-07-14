@@ -1,20 +1,22 @@
 namespace Sia.Reactive;
 
-public readonly ref struct ExpandContext(World world, Entity cell)
+public readonly ref struct ExpandContext(Reconciler reconciler, Entity cell)
 {
-    public World World { get; } = world;
+    public Reconciler Reconciler { get; } = reconciler;
+    public World World => Reconciler.World;
     public Entity Cell { get; } = cell;
 
     public StateRef<TState> UseState<TState>()
         where TState : struct
-        => new(World, Cell);
+        => new(Reconciler, Cell, Cell.Get<Cell>().Identity);
 
     public State<T> UseState<T>(in T initial)
         where T : struct
     {
         ref var cellData = ref Cell.Get<Cell>();
         var states = cellData.States ??= new StateCells();
-        return new State<T>(states.NextState(initial), World, Cell);
+        return new State<T>(
+            states.NextState(initial), Reconciler, Cell, cellData.Identity);
     }
 
     public TCtx Use<TCtx>()
