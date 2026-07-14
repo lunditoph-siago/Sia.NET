@@ -3,31 +3,45 @@ namespace Sia.Reactive;
 using System.Runtime.CompilerServices;
 using Sia.Reactors;
 
-public sealed class Reconciler : ReactorBase<TypeUnion<Cell>>
+public sealed class Reconciler : ReactorBase
 {
     private readonly record struct DirtyEntry(Entity Cell, NodeIdentity Identity);
 
     private readonly List<DirtyEntry> _dirty = [];
+    private readonly Dictionary<long, Entity> _roots = [];
+    private World? _graphWorld;
     private int _dirtyHead;
     private bool _flushing;
 
     private readonly Dictionary<Type, List<ScheduleRegistry>> _schedules = [];
     private readonly List<ScheduleRegistry> _rebuildQueue = [];
 
+    internal World GraphWorld
+        => _graphWorld
+            ?? throw new InvalidOperationException("The reconciler is not initialized.");
+
     public override void OnInitialize(World world)
     {
         base.OnInitialize(world);
+        _graphWorld = new World();
         Listen((Entity target, in CellEvents.Invalidate e) => EnqueueDirty(target));
     }
 
     public override void OnUninitialize(World world)
     {
+        foreach (var (identity, cell) in _roots.ToArray()) {
+            DestroyCell(cell, new(identity));
+        }
+        _roots.Clear();
+
         foreach (var registries in _schedules.Values) {
             foreach (var registry in registries) {
                 DisposeStage(registry);
             }
         }
         _schedules.Clear();
+        _graphWorld?.Dispose();
+        _graphWorld = null;
         base.OnUninitialize(world);
     }
 
@@ -36,8 +50,10 @@ public sealed class Reconciler : ReactorBase<TypeUnion<Cell>>
     {
         var cell = MountSub(
             props, parent: null, depth: 0, slotInParent: -1, schedule: null, scope: null);
+        var identity = cell.Get<Cell>().Identity;
+        _roots.Add(identity.Value, cell);
         Flush();
-        return new(this, cell, cell.Get<Cell>().Identity);
+        return new(this, cell, identity);
     }
 
     public MountHandle<TProps> Mount<TProps>(Spec<TProps> spec, in TProps props)
@@ -45,8 +61,10 @@ public sealed class Reconciler : ReactorBase<TypeUnion<Cell>>
     {
         var cell = spec.MountCell(
             this, props, parent: null, depth: 0, slotInParent: -1, schedule: null, scope: null);
+        var identity = cell.Get<Cell>().Identity;
+        _roots.Add(identity.Value, cell);
         Flush();
-        return new(this, cell, cell.Get<Cell>().Identity);
+        return new(this, cell, identity);
     }
 
     internal void Unmount(Entity cell, NodeIdentity identity)
@@ -54,7 +72,8 @@ public sealed class Reconciler : ReactorBase<TypeUnion<Cell>>
         if (!IsCell(cell, identity)) {
             throw new ObjectDisposedException(nameof(MountHandle<int>));
         }
-        cell.Destroy();
+        _roots.Remove(identity.Value);
+        DestroyCell(cell, identity);
     }
 
     internal void UpdateMount<TProps>(Entity cell, in TProps props)
@@ -70,7 +89,8 @@ public sealed class Reconciler : ReactorBase<TypeUnion<Cell>>
     internal bool IsCell(Entity cell, NodeIdentity identity)
         => cell.IsValid
             && cell.Contains<Cell>()
-            && cell.Get<Cell>().Identity == identity;
+            && cell.Get<Cell>().Identity == identity
+            && !cell.Get<Cell>().IsDestroying;
 
     internal NodeIdentity NextIdentity()
         => NodeIdentity.Create();
@@ -103,7 +123,7 @@ public sealed class Reconciler : ReactorBase<TypeUnion<Cell>>
     }
 
     internal Entity CreateNode<T>(in T component)
-        => World.Create(HList.From(
+        => GraphWorld.Create(HList.From(
             component,
             new ReactiveNode { Identity = NextIdentity() }));
 
@@ -225,6 +245,10 @@ public sealed class Reconciler : ReactorBase<TypeUnion<Cell>>
 
     internal void DestroySlot(Entity slot)
     {
+        if (slot.Contains<Cell>()) {
+            DestroyCell(slot, slot.Get<Cell>().Identity);
+            return;
+        }
         if (slot.Contains<SystemNode>()) {
             var registry = slot.Get<SystemNode>().Registry;
             registry.Remove(slot);
@@ -246,16 +270,22 @@ public sealed class Reconciler : ReactorBase<TypeUnion<Cell>>
         }
     }
 
-    protected override void OnEntityAdded(Entity entity) {}
-
-    protected override void OnEntityRemoved(Entity entity)
+    private void DestroyCell(Entity cell, NodeIdentity identity)
     {
-        var slots = entity.Get<Cell>().Slots;
-        for (var i = 0; i < slots.Length; i++) {
+        if (!IsCell(cell, identity)) {
+            return;
+        }
+        ref var data = ref cell.Get<Cell>();
+        data.IsDestroying = true;
+        data.InDirty = false;
+        _roots.Remove(identity.Value);
+        var slots = data.Slots;
+        for (var i = slots.Length - 1; i >= 0; i--) {
             var slot = slots[i];
             slots[i] = default;
             DestroySlot(slot);
         }
+        cell.Destroy();
     }
 
     private void QueueRebuild(ScheduleRegistry registry)
@@ -392,7 +422,7 @@ public sealed class Reconciler : ReactorBase<TypeUnion<Cell>>
             // HandleSignature dispatches to the spec's own signature, so
             // TSpec is TProps; reinterpret instead of boxing.
             ref var typedProps = ref Unsafe.As<TProps, TSpec>(ref _props);
-            var cell = reconciler.World.Create(HList.From(
+            var cell = reconciler.GraphWorld.Create(HList.From(
                 typedProps,
                 TSpec.InitialState(typedProps),
                 new PrevTree<TTree>(),
