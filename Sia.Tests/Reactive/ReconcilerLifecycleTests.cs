@@ -3,6 +3,10 @@ namespace Sia.Tests.Reactive;
 using global::Sia.Reactive;
 
 using ValueList = HList<ReactiveValue, EmptyHList>;
+using FailingTree = global::Sia.Reactive.Group<
+    global::Sia.Reactive.EntityTerm<HList<ReactiveValue, EmptyHList>,
+        global::Sia.Reactive.UnitTerm>,
+    FailingTerm>;
 
 public class ReconcilerLifecycleTests
 {
@@ -58,6 +62,19 @@ public class ReconcilerLifecycleTests
         Assert.Equal(3, FindOutput(world).Get<ReactiveValue>().Value);
     }
 
+    [Fact]
+    public void FailedMount_RollsBackCreatedOutputsAndPreservesTheCause()
+    {
+        using var world = new World();
+        var reconciler = world.AcquireAddon<Reconciler>();
+
+        var error = Assert.Throws<ReactiveMountException>(
+            () => reconciler.Mount(new FailingSpec(42)));
+
+        Assert.Equal("mount failed", error.Message);
+        Assert.Equal(0, world.Count);
+    }
+
     private static Entity FindOutput(World world)
     {
         using var query = world.Query(Matchers.Of<ReactiveValue>());
@@ -102,3 +119,31 @@ public readonly record struct HandleSpec(int Value)
         in ExpandContext context)
         => Term.Entity(HList.From(new ReactiveValue(props.Value)));
 }
+
+public readonly record struct FailingSpec(int Value)
+    : ISpec<FailingSpec, int, FailingTree>
+{
+    public static FailingTree Expand(
+        in FailingSpec props,
+        in int state,
+        in ExpandContext context)
+        => Term.Group(
+            Term.Entity(HList.From(new ReactiveValue(props.Value))),
+            new FailingTerm());
+}
+
+public readonly record struct FailingTerm : ITerm<FailingTerm>
+{
+    public static int SlotCount => 0;
+
+    public static void Mount(in FailingTerm self, ref GraphContext context)
+        => throw new ReactiveMountException("mount failed");
+
+    public static void Reconcile(
+        in FailingTerm previous,
+        in FailingTerm next,
+        ref GraphContext context)
+        => throw new ReactiveMountException("reconcile failed");
+}
+
+public sealed class ReactiveMountException(string message) : Exception(message);

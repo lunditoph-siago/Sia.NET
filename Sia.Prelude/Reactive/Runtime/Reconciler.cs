@@ -29,21 +29,23 @@ public sealed class Reconciler : ReactorBase
 
     public override void OnUninitialize(World world)
     {
+        var result = Outcome<Exception>.Success;
         foreach (var (identity, cell) in _roots.ToArray()) {
-            DestroyCell(cell, new(identity));
+            result = result.Attempt(() => DestroyCell(cell, new(identity)));
         }
         _roots.Clear();
 
         foreach (var registries in _schedules.Values) {
             foreach (var registry in registries) {
-                DisposeStage(registry);
+                result = result.Attempt(() => DisposeStage(registry));
             }
         }
         _schedules.Clear();
-        _graphWorld?.Dispose();
+        result = result.Attempt(() => _graphWorld?.Dispose());
         _graphWorld = null;
         _expandingCell = null;
-        base.OnUninitialize(world);
+        result = result.Attempt(() => base.OnUninitialize(world));
+        result.ThrowIfFailed();
     }
 
     public MountHandle<TSpec> Mount<TSpec>(in TSpec props)
@@ -53,8 +55,16 @@ public sealed class Reconciler : ReactorBase
             props, parent: null, depth: 0, slotInParent: -1, schedule: null, scope: null);
         var identity = cell.Get<Cell>().Identity;
         _roots.Add(identity.Value, cell);
-        Flush();
-        return new(this, cell, identity);
+        try {
+            Flush();
+            return new(this, cell, identity);
+        }
+        catch (Exception error) {
+            _roots.Remove(identity.Value);
+            return Outcome<Exception>.Failure(error)
+                .Attempt(() => DestroyCell(cell, identity))
+                .ThrowFailure<MountHandle<TSpec>>();
+        }
     }
 
     public MountHandle<TProps> Mount<TProps>(Spec<TProps> spec, in TProps props)
@@ -64,8 +74,16 @@ public sealed class Reconciler : ReactorBase
             this, props, parent: null, depth: 0, slotInParent: -1, schedule: null, scope: null);
         var identity = cell.Get<Cell>().Identity;
         _roots.Add(identity.Value, cell);
-        Flush();
-        return new(this, cell, identity);
+        try {
+            Flush();
+            return new(this, cell, identity);
+        }
+        catch (Exception error) {
+            _roots.Remove(identity.Value);
+            return Outcome<Exception>.Failure(error)
+                .Attempt(() => DestroyCell(cell, identity))
+                .ThrowFailure<MountHandle<TProps>>();
+        }
     }
 
     internal void Unmount(Entity cell, NodeIdentity identity)
@@ -149,8 +167,15 @@ public sealed class Reconciler : ReactorBase
         where TList : struct, IHList
     {
         var entity = World.Create(components);
-        entity.Add(new ReactiveNode { Identity = NextIdentity() });
-        return entity;
+        try {
+            entity.Add(new ReactiveNode { Identity = NextIdentity() });
+            return entity;
+        }
+        catch (Exception error) {
+            return Outcome<Exception>.Failure(error)
+                .Attempt(entity.Destroy)
+                .ThrowFailure<Entity>();
+        }
     }
 
     internal Entity CreateNode<T>(in T component)
@@ -281,18 +306,21 @@ public sealed class Reconciler : ReactorBase
             DestroyCell(slot, slot.Get<Cell>().Identity);
             return;
         }
-        if (slot.Contains<SystemNode>()) {
-            var registry = slot.Get<SystemNode>().Registry;
-            registry.Remove(slot);
-            QueueRebuild(registry);
-        }
-        else if (slot.Contains<ScheduleNode>()) {
-            RemoveSchedule(slot.Get<ScheduleNode>().Registry);
-        }
-        else if (slot.Contains<EachNode>()) {
-            slot.Get<EachNode>().Cleanup.DestroyChildren(this);
-        }
-        slot.Destroy();
+        var result = Outcome<Exception>.Success;
+        result = result.Attempt(() => {
+            if (slot.Contains<SystemNode>()) {
+                var registry = slot.Get<SystemNode>().Registry;
+                registry.Remove(slot);
+                QueueRebuild(registry);
+            }
+            else if (slot.Contains<ScheduleNode>()) {
+                RemoveSchedule(slot.Get<ScheduleNode>().Registry);
+            }
+            else if (slot.Contains<EachNode>()) {
+                slot.Get<EachNode>().Cleanup.DestroyChildren(this);
+            }
+        });
+        result.Attempt(slot.Destroy).ThrowIfFailed();
     }
 
     internal void DestroySlot(in CellSlot slot)
@@ -312,12 +340,13 @@ public sealed class Reconciler : ReactorBase
         data.InDirty = false;
         _roots.Remove(identity.Value);
         var slots = data.Slots;
+        var result = Outcome<Exception>.Success;
         for (var i = slots.Length - 1; i >= 0; i--) {
             var slot = slots[i];
             slots[i] = default;
-            DestroySlot(slot);
+            result = result.Attempt(() => DestroySlot(slot));
         }
-        cell.Destroy();
+        result.Attempt(cell.Destroy).ThrowIfFailed();
     }
 
     private void QueueRebuild(ScheduleRegistry registry)
@@ -469,7 +498,16 @@ public sealed class Reconciler : ReactorBase
                     Scope = scope,
                 }));
             Result = cell;
-            Expander<TSpec, TState, TTree>.Instance.Expand(reconciler, cell);
+            try {
+                Expander<TSpec, TState, TTree>.Instance.Expand(reconciler, cell);
+            }
+            catch (Exception error) {
+                var owner = reconciler;
+                var identity = cell.Get<Cell>().Identity;
+                Outcome<Exception>.Failure(error)
+                    .Attempt(() => owner.DestroyCell(cell, identity))
+                    .ThrowFailure();
+            }
         }
     }
 }
