@@ -65,6 +65,7 @@ bld/
 [Bb]in/
 [Oo]bj/
 [Oo]bj_*/
+BenchmarkDotNet.Artifacts/
 msbuild.log
 msbuild.err
 msbuild.wrn
