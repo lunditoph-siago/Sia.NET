@@ -5,12 +5,12 @@ public sealed class ContextScope(Type contextType, Entity providerSlot, ContextS
     public readonly Type ContextType = contextType;
     public readonly Entity ProviderSlot = providerSlot;
     public readonly ContextScope? Parent = parent;
+    internal readonly Dictionary<long, CellSlot> Consumers = [];
 }
 
 public struct ContextNode<TCtx>(TCtx value)
 {
     public TCtx Value = value;
-    public List<Entity> Consumers = [];
     public ContextScope Scope = null!;
 }
 
@@ -40,6 +40,9 @@ public readonly record struct ScopeTerm<TCtx, TChildren>(TCtx Value, TChildren C
     {
         var slot = ctx.PeekSlot();
         if (slot is not { IsValid: true }) {
+            var start = ctx.NextSlotIndex;
+            ctx.DestroyRange(SlotCount);
+            ctx.RewindTo(start);
             Mount(next, ref ctx);
             return;
         }
@@ -51,14 +54,12 @@ public readonly record struct ScopeTerm<TCtx, TChildren>(TCtx Value, TChildren C
             scope = node.Scope;
             if (!EqualityComparer<TCtx>.Default.Equals(node.Value, next.Value)) {
                 node.Value = next.Value;
-                var consumers = node.Consumers;
-                for (var i = consumers.Count - 1; i >= 0; i--) {
-                    var consumer = consumers[i];
-                    if (consumer.IsValid) {
-                        ctx.Reconciler.EnqueueDirty(consumer);
+                foreach (var (identity, consumer) in scope.Consumers.ToArray()) {
+                    if (ctx.Reconciler.Validate(consumer) is { } cell) {
+                        ctx.Reconciler.EnqueueDirty(cell);
                     }
                     else {
-                        consumers.RemoveAt(i);
+                        scope.Consumers.Remove(identity);
                     }
                 }
             }

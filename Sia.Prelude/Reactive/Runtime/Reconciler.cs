@@ -111,13 +111,33 @@ public sealed class Reconciler : ReactorBase
             throw new InvalidOperationException("Reactive expansions cannot be nested.");
         }
         _expandingCell = cell;
-        cell.Get<Cell>().States?.BeginExpansion();
+        ref var data = ref cell.Get<Cell>();
+        data.States?.BeginExpansion();
+        (data.PendingContextDependencies ??= []).Clear();
     }
 
     internal void CompleteExpansion(Entity cell)
     {
         try {
-            cell.Get<Cell>().States?.CompleteExpansion();
+            ref var data = ref cell.Get<Cell>();
+            data.States?.CompleteExpansion();
+            var previous = data.ContextDependencies ??= [];
+            var current = data.PendingContextDependencies ??= [];
+            var identity = data.Identity.Value;
+            foreach (var scope in previous) {
+                if (!current.Contains(scope)) {
+                    scope.Consumers.Remove(identity);
+                }
+            }
+            foreach (var scope in current) {
+                if (!previous.Contains(scope)) {
+                    var slot = new CellSlot();
+                    slot.Set(this, cell);
+                    scope.Consumers[identity] = slot;
+                }
+            }
+            (data.ContextDependencies, data.PendingContextDependencies) =
+                (current, previous);
         }
         finally {
             _expandingCell = null;
@@ -132,6 +152,14 @@ public sealed class Reconciler : ReactorBase
         if (ReferenceEquals(_expandingCell, owner)) {
             throw new InvalidOperationException(
                 "State cannot be mutated while its spec is expanding.");
+        }
+    }
+
+    internal void RecordContextDependency(Entity cell, ContextScope scope)
+    {
+        var pending = cell.Get<Cell>().PendingContextDependencies ??= [];
+        if (!pending.Contains(scope)) {
+            pending.Add(scope);
         }
     }
 
@@ -339,6 +367,12 @@ public sealed class Reconciler : ReactorBase
         data.IsDestroying = true;
         data.InDirty = false;
         _roots.Remove(identity.Value);
+        if (data.ContextDependencies is { } dependencies) {
+            foreach (var scope in dependencies) {
+                scope.Consumers.Remove(identity.Value);
+            }
+            dependencies.Clear();
+        }
         var slots = data.Slots;
         var result = Outcome<Exception>.Success;
         for (var i = slots.Length - 1; i >= 0; i--) {

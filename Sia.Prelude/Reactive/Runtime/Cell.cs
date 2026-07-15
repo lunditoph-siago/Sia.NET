@@ -33,6 +33,8 @@ public struct Cell
     public ScheduleRegistry? Schedule;
     public ContextScope? Scope;
     public StateCells? States;
+    internal List<ContextScope>? ContextDependencies;
+    internal List<ContextScope>? PendingContextDependencies;
     public bool InDirty;
     internal bool IsDestroying;
 }
