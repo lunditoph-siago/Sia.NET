@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 
 public sealed class SubWorldContext : IAddon
 {
-    public World Parent { get; set; }
+    public World Parent { get; set; } = null!;
 }
 
 public sealed class SubWorld : IDisposable

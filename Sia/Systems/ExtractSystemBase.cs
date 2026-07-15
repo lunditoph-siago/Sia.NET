@@ -36,7 +36,7 @@ public abstract class ExtractSystemBase(
         _ownsParentQuery = extractMatcher is not null && extractMatcher != Matchers.Any;
 
         if (_ownsParentQuery) {
-            _parentQuery = _parentWorld.Query(extractMatcher);
+            _parentQuery = _parentWorld.Query(extractMatcher!);
         } else {
             _parentQuery = _parentWorld;
         }
