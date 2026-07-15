@@ -4,6 +4,7 @@ using global::Sia.Reactive;
 
 using BranchList = HList<BranchValue, EmptyHList>;
 using ItemList = HList<KeyedValue, EmptyHList>;
+using ScopedList = HList<ScopedValue, EmptyHList>;
 
 public class ReactiveTermTests
 {
@@ -56,11 +57,33 @@ public class ReactiveTermTests
 
         mount.Update(new ListSpec(new KeyedValue[] { new(2, 22) }));
         reconciler.Flush();
-        Assert.False(initial[1].IsValid);
-        Assert.Same(initial[2], FindAll<KeyedValue>(world).Single());
+        var remaining = FindAll<KeyedValue>(world);
+        Assert.DoesNotContain(remaining, entity => entity.Get<KeyedValue>().Key == 1);
+        Assert.Same(initial[2], Assert.Single(remaining));
 
         mount.Update(new ListSpec(new KeyedValue[] { new(2, 1), new(2, 2) }));
         Assert.Throws<InvalidOperationException>(reconciler.Flush);
+    }
+
+    [Fact]
+    public void Scope_InvalidatesConsumersAndUnsubscribesThemOnUnmount()
+    {
+        using var world = new World();
+        var reconciler = world.AcquireAddon<Reconciler>();
+        var probe = new ScopeProbe();
+        var mount = reconciler.Mount(new ScopeSpec(probe));
+        var output = FindAll<ScopedValue>(world).Single();
+
+        probe.Theme.Set(new Theme(2));
+        reconciler.Flush();
+
+        Assert.Same(output, FindAll<ScopedValue>(world).Single());
+        Assert.Equal(2, output.Get<ScopedValue>().Theme);
+        Assert.Equal(2, probe.ConsumerExpansions);
+
+        mount.Unmount();
+        Assert.False(output.IsValid);
+        Assert.Equal(0, world.Count);
     }
 
     private static Entity[] FindAll<T>(World world)
@@ -72,6 +95,8 @@ public class ReactiveTermTests
 
 public readonly record struct BranchValue(int Value);
 public readonly record struct KeyedValue(int Key, int Value);
+public readonly record struct Theme(int Value);
+public readonly record struct ScopedValue(int Theme);
 
 public sealed class BranchProbe
 {
@@ -114,4 +139,40 @@ public readonly record struct ItemSpec(KeyedValue Item)
         in int state,
         in ExpandContext context)
         => Term.Entity(HList.From(props.Item));
+}
+
+public sealed class ScopeProbe
+{
+    public StateRef<Theme> Theme;
+    public int ConsumerExpansions;
+}
+
+public readonly record struct ScopeSpec(ScopeProbe Probe)
+    : ISpec<ScopeSpec, Theme,
+        ScopeTerm<Theme, LiftTerm<ScopeConsumerSpec>>>
+{
+    public static Theme InitialState(in ScopeSpec props) => new(1);
+
+    public static ScopeTerm<Theme, LiftTerm<ScopeConsumerSpec>> Expand(
+        in ScopeSpec props,
+        in Theme state,
+        in ExpandContext context)
+    {
+        props.Probe.Theme = context.UseState<Theme>();
+        return Term.Scope(state, Term.Lift(new ScopeConsumerSpec(props.Probe)));
+    }
+}
+
+public readonly record struct ScopeConsumerSpec(ScopeProbe Probe)
+    : ISpec<ScopeConsumerSpec, int, EntityTerm<ScopedList, UnitTerm>>
+{
+    public static EntityTerm<ScopedList, UnitTerm> Expand(
+        in ScopeConsumerSpec props,
+        in int state,
+        in ExpandContext context)
+    {
+        props.Probe.ConsumerExpansions++;
+        return Term.Entity(HList.From(
+            new ScopedValue(context.Use<Theme>().Value)));
+    }
 }

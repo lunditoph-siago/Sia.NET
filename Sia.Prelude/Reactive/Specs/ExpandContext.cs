@@ -27,9 +27,7 @@ public readonly ref struct ExpandContext(Reconciler reconciler, Entity cell)
                 continue;
             }
             ref var node = ref scope.ProviderSlot.Get<ContextNode<TCtx>>();
-            if (!node.Consumers.Contains(Cell)) {
-                node.Consumers.Add(Cell);
-            }
+            Reconciler.RecordContextDependency(Cell, scope);
             return node.Value;
         }
         throw new InvalidOperationException(
