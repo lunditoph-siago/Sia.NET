@@ -50,6 +50,8 @@ public ref struct GraphContext
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Skip(int count) => _cursor += count;
 
+    internal void RewindTo(int index) => _cursor = index;
+
     public void DestroyRange(int count)
     {
         var slots = _slots;
