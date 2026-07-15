@@ -54,11 +54,14 @@ public ref struct GraphContext
     {
         var slots = _slots;
         var end = _cursor + count;
+        var result = Outcome<Exception>.Success;
+        var reconciler = Reconciler;
         for (var i = _cursor; i < end; i++) {
             var slot = slots[i];
             slots[i] = default;
-            Reconciler.DestroySlot(slot);
+            result = result.Attempt(() => reconciler.DestroySlot(slot));
         }
         _cursor = end;
+        result.ThrowIfFailed();
     }
 }

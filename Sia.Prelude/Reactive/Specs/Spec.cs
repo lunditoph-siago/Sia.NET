@@ -44,8 +44,17 @@ internal sealed class FnSpec<TProps, TTree>(ExpandFn<TProps, TTree> expand)
                 Schedule = schedule,
                 Scope = scope,
             }));
-        _expander.Expand(reconciler, cell);
-        return cell;
+        try {
+            _expander.Expand(reconciler, cell);
+            return cell;
+        }
+        catch (Exception error) {
+            var identity = cell.Get<Cell>().Identity;
+            return Outcome<Exception>.Failure(error)
+                .Attempt(() => reconciler.DestroySlot(
+                    new CellSlot { Entity = cell, Identity = identity }))
+                .ThrowFailure<Entity>();
+        }
     }
 }
 
