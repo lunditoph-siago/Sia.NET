@@ -19,7 +19,7 @@ internal sealed class EachIndex<TKey> : IForEachCleanup
 {
     internal struct Entry
     {
-        public Entity Cell;
+        public CellSlot Cell;
         public int Stamp;
     }
 
@@ -27,15 +27,33 @@ internal sealed class EachIndex<TKey> : IForEachCleanup
     public int Stamp;
 
     private readonly List<TKey> _staleKeys = [];
+    private readonly HashSet<TKey> _seenKeys = [];
+
+    public void ValidateKeys<TSpec>(ReadOnlySpan<Keyed<TKey, TSpec>> items)
+        where TSpec : struct, ISpec, IEquatable<TSpec>
+    {
+        try {
+            foreach (ref readonly var item in items) {
+                if (!_seenKeys.Add(item.Key)) {
+                    throw new InvalidOperationException(
+                        $"Duplicate key '{item.Key}' in Term.ForEach.");
+                }
+            }
+        }
+        finally {
+            _seenKeys.Clear();
+        }
+    }
 
     public void DestroyChildren(Reconciler reconciler)
     {
+        var result = Outcome<Exception>.Success;
         foreach (var entry in ByKey.Values) {
-            if (entry.Cell.IsValid) {
-                reconciler.DestroySlot(entry.Cell);
-            }
+            var slot = entry.Cell;
+            result = result.Attempt(() => reconciler.DestroySlot(slot));
         }
         ByKey.Clear();
+        result.ThrowIfFailed();
     }
 
     public void RemoveStale(Reconciler reconciler, int stamp)
@@ -46,14 +64,18 @@ internal sealed class EachIndex<TKey> : IForEachCleanup
                 staleKeys.Add(key);
             }
         }
-        foreach (var key in staleKeys) {
-            var cell = ByKey[key].Cell;
-            ByKey.Remove(key);
-            if (cell.IsValid) {
-                reconciler.DestroySlot(cell);
+        var result = Outcome<Exception>.Success;
+        try {
+            foreach (var key in staleKeys) {
+                var slot = ByKey[key].Cell;
+                ByKey.Remove(key);
+                result = result.Attempt(() => reconciler.DestroySlot(slot));
             }
         }
-        staleKeys.Clear();
+        finally {
+            staleKeys.Clear();
+        }
+        result.ThrowIfFailed();
     }
 }
 
@@ -93,18 +115,21 @@ public readonly record struct ForEachTerm<TKey, TSpec>(ReadOnlyMemory<Keyed<TKey
         EachIndex<TKey> index, ReadOnlySpan<Keyed<TKey, TSpec>> items, int slotIndex,
         ref GraphContext ctx)
     {
+        index.ValidateKeys(items);
         var stamp = ++index.Stamp;
         var byKey = index.ByKey;
         foreach (ref readonly var item in items) {
-            if (byKey.TryGetValue(item.Key, out var entry) && entry.Cell.IsValid) {
-                if (!entry.Cell.Get<TSpec>().Equals(item.Props)) {
-                    entry.Cell.Get<TSpec>() = item.Props;
-                    ctx.Reconciler.EnqueueDirty(entry.Cell);
+            if (byKey.TryGetValue(item.Key, out var entry)
+                && ctx.Reconciler.Validate(entry.Cell) is { } cell) {
+                if (!cell.Get<TSpec>().Equals(item.Props)) {
+                    cell.Get<TSpec>() = item.Props;
+                    ctx.Reconciler.EnqueueDirty(cell);
                 }
             }
             else {
-                entry.Cell = ctx.Reconciler.MountSub(
+                var created = ctx.Reconciler.MountSub(
                     item.Props, ctx.Cell, ctx.Depth + 1, slotIndex, ctx.Schedule, ctx.Scope);
+                entry.Cell.Set(ctx.Reconciler, created);
             }
             entry.Stamp = stamp;
             byKey[item.Key] = entry;
