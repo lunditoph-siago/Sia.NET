@@ -1,40 +1,44 @@
 namespace Sia.Reactive;
 
-public sealed class ScheduleRegistry(Type labelType)
-{
-    internal struct Slot
-    {
-        public Entity SlotEntity;
-        public Entity OwnerCell;
-        public int SlotIndex;
-        public SystemChain.Entry Entry;
-    }
+using System.Collections.Immutable;
 
-    public Type LabelType { get; } = labelType;
-    public SystemStage? Stage { get; internal set; }
+public sealed class ScheduleRegistry(ScheduleLabel label) : IScheduleEntry
+{
+    internal readonly record struct Slot(
+        Entity SlotEntity,
+        Entity OwnerCell,
+        int SlotIndex,
+        SystemChain.Entry Entry,
+        SystemStage Runtime);
+
+    public ScheduleLabel Label { get; } = label;
+    public ExecutionPlan? CurrentPlan { get; internal set; }
     public int Version { get; internal set; }
 
     internal readonly List<Slot> Slots = [];
+    internal ScheduleRegistration? Registration;
     internal bool RebuildQueued;
+    internal ImmutableArray<SystemStage> RuntimeOrder = [];
 
-    internal void Remove(Entity slotEntity)
+    void IScheduleEntry.Tick()
     {
-        var slots = Slots;
-        for (var i = 0; i < slots.Count; i++) {
-            if (ReferenceEquals(slots[i].SlotEntity, slotEntity)) {
-                slots.RemoveAt(i);
-                return;
+        foreach (var runtime in RuntimeOrder) {
+            runtime.Tick();
+        }
+    }
+
+    internal SystemStage? Remove(Entity slotEntity)
+    {
+        for (var i = 0; i < Slots.Count; i++) {
+            if (ReferenceEquals(Slots[i].SlotEntity, slotEntity)) {
+                var runtime = Slots[i].Runtime;
+                Slots.RemoveAt(i);
+                return runtime;
             }
         }
+        return null;
     }
 }
 
-public struct SystemNode
-{
-    public ScheduleRegistry Registry;
-}
-
-public struct ScheduleNode
-{
-    public ScheduleRegistry Registry;
-}
+public readonly record struct SystemNode(ScheduleRegistry Registry);
+public readonly record struct ScheduleNode(ScheduleRegistry Registry);

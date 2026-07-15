@@ -30,8 +30,8 @@ public readonly record struct ScheduleTerm<TLabel, TChildren>(TChildren Children
 
     public static void Mount(in ScheduleTerm<TLabel, TChildren> self, ref GraphContext ctx)
     {
-        var registry = ctx.Reconciler.CreateSchedule(typeof(TLabel));
-        ctx.SetSlot(ctx.Reconciler.CreateNode(new ScheduleNode { Registry = registry }));
+        var (registry, node) = ctx.Reconciler.CreateSchedule(typeof(TLabel));
+        ctx.SetSlot(node);
 
         var saved = ctx.Schedule;
         ctx.Schedule = registry;

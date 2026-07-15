@@ -3,7 +3,7 @@ namespace Sia.Reactive;
 using System.Runtime.CompilerServices;
 using Sia.Reactors;
 
-public sealed class Reconciler : ReactorBase
+public sealed class Reconciler : ReactorBase, IScheduleSource
 {
     private readonly record struct DirtyEntry(Entity Cell, NodeIdentity Identity);
 
@@ -16,6 +16,8 @@ public sealed class Reconciler : ReactorBase
 
     private readonly Dictionary<Type, List<ScheduleRegistry>> _schedules = [];
     private readonly List<ScheduleRegistry> _rebuildQueue = [];
+    private Scheduler? _scheduler;
+    private ScheduleRegistration? _sourceRegistration;
 
     internal World GraphWorld
         => _graphWorld
@@ -24,12 +26,24 @@ public sealed class Reconciler : ReactorBase
     public override void OnInitialize(World world)
     {
         base.OnInitialize(world);
-        _graphWorld = new World();
+        try {
+            _graphWorld = new World();
+            _scheduler = world.AcquireAddon<Scheduler>();
+            _sourceRegistration = _scheduler.RegisterSource(this);
+        }
+        catch (Exception error) {
+            Outcome<Exception>.Failure(error)
+                .Attempt(() => _graphWorld?.Dispose())
+                .Attempt(() => base.OnUninitialize(world))
+                .ThrowFailure();
+        }
     }
 
     public override void OnUninitialize(World world)
     {
         var result = Outcome<Exception>.Success;
+        result = result.Attempt(() => _sourceRegistration?.Dispose());
+        _sourceRegistration = null;
         foreach (var (identity, cell) in _roots.ToArray()) {
             result = result.Attempt(() => DestroyCell(cell, new(identity)));
         }
@@ -37,16 +51,21 @@ public sealed class Reconciler : ReactorBase
 
         foreach (var registries in _schedules.Values) {
             foreach (var registry in registries) {
-                result = result.Attempt(() => DisposeStage(registry));
+                result = result.Attempt(() => DisposeRegistry(registry));
             }
         }
         _schedules.Clear();
+        _rebuildQueue.Clear();
         result = result.Attempt(() => _graphWorld?.Dispose());
         _graphWorld = null;
+        _scheduler = null;
         _expandingCell = null;
         result = result.Attempt(() => base.OnUninitialize(world));
         result.ThrowIfFailed();
     }
+
+    void IScheduleSource.OnBeginTick() => Flush();
+    void IScheduleSource.OnBeforeSchedule(ScheduleLabel label) => Flush();
 
     public MountHandle<TSpec> Mount<TSpec>(in TSpec props)
         where TSpec : struct, ISpec
@@ -277,31 +296,36 @@ public sealed class Reconciler : ReactorBase
         }
     }
 
-    public void Tick<TLabel>()
-        where TLabel : struct
-    {
-        Flush();
-        if (!_schedules.TryGetValue(typeof(TLabel), out var registries)) {
-            return;
-        }
-        foreach (var registry in registries) {
-            registry.Stage?.Tick();
-        }
-    }
-
     public IReadOnlyList<ScheduleRegistry> GetSchedules<TLabel>()
         where TLabel : struct
         => _schedules.TryGetValue(typeof(TLabel), out var registries) ? registries : [];
 
-    internal ScheduleRegistry CreateSchedule(Type labelType)
+    internal (ScheduleRegistry Registry, Entity Node) CreateSchedule(Type labelType)
     {
-        var registry = new ScheduleRegistry(labelType);
+        var label = new ScheduleLabel(labelType.FullName ?? labelType.Name);
+        var registry = new ScheduleRegistry(label);
         if (!_schedules.TryGetValue(labelType, out var registries)) {
             registries = [];
             _schedules.Add(labelType, registries);
         }
         registries.Add(registry);
-        return registry;
+        try {
+            registry.Registration = (_scheduler
+                ?? throw new InvalidOperationException("The reconciler is not initialized."))
+                .RegisterEntry(label, registry);
+        }
+        catch {
+            registries.Remove(registry);
+            throw;
+        }
+        try {
+            return (registry, CreateNode(new ScheduleNode(registry)));
+        }
+        catch (Exception error) {
+            return Outcome<Exception>.Failure(error)
+                .Attempt(() => RemoveSchedule(registry))
+                .ThrowFailure<(ScheduleRegistry, Entity)>();
+        }
     }
 
     internal Entity RegisterSystem<TSystem>(
@@ -313,16 +337,23 @@ public sealed class Reconciler : ReactorBase
                 "Term.System must be declared inside a Term.Schedule subtree.");
         }
         var instance = new TSystem();
-        var slotEntity = CreateNode(new SystemNode { Registry = registry });
-        registry.Slots.Add(new ScheduleRegistry.Slot {
-            SlotEntity = slotEntity,
-            OwnerCell = ownerCell,
-            SlotIndex = slotIndex,
-            Entry = new(
-                SystemId.For<TSystem>(),
-                () => instance,
-                SystemDescriptorProvider.GetOrDefault(typeof(TSystem))),
-        });
+        var entry = new SystemChain.Entry(
+            SystemId.For<TSystem>(),
+            () => instance,
+            SystemDescriptorProvider.GetOrDefault(typeof(TSystem)));
+        var runtime = SystemChain.Empty
+            .Add(entry.Id, entry.Creator, entry.Descriptor)
+            .CreateStage(World);
+        Entity slotEntity;
+        try {
+            slotEntity = CreateNode(new SystemNode(registry));
+        }
+        catch (Exception error) {
+            return Outcome<Exception>.Failure(error)
+                .Attempt(runtime.Dispose)
+                .ThrowFailure<Entity>();
+        }
+        registry.Slots.Add(new(slotEntity, ownerCell, slotIndex, entry, runtime));
         QueueRebuild(registry);
         return slotEntity;
     }
@@ -334,19 +365,25 @@ public sealed class Reconciler : ReactorBase
             return;
         }
         var result = Outcome<Exception>.Success;
-        result = result.Attempt(() => {
-            if (slot.Contains<SystemNode>()) {
+        if (slot.Contains<SystemNode>()) {
+            SystemStage? runtime = null;
+            result = result.Attempt(() => {
                 var registry = slot.Get<SystemNode>().Registry;
-                registry.Remove(slot);
+                runtime = registry.Remove(slot);
                 QueueRebuild(registry);
+            });
+            if (runtime != null) {
+                result = result.Attempt(runtime.Dispose);
             }
-            else if (slot.Contains<ScheduleNode>()) {
-                RemoveSchedule(slot.Get<ScheduleNode>().Registry);
-            }
-            else if (slot.Contains<EachNode>()) {
-                slot.Get<EachNode>().Cleanup.DestroyChildren(this);
-            }
-        });
+        }
+        else if (slot.Contains<ScheduleNode>()) {
+            result = result.Attempt(
+                () => RemoveSchedule(slot.Get<ScheduleNode>().Registry));
+        }
+        else if (slot.Contains<EachNode>()) {
+            result = result.Attempt(
+                () => slot.Get<EachNode>().Cleanup.DestroyChildren(this));
+        }
         result.Attempt(slot.Destroy).ThrowIfFailed();
     }
 
@@ -393,12 +430,18 @@ public sealed class Reconciler : ReactorBase
 
     private void RemoveSchedule(ScheduleRegistry registry)
     {
-        DisposeStage(registry);
-        if (_schedules.TryGetValue(registry.LabelType, out var registries)) {
-            registries.Remove(registry);
+        foreach (var (labelType, registries) in _schedules.ToArray()) {
+            if (!registries.Remove(registry)) {
+                continue;
+            }
+            if (registries.Count == 0) {
+                _schedules.Remove(labelType);
+            }
+            break;
         }
         _rebuildQueue.Remove(registry);
         registry.RebuildQueued = false;
+        DisposeRegistry(registry);
     }
 
     private void RebuildStage(ScheduleRegistry registry)
@@ -408,43 +451,48 @@ public sealed class Reconciler : ReactorBase
         registry.Slots.Sort(static (a, b) => CompareTreeOrder(
             a.OwnerCell, a.SlotIndex, b.OwnerCell, b.SlotIndex));
 
-        var chain = SystemChain.Empty;
-        foreach (var slot in registry.Slots) {
-            var entry = slot.Entry;
-            chain = chain.Add(entry.Id, entry.Creator, entry.Descriptor);
+        var plan = Planner.Plan(registry.Slots.Select(slot => slot.Entry).ToArray());
+        var runtimes = new SystemStage[plan.Entries.Length];
+        for (var i = 0; i < plan.Entries.Length; i++) {
+            var entry = plan.Entries[i];
+            runtimes[i] = registry.Slots
+                .First(slot => ReferenceEquals(slot.Entry.Creator, entry.Creator))
+                .Runtime;
         }
-
-        DisposeStage(registry);
-        registry.Stage = chain.CreateStage(World);
+        registry.CurrentPlan = plan;
+        registry.RuntimeOrder = [.. runtimes];
         registry.Version++;
     }
 
-    private void DisposeStage(ScheduleRegistry registry)
+    private static void DisposeRegistry(ScheduleRegistry registry)
     {
-        var stage = registry.Stage;
-        if (stage == null) {
-            return;
+        var result = Outcome<Exception>.Success;
+        result = result.Attempt(() => registry.Registration?.Dispose());
+        registry.Registration = null;
+
+        var disposed = new HashSet<SystemStage>();
+        for (var i = registry.RuntimeOrder.Length - 1; i >= 0; i--) {
+            var runtime = registry.RuntimeOrder[i];
+            if (disposed.Add(runtime)) {
+                result = result.Attempt(runtime.Dispose);
+            }
         }
-        registry.Stage = null;
-        if (!World.IsDisposed) {
-            stage.Dispose();
-            return;
+        for (var i = registry.Slots.Count - 1; i >= 0; i--) {
+            var runtime = registry.Slots[i].Runtime;
+            if (disposed.Add(runtime)) {
+                result = result.Attempt(runtime.Dispose);
+            }
         }
-        // The world is tearing down; dispose best-effort without letting the
-        // finalizer rethrow against already-released hosts.
-        try {
-            stage.Dispose();
-        }
-        catch {
-            // world already torn down
-        }
-        finally {
-            GC.SuppressFinalize(stage);
-        }
+        registry.Slots.Clear();
+        registry.RuntimeOrder = [];
+        registry.CurrentPlan = null;
+        result.ThrowIfFailed();
     }
 
     private static int CompareTreeOrder(Entity cellA, int slotA, Entity cellB, int slotB)
     {
+        var originalA = cellA;
+        var originalB = cellB;
         if (ReferenceEquals(cellA, cellB)) {
             return slotA.CompareTo(slotB);
         }
@@ -464,14 +512,18 @@ public sealed class Reconciler : ReactorBase
             ref var cellDataB = ref cellB.Get<Cell>();
             if (cellDataA.Parent == null || cellDataB.Parent == null) {
                 // Separate spawn roots: fall back to creation order.
-                return cellA.Id.Value.CompareTo(cellB.Id.Value);
+                return cellDataA.Identity.Value.CompareTo(cellDataB.Identity.Value);
             }
             slotA = cellDataA.SlotInParent;
             slotB = cellDataB.SlotInParent;
             cellA = cellDataA.Parent;
             cellB = cellDataB.Parent;
         }
-        return slotA.CompareTo(slotB);
+        var order = slotA.CompareTo(slotB);
+        return order != 0
+            ? order
+            : originalA.Get<Cell>().Identity.Value.CompareTo(
+                originalB.Get<Cell>().Identity.Value);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
