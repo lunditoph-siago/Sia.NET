@@ -61,6 +61,11 @@ public static class Term
         => new(condition, term);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static EffectTerm<TEffect> Effect<TEffect>(in TEffect effect)
+        where TEffect : struct, IEffect<TEffect>
+        => new(effect);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static EitherTerm<TFirst, TSecond> Either<TFirst, TSecond>(
         bool isFirst, in TFirst first, in TSecond second)
         where TFirst : struct, ITerm<TFirst>
