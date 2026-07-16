@@ -2,48 +2,46 @@ import { dotnet } from './_framework/dotnet.js'
 
 const { setModuleImports, runMain } = await dotnet.create();
 
-const sidebar = document.getElementById('sidebar');
-const output = document.getElementById('output');
-const outputTitle = document.getElementById('output-title');
+const events = [];
+const listeners = [];
 
-const clickQueue = [];
-const pendingClicks = [];
+function emit(eventId) {
+    if (listeners.length > 0) {
+        listeners.shift()(eventId);
+    } else {
+        events.push(eventId);
+    }
+}
 
 setModuleImports('main.js', {
-    addSidebarItem(index, name, desc) {
-        const btn = document.createElement('button');
-        btn.className = 'example-btn';
-        btn.dataset.index = index;
-        btn.innerHTML = `<span class="name">${name}</span><span class="desc">${desc}</span>`;
-        btn.addEventListener('click', () => {
-            if (clickQueue.length > 0) {
-                clickQueue.shift()(index);
-            } else {
-                pendingClicks.push(index);
-            }
-        });
-        sidebar.appendChild(btn);
+    find(id) {
+        return document.getElementById(id);
     },
-    setOutput(title, text) {
-        outputTitle.textContent = title;
-        output.className = '';
-        output.textContent = text;
+    create(tag) {
+        return document.createElement(tag);
     },
-    setOutputLoading(title) {
-        outputTitle.textContent = title;
-        output.className = '';
-        output.textContent = 'Running\u2026';
-    },
-    setActive(index) {
-        sidebar.querySelectorAll('.example-btn').forEach(b =>
-            b.classList.toggle('active', Number(b.dataset.index) === index)
-        );
-    },
-    waitForClick() {
-        if (pendingClicks.length > 0) {
-            return Promise.resolve(pendingClicks.shift());
+    setText(element, value) {
+        if (element.textContent !== value) {
+            element.textContent = value;
         }
-        return new Promise(resolve => clickQueue.push(resolve));
+    },
+    toggleClass(element, name, enabled) {
+        element.classList.toggle(name, enabled);
+    },
+    listen(element, name, eventId) {
+        element.addEventListener(name, () => emit(eventId));
+    },
+    insertBefore(parent, child, before) {
+        parent.insertBefore(child, before);
+    },
+    remove(element) {
+        element.remove();
+    },
+    waitForEvent() {
+        if (events.length > 0) {
+            return Promise.resolve(events.shift());
+        }
+        return new Promise(resolve => listeners.push(resolve));
     },
 });
 

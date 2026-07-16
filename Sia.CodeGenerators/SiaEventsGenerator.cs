@@ -106,7 +106,9 @@ internal partial class SiaEventsGenerator : IIncrementalGenerator
                 throw new InvalidDataException("Invalid component type");
         }
         WriteType(source, componentType);
-        source.WriteLine(" : global::Sia.IEventUnion");
+        source.Write(" : global::Sia.IEventUnion<");
+        WriteType(source, componentType);
+        source.WriteLine(">");
         source.WriteLine("{");
         source.Indent++;
         return new EnclosingDisposable(source, 1);

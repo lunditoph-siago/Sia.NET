@@ -1,10 +1,9 @@
 #if !BROWSER
 using Sia_Examples;
 
-ExampleViewer.Run();
+ExampleViewer.Run(args);
 #else
 using Sia_Examples;
 
-ExampleViewer.Render();
 await ExampleViewer.Run();
 #endif
