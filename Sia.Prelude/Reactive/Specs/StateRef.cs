@@ -1,14 +1,14 @@
 namespace Sia.Reactive;
 
-public readonly struct StateRef<TState>
+public readonly struct StateRef<TState>(
+    Reconciler reconciler,
+    Entity owner,
+    NodeIdentity identity)
     where TState : struct
 {
-    private readonly Reconciler? _reconciler;
-    private readonly Entity? _owner;
-    private readonly NodeIdentity _identity;
-
-    internal StateRef(Reconciler reconciler, Entity owner, NodeIdentity identity)
-        => (_reconciler, _owner, _identity) = (reconciler, owner, identity);
+    private readonly Reconciler? _reconciler = reconciler;
+    private readonly Entity? _owner = owner;
+    private readonly NodeIdentity _identity = identity;
 
     public TState Value => GetOwner().Get<TState>();
 

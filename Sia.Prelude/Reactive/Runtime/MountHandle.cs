@@ -1,14 +1,14 @@
 namespace Sia.Reactive;
 
-public readonly struct MountHandle<TProps>
+public readonly struct MountHandle<TProps>(
+    Reconciler owner,
+    Entity cell,
+    NodeIdentity identity)
     where TProps : struct
 {
-    private readonly Reconciler? _owner;
-    private readonly Entity? _cell;
-    private readonly NodeIdentity _identity;
-
-    internal MountHandle(Reconciler owner, Entity cell, NodeIdentity identity)
-        => (_owner, _cell, _identity) = (owner, cell, identity);
+    private readonly Reconciler? _owner = owner;
+    private readonly Entity? _cell = cell;
+    private readonly NodeIdentity _identity = identity;
 
     public bool IsMounted
         => _owner != null

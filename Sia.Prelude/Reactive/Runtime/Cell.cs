@@ -1,6 +1,6 @@
 namespace Sia.Reactive;
 
-internal readonly record struct NodeIdentity(long Value)
+public readonly record struct NodeIdentity(long Value)
 {
     private static long s_next;
 
@@ -8,35 +8,32 @@ internal readonly record struct NodeIdentity(long Value)
         => new(Interlocked.Increment(ref s_next));
 }
 
-internal struct CellSlot
+public struct CellSlot(Entity? entity = null, NodeIdentity identity = default)
 {
-    public Entity? Entity;
-    public NodeIdentity Identity;
+    public Entity? Entity = entity;
+    public NodeIdentity Identity = identity;
 
     public void Set(Reconciler reconciler, Entity entity)
         => (Entity, Identity) = (entity, reconciler.GetIdentity(entity));
 }
 
-internal struct ReactiveNode
-{
-    public NodeIdentity Identity;
-}
+public readonly record struct ReactiveNode(NodeIdentity Identity);
 
 public struct Cell
 {
-    internal NodeIdentity Identity;
-    public Entity? Parent;
-    public int Depth;
-    public int SlotInParent;
-    internal CellSlot[] Slots;
-    public Expander Expander;
-    public ScheduleRegistry? Schedule;
-    public ContextScope? Scope;
+    public NodeIdentity Identity { get; init; }
+    public Entity? Parent { get; init; }
+    public int Depth { get; init; }
+    public int SlotInParent { get; init; }
+    public CellSlot[] Slots { get; init; }
+    public Expander Expander { get; init; }
+    public ScheduleRegistry? Schedule { get; init; }
+    public ContextScope? Scope { get; init; }
     public StateCells? States;
-    internal List<ContextScope>? ContextDependencies;
-    internal List<ContextScope>? PendingContextDependencies;
+    public List<ContextScope>? ContextDependencies;
+    public List<ContextScope>? PendingContextDependencies;
     public bool InDirty;
-    internal bool IsDestroying;
+    public bool IsDestroying;
 }
 
 public struct PrevTree<TTree>

@@ -30,7 +30,7 @@ public static class Term
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ScheduleTerm<TLabel, TChildren> Schedule<TLabel, TChildren>(
-        TLabel label, in TChildren children)
+        TLabel _, in TChildren children)
         where TLabel : struct
         where TChildren : struct, ITerm<TChildren>
         => new(children);

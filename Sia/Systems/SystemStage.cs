@@ -272,19 +272,21 @@ public sealed class SystemStage : IScheduleEntry, IDisposable
 
         public void EndExecution()
         {
+            var result = Outcome<Exception>.Success;
             foreach (var host in _hosts) {
-                host.ClearCollected();
+                result = result.Attempt(host.ClearCollected);
             }
             Executing = false;
             foreach (var op in _deferredOps) {
                 if (!op.Collect) {
-                    op.Host.Remove(op.Entity);
+                    result = result.Attempt(() => op.Host.Remove(op.Entity));
                 }
                 else if (op.Entity.IsValid) {
-                    op.Host.Add(op.Entity);
+                    result = result.Attempt(() => op.Host.Add(op.Entity));
                 }
             }
             _deferredOps.Clear();
+            result.ThrowIfFailed();
         }
 
         private void Collect(CollectedEntityHost host, Entity entity)
@@ -314,16 +316,30 @@ public sealed class SystemStage : IScheduleEntry, IDisposable
             _hosts.Add(collectedHost);
 
             EntityHandler? onEntityCreated = null;
-            if (_collectsOnEntityCreated) {
-                onEntityCreated = entity => Collect(collectedHost, entity);
-                host.OnEntityCreated += onEntityCreated;
-            }
-            _hostMap[host] = new(collectedHost, onEntityCreated);
-
-            if (onEntityCreated != null) {
-                foreach (var entity in host) {
-                    onEntityCreated(entity);
+            try {
+                if (_collectsOnEntityCreated) {
+                    onEntityCreated = entity => Collect(collectedHost, entity);
+                    host.OnEntityCreated += onEntityCreated;
                 }
+                _hostMap.Add(host, new(collectedHost, onEntityCreated));
+
+                if (onEntityCreated != null) {
+                    foreach (var entity in host) {
+                        onEntityCreated(entity);
+                    }
+                }
+            }
+            catch (Exception error) {
+                Outcome<Exception>.Failure(error)
+                    .Attempt(() => _hostMap.Remove(host))
+                    .Attempt(() => _hosts.Remove(collectedHost))
+                    .Attempt(() => {
+                        if (onEntityCreated != null) {
+                            host.OnEntityCreated -= onEntityCreated;
+                        }
+                    })
+                    .Attempt(collectedHost.Detach)
+                    .ThrowFailure();
             }
         }
 

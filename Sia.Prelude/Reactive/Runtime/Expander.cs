@@ -5,14 +5,12 @@ public abstract class Expander
     public abstract void Expand(Reconciler reconciler, Entity cell);
 }
 
-internal sealed class Expander<TSpec, TState, TTree> : Expander
+public sealed class Expander<TSpec, TState, TTree> : Expander
     where TSpec : struct, ISpec<TSpec, TState, TTree>
     where TState : struct
     where TTree : struct, ITerm<TTree>
 {
     public static readonly Expander<TSpec, TState, TTree> Instance = new();
-
-    private Expander() {}
 
     public override void Expand(Reconciler reconciler, Entity cell)
     {

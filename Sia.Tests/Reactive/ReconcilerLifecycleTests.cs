@@ -91,6 +91,20 @@ public class ReconcilerLifecycleTests
         Assert.Equal(5, output.Get<ReactiveValue>().Value);
     }
 
+    [Fact]
+    public void DefaultFunctionSpecFailsClearlyAndRollsBackItsCell()
+    {
+        using var world = new World();
+        var reconciler = world.AcquireAddon<Reconciler>();
+
+        var error = Assert.Throws<InvalidOperationException>(
+            () => reconciler.Mount(default(
+                Spec<int, EntityTerm<ValueList, UnitTerm>>)));
+
+        Assert.Contains("does not define an expansion", error.Message);
+        Assert.Equal(0, world.Count);
+    }
+
     private static EntityTerm<ValueList, UnitTerm> ExpandValue(
         in int value,
         in ExpandContext context)

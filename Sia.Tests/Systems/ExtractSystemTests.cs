@@ -313,7 +313,8 @@ public class ExtractSystemTests
 
                     renderDone.SignalAndWait();
                 }
-            } catch (Exception ex) {
+            }
+            catch (Exception ex) {
                 renderError = ex;
 
                 try { gameReady.SignalAndWait(); } catch { }
@@ -500,7 +501,8 @@ public class ExtractSystemTests
 
                     done.SignalAndWait();
                 }
-            } catch (Exception ex) {
+            }
+            catch (Exception ex) {
                 renderError = ex;
 
                 try { ready.SignalAndWait(); } catch { }
@@ -655,7 +657,8 @@ public class ExtractSystemTests
 
                     barrier.SignalAndWait();
                 }
-            } catch (Exception ex) {
+            }
+            catch (Exception ex) {
                 renderError = ex;
 
                 try { barrier.SignalAndWait(); } catch { }
