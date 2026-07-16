@@ -88,7 +88,7 @@ public abstract class EventSystemBase(SystemChain? children = null)
     }
 
     protected void RecordEvents<TEventUnion>()
-        where TEventUnion : IEventUnion
+        where TEventUnion : IEventUnion<TEventUnion>
         => TEventUnion.HandleEventTypes(new EventRecorder(this));
 
     public override void Execute(World world, IEntityQuery query)
