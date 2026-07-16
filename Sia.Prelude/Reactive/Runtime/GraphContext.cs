@@ -2,36 +2,25 @@ namespace Sia.Reactive;
 
 using System.Runtime.CompilerServices;
 
-public ref struct GraphContext
+public ref struct GraphContext(
+    Reconciler reconciler,
+    World world,
+    Entity cell,
+    CellSlot[] slots,
+    int depth,
+    ScheduleRegistry? schedule,
+    ContextScope? scope)
 {
-    public readonly Reconciler Reconciler;
-    public readonly World World;
-    public readonly Entity Cell;
-    public readonly int Depth;
+    public readonly Reconciler Reconciler = reconciler;
+    public readonly World World = world;
+    public readonly Entity Cell = cell;
+    public readonly int Depth = depth;
 
-    public ScheduleRegistry? Schedule;
-    public ContextScope? Scope;
+    public ScheduleRegistry? Schedule = schedule;
+    public ContextScope? Scope = scope;
 
-    private readonly CellSlot[] _slots;
+    private readonly CellSlot[] _slots = slots;
     private int _cursor;
-
-    internal GraphContext(
-        Reconciler reconciler,
-        World world,
-        Entity cell,
-        CellSlot[] slots,
-        int depth,
-        ScheduleRegistry? schedule,
-        ContextScope? scope)
-    {
-        Reconciler = reconciler;
-        World = world;
-        Cell = cell;
-        Depth = depth;
-        Schedule = schedule;
-        Scope = scope;
-        _slots = slots;
-    }
 
     public readonly int NextSlotIndex {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

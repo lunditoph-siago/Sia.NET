@@ -138,8 +138,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             }
             (data.ContextDependencies, data.PendingContextDependencies) =
                 (current, previous);
-        }
-        finally {
+        } finally {
             _expandingCell = null;
         }
     }
@@ -196,7 +195,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
     {
         var entity = World.Create(components);
         try {
-            entity.Add(new ReactiveNode { Identity = NextIdentity() });
+            entity.Add(new ReactiveNode(NextIdentity()));
             return entity;
         }
         catch (Exception error) {
@@ -209,7 +208,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
     internal Entity CreateNode<T>(in T component)
         => GraphWorld.Create(HList.From(
             component,
-            new ReactiveNode { Identity = NextIdentity() }));
+            new ReactiveNode(NextIdentity())));
 
     internal Entity MountSub<TSpec>(
         in TSpec props, Entity? parent, int depth, int slotInParent,
@@ -271,8 +270,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             }
             _dirty.Clear();
             _dirtyHead = 0;
-        }
-        finally {
+        } finally {
             _flushing = false;
         }
     }
@@ -283,7 +281,10 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
 
     internal (ScheduleRegistry Registry, Entity Node) CreateSchedule(Type labelType)
     {
-        var label = new ScheduleLabel(labelType.FullName ?? labelType.Name);
+        var label = new ScheduleLabel(
+            labelType.AssemblyQualifiedName
+                ?? labelType.FullName
+                ?? labelType.Name);
         var registry = new ScheduleRegistry(label);
         if (!_schedules.TryGetValue(labelType, out var registries)) {
             registries = [];
@@ -297,6 +298,9 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         }
         catch {
             registries.Remove(registry);
+            if (registries.Count == 0) {
+                _schedules.Remove(labelType);
+            }
             throw;
         }
         try {
@@ -356,12 +360,10 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             if (runtime != null) {
                 result = result.Attempt(runtime.Dispose);
             }
-        }
-        else if (slot.Contains<ScheduleNode>()) {
+        } else if (slot.Contains<ScheduleNode>()) {
             result = result.Attempt(
                 () => RemoveSchedule(slot.Get<ScheduleNode>().Registry));
-        }
-        else if (slot.Contains<EachNode>()) {
+        } else if (slot.Contains<EachNode>()) {
             result = result.Attempt(
                 () => slot.Get<EachNode>().Cleanup.DestroyChildren(this));
         }
@@ -539,7 +541,13 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
     {
         public Entity? Result;
 
+        private readonly Reconciler _reconciler = reconciler;
         private TProps _props = props;
+        private readonly Entity? _parent = parent;
+        private readonly int _depth = depth;
+        private readonly int _slotInParent = slotInParent;
+        private readonly ScheduleRegistry? _schedule = schedule;
+        private readonly ContextScope? _scope = scope;
 
         public void Handle<TSpec, TState, TTree>()
             where TSpec : struct, ISpec<TSpec, TState, TTree>
@@ -549,26 +557,26 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             // HandleSignature dispatches to the spec's own signature, so
             // TSpec is TProps; reinterpret instead of boxing.
             ref var typedProps = ref Unsafe.As<TProps, TSpec>(ref _props);
-            var cell = reconciler.GraphWorld.Create(HList.From(
+            var cell = _reconciler.GraphWorld.Create(HList.From(
                 typedProps,
                 TSpec.InitialState(typedProps),
                 new PrevTree<TTree>(),
                 new Cell {
-                    Identity = reconciler.NextIdentity(),
-                    Parent = parent,
-                    Depth = depth,
-                    SlotInParent = slotInParent,
+                    Identity = _reconciler.NextIdentity(),
+                    Parent = _parent,
+                    Depth = _depth,
+                    SlotInParent = _slotInParent,
                     Slots = TTree.SlotCount > 0 ? new CellSlot[TTree.SlotCount] : [],
                     Expander = Expander<TSpec, TState, TTree>.Instance,
-                    Schedule = schedule,
-                    Scope = scope,
+                    Schedule = _schedule,
+                    Scope = _scope,
                 }));
             Result = cell;
             try {
-                Expander<TSpec, TState, TTree>.Instance.Expand(reconciler, cell);
+                Expander<TSpec, TState, TTree>.Instance.Expand(_reconciler, cell);
             }
             catch (Exception error) {
-                var owner = reconciler;
+                var owner = _reconciler;
                 var identity = cell.Get<Cell>().Identity;
                 Outcome<Exception>.Failure(error)
                     .Attempt(() => owner.DestroyCell(cell, identity))

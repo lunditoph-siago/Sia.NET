@@ -4,20 +4,17 @@ public readonly record struct Keyed<TKey, TSpec>(TKey Key, TSpec Props)
     where TKey : notnull
     where TSpec : struct, ISpec, IEquatable<TSpec>;
 
-internal interface IForEachCleanup
+public interface IForEachCleanup
 {
     void DestroyChildren(Reconciler reconciler);
 }
 
-public struct EachNode
-{
-    internal IForEachCleanup Cleanup;
-}
+public readonly record struct EachNode(IForEachCleanup Cleanup);
 
-internal sealed class EachIndex<TKey> : IForEachCleanup
+public sealed class EachIndex<TKey> : IForEachCleanup
     where TKey : notnull
 {
-    internal struct Entry
+    public struct Entry
     {
         public CellSlot Cell;
         public int Stamp;
@@ -90,7 +87,7 @@ public readonly record struct ForEachTerm<TKey, TSpec>(ReadOnlyMemory<Keyed<TKey
     {
         var slotIndex = ctx.NextSlotIndex;
         var index = new EachIndex<TKey>();
-        ctx.SetSlot(ctx.Reconciler.CreateNode(new EachNode { Cleanup = index }));
+        ctx.SetSlot(ctx.Reconciler.CreateNode(new EachNode(index)));
         Upsert(index, self.Items.Span, slotIndex, ref ctx);
     }
 

@@ -23,10 +23,19 @@ public readonly record struct ScopeTerm<TCtx, TChildren>(TCtx Value, TChildren C
 
     public static void Mount(in ScopeTerm<TCtx, TChildren> self, ref GraphContext ctx)
     {
-        var slot = ctx.Reconciler.CreateNode(new ContextNode<TCtx>(self.Value));
-        var scope = new ContextScope(typeof(TCtx), slot, ctx.Scope);
-        slot.Get<ContextNode<TCtx>>().Scope = scope;
-        ctx.SetSlot(slot);
+        var reconciler = ctx.Reconciler;
+        var slot = reconciler.CreateNode(new ContextNode<TCtx>(self.Value));
+        ContextScope scope;
+        try {
+            scope = new ContextScope(typeof(TCtx), slot, ctx.Scope);
+            slot.Get<ContextNode<TCtx>>().Scope = scope;
+            ctx.SetSlot(slot);
+        }
+        catch (Exception error) {
+            scope = Outcome<Exception>.Failure(error)
+                .Attempt(() => reconciler.DestroySlot(slot))
+                .ThrowFailure<ContextScope>();
+        }
 
         var saved = ctx.Scope;
         ctx.Scope = scope;

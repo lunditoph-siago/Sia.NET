@@ -30,17 +30,16 @@ public class ReactiveSchedulingTests
         var counter = world.Create(HList.From(new TickCounter()));
         var reconciler = world.AcquireAddon<Reconciler>();
         var scheduler = world.GetAddon<Scheduler>();
-        var label = new ScheduleLabel(typeof(TestSchedule).FullName!);
         var mount = reconciler.Mount(new ScheduledSpec());
+        var registry = Assert.Single(reconciler.GetSchedules<TestSchedule>());
 
-        scheduler.TickSchedule(label);
+        scheduler.TickSchedule(registry.Label);
 
         Assert.Equal(1, counter.Get<TickCounter>().Value);
-        var registry = Assert.Single(reconciler.GetSchedules<TestSchedule>());
         Assert.Single(registry.CurrentPlan!.Entries);
 
         mount.Unmount();
-        scheduler.TickSchedule(label);
+        scheduler.TickSchedule(registry.Label);
 
         Assert.Equal(1, counter.Get<TickCounter>().Value);
         Assert.Empty(reconciler.GetSchedules<TestSchedule>());

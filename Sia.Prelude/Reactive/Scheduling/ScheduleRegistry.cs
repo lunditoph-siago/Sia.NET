@@ -4,7 +4,7 @@ using System.Collections.Immutable;
 
 public sealed class ScheduleRegistry(ScheduleLabel label) : IScheduleEntry
 {
-    internal readonly record struct Slot(
+    public readonly record struct Slot(
         Entity SlotEntity,
         Entity OwnerCell,
         int SlotIndex,

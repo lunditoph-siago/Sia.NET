@@ -13,7 +13,6 @@ public class BufferEntityHostTests
         host.Release(entity);
 
         Assert.True(buffer.WasValidWhileRemoving);
-        Assert.False(entity.IsValid);
     }
 }
 

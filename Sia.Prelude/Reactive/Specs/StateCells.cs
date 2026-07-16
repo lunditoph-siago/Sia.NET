@@ -1,6 +1,6 @@
 namespace Sia.Reactive;
 
-internal sealed class StateCell<T>
+public sealed class StateCell<T>
     where T : struct
 {
     public T Value;
@@ -49,25 +49,17 @@ public sealed class StateCells
             "hooks must be called unconditionally in the same order.");
 }
 
-public readonly struct State<T>
+public readonly struct State<T>(
+    StateCell<T> cell,
+    Reconciler reconciler,
+    Entity owner,
+    NodeIdentity identity)
     where T : struct
 {
-    private readonly StateCell<T> _cell;
-    private readonly Reconciler _reconciler;
-    private readonly Entity _owner;
-    private readonly NodeIdentity _identity;
-
-    internal State(
-        StateCell<T> cell,
-        Reconciler reconciler,
-        Entity owner,
-        NodeIdentity identity)
-    {
-        _cell = cell;
-        _reconciler = reconciler;
-        _owner = owner;
-        _identity = identity;
-    }
+    private readonly StateCell<T> _cell = cell;
+    private readonly Reconciler _reconciler = reconciler;
+    private readonly Entity _owner = owner;
+    private readonly NodeIdentity _identity = identity;
 
     public T Value {
         get {

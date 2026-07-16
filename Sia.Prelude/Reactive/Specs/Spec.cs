@@ -11,11 +11,17 @@ public readonly record struct Spec<TProps, TTree>(
     where TProps : struct, IEquatable<TProps>
     where TTree : struct, ITerm<TTree>
 {
+    public ExpandFn<TProps, TTree> Expansion { get; init; }
+        = Expansion ?? throw new ArgumentNullException(nameof(Expansion));
+
     public static TTree Expand(
         in Spec<TProps, TTree> spec,
         in Unit state,
         in ExpandContext context)
-        => spec.Expansion(spec.Props, context);
+        => (spec.Expansion
+            ?? throw new InvalidOperationException(
+                "A default function spec does not define an expansion."))(
+                    spec.Props, context);
 }
 
 public static class Spec
