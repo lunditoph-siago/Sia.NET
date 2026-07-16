@@ -24,11 +24,6 @@ public static class Term
         => new(props);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static FnLiftTerm<TProps> Lift<TProps>(Spec<TProps> spec, in TProps props)
-        where TProps : struct, IEquatable<TProps>
-        => new(spec, props);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static SystemTerm<TSystem> System<TSystem>()
         where TSystem : ISystem, new()
         => default;

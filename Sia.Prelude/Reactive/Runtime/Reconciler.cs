@@ -86,25 +86,6 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         }
     }
 
-    public MountHandle<TProps> Mount<TProps>(Spec<TProps> spec, in TProps props)
-        where TProps : struct, IEquatable<TProps>
-    {
-        var cell = spec.MountCell(
-            this, props, parent: null, depth: 0, slotInParent: -1, schedule: null, scope: null);
-        var identity = cell.Get<Cell>().Identity;
-        _roots.Add(identity.Value, cell);
-        try {
-            Flush();
-            return new(this, cell, identity);
-        }
-        catch (Exception error) {
-            _roots.Remove(identity.Value);
-            return Outcome<Exception>.Failure(error)
-                .Attempt(() => DestroyCell(cell, identity))
-                .ThrowFailure<MountHandle<TProps>>();
-        }
-    }
-
     internal void Unmount(Entity cell, NodeIdentity identity)
     {
         if (!IsCell(cell, identity)) {

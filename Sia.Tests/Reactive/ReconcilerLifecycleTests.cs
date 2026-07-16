@@ -75,6 +75,27 @@ public class ReconcilerLifecycleTests
         Assert.Equal(0, world.Count);
     }
 
+    [Fact]
+    public void FunctionSpecUsesTheSameValueReconciliationPath()
+    {
+        using var world = new World();
+        var reconciler = world.AcquireAddon<Reconciler>();
+        var mount = reconciler.Mount(
+            Spec.Of<int, EntityTerm<ValueList, UnitTerm>>(4, ExpandValue));
+        var output = FindOutput(world);
+
+        mount.Update(Spec.Of<int, EntityTerm<ValueList, UnitTerm>>(5, ExpandValue));
+        reconciler.Flush();
+
+        Assert.Same(output, FindOutput(world));
+        Assert.Equal(5, output.Get<ReactiveValue>().Value);
+    }
+
+    private static EntityTerm<ValueList, UnitTerm> ExpandValue(
+        in int value,
+        in ExpandContext context)
+        => Term.Entity(HList.From(new ReactiveValue(value)));
+
     private static Entity FindOutput(World world)
     {
         using var query = world.Query(Matchers.Of<ReactiveValue>());
