@@ -366,6 +366,8 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         } else if (slot.Contains<EachNode>()) {
             result = result.Attempt(
                 () => slot.Get<EachNode>().Cleanup.DestroyChildren(this));
+        } else if (slot.Contains<EffectNode>()) {
+            result = result.Attempt(slot.Get<EffectNode>().Cleanup.Unmount);
         }
         result.Attempt(slot.Destroy).ThrowIfFailed();
     }

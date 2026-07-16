@@ -86,6 +86,22 @@ public class ReactiveTermTests
         Assert.Equal(0, world.Count);
     }
 
+    [Fact]
+    public void Effect_FollowsMountReconcileAndUnmount()
+    {
+        using var world = new World();
+        var reconciler = world.AcquireAddon<Reconciler>();
+        var calls = new List<string>();
+        var mount = reconciler.Mount(new EffectSpec(calls, 1));
+
+        mount.Update(new EffectSpec(calls, 2));
+        reconciler.Flush();
+        mount.Unmount();
+
+        Assert.Equal(["mount 1", "reconcile 1 -> 2", "unmount 2"], calls);
+        Assert.Equal(0, world.Count);
+    }
+
     private static Entity[] FindAll<T>(World world)
     {
         using var query = world.Query(Matchers.Of<T>());
@@ -97,6 +113,29 @@ public readonly record struct BranchValue(int Value);
 public readonly record struct KeyedValue(int Key, int Value);
 public readonly record struct Theme(int Value);
 public readonly record struct ScopedValue(int Theme);
+
+public readonly record struct EffectSpec(List<string> Calls, int Value)
+    : ISpec<EffectSpec, Unit, EffectTerm<ProbeEffect>>
+{
+    public static EffectTerm<ProbeEffect> Expand(
+        in EffectSpec props,
+        in Unit state,
+        in ExpandContext context)
+        => Term.Effect(new ProbeEffect(props.Calls, props.Value));
+}
+
+public readonly record struct ProbeEffect(List<string> Calls, int Value)
+    : IEffect<ProbeEffect>
+{
+    public static void Mount(in ProbeEffect self)
+        => self.Calls.Add($"mount {self.Value}");
+
+    public static void Reconcile(in ProbeEffect previous, in ProbeEffect next)
+        => next.Calls.Add($"reconcile {previous.Value} -> {next.Value}");
+
+    public static void Unmount(in ProbeEffect self)
+        => self.Calls.Add($"unmount {self.Value}");
+}
 
 public sealed class BranchProbe
 {
