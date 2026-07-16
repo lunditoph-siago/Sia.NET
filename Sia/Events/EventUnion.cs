@@ -1,6 +1,6 @@
 namespace Sia;
 
-public class EventUnion<T1> : IEventUnion
+public class EventUnion<T1> : IEventUnion<EventUnion<T1>>
     where T1 : IEvent, new()
 {
     public static ITypeUnion StaticEventTypes { get; }
@@ -14,7 +14,7 @@ public class EventUnion<T1> : IEventUnion
     }
 }
 
-public class EventUnion<T1, T2> : IEventUnion
+public class EventUnion<T1, T2> : IEventUnion<EventUnion<T1, T2>>
     where T1 : IEvent, new()
     where T2 : IEvent, new()
 {
@@ -30,7 +30,7 @@ public class EventUnion<T1, T2> : IEventUnion
     }
 }
 
-public class EventUnion<T1, T2, T3> : IEventUnion
+public class EventUnion<T1, T2, T3> : IEventUnion<EventUnion<T1, T2, T3>>
     where T1 : IEvent, new()
     where T2 : IEvent, new()
     where T3 : IEvent, new()
@@ -48,7 +48,7 @@ public class EventUnion<T1, T2, T3> : IEventUnion
     }
 }
 
-public class EventUnion<T1, T2, T3, T4> : IEventUnion
+public class EventUnion<T1, T2, T3, T4> : IEventUnion<EventUnion<T1, T2, T3, T4>>
     where T1 : IEvent, new()
     where T2 : IEvent, new()
     where T3 : IEvent, new()
@@ -68,7 +68,7 @@ public class EventUnion<T1, T2, T3, T4> : IEventUnion
     }
 }
 
-public class EventUnion<T1, T2, T3, T4, T5> : IEventUnion
+public class EventUnion<T1, T2, T3, T4, T5> : IEventUnion<EventUnion<T1, T2, T3, T4, T5>>
     where T1 : IEvent, new()
     where T2 : IEvent, new()
     where T3 : IEvent, new()
@@ -90,7 +90,7 @@ public class EventUnion<T1, T2, T3, T4, T5> : IEventUnion
     }
 }
 
-public class EventUnion<T1, T2, T3, T4, T5, T6> : IEventUnion
+public class EventUnion<T1, T2, T3, T4, T5, T6> : IEventUnion<EventUnion<T1, T2, T3, T4, T5, T6>>
     where T1 : IEvent, new()
     where T2 : IEvent, new()
     where T3 : IEvent, new()
@@ -114,7 +114,8 @@ public class EventUnion<T1, T2, T3, T4, T5, T6> : IEventUnion
     }
 }
 
-public class EventUnion<T1, T2, T3, T4, T5, T6, T7> : IEventUnion
+public class EventUnion<T1, T2, T3, T4, T5, T6, T7>
+    : IEventUnion<EventUnion<T1, T2, T3, T4, T5, T6, T7>>
     where T1 : IEvent, new()
     where T2 : IEvent, new()
     where T3 : IEvent, new()
@@ -140,7 +141,8 @@ public class EventUnion<T1, T2, T3, T4, T5, T6, T7> : IEventUnion
     }
 }
 
-public class EventUnion<T1, T2, T3, T4, T5, T6, T7, T8> : IEventUnion
+public class EventUnion<T1, T2, T3, T4, T5, T6, T7, T8>
+    : IEventUnion<EventUnion<T1, T2, T3, T4, T5, T6, T7, T8>>
     where T1 : IEvent, new()
     where T2 : IEvent, new()
     where T3 : IEvent, new()
@@ -168,7 +170,8 @@ public class EventUnion<T1, T2, T3, T4, T5, T6, T7, T8> : IEventUnion
     }
 }
 
-public class EventUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9> : IEventUnion
+public class EventUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9>
+    : IEventUnion<EventUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9>>
     where T1 : IEvent, new()
     where T2 : IEvent, new()
     where T3 : IEvent, new()
@@ -198,7 +201,8 @@ public class EventUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9> : IEventUnion
     }
 }
 
-public class EventUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10> : IEventUnion
+public class EventUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>
+    : IEventUnion<EventUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>>
     where T1 : IEvent, new()
     where T2 : IEvent, new()
     where T3 : IEvent, new()
@@ -230,7 +234,8 @@ public class EventUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10> : IEventUnion
     }
 }
 
-public class EventUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11> : IEventUnion
+public class EventUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>
+    : IEventUnion<EventUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>>
     where T1 : IEvent, new()
     where T2 : IEvent, new()
     where T3 : IEvent, new()
@@ -264,7 +269,8 @@ public class EventUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11> : IEventUn
     }
 }
 
-public class EventUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12> : IEventUnion
+public class EventUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>
+    : IEventUnion<EventUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>>
     where T1 : IEvent, new()
     where T2 : IEvent, new()
     where T3 : IEvent, new()
@@ -300,7 +306,8 @@ public class EventUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12> : IEv
     }
 }
 
-public class EventUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13> : IEventUnion
+public class EventUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>
+    : IEventUnion<EventUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>>
     where T1 : IEvent, new()
     where T2 : IEvent, new()
     where T3 : IEvent, new()
@@ -338,7 +345,8 @@ public class EventUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13> 
     }
 }
 
-public class EventUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14> : IEventUnion
+public class EventUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14>
+    : IEventUnion<EventUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14>>
     where T1 : IEvent, new()
     where T2 : IEvent, new()
     where T3 : IEvent, new()
@@ -378,7 +386,8 @@ public class EventUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, 
     }
 }
 
-public class EventUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15> : IEventUnion
+public class EventUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15>
+    : IEventUnion<EventUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15>>
     where T1 : IEvent, new()
     where T2 : IEvent, new()
     where T3 : IEvent, new()
@@ -420,7 +429,8 @@ public class EventUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, 
     }
 }
 
-public class EventUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16> : IEventUnion
+public class EventUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16>
+    : IEventUnion<EventUnion<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16>>
     where T1 : IEvent, new()
     where T2 : IEvent, new()
     where T3 : IEvent, new()

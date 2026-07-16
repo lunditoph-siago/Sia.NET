@@ -54,6 +54,27 @@ public class SystemStageLifecycleTests
             => ExecutionCount++;
     }
 
+    private sealed class CountingEventUnion : IEventUnion
+    {
+        public ITypeUnion EventTypes { get; } = new TypeUnion<ProbeEvent>();
+        public int HandleCount { get; private set; }
+
+        public void Handle(IGenericTypeHandler<IEvent> handler)
+        {
+            HandleCount++;
+            handler.Handle<ProbeEvent>();
+        }
+    }
+
+    private sealed class CountingUnionSystem(CountingEventUnion trigger)
+        : SystemBase(Matchers.Of<ProbeComponent>(), trigger)
+    {
+        public int ObservedCount { get; private set; }
+
+        public override void Execute(World world, IEntityQuery query)
+            => ObservedCount += query.Count;
+    }
+
     [Fact]
     public void InitializationFailureRollsBackSystemsAndChildrenInReverseOrder()
     {
@@ -153,5 +174,25 @@ public class SystemStageLifecycleTests
         stage.Tick();
 
         Assert.Equal(0, system.ExecutionCount);
+    }
+
+    [Fact]
+    public void ReactiveQueryRegistersOncePerEventTypeAndRoutesByHost()
+    {
+        using var world = new World();
+        var first = world.Create(HList.From(new ProbeComponent()));
+        var second = world.Create(HList.From(new ProbeComponent()));
+        var trigger = new CountingEventUnion();
+        var system = new CountingUnionSystem(trigger);
+        using var stage = SystemChain.Empty
+            .Add(SystemId.Func("reactive"), () => system)
+            .CreateStage(world);
+
+        world.Send(first, new ProbeEvent());
+        world.Send(second, new ProbeEvent());
+        stage.Tick();
+
+        Assert.Equal(1, trigger.HandleCount);
+        Assert.Equal(2, system.ObservedCount);
     }
 }

@@ -140,67 +140,29 @@ public sealed class SystemStage : IScheduleEntry, IDisposable
             => _entities.AsSpan();
     }
 
-    private record TriggerEventListener(
-        ReactiveQuery Query, CollectedEntityHost Host, FrozenSet<Type> TriggerTypes) : IEventListener
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool OnEvent<TEvent>(Entity target, in TEvent e)
-            where TEvent : IEvent
-        {
-            if (Query.Frozen) {
-                return false;
-            }
-            var type = typeof(TEvent);
-            if (TriggerTypes.Contains(type)) {
-                Host.Add(target);
-            }
-            return false;
-        }
-    }
-
-    private record FilterEventListener(
-        ReactiveQuery Query, CollectedEntityHost Host, FrozenSet<Type> FilterTypes) : IEventListener
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool OnEvent<TEvent>(Entity target, in TEvent e)
-            where TEvent : IEvent
-        {
-            if (Query.Frozen) {
-                return false;
-            }
-            var type = typeof(TEvent);
-            if (FilterTypes.Contains(type)) {
-                Host.Remove(target);
-            }
-            return false;
-        }
-    }
-
-    private record TriggerFilterEventListener(
-        ReactiveQuery Query, CollectedEntityHost Host, FrozenSet<Type> TriggerTypes, FrozenSet<Type> FilterTypes) : IEventListener
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool OnEvent<TEvent>(Entity target, in TEvent e)
-            where TEvent : IEvent
-        {
-            if (Query.Frozen) {
-                return false;
-            }
-            var type = typeof(TEvent);
-            if (TriggerTypes.Contains(type)) {
-                Host.Add(target);
-            }
-            else if (FilterTypes.Contains(type)) {
-                Host.Remove(target);
-            }
-            return false;
-        }
-    }
-
     private sealed class ReactiveQuery : IEntityQuery
     {
-        public readonly record struct HostEntry(
-            CollectedEntityHost WrappedHost, EntityHandler EntityHandler, IEventListener? Listener);
+        private readonly record struct HostEntry(
+            CollectedEntityHost Host, EntityHandler? OnEntityCreated);
+
+        private readonly record struct DeferredOp(
+            CollectedEntityHost Host, Entity Entity, bool Collect);
+
+        private readonly struct TriggerRegistrar(ReactiveQuery query)
+            : IGenericTypeHandler<IEvent>
+        {
+            public void Handle<TEvent>()
+                where TEvent : IEvent
+                => query.ListenTrigger<TEvent>();
+        }
+
+        private readonly struct FilterRegistrar(ReactiveQuery query)
+            : IGenericTypeHandler<IEvent>
+        {
+            public void Handle<TEvent>()
+                where TEvent : IEvent
+                => query.ListenFilter<TEvent>();
+        }
 
         public int Count {
             get {
@@ -214,34 +176,38 @@ public sealed class SystemStage : IScheduleEntry, IDisposable
         }
 
         public int Version { get; private set; }
-        public bool Frozen { get; set; }
+        public bool Executing { get; private set; }
 
         public IReadOnlyList<IEntityHost> Hosts => _hosts;
         private readonly List<CollectedEntityHost> _hosts = [];
         private readonly Dictionary<IEntityHost, HostEntry> _hostMap = [];
+        private readonly List<DeferredOp> _deferredOps = [];
+        private readonly List<Action> _unlisteners = [];
 
         private readonly IReactiveEntityQuery _query;
         private readonly WorldDispatcher _dispatcher;
 
-        public readonly FrozenSet<Type> _triggerTypes;
-        public readonly FrozenSet<Type> _filterTypes;
-
-        private readonly bool _onlyHasAddEventTrigger;
-
-        private static bool OnlyHasAddEventTrigger(FrozenSet<Type> triggerTypes)
-            => triggerTypes.Count == 1 && triggerTypes.Contains(typeof(WorldEvents.Add));
+        private readonly FrozenSet<Type> _filterTypes;
+        private readonly bool _collectsOnEntityCreated;
 
         public ReactiveQuery(
             IReactiveEntityQuery query, WorldDispatcher dispatcher,
-            FrozenSet<Type> triggerTypes, FrozenSet<Type> filterTypes)
+            IEventUnion? trigger, IEventUnion? filter)
         {
             _query = query;
             _dispatcher = dispatcher;
 
-            _triggerTypes = triggerTypes;
-            _filterTypes = filterTypes;
+            var triggerTypes = trigger?.EventTypes.TypeSet ?? FrozenSet<Type>.Empty;
+            _filterTypes = filter?.EventTypes.TypeSet ?? FrozenSet<Type>.Empty;
+            var validTriggerCount = triggerTypes.Count(type => !_filterTypes.Contains(type));
+            if (validTriggerCount == 0) {
+                throw new InvalidSystemConfigurationException(
+                    "Invalid system configuration: reactive system must have at least one valid trigger");
+            }
 
-            _onlyHasAddEventTrigger = OnlyHasAddEventTrigger(triggerTypes);
+            _collectsOnEntityCreated = validTriggerCount == 1
+                && triggerTypes.Contains(typeof(WorldEvents.Add))
+                && !_filterTypes.Contains(typeof(WorldEvents.Add));
 
             try {
                 _query.OnEntityHostAdded += OnEntityHostAdded;
@@ -249,6 +215,12 @@ public sealed class SystemStage : IScheduleEntry, IDisposable
 
                 foreach (var host in _query.Hosts) {
                     OnEntityHostAdded(host);
+                }
+                if (!_collectsOnEntityCreated) {
+                    trigger!.Handle(new TriggerRegistrar(this));
+                }
+                if (_filterTypes.Count != 0) {
+                    filter!.Handle(new FilterRegistrar(this));
                 }
             }
             catch (Exception attachmentError) {
@@ -258,87 +230,111 @@ public sealed class SystemStage : IScheduleEntry, IDisposable
             }
         }
 
-        private void OnEntityHostAdded(IEntityHost host)
+        private void ListenTrigger<TEvent>()
+            where TEvent : IEvent
         {
-            if (host is not IReactiveEntityHost reactiveHost) {
+            if (_filterTypes.Contains(typeof(TEvent))) {
                 return;
             }
-            Version++;
-
-            var collectedHost = new CollectedEntityHost(reactiveHost);
-            _hosts.Add(collectedHost);
-
-            var onEntityCreated = CreateEntityHandler(collectedHost, out var listener);
-            reactiveHost.OnEntityCreated += onEntityCreated;
-            _hostMap[reactiveHost] = new(collectedHost, onEntityCreated, listener);
-
-            foreach (var entity in host) {
-                onEntityCreated(entity);
-            }
+            WorldDispatcher.Listener<TEvent> listener = OnTrigger;
+            _dispatcher.Listen(listener);
+            _unlisteners.Add(() => _dispatcher.Unlisten(listener));
         }
 
-        private EntityHandler CreateEntityHandler(CollectedEntityHost host, out IEventListener? resultListener)
+        private void ListenFilter<TEvent>()
+            where TEvent : IEvent
         {
-            if (_onlyHasAddEventTrigger) {
-                if (_filterTypes.Count == 0) {
-                    resultListener = null;
-                    return target => {
-                        if (Frozen) { return; }
-                        host.Add(target);
-                    };
+            WorldDispatcher.Listener<TEvent> listener = OnFilter;
+            _dispatcher.Listen(listener);
+            _unlisteners.Add(() => _dispatcher.Unlisten(listener));
+        }
+
+        private bool OnTrigger<TEvent>(Entity target, in TEvent e)
+            where TEvent : IEvent
+        {
+            if (!Executing && target.Host is { } host
+                && _hostMap.TryGetValue(host, out var entry)) {
+                entry.Host.Add(target);
+            }
+            return false;
+        }
+
+        private bool OnFilter<TEvent>(Entity target, in TEvent e)
+            where TEvent : IEvent
+        {
+            if (target.Host is { } host && _hostMap.TryGetValue(host, out var entry)) {
+                Uncollect(entry.Host, target);
+            }
+            return false;
+        }
+
+        public void BeginExecution() => Executing = true;
+
+        public void EndExecution()
+        {
+            foreach (var host in _hosts) {
+                host.ClearCollected();
+            }
+            Executing = false;
+            foreach (var op in _deferredOps) {
+                if (!op.Collect) {
+                    op.Host.Remove(op.Entity);
                 }
-                else {
-                    var listener = new FilterEventListener(this, host, _filterTypes);
-                    resultListener = listener;
-                    return target => {
-                        if (Frozen) { return; }
-                        host.Add(target);
-                        _dispatcher.Listen(target, listener);
-                    };
+                else if (op.Entity.IsValid) {
+                    op.Host.Add(op.Entity);
                 }
+            }
+            _deferredOps.Clear();
+        }
+
+        private void Collect(CollectedEntityHost host, Entity entity)
+        {
+            if (Executing) {
+                _deferredOps.Add(new(host, entity, Collect: true));
             }
             else {
-                if (_filterTypes.Count == 0) {
-                    var listener = new TriggerEventListener(this, host, _triggerTypes);
-                    resultListener = listener;
-                    return target => _dispatcher.Listen(target, listener);
-                }
-                else {
-                    var listener = new TriggerFilterEventListener(this, host, _triggerTypes, _filterTypes);
-                    resultListener = listener;
-                    return target => _dispatcher.Listen(target, listener);
+                host.Add(entity);
+            }
+        }
+
+        private void Uncollect(CollectedEntityHost host, Entity entity)
+        {
+            if (Executing) {
+                _deferredOps.Add(new(host, entity, Collect: false));
+            }
+            else {
+                host.Remove(entity);
+            }
+        }
+
+        private void OnEntityHostAdded(IReactiveEntityHost host)
+        {
+            Version++;
+            var collectedHost = new CollectedEntityHost(host);
+            _hosts.Add(collectedHost);
+
+            EntityHandler? onEntityCreated = null;
+            if (_collectsOnEntityCreated) {
+                onEntityCreated = entity => Collect(collectedHost, entity);
+                host.OnEntityCreated += onEntityCreated;
+            }
+            _hostMap[host] = new(collectedHost, onEntityCreated);
+
+            if (onEntityCreated != null) {
+                foreach (var entity in host) {
+                    onEntityCreated(entity);
                 }
             }
         }
 
-        private void OnEntityHostRemoved(IEntityHost host)
+        private void OnEntityHostRemoved(IReactiveEntityHost host)
         {
             if (!_hostMap.Remove(host, out var entry)) {
                 return;
             }
             Version++;
-
-            var wrappedHost = entry.WrappedHost;
-            _hosts.Remove(wrappedHost);
-
-            wrappedHost.Detach();
-            wrappedHost.Host.OnEntityCreated -= entry.EntityHandler;
-
-            var result = Outcome<Exception>.Success;
-            var listener = entry.Listener;
-            if (listener != null) {
-                foreach (var entity in wrappedHost.Host) {
-                    result = result.Attempt(() => _dispatcher.Unlisten(entity, listener));
-                }
-            }
-            result.ThrowIfFailed();
-        }
-
-        public void ClearCollected()
-        {
-            foreach (var host in _hosts) {
-                host.ClearCollected();
-            }
+            _hosts.Remove(entry.Host);
+            DetachHost(entry);
         }
 
         public void Dispose()
@@ -347,21 +343,25 @@ public sealed class SystemStage : IScheduleEntry, IDisposable
             _query.OnEntityHostRemoved -= OnEntityHostRemoved;
 
             var result = Outcome<Exception>.Success;
-            foreach (var (host, (wrappedHost, handler, listener)) in _hostMap) {
-                wrappedHost.Detach();
-                Unsafe.As<IReactiveEntityHost>(host).OnEntityCreated -= handler;
-
-                if (listener != null) {
-                    foreach (var entity in host) {
-                        result = result.Attempt(
-                            () => _dispatcher.Unlisten(entity, listener));
-                    }
-                }
+            foreach (var unlisten in _unlisteners) {
+                result = result.Attempt(unlisten);
             }
-
+            _unlisteners.Clear();
+            foreach (var entry in _hostMap.Values) {
+                result = result.Attempt(() => DetachHost(entry));
+            }
             _hostMap.Clear();
             _hosts.Clear();
+            _deferredOps.Clear();
             result.ThrowIfFailed();
+        }
+
+        private static void DetachHost(in HostEntry entry)
+        {
+            entry.Host.Detach();
+            if (entry.OnEntityCreated is { } onEntityCreated) {
+                entry.Host.Host.OnEntityCreated -= onEntityCreated;
+            }
         }
     }
 
@@ -524,37 +524,20 @@ public sealed class SystemStage : IScheduleEntry, IDisposable
             }
         }
         else {
-            var filterTypes = filter?.EventTypes.TypeSet ?? FrozenSet<Type>.Empty;
-            var triggerTypes =
-                (filter != null
-                    ? trigger?.EventTypes.Types.Except(filter.EventTypes.TypeSet).ToFrozenSet()
-                    : trigger?.EventTypes.TypeSet)
-                ?? FrozenSet<Type>.Empty;
-
-            if (triggerTypes.Count == 0) {
-                throw new InvalidSystemConfigurationException(
-                    "Invalid system configuration: reactive system must have at least one valid trigger");
-            }
-
             var query = world.Query(matcher);
-            var reactiveQuery = new ReactiveQuery(query, dispatcher, triggerTypes, filterTypes);
+            var reactiveQuery = new ReactiveQuery(query, dispatcher, trigger, filter);
 
             selfDisposable = reactiveQuery;
             selfAction = () => {
                 if (reactiveQuery.Count == 0) {
                     return;
                 }
-                reactiveQuery.Frozen = true;
+                reactiveQuery.BeginExecution();
                 try {
                     system.Execute(world, reactiveQuery);
                 }
                 finally {
-                    try {
-                        reactiveQuery.ClearCollected();
-                    }
-                    finally {
-                        reactiveQuery.Frozen = false;
-                    }
+                    reactiveQuery.EndExecution();
                 }
             };
         }
