@@ -28,10 +28,10 @@ public ref struct GraphContext(
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void SetSlot(Entity entity) => _slots[_cursor++].Set(Reconciler, entity);
+    public void SetSlot(Entity entity) => _slots[_cursor++].Set(entity);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly Entity? PeekSlot() => Reconciler.Validate(_slots[_cursor]);
+    public readonly Entity PeekSlot() => Reconciler.Validate(_slots[_cursor]);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Advance() => _cursor++;
@@ -50,7 +50,11 @@ public ref struct GraphContext(
         for (var i = _cursor; i < end; i++) {
             var slot = slots[i];
             slots[i] = default;
-            result = result.Attempt(() => reconciler.DestroySlot(slot));
+            var operation = (Owner: reconciler, Slot: slot);
+            result = result.Attempt(
+                operation,
+                static (in (Reconciler Owner, CellSlot Slot) value)
+                    => value.Owner.DestroySlot(value.Slot));
         }
         _cursor = end;
         result.ThrowIfFailed();

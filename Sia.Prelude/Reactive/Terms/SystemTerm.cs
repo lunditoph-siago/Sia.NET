@@ -44,14 +44,14 @@ public readonly record struct ScheduleTerm<TLabel, TChildren>(TChildren Children
         ref GraphContext ctx)
     {
         var slot = ctx.PeekSlot();
-        if (slot is not { IsValid: true }) {
+        if (slot is not { IsValid: true } node) {
             Mount(next, ref ctx);
             return;
         }
         ctx.Advance();
 
         var saved = ctx.Schedule;
-        ctx.Schedule = slot.Get<ScheduleNode>().Registry;
+        ctx.Schedule = node.GetUnchecked<ScheduleNode>().Registry;
         TChildren.Reconcile(prev.Children, next.Children, ref ctx);
         ctx.Schedule = saved;
     }

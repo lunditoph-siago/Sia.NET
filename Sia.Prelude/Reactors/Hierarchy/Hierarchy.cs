@@ -19,30 +19,30 @@ public class Hierarchy<TTag> : ReactorBase<TypeUnion<Node<TTag>>>
             var parent = node.Parent;
             var previousParent = node._prevParent;
 
-            if (previousParent != null) {
-                RemoveFromParent(entity, previousParent);
+            if (previousParent is { } previous) {
+                RemoveFromParent(entity, previous);
 
                 if (parent == null) {
                     _root.Add(entity);
                 }
-                else {
-                    parent = AddToParent(entity, parent);
+                else if (parent is { } current) {
+                    parent = AddToParent(entity, current);
                 }
             }
-            else if (parent != null) {
+            else if (parent is { } current) {
                 _root.Remove(entity);
-                parent = AddToParent(entity, parent);
+                parent = AddToParent(entity, current);
             }
 
             SetIsEnabledRecursively(entity, ref node,
-                parent == null || parent.Get<Node<TTag>>().IsEnabled);
+                parent is not { } attached || attached.Get<Node<TTag>>().IsEnabled);
             return false;
         });
 
         Listen((Entity entity, in Node<TTag>.SetIsSelfEnabled cmd) => {
             ref var node = ref entity.Get<Node<TTag>>();
             SetIsEnabledRecursively(entity, ref node,
-                node.Parent == null || node.Parent.Get<Node<TTag>>().IsEnabled);
+                node.Parent is not { } parent || parent.Get<Node<TTag>>().IsEnabled);
         });
     }
 
@@ -69,8 +69,8 @@ public class Hierarchy<TTag> : ReactorBase<TypeUnion<Node<TTag>>>
     {
         ref var node = ref entity.Get<Node<TTag>>();
         var parent = node.Parent;
-        if (parent != null) {
-            AddToParent(entity, parent);
+        if (parent is { } attached) {
+            AddToParent(entity, attached);
         }
         else {
             _root.Add(entity);
@@ -82,8 +82,8 @@ public class Hierarchy<TTag> : ReactorBase<TypeUnion<Node<TTag>>>
         ref var node = ref entity.Get<Node<TTag>>();
 
         var parent = node.Parent;
-        if (parent != null) {
-            RemoveFromParent(entity, parent);
+        if (parent is { } attached) {
+            RemoveFromParent(entity, attached);
         }
         else {
             _root.Remove(entity);

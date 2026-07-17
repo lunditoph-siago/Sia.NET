@@ -7,15 +7,14 @@ public readonly struct MountHandle<TProps>(
     where TProps : struct
 {
     private readonly Reconciler? _owner = owner;
-    private readonly Entity? _cell = cell;
+    private readonly EntityReference _cell = new(cell);
     private readonly NodeIdentity _identity = identity;
 
     public bool IsMounted
         => _owner != null
-            && _cell != null
             && _owner.IsCell(_cell, _identity);
 
-    public TProps Props => GetCell().Get<TProps>();
+    public TProps Props => GetCell().GetUnchecked<TProps>();
 
     public void Update(in TProps props)
         => GetOwner().UpdateMount(GetCell(), props);
@@ -27,9 +26,10 @@ public readonly struct MountHandle<TProps>(
         => GetOwner().Unmount(GetCell(), _identity);
 
     private Entity GetCell()
-        => IsMounted
-            ? _cell!
-            : throw new ObjectDisposedException(nameof(MountHandle<TProps>));
+        => _owner != null
+            && _owner.IsCell(_cell, _identity)
+                ? _cell.GetUnchecked()
+                : throw new ObjectDisposedException(nameof(MountHandle<TProps>));
 
     private Reconciler GetOwner()
         => _owner ?? throw new ObjectDisposedException(nameof(MountHandle<TProps>));

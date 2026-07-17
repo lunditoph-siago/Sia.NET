@@ -131,10 +131,10 @@ public sealed class SystemStage : IScheduleEntry, IDisposable
             where UEntity : struct, IHList
             => Host.GetSiblingHost<UEntity>();
 
-        public void GetSiblingHostType<UEntity>(
-            IGenericConcreteTypeHandler<IEntityHost<UEntity>> hostTypeHandler)
+        public void GetSiblingHostType<UEntity, THandler>(in THandler hostTypeHandler)
             where UEntity : struct, IHList
-            => Host.GetSiblingHostType(hostTypeHandler);
+            where THandler : IGenericConcreteTypeHandler<IEntityHost<UEntity>>
+            => Host.GetSiblingHostType<UEntity, THandler>(hostTypeHandler);
 
         public Span<Entity> UnsafeGetEntitySpan()
             => _entities.AsSpan();

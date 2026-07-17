@@ -74,11 +74,11 @@ public readonly record struct EffectTerm<TEffect>(TEffect Effect)
         ref GraphContext context)
     {
         var node = context.PeekSlot();
-        if (node is not { IsValid: true }) {
+        if (node is not { IsValid: true } effectNode) {
             Mount(next, ref context);
             return;
         }
-        var state = (EffectState<TEffect>)node.Get<EffectNode>().Cleanup;
+        var state = (EffectState<TEffect>)effectNode.GetUnchecked<EffectNode>().Cleanup;
         state.Reconcile(next.Effect);
         context.Advance();
     }

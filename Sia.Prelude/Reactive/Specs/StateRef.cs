@@ -7,17 +7,17 @@ public readonly struct StateRef<TState>(
     where TState : struct
 {
     private readonly Reconciler? _reconciler = reconciler;
-    private readonly Entity? _owner = owner;
+    private readonly EntityReference _owner = new(owner);
     private readonly NodeIdentity _identity = identity;
 
-    public TState Value => GetOwner().Get<TState>();
+    public TState Value => GetOwner().GetUnchecked<TState>();
 
     public void Set(in TState value)
     {
         var owner = GetOwner();
         var reconciler = GetReconciler();
         reconciler.GuardStateMutation(owner);
-        owner.Get<TState>() = value;
+        owner.GetUnchecked<TState>() = value;
         reconciler.EnqueueDirty(owner);
     }
 
@@ -31,9 +31,8 @@ public readonly struct StateRef<TState>(
 
     private Entity GetOwner()
         => _reconciler != null
-            && _owner != null
             && _reconciler.IsCell(_owner, _identity)
-                ? _owner
+                ? _owner.GetUnchecked()
                 : throw new ObjectDisposedException(nameof(StateRef<TState>));
 
     private Reconciler GetReconciler()

@@ -29,8 +29,8 @@ internal sealed class ReleaseOrderBuffer<T> : IBuffer<T>
     public int Count {
         get => _count;
         set {
-            if (value < _count && Tracked != null) {
-                WasValidWhileRemoving = Tracked.IsValid;
+            if (value < _count && Tracked is { } tracked) {
+                WasValidWhileRemoving = tracked.IsValid;
             }
             _count = value;
         }

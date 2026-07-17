@@ -6,7 +6,6 @@ public class ArrayEntityHost<TEntity>(int initialCapacity)
 {
     public ArrayEntityHost() : this(0) {}
 
-    public override void GetSiblingHostType<UEntity>(
-        IGenericConcreteTypeHandler<IEntityHost<UEntity>> hostTypeHandler)
+    public override void GetSiblingHostType<UEntity, THandler>(in THandler hostTypeHandler)
         => hostTypeHandler.Handle<ArrayEntityHost<UEntity>>();
 }

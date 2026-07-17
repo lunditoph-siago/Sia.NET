@@ -111,7 +111,8 @@ public class EntityAddRemoveTests
 
         var creator = new Creator(world);
         bundle.ToHList(creator);
-        var entity = creator.Result!;
+        var entity = creator.Result
+            ?? throw new InvalidOperationException("Dynamic bundle did not create an entity.");
         Assert.Equal(new Position(1, 2), entity.Get<Position>());
 
         entity.Remove<Tag>();
