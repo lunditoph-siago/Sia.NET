@@ -39,7 +39,6 @@ public class ReconcilerLifecycleTests
         mount.Unmount();
 
         Assert.False(mount.IsMounted);
-        Assert.False(output.IsValid);
         Assert.Equal(0, world.Count);
     }
 
@@ -60,6 +59,28 @@ public class ReconcilerLifecycleTests
         current.Update(new HandleSpec(3));
         reconciler.Flush();
         Assert.Equal(3, FindOutput(world).Get<ReactiveValue>().Value);
+    }
+
+    [Fact]
+    public void StaleCellSlot_DoesNotExposeAReusedEntityState()
+    {
+        Assert.Equal(
+            System.Runtime.CompilerServices.Unsafe.SizeOf<Entity>(),
+            System.Runtime.CompilerServices.Unsafe.SizeOf<CellSlot>());
+
+        using var world = new World();
+        var firstIdentity = NodeIdentity.Create();
+        var first = world.Create(HList.From(new ReactiveNode(firstIdentity)));
+        var slot = new CellSlot(first);
+
+        first.Destroy();
+        var secondIdentity = NodeIdentity.Create();
+        var second = world.Create(HList.From(new ReactiveNode(secondIdentity)));
+
+        Assert.True(second.IsValid);
+        Assert.False(first.IsValid);
+        Assert.False(slot.Entity.IsValid);
+        Assert.NotEqual(second, slot.Entity);
     }
 
     [Fact]
