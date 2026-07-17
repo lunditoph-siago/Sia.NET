@@ -10,7 +10,7 @@ using Microsoft.CodeAnalysis.Text;
 internal partial class SiaSystemGenerator : IIncrementalGenerator
 {
     private static readonly DiagnosticDescriptor SystemMustImplementISystem = new(
-        id: "SIA_SYSTEM001",
+        id: "SIA001",
         title: "Sia system must implement ISystem",
         messageFormat: "Type '{0}' is marked with [SiaSystem] but does not implement Sia.ISystem",
         category: "Sia.Systems",
