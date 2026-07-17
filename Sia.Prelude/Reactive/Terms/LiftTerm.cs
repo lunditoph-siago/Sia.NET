@@ -13,14 +13,14 @@ public readonly record struct LiftTerm<TSpec>(TSpec Props) : ITerm<LiftTerm<TSpe
         in LiftTerm<TSpec> prev, in LiftTerm<TSpec> next, ref GraphContext ctx)
     {
         var sub = ctx.PeekSlot();
-        if (sub is not { IsValid: true }) {
+        if (sub is not { IsValid: true } cell) {
             ctx.SetSlot(ctx.Reconciler.MountSub(
                 next.Props, ctx.Cell, ctx.Depth + 1, ctx.NextSlotIndex, ctx.Schedule, ctx.Scope));
             return;
         }
         if (!prev.Props.Equals(next.Props)) {
-            sub.Get<TSpec>() = next.Props;
-            ctx.Reconciler.EnqueueDirty(sub);
+            cell.GetUnchecked<TSpec>() = next.Props;
+            ctx.Reconciler.EnqueueDirty(cell);
         }
         ctx.Advance();
     }

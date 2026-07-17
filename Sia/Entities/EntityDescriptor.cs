@@ -28,7 +28,7 @@ public static class EntityDescriptor<TEntity>
                 if (!offsets.TryAdd(typeof(T), offset)) {
                     throw new InvalidDataException("Entity cannot have multiple components of the same type");
                 }
-                components.Add(new(typeof(T), offset, InternalEntityComponentIndexer<TEntity, T>.Index));
+                components.Add(new(typeof(T), offset, InternalComponentIndexer<T>.Index));
             }
         }
 
@@ -61,6 +61,7 @@ public static class EntityDescriptor<TEntity>
         Components = [.. components];
 
         var slots = new nint[Components.Select(info => info.TypeIndex).Max() + 1];
+        Array.Fill(slots, -1);
         foreach (var info in Components) {
             slots[info.TypeIndex] = info.Offset;
         }
@@ -78,29 +79,12 @@ public readonly struct EntityIndexer<TEntity, TComponent>
 
 public record EntityDescriptor
 {
-    private interface IFieldIndexGetter
-    {
-        int GetIndex<TComponent>();
-    }
-
-    private class FieldIndexGetter<TEntity> : IFieldIndexGetter
-    {
-        public static FieldIndexGetter<TEntity> Instance = new();
-
-        private FieldIndexGetter() {}
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int GetIndex<TComponent>()
-            => InternalEntityComponentIndexer<TEntity, TComponent>.Index;
-    }
-
     public static EntityDescriptor Get<TEntity>()
         where TEntity : struct, IHList
         => new(typeof(TEntity), Unsafe.SizeOf<TEntity>(),
             EntityDescriptor<TEntity>.Components,
             EntityDescriptor<TEntity>.Offsets,
-            EntityDescriptor<TEntity>.OffsetSlots,
-            FieldIndexGetter<TEntity>.Instance);
+            EntityDescriptor<TEntity>.OffsetSlots);
 
     public Type Type { get; }
     public int MemorySize { get; }
@@ -109,26 +93,44 @@ public record EntityDescriptor
     public FrozenDictionary<Type, nint> Offsets { get; }
     public ImmutableArray<nint> OffsetSlots { get; }
 
-    private readonly IFieldIndexGetter _fieldIndexGetter;
-
     private EntityDescriptor(
         Type type, int memorySize, ImmutableArray<ComponentInfo> components,
-        FrozenDictionary<Type, nint> offsets, ImmutableArray<nint> offsetSlots,
-        IFieldIndexGetter fieldIndexGetter)
+        FrozenDictionary<Type, nint> offsets, ImmutableArray<nint> offsetSlots)
     {
         Type = type;
         MemorySize = memorySize;
         Components = components;
         Offsets = offsets;
         OffsetSlots = offsetSlots;
-        _fieldIndexGetter = fieldIndexGetter;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ComponentOffset<TComponent> GetOffset<TComponent>()
-        => OffsetSlots[_fieldIndexGetter.GetIndex<TComponent>()];
+    {
+        var index = InternalComponentIndexer<TComponent>.Index;
+        if ((uint)index < (uint)OffsetSlots.Length) {
+            var offset = OffsetSlots[index];
+            if (offset >= 0) {
+                return offset;
+            }
+        }
+        return ThrowComponentNotFound<TComponent>();
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal ComponentOffset<TComponent> GetOffsetUnchecked<TComponent>()
+        => OffsetSlots[InternalComponentIndexer<TComponent>.Index];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Contains<TComponent>()
-        => _fieldIndexGetter.GetIndex<TComponent>() < OffsetSlots.Length;
+    {
+        var index = InternalComponentIndexer<TComponent>.Index;
+        return (uint)index < (uint)OffsetSlots.Length
+            && OffsetSlots[index] >= 0;
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static ComponentOffset<TComponent> ThrowComponentNotFound<TComponent>()
+        => throw new ComponentNotFoundException(
+            "Component does not exist: " + typeof(TComponent));
 }

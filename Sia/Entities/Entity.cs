@@ -1,33 +1,146 @@
 namespace Sia;
 
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using MemoryPack;
-using Microsoft.Extensions.ObjectPool;
 
 [MemoryPackable(GenerateType.NoGenerate)]
-public partial record Entity
+public readonly partial struct Entity : IEquatable<Entity>
 {
-    public static readonly ObjectPool<Entity> Pool = new DefaultObjectPool<Entity>(new PooledEntityPolicy());
+    private readonly EntityState? _state;
+    private readonly ulong _token;
 
-    public EntityId Id { get; } = EntityId.Create();
-    public IEntityHost Host { get; internal set; } = null!;
-    public int Slot { get; internal set; }
-
-    public object Boxed => Host.Box(Slot);
-    public bool IsValid => Host != null;
-    public EntityDescriptor Descriptor => Host.Descriptor;
-
-    private class PooledEntityPolicy : IPooledObjectPolicy<Entity>
+    internal Entity(EntityState state, uint generation, EntityId id)
     {
-        public Entity Create() => new();
-        public bool Return(Entity obj) => true;
+        _state = state;
+        _token = ((ulong)generation << 32) | (uint)id.Value;
+        state.Token = _token;
     }
 
-    private Entity() {}
-    public void Destroy() => Host.Release(this);
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal Entity(EntityState state)
+    {
+        _state = state;
+        _token = state.Token;
+    }
+
+    public EntityId Id {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => new(unchecked((int)_token));
+    }
+
+    public IEntityHost Host {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get {
+            var state = _state;
+            return state != null
+                && state.Token == _token
+                && state.Host != null
+                ? state.Host
+                : null!;
+        }
+    }
+
+    public int Slot {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => GetState().Slot;
+    }
+
+    public object Boxed {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get {
+            var state = GetState();
+            return state.Host!.Box(state.Slot);
+        }
+    }
+
+    public bool IsValid {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get {
+            var state = _state;
+            return state != null
+                && state.Token == _token
+                && state.Host != null;
+        }
+    }
+
+    public EntityDescriptor Descriptor {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => GetState().Host!.Descriptor;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal EntityState GetCurrentState()
+    {
+        var state = _state;
+        if (state == null || state.Token != _token) {
+            ThrowDisposed();
+        }
+        return state;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal EntityState GetState()
+    {
+        var state = GetCurrentState();
+        if (state.Host == null) {
+            ThrowDisposed();
+        }
+        return state;
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    [DoesNotReturn]
+    private readonly void ThrowDisposed()
+        => throw new ObjectDisposedException(ToString());
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal EntityState GetStateUnchecked()
+        => _state!;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool References(EntityState state)
+        => ReferenceEquals(_state, state) && _token == state.Token;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool ContainsUnchecked<TComponent>()
+        => _state!.Host!.Descriptor.Contains<TComponent>();
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal ref TComponent GetUnchecked<TComponent>()
+    {
+        var state = _state!;
+        var host = state.Host!;
+        ref var byteRef = ref host.GetByteRef(state.Slot);
+        nint offset = host.Descriptor.GetOffsetUnchecked<TComponent>();
+        return ref Unsafe.As<byte, TComponent>(
+            ref Unsafe.AddByteOffset(ref byteRef, offset));
+    }
+
+    public void Destroy()
+    {
+        var state = GetState();
+        state.Host!.Release(this);
+    }
 
     public override string ToString()
         => "[Entity " + Id + "]";
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool Equals(Entity other)
+        => ReferenceEquals(_state, other._state) && _token == other._token;
+
+    public override bool Equals(object? obj)
+        => obj is Entity other && Equals(other);
+
+    public override int GetHashCode()
+        => Id.Value;
+
+    public static bool operator ==(Entity left, Entity right)
+        => left.Equals(right);
+
+    public static bool operator !=(Entity left, Entity right)
+        => !left.Equals(right);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Contains<TComponent>() => Descriptor.Contains<TComponent>();
@@ -39,8 +152,10 @@ public partial record Entity
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref TComponent Get<TComponent>()
     {
-        ref var byteRef = ref Host.GetByteRef(Slot);
-        nint offset = Descriptor.GetOffset<TComponent>();
+        var state = GetState();
+        var host = state.Host!;
+        ref var byteRef = ref host.GetByteRef(state.Slot);
+        nint offset = host.Descriptor.GetOffset<TComponent>();
         return ref Unsafe.As<byte, TComponent>(
             ref Unsafe.AddByteOffset(ref byteRef, offset));
     }
@@ -48,9 +163,11 @@ public partial record Entity
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref TComponent GetOrNullRef<TComponent>()
     {
-        ref var byteRef = ref Host.GetByteRef(Slot);
+        var state = GetState();
+        var host = state.Host!;
+        ref var byteRef = ref host.GetByteRef(state.Slot);
         try {
-            nint offset = Descriptor.GetOffset<TComponent>();
+            nint offset = host.Descriptor.GetOffset<TComponent>();
             return ref Unsafe.As<byte, TComponent>(
                 ref Unsafe.AddByteOffset(ref byteRef, offset));
         }
@@ -61,20 +178,20 @@ public partial record Entity
 
     public Entity Add<TComponent>()
     {
-        Host.Add(this, default(TComponent));
+        GetState().Host!.Add(this, default(TComponent));
         return this;
     }
 
     public Entity Add<TComponent>(in TComponent initial)
     {
-        Host.Add(this, initial);
+        GetState().Host!.Add(this, initial);
         return this;
     }
 
     public Entity AddMany<TList>(in TList bundle)
         where TList : struct, IHList
     {
-        Host.AddMany(this, bundle);
+        GetState().Host!.AddMany(this, bundle);
         return this;
     }
 
@@ -94,26 +211,26 @@ public partial record Entity
 
     public Entity Set<TComponent>(in TComponent value)
     {
-        Host.Set(this, value);
+        GetState().Host!.Set(this, value);
         return this;
     }
 
     public Entity Remove<TComponent>()
     {
-        Host.Remove<TComponent>(this, out _);
+        GetState().Host!.Remove<TComponent>(this, out _);
         return this;
     }
 
     public Entity Remove<TComponent>(out bool success)
     {
-        Host.Remove<TComponent>(this, out success);
+        GetState().Host!.Remove<TComponent>(this, out success);
         return this;
     }
 
     public Entity RemoveMany<TList>()
         where TList : struct, IHList
     {
-        Host.RemoveMany<TList>(this);
+        GetState().Host!.RemoveMany<TList>(this);
         return this;
     }
 
@@ -142,8 +259,14 @@ public partial record Entity
 
     public void GetHList<THandler>(in THandler handler)
         where THandler : IRefGenericHandler<IHList>
-        => Host.GetHList(Slot, handler);
+    {
+        var state = GetState();
+        state.Host!.GetHList(state.Slot, handler);
+    }
 
     public Span<byte> AsSpan()
-        => Host.GetBytes(Slot);
+    {
+        var state = GetState();
+        return state.Host!.GetBytes(state.Slot);
+    }
 }

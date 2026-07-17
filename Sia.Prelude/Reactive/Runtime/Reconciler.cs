@@ -5,17 +5,20 @@ using Sia.Reactors;
 
 public sealed class Reconciler : ReactorBase, IScheduleSource
 {
-    private readonly record struct DirtyEntry(Entity Cell, NodeIdentity Identity);
+    private readonly record struct DirtyEntry(EntityReference Cell, NodeIdentity Identity);
 
     private readonly List<DirtyEntry> _dirty = [];
-    private readonly Dictionary<long, Entity> _roots = [];
+    private readonly Dictionary<long, EntityReference> _roots = [];
     private World? _graphWorld;
-    private Entity? _expandingCell;
+    private Entity _expandingCell;
     private int _dirtyHead;
     private bool _flushing;
+    private long _nextIdentity;
 
     private readonly Dictionary<Type, List<ScheduleRegistry>> _schedules = [];
     private readonly List<ScheduleRegistry> _rebuildQueue = [];
+    private readonly Dictionary<int, Stack<CellSlot[]>> _cellSlotPools = [];
+    private readonly Dictionary<Type, Stack<IRecyclableForEachCleanup>> _eachIndexPools = [];
     private Scheduler? _scheduler;
     private ScheduleRegistration? _sourceRegistration;
 
@@ -44,8 +47,10 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         var result = Outcome<Exception>.Success;
         result = result.Attempt(() => _sourceRegistration?.Dispose());
         _sourceRegistration = null;
-        foreach (var (identity, cell) in _roots.ToArray()) {
-            result = result.Attempt(() => DestroyCell(cell, new(identity)));
+        foreach (var (identity, reference) in _roots.ToArray()) {
+            if (reference.TryGet(out var cell)) {
+                result = result.Attempt(() => DestroyCell(cell, new(identity)));
+            }
         }
         _roots.Clear();
 
@@ -58,8 +63,10 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         _rebuildQueue.Clear();
         result = result.Attempt(() => _graphWorld?.Dispose());
         _graphWorld = null;
+        _cellSlotPools.Clear();
+        _eachIndexPools.Clear();
         _scheduler = null;
-        _expandingCell = null;
+        _expandingCell = default;
         result = result.Attempt(() => base.OnUninitialize(world));
         result.ThrowIfFailed();
     }
@@ -71,9 +78,9 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         where TSpec : struct, ISpec
     {
         var cell = MountSub(
-            props, parent: null, depth: 0, slotInParent: -1, schedule: null, scope: null);
-        var identity = cell.Get<Cell>().Identity;
-        _roots.Add(identity.Value, cell);
+            props, parent: default, depth: 0, slotInParent: -1, schedule: null, scope: null);
+        var identity = cell.GetUnchecked<Cell>().Identity;
+        _roots.Add(identity.Value, new(cell));
         try {
             Flush();
             return new(this, cell, identity);
@@ -98,7 +105,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
     internal void UpdateMount<TProps>(Entity cell, in TProps props)
         where TProps : struct
     {
-        cell.Get<TProps>() = props;
+        cell.GetUnchecked<TProps>() = props;
         EnqueueDirty(cell);
     }
 
@@ -107,11 +114,11 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
 
     internal void BeginExpansion(Entity cell)
     {
-        if (_expandingCell != null) {
+        if (_expandingCell.IsValid) {
             throw new InvalidOperationException("Reactive expansions cannot be nested.");
         }
         _expandingCell = cell;
-        ref var data = ref cell.Get<Cell>();
+        ref var data = ref cell.GetUnchecked<Cell>();
         data.States?.BeginExpansion();
         (data.PendingContextDependencies ??= []).Clear();
     }
@@ -119,7 +126,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
     internal void CompleteExpansion(Entity cell)
     {
         try {
-            ref var data = ref cell.Get<Cell>();
+            ref var data = ref cell.GetUnchecked<Cell>();
             data.States?.CompleteExpansion();
             var previous = data.ContextDependencies ??= [];
             var current = data.PendingContextDependencies ??= [];
@@ -131,24 +138,23 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             }
             foreach (var scope in current) {
                 if (!previous.Contains(scope)) {
-                    var slot = new CellSlot();
-                    slot.Set(this, cell);
+                    var slot = new CellSlot(cell);
                     scope.Consumers[identity] = slot;
                 }
             }
             (data.ContextDependencies, data.PendingContextDependencies) =
                 (current, previous);
         } finally {
-            _expandingCell = null;
+            _expandingCell = default;
         }
     }
 
     internal void AbortExpansion()
-        => _expandingCell = null;
+        => _expandingCell = default;
 
     internal void GuardStateMutation(Entity owner)
     {
-        if (ReferenceEquals(_expandingCell, owner)) {
+        if (_expandingCell == owner) {
             throw new InvalidOperationException(
                 "State cannot be mutated while its spec is expanding.");
         }
@@ -156,54 +162,87 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
 
     internal void RecordContextDependency(Entity cell, ContextScope scope)
     {
-        var pending = cell.Get<Cell>().PendingContextDependencies ??= [];
+        var pending = cell.GetUnchecked<Cell>().PendingContextDependencies ??= [];
         if (!pending.Contains(scope)) {
             pending.Add(scope);
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool IsCell(Entity cell, NodeIdentity identity)
-        => cell.IsValid
-            && cell.Contains<Cell>()
-            && cell.Get<Cell>().Identity == identity
-            && !cell.Get<Cell>().IsDestroying;
+    {
+        if (!cell.IsValid || !cell.ContainsUnchecked<Cell>()) {
+            return false;
+        }
+        ref var data = ref cell.GetUnchecked<Cell>();
+        return data.Identity == identity && !data.IsDestroying;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool IsCell(EntityReference cell, NodeIdentity identity)
+    {
+        if (!cell.IsValid || !cell.ContainsUnchecked<Cell>()) {
+            return false;
+        }
+        ref var data = ref cell.GetUnchecked<Cell>();
+        return data.Identity == identity && !data.IsDestroying;
+    }
 
     internal NodeIdentity NextIdentity()
-        => NodeIdentity.Create();
+        => new(++_nextIdentity);
 
-    internal NodeIdentity GetIdentity(Entity entity)
-        => entity.Contains<Cell>()
-            ? entity.Get<Cell>().Identity
-            : entity.Get<ReactiveNode>().Identity;
-
-    internal Entity? Validate(in CellSlot slot)
+    internal CellSlot[] RentCellSlots(int length)
     {
-        if (slot.Entity is not { IsValid: true } entity) {
-            return null;
+        if (length == 0) {
+            return [];
         }
-        if (entity.Contains<Cell>()) {
-            return entity.Get<Cell>().Identity == slot.Identity ? entity : null;
-        }
-        return entity.Contains<ReactiveNode>()
-            && entity.Get<ReactiveNode>().Identity == slot.Identity
-                ? entity
-                : null;
+        return _cellSlotPools.TryGetValue(length, out var pool)
+            && pool.TryPop(out var slots)
+                ? slots
+                : new CellSlot[length];
     }
+
+    private void ReturnCellSlots(CellSlot[] slots)
+    {
+        if (slots.Length == 0) {
+            return;
+        }
+        if (!_cellSlotPools.TryGetValue(slots.Length, out var pool)) {
+            pool = [];
+            _cellSlotPools.Add(slots.Length, pool);
+        }
+        pool.Push(slots);
+    }
+
+    internal EachIndex<TKey> RentEachIndex<TKey>()
+        where TKey : notnull
+    {
+        var type = typeof(EachIndex<TKey>);
+        return _eachIndexPools.TryGetValue(type, out var pool)
+            && pool.TryPop(out var index)
+                ? (EachIndex<TKey>)index
+                : new EachIndex<TKey>();
+    }
+
+    private void ReturnEachIndex(IRecyclableForEachCleanup index)
+    {
+        index.Reset();
+        var type = index.GetType();
+        if (!_eachIndexPools.TryGetValue(type, out var pool)) {
+            pool = [];
+            _eachIndexPools.Add(type, pool);
+        }
+        pool.Push(index);
+    }
+
+    internal Entity Validate(in CellSlot slot)
+        => slot.Entity;
 
     internal Entity CreateOutput<TList>(in TList components)
         where TList : struct, IHList
-    {
-        var entity = World.Create(components);
-        try {
-            entity.Add(new ReactiveNode(NextIdentity()));
-            return entity;
-        }
-        catch (Exception error) {
-            return Outcome<Exception>.Failure(error)
-                .Attempt(entity.Destroy)
-                .ThrowFailure<Entity>();
-        }
-    }
+        => World.Create(HList.Cons(
+            new ReactiveNode(NextIdentity()),
+            components));
 
     internal Entity CreateNode<T>(in T component)
         => GraphWorld.Create(HList.From(
@@ -211,27 +250,29 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             new ReactiveNode(NextIdentity())));
 
     internal Entity MountSub<TSpec>(
-        in TSpec props, Entity? parent, int depth, int slotInParent,
+        in TSpec props, Entity parent, int depth, int slotInParent,
         ScheduleRegistry? schedule, ContextScope? scope)
         where TSpec : struct, ISpec
     {
         var factory = new CellFactory<TSpec>(
             this, props, parent, depth, slotInParent, schedule, scope);
         TSpec.HandleSignature(ref factory);
-        return factory.Result!;
+        return factory.Result.IsValid
+            ? factory.Result
+            : throw new InvalidOperationException("Reactive cell factory produced no entity.");
     }
 
     public void EnqueueDirty(Entity cell)
     {
-        if (!cell.IsValid || !cell.Contains<Cell>()) {
+        if (!cell.IsValid || !cell.ContainsUnchecked<Cell>()) {
             return;
         }
-        ref var cellData = ref cell.Get<Cell>();
+        ref var cellData = ref cell.GetUnchecked<Cell>();
         if (cellData.InDirty) {
             return;
         }
         cellData.InDirty = true;
-        InsertByDepth(new(cell, cellData.Identity), cellData.Depth);
+        InsertByDepth(new(new(cell), cellData.Identity), cellData.Depth);
     }
 
     public void Flush()
@@ -247,11 +288,11 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
                     _dirty[_dirtyHead] = default;
                     _dirtyHead++;
 
-                    var cell = entry.Cell;
-                    if (!IsCell(cell, entry.Identity)) {
+                    if (!entry.Cell.TryGet(out var cell)
+                        || !IsCell(cell, entry.Identity)) {
                         continue;
                     }
-                    ref var cellData = ref cell.Get<Cell>();
+                    ref var cellData = ref cell.GetUnchecked<Cell>();
                     if (!cellData.InDirty) {
                         continue;
                     }
@@ -345,36 +386,48 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
 
     internal void DestroySlot(Entity slot)
     {
-        if (slot.Contains<Cell>()) {
-            DestroyCell(slot, slot.Get<Cell>().Identity);
+        if (slot.ContainsUnchecked<Cell>()) {
+            DestroyCell(slot, slot.GetUnchecked<Cell>().Identity);
             return;
         }
         var result = Outcome<Exception>.Success;
-        if (slot.Contains<SystemNode>()) {
+        IRecyclableForEachCleanup? recyclable = null;
+        if (slot.ContainsUnchecked<SystemNode>()) {
             SystemStage? runtime = null;
             result = result.Attempt(() => {
-                var registry = slot.Get<SystemNode>().Registry;
+                var registry = slot.GetUnchecked<SystemNode>().Registry;
                 runtime = registry.Remove(slot);
                 QueueRebuild(registry);
             });
             if (runtime != null) {
                 result = result.Attempt(runtime.Dispose);
             }
-        } else if (slot.Contains<ScheduleNode>()) {
+        } else if (slot.ContainsUnchecked<ScheduleNode>()) {
             result = result.Attempt(
-                () => RemoveSchedule(slot.Get<ScheduleNode>().Registry));
-        } else if (slot.Contains<EachNode>()) {
+                () => RemoveSchedule(slot.GetUnchecked<ScheduleNode>().Registry));
+        } else if (slot.ContainsUnchecked<EachNode>()) {
+            var cleanup = slot.GetUnchecked<EachNode>().Cleanup;
+            recyclable = cleanup as IRecyclableForEachCleanup;
+            var operation = (Owner: this, Cleanup: cleanup);
             result = result.Attempt(
-                () => slot.Get<EachNode>().Cleanup.DestroyChildren(this));
-        } else if (slot.Contains<EffectNode>()) {
-            result = result.Attempt(slot.Get<EffectNode>().Cleanup.Unmount);
+                operation,
+                static (in (Reconciler Owner, IForEachCleanup Cleanup) value)
+                    => value.Cleanup.DestroyChildren(value.Owner));
+        } else if (slot.ContainsUnchecked<EffectNode>()) {
+            result = result.Attempt(slot.GetUnchecked<EffectNode>().Cleanup.Unmount);
         }
-        result.Attempt(slot.Destroy).ThrowIfFailed();
+        result = result.Attempt(
+            slot,
+            static (in Entity entity) => entity.Destroy());
+        if (result.IsSuccess && recyclable != null) {
+            ReturnEachIndex(recyclable);
+        }
+        result.ThrowIfFailed();
     }
 
     internal void DestroySlot(in CellSlot slot)
     {
-        if (Validate(slot) is { } entity) {
+        if (Validate(slot) is { IsValid: true } entity) {
             DestroySlot(entity);
         }
     }
@@ -384,7 +437,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         if (!IsCell(cell, identity)) {
             return;
         }
-        ref var data = ref cell.Get<Cell>();
+        ref var data = ref cell.GetUnchecked<Cell>();
         data.IsDestroying = true;
         data.InDirty = false;
         _roots.Remove(identity.Value);
@@ -399,9 +452,19 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         for (var i = slots.Length - 1; i >= 0; i--) {
             var slot = slots[i];
             slots[i] = default;
-            result = result.Attempt(() => DestroySlot(slot));
+            var operation = (Owner: this, Slot: slot);
+            result = result.Attempt(
+                operation,
+                static (in (Reconciler Owner, CellSlot Slot) value)
+                    => value.Owner.DestroySlot(value.Slot));
         }
-        result.Attempt(cell.Destroy).ThrowIfFailed();
+        result = result.Attempt(
+            cell,
+            static (in Entity entity) => entity.Destroy());
+        if (result.IsSuccess) {
+            ReturnCellSlots(slots);
+        }
+        result.ThrowIfFailed();
     }
 
     private void QueueRebuild(ScheduleRegistry registry)
@@ -478,12 +541,12 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
     {
         var originalA = cellA;
         var originalB = cellB;
-        if (ReferenceEquals(cellA, cellB)) {
+        if (cellA == cellB) {
             return slotA.CompareTo(slotB);
         }
 
-        var depthA = cellA.Get<Cell>().Depth;
-        var depthB = cellB.Get<Cell>().Depth;
+        var depthA = cellA.GetUnchecked<Cell>().Depth;
+        var depthB = cellB.GetUnchecked<Cell>().Depth;
         while (depthA > depthB) {
             (cellA, slotA) = StepUp(cellA);
             depthA--;
@@ -492,30 +555,35 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             (cellB, slotB) = StepUp(cellB);
             depthB--;
         }
-        while (!ReferenceEquals(cellA, cellB)) {
-            ref var cellDataA = ref cellA.Get<Cell>();
-            ref var cellDataB = ref cellB.Get<Cell>();
-            if (cellDataA.Parent == null || cellDataB.Parent == null) {
+        while (cellA != cellB) {
+            ref var cellDataA = ref cellA.GetUnchecked<Cell>();
+            ref var cellDataB = ref cellB.GetUnchecked<Cell>();
+            var parentA = cellDataA.ParentEntity;
+            var parentB = cellDataB.ParentEntity;
+            if (!parentA.IsValid || !parentB.IsValid) {
                 // Separate spawn roots: fall back to creation order.
                 return cellDataA.Identity.Value.CompareTo(cellDataB.Identity.Value);
             }
             slotA = cellDataA.SlotInParent;
             slotB = cellDataB.SlotInParent;
-            cellA = cellDataA.Parent;
-            cellB = cellDataB.Parent;
+            cellA = parentA;
+            cellB = parentB;
         }
         var order = slotA.CompareTo(slotB);
         return order != 0
             ? order
-            : originalA.Get<Cell>().Identity.Value.CompareTo(
-                originalB.Get<Cell>().Identity.Value);
+            : originalA.GetUnchecked<Cell>().Identity.Value.CompareTo(
+                originalB.GetUnchecked<Cell>().Identity.Value);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static (Entity, int) StepUp(Entity cell)
     {
-        ref var cellData = ref cell.Get<Cell>();
-        return (cellData.Parent!, cellData.SlotInParent);
+        ref var cellData = ref cell.GetUnchecked<Cell>();
+        var parent = cellData.ParentEntity;
+        return parent.IsValid
+            ? (parent, cellData.SlotInParent)
+            : throw new InvalidOperationException("Reactive cell has no parent.");
     }
 
     // Pending cells are kept sorted by depth so parents expand before children.
@@ -532,20 +600,20 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private int GetDepth(DirtyEntry entry)
         => IsCell(entry.Cell, entry.Identity)
-            ? entry.Cell.Get<Cell>().Depth
+            ? entry.Cell.GetUnchecked<Cell>().Depth
             : int.MinValue;
 
     private struct CellFactory<TProps>(
-        Reconciler reconciler, TProps props, Entity? parent, int depth, int slotInParent,
+        Reconciler reconciler, TProps props, Entity parent, int depth, int slotInParent,
         ScheduleRegistry? schedule, ContextScope? scope)
         : ISpecSignatureHandler
         where TProps : struct, ISpec
     {
-        public Entity? Result;
+        public Entity Result;
 
         private readonly Reconciler _reconciler = reconciler;
         private TProps _props = props;
-        private readonly Entity? _parent = parent;
+        private readonly EntityReference _parent = parent.IsValid ? new(parent) : default;
         private readonly int _depth = depth;
         private readonly int _slotInParent = slotInParent;
         private readonly ScheduleRegistry? _schedule = schedule;
@@ -565,10 +633,10 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
                 new PrevTree<TTree>(),
                 new Cell {
                     Identity = _reconciler.NextIdentity(),
-                    Parent = _parent,
+                    Parent = _parent.GetOrDefault(),
                     Depth = _depth,
                     SlotInParent = _slotInParent,
-                    Slots = TTree.SlotCount > 0 ? new CellSlot[TTree.SlotCount] : [],
+                    Slots = _reconciler.RentCellSlots(TTree.SlotCount),
                     Expander = Expander<TSpec, TState, TTree>.Instance,
                     Schedule = _schedule,
                     Scope = _scope,
@@ -579,7 +647,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             }
             catch (Exception error) {
                 var owner = _reconciler;
-                var identity = cell.Get<Cell>().Identity;
+                var identity = cell.GetUnchecked<Cell>().Identity;
                 Outcome<Exception>.Failure(error)
                     .Attempt(() => owner.DestroyCell(cell, identity))
                     .ThrowFailure();

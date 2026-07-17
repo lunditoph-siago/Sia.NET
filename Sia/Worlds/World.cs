@@ -14,6 +14,8 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
 
     public WorldDispatcher Dispatcher { get; }
 
+    internal EntityStatePool EntityStates { get; } = new();
+
     public World()
     {
         Dispatcher = new WorldDispatcher(this);
@@ -31,6 +33,7 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
 
         Outcome<Exception>.Success
             .Attempt(ClearHosts)
+            .Attempt(EntityStates.Retire)
             .Attempt(ClearAddons)
             .Attempt(() => OnDisposed?.Invoke(this))
             .ThrowIfFailed();

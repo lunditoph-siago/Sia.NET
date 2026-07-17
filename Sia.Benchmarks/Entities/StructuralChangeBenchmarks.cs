@@ -52,6 +52,7 @@ public class StructuralChangeBenchmarks
 public class StructuralRoundTripBenchmarks
 {
     private const int BatchSize = 4_096;
+    private const int LifecycleBatchSize = 128;
     private World _world = null!;
     private Entity[] _entities = null!;
 
@@ -70,6 +71,21 @@ public class StructuralRoundTripBenchmarks
     {
         foreach (var entity in _entities) entity.Add(new Health(100));
         foreach (var entity in _entities) entity.Remove<Health>();
+        return _world.Count;
+    }
+
+    [Benchmark(OperationsPerInvoke = LifecycleBatchSize * 2)]
+    public int DestroyThenCreateEntity()
+    {
+        for (var i = 0; i < LifecycleBatchSize; i++) {
+            _entities[i].Destroy();
+        }
+        for (var i = 0; i < LifecycleBatchSize; i++) {
+            _entities[i] = _world.Create(HList.From(
+                new Position(i, i + 1, i + 2),
+                new Velocity(1, 2, 3),
+                new Padding1()));
+        }
         return _world.Count;
     }
 }

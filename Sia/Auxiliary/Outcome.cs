@@ -61,6 +61,20 @@ internal static class Outcome
             }
         }
 
+        public Outcome<Exception> Attempt<TState>(
+            in TState state,
+            InAction<TState> operation)
+        {
+            ArgumentNullException.ThrowIfNull(operation);
+            try {
+                operation(state);
+                return outcome;
+            }
+            catch (Exception error) {
+                return outcome.Combine(Outcome<Exception>.Failure(error));
+            }
+        }
+
         public void ThrowIfFailed()
         {
             if (outcome.IsSuccess) {

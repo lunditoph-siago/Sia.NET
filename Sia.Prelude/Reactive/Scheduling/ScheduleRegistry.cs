@@ -4,12 +4,22 @@ using System.Collections.Immutable;
 
 public sealed class ScheduleRegistry(ScheduleLabel label) : IScheduleEntry
 {
-    public readonly record struct Slot(
-        Entity SlotEntity,
-        Entity OwnerCell,
-        int SlotIndex,
-        SystemChain.Entry Entry,
-        SystemStage Runtime);
+    internal readonly record struct Slot(
+        Entity slotEntity,
+        Entity ownerCell,
+        int slotIndex,
+        SystemChain.Entry entry,
+        SystemStage runtime)
+    {
+        private readonly EntityReference _slotEntity = new(slotEntity);
+        private readonly EntityReference _ownerCell = new(ownerCell);
+
+        internal Entity SlotEntity => _slotEntity.GetOrDefault();
+        internal Entity OwnerCell => _ownerCell.GetOrDefault();
+        internal int SlotIndex { get; } = slotIndex;
+        internal SystemChain.Entry Entry { get; } = entry;
+        internal SystemStage Runtime { get; } = runtime;
+    }
 
     public ScheduleLabel Label { get; } = label;
     public ExecutionPlan? CurrentPlan { get; internal set; }
@@ -30,7 +40,7 @@ public sealed class ScheduleRegistry(ScheduleLabel label) : IScheduleEntry
     internal SystemStage? Remove(Entity slotEntity)
     {
         for (var i = 0; i < Slots.Count; i++) {
-            if (ReferenceEquals(Slots[i].SlotEntity, slotEntity)) {
+            if (Slots[i].SlotEntity == slotEntity) {
                 var runtime = Slots[i].Runtime;
                 Slots.RemoveAt(i);
                 return runtime;

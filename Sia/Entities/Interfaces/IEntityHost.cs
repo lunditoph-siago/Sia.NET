@@ -11,6 +11,8 @@ public interface IEntityHost : IEnumerable<Entity>, IDisposable
     int Count { get; }
     int Version { get; }
 
+    void OnInitialize(World world) {}
+
     Entity Create();
     void Release(Entity entity);
     void MoveOut(Entity entity);
@@ -33,9 +35,9 @@ public interface IEntityHost : IEnumerable<Entity>, IDisposable
 
     IEntityHost<UEntity> GetSiblingHost<UEntity>()
         where UEntity : struct, IHList;
-    void GetSiblingHostType<UEntity>(
-        IGenericConcreteTypeHandler<IEntityHost<UEntity>> hostTypeHandler)
-        where UEntity : struct, IHList;
+    void GetSiblingHostType<UEntity, THandler>(in THandler hostTypeHandler)
+        where UEntity : struct, IHList
+        where THandler : IGenericConcreteTypeHandler<IEntityHost<UEntity>>;
 
     Span<Entity> UnsafeGetEntitySpan();
 }
