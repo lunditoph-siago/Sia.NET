@@ -6,6 +6,9 @@ namespace Sia.Tests.Entities;
 
 public class EntityDescriptorTests
 {
+    private readonly record struct EarlierComponent(int Value);
+    private readonly record struct LaterComponent(int Value);
+
     [Fact]
     public unsafe void EntityDescriptor_Test()
     {
@@ -25,5 +28,17 @@ public class EntityDescriptorTests
 
         Assert.Equal(4 * 3 + 4 * 4, desc.GetOffset<Scale>());
         Assert.Equal(1.0f, Unsafe.AsRef<Scale>((void*)(ptr + desc.GetOffset<Scale>())));
+    }
+
+    [Fact]
+    public void ComponentSlots_AreDenseAndRejectMissingEarlierTypes()
+    {
+        _ = EntityDescriptor.Get<HList<EarlierComponent, EmptyHList>>();
+        var descriptor = EntityDescriptor.Get<HList<LaterComponent, EmptyHList>>();
+
+        Assert.True(descriptor.Contains<LaterComponent>());
+        Assert.False(descriptor.Contains<EarlierComponent>());
+        Assert.Throws<ComponentNotFoundException>(
+            () => descriptor.GetOffset<EarlierComponent>());
     }
 }

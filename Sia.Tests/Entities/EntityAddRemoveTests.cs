@@ -94,6 +94,24 @@ public class EntityAddRemoveTests
         Assert.Equal(new Velocity(9, 9), occupant.Get<Velocity>());
     }
 
+    [Fact]
+    public void HandleIdentity_RemainsStableAcrossArchetypeMigration()
+    {
+        using var world = new World();
+        var entity = world.Create(HList.From(new Position(1, 2)));
+        var copy = entity;
+        var entities = new HashSet<Entity> { entity };
+        var hashCode = entity.GetHashCode();
+
+        entity.Add(new Velocity(3, 4));
+        entity.Remove<Velocity>();
+
+        Assert.Equal(copy, entity);
+        Assert.Equal(hashCode, entity.GetHashCode());
+        Assert.Contains(copy, entities);
+        Assert.Equal(new Position(1, 2), entity.Get<Position>());
+    }
+
     private sealed class Creator(World world) : IGenericStructHandler<IHList>
     {
         public Entity? Result;

@@ -16,11 +16,10 @@ public class ReactiveTermTests
         var probe = new BranchProbe();
         var mount = reconciler.Mount(new BranchSpec(probe));
 
-        var first = FindAll<BranchValue>(world).Single();
+        Assert.Single(FindAll<BranchValue>(world));
         probe.Visible.Set(false);
         reconciler.Flush();
 
-        Assert.False(first.IsValid);
         Assert.Empty(FindAll<BranchValue>(world));
 
         probe.Visible.Set(true);
@@ -66,6 +65,25 @@ public class ReactiveTermTests
     }
 
     [Fact]
+    public void ForEach_RecycledStorageDoesNotRetainPreviousItems()
+    {
+        using var world = new World();
+        var reconciler = world.AcquireAddon<Reconciler>();
+
+        for (var i = 0; i < 4; i++) {
+            var mount = reconciler.Mount(new ListSpec(new KeyedValue[] {
+                new KeyedValue(i, i * 10),
+            }));
+
+            var output = Assert.Single(FindAll<KeyedValue>(world));
+            Assert.Equal(i, output.Get<KeyedValue>().Key);
+
+            mount.Unmount();
+            Assert.Empty(FindAll<KeyedValue>(world));
+        }
+    }
+
+    [Fact]
     public void Scope_InvalidatesConsumersAndUnsubscribesThemOnUnmount()
     {
         using var world = new World();
@@ -81,8 +99,16 @@ public class ReactiveTermTests
         Assert.Equal(2, output.Get<ScopedValue>().Theme);
         Assert.Equal(2, probe.ConsumerExpansions);
 
+        probe.Visible.Set(false);
+        reconciler.Flush();
+        Assert.Empty(FindAll<ScopedValue>(world));
+
+        probe.Theme.Set(new Theme(3));
+        reconciler.Flush();
+        Assert.Equal(2, probe.ConsumerExpansions);
+        Assert.Empty(FindAll<ScopedValue>(world));
+
         mount.Unmount();
-        Assert.False(output.IsValid);
         Assert.Equal(0, world.Count);
     }
 
@@ -183,22 +209,28 @@ public readonly record struct ItemSpec(KeyedValue Item)
 public sealed class ScopeProbe
 {
     public StateRef<Theme> Theme;
+    public State<bool> Visible;
     public int ConsumerExpansions;
 }
 
 public readonly record struct ScopeSpec(ScopeProbe Probe)
     : ISpec<ScopeSpec, Theme,
-        ScopeTerm<Theme, LiftTerm<ScopeConsumerSpec>>>
+        ScopeTerm<Theme, CondTerm<LiftTerm<ScopeConsumerSpec>>>>
 {
     public static Theme InitialState(in ScopeSpec props) => new(1);
 
-    public static ScopeTerm<Theme, LiftTerm<ScopeConsumerSpec>> Expand(
+    public static ScopeTerm<Theme, CondTerm<LiftTerm<ScopeConsumerSpec>>> Expand(
         in ScopeSpec props,
         in Theme state,
         in ExpandContext context)
     {
         props.Probe.Theme = context.UseState<Theme>();
-        return Term.Scope(state, Term.Lift(new ScopeConsumerSpec(props.Probe)));
+        props.Probe.Visible = context.UseState(true);
+        return Term.Scope(
+            state,
+            Term.Cond(
+                props.Probe.Visible.Value,
+                Term.Lift(new ScopeConsumerSpec(props.Probe))));
     }
 }
 
