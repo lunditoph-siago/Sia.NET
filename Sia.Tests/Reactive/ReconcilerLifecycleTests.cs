@@ -26,7 +26,7 @@ public class ReconcilerLifecycleTests
         probe.State.Set(3);
         reconciler.Flush();
 
-        Assert.Same(output, FindOutput(world));
+        Assert.Equal(output, FindOutput(world));
         Assert.Equal(3, output.Get<ReactiveValue>().Value);
         Assert.Equal(2, probe.Expansions);
 
@@ -87,7 +87,7 @@ public class ReconcilerLifecycleTests
         mount.Update(Spec.Of<int, EntityTerm<ValueList, UnitTerm>>(5, ExpandValue));
         reconciler.Flush();
 
-        Assert.Same(output, FindOutput(world));
+        Assert.Equal(output, FindOutput(world));
         Assert.Equal(5, output.Get<ReactiveValue>().Value);
     }
 

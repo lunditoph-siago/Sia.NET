@@ -51,15 +51,15 @@ public class ReactiveTermTests
         var reordered = FindAll<KeyedValue>(world)
             .ToDictionary(entity => entity.Get<KeyedValue>().Key);
 
-        Assert.Same(initial[1], reordered[1]);
-        Assert.Same(initial[2], reordered[2]);
+        Assert.Equal(initial[1], reordered[1]);
+        Assert.Equal(initial[2], reordered[2]);
         Assert.Equal(21, reordered[2].Get<KeyedValue>().Value);
 
         mount.Update(new ListSpec(new KeyedValue[] { new(2, 22) }));
         reconciler.Flush();
         var remaining = FindAll<KeyedValue>(world);
         Assert.DoesNotContain(remaining, entity => entity.Get<KeyedValue>().Key == 1);
-        Assert.Same(initial[2], Assert.Single(remaining));
+        Assert.Equal(initial[2], Assert.Single(remaining));
 
         mount.Update(new ListSpec(new KeyedValue[] { new(2, 1), new(2, 2) }));
         Assert.Throws<InvalidOperationException>(reconciler.Flush);
@@ -77,7 +77,7 @@ public class ReactiveTermTests
         probe.Theme.Set(new Theme(2));
         reconciler.Flush();
 
-        Assert.Same(output, FindAll<ScopedValue>(world).Single());
+        Assert.Equal(output, FindAll<ScopedValue>(world).Single());
         Assert.Equal(2, output.Get<ScopedValue>().Theme);
         Assert.Equal(2, probe.ConsumerExpansions);
 

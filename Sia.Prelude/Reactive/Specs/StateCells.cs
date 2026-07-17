@@ -58,35 +58,33 @@ public readonly struct State<T>(
 {
     private readonly StateCell<T> _cell = cell;
     private readonly Reconciler _reconciler = reconciler;
-    private readonly Entity _owner = owner;
+    private readonly EntityReference _owner = new(owner);
     private readonly NodeIdentity _identity = identity;
 
     public T Value {
         get {
-            ValidateOwner();
+            _ = GetOwner();
             return _cell.Value;
         }
     }
 
     public void Set(in T value)
     {
-        ValidateOwner();
-        _reconciler.GuardStateMutation(_owner);
+        var owner = GetOwner();
+        _reconciler.GuardStateMutation(owner);
         _cell.Value = value;
-        _reconciler.EnqueueDirty(_owner);
+        _reconciler.EnqueueDirty(owner);
     }
 
     public void Notify()
     {
-        ValidateOwner();
-        _reconciler.GuardStateMutation(_owner);
-        _reconciler.EnqueueDirty(_owner);
+        var owner = GetOwner();
+        _reconciler.GuardStateMutation(owner);
+        _reconciler.EnqueueDirty(owner);
     }
 
-    private void ValidateOwner()
-    {
-        if (!_reconciler.IsCell(_owner, _identity)) {
-            throw new ObjectDisposedException(nameof(State<T>));
-        }
-    }
+    private Entity GetOwner()
+        => _reconciler.IsCell(_owner, _identity)
+            ? _owner.GetUnchecked()
+            : throw new ObjectDisposedException(nameof(State<T>));
 }

@@ -6,7 +6,6 @@ public class UnmanagedArrayEntityHost<TEntity>(int initialCapacity)
 {
     public UnmanagedArrayEntityHost() : this(0) {}
 
-    public override void GetSiblingHostType<UEntity>(
-        IGenericConcreteTypeHandler<IEntityHost<UEntity>> hostTypeHandler)
+    public override void GetSiblingHostType<UEntity, THandler>(in THandler hostTypeHandler)
         => hostTypeHandler.Handle<UnmanagedArrayEntityHost<UEntity>>();
 }

@@ -15,10 +15,10 @@ public sealed class Expander<TSpec, TState, TTree> : Expander
     public override void Expand(Reconciler reconciler, Entity cell)
     {
         var world = reconciler.World;
-        var props = cell.Get<TSpec>();
-        var state = cell.Get<TState>();
-        var cellData = cell.Get<Cell>();
-        var prevTree = cell.Get<PrevTree<TTree>>();
+        var props = cell.GetUnchecked<TSpec>();
+        var state = cell.GetUnchecked<TState>();
+        var cellData = cell.GetUnchecked<Cell>();
+        var prevTree = cell.GetUnchecked<PrevTree<TTree>>();
 
         reconciler.BeginExpansion(cell);
         TTree next;
@@ -40,6 +40,6 @@ public sealed class Expander<TSpec, TState, TTree> : Expander
         else {
             TTree.Mount(next, ref ctx);
         }
-        cell.Get<PrevTree<TTree>>() = new() { Value = next, Mounted = true };
+        cell.GetUnchecked<PrevTree<TTree>>() = new() { Value = next, Mounted = true };
     }
 }

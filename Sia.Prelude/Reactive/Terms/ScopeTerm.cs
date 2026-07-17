@@ -28,7 +28,7 @@ public readonly record struct ScopeTerm<TCtx, TChildren>(TCtx Value, TChildren C
         ContextScope scope;
         try {
             scope = new ContextScope(typeof(TCtx), slot, ctx.Scope);
-            slot.Get<ContextNode<TCtx>>().Scope = scope;
+            slot.GetUnchecked<ContextNode<TCtx>>().Scope = scope;
             ctx.SetSlot(slot);
         }
         catch (Exception error) {
@@ -48,7 +48,7 @@ public readonly record struct ScopeTerm<TCtx, TChildren>(TCtx Value, TChildren C
         ref GraphContext ctx)
     {
         var slot = ctx.PeekSlot();
-        if (slot is not { IsValid: true }) {
+        if (slot is not { IsValid: true } provider) {
             var start = ctx.NextSlotIndex;
             ctx.DestroyRange(SlotCount);
             ctx.RewindTo(start);
@@ -59,12 +59,12 @@ public readonly record struct ScopeTerm<TCtx, TChildren>(TCtx Value, TChildren C
 
         ContextScope scope;
         {
-            ref var node = ref slot.Get<ContextNode<TCtx>>();
+            ref var node = ref provider.GetUnchecked<ContextNode<TCtx>>();
             scope = node.Scope;
             if (!EqualityComparer<TCtx>.Default.Equals(node.Value, next.Value)) {
                 node.Value = next.Value;
                 foreach (var (identity, consumer) in scope.Consumers.ToArray()) {
-                    if (ctx.Reconciler.Validate(consumer) is { } cell) {
+                    if (ctx.Reconciler.Validate(consumer) is { IsValid: true } cell) {
                         ctx.Reconciler.EnqueueDirty(cell);
                     }
                     else {

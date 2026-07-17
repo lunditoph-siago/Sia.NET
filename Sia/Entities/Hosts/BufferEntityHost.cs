@@ -33,36 +33,59 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     public TBuffer Buffer { get; } = buffer;
 
     private readonly List<Entity> _entities = [];
+    private EntityStatePool? _entityStates;
+    private bool _ownsEntityStates = true;
+
+    private EntityStatePool EntityStates {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _entityStates ??= new();
+    }
+
+    void IEntityHost.OnInitialize(World world)
+    {
+        if (Count != 0) {
+            throw new InvalidOperationException(
+                "Cannot initialize a non-empty host.");
+        }
+        if (_ownsEntityStates) {
+            _entityStates?.Retire();
+        }
+        _entityStates = world.EntityStates;
+        _ownsEntityStates = false;
+    }
 
     public virtual Entity Create() => Create(default!);
     public virtual Entity Create(in TEntity initial)
     {
-        var e = Entity.Pool.Get();
-        MoveIn(e, initial);
+        var e = EntityStates.Rent();
+        MoveInTrusted(e, initial);
         return e;
     }
 
     public virtual void Release(Entity entity)
     {
-        MoveOut(entity);
-        entity.Host = null!;
-        Entity.Pool.Return(entity);
+        var state = entity.GetState();
+        MoveOut(state);
+        EntityStates.Return(state);
     }
 
     public Entity GetEntity(int slot)
         => _entities[slot];
 
     public void MoveOut(Entity entity)
+        => MoveOut(entity.GetState());
+
+    private void MoveOut(EntityState state)
     {
         Version++;
 
-        var slot = entity.Slot;
+        var slot = state.Slot;
         var lastSlot = Buffer.Count - 1;
 
         if (slot != lastSlot) {
             Buffer.GetRef(slot) = Buffer.GetRef(lastSlot);
             var lastEntity = _entities[lastSlot];
-            lastEntity.Slot = slot;
+            lastEntity.GetStateUnchecked().Slot = slot;
             _entities[slot] = lastEntity;
         }
         Buffer.GetRef(lastSlot) = default!;
@@ -72,13 +95,21 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
 
     public void MoveIn(Entity entity, in TEntity data)
     {
+        _ = entity.GetCurrentState();
+        MoveInTrusted(entity, data);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void MoveInTrusted(Entity entity, in TEntity data)
+    {
         Version++;
 
         var slot = Buffer.Count++;
         Buffer.GetRef(slot) = data;
 
-        entity.Host = this;
-        entity.Slot = slot;
+        var state = entity.GetStateUnchecked();
+        state.Host = this;
+        state.Slot = slot;
         _entities.Add(entity);
     }
 
@@ -97,10 +128,11 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         if (EntityIndexer<TEntity, TComponent>.Offset != -1) {
             EntityExceptionHelper.ThrowComponentExisted<TComponent>();
         }
-        ref var data = ref Buffer.GetRef(entity.Slot);
-        var host = entity.Host.GetSiblingHost<HList<TComponent, TEntity>>();
+        var state = entity.GetStateUnchecked();
+        ref var data = ref Buffer.GetRef(state.Slot);
+        var host = state.Host!.GetSiblingHost<HList<TComponent, TEntity>>();
         var moved = HList.Cons(initial, data);
-        MoveOut(entity);
+        MoveOut(state);
         host.MoveIn(entity, moved);
     }
 
@@ -110,7 +142,7 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         public readonly void Handle<T>(in T data)
             where T : struct, IHList
         {
-            var host = e.Host;
+            var host = e.GetStateUnchecked().Host!;
             var siblingHost = host.GetSiblingHost<T>();
             host.MoveOut(e);
             siblingHost.MoveIn(e, data);
@@ -134,7 +166,7 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     {
         TList.HandleTypes(EntityComponentChecker.Instance);
 
-        ref var data = ref Buffer.GetRef(entity.Slot);
+        ref var data = ref Buffer.GetRef(entity.GetStateUnchecked().Slot);
         var mover = new EntityMover(entity);
         data.Concat(list, mover);
     }
@@ -146,7 +178,7 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
             Add(entity, value);
             return;
         }
-        ref var data = ref GetRef(entity.Slot);
+        ref var data = ref GetRef(entity.GetStateUnchecked().Slot);
         Unsafe.As<TEntity, TComponent>(
             ref Unsafe.AddByteOffset(ref data, offset))
             = value;
@@ -158,7 +190,7 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
             success = false;
             return;
         }
-        ref var data = ref Buffer.GetRef(entity.Slot);
+        ref var data = ref Buffer.GetRef(entity.GetStateUnchecked().Slot);
         var mover = new EntityMover(entity);
         data.Remove(TypeProxy<TComponent>._, mover);
         success = true;
@@ -193,7 +225,7 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
             if (typeof(T) == typeof(TEntity)) {
                 return;
             }
-            var host = e.Host;
+            var host = e.GetStateUnchecked().Host!;
             var siblingHost = host.GetSiblingHost<T>();
             host.MoveOut(e);
             siblingHost.MoveIn(e, value);
@@ -203,7 +235,7 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     public virtual void RemoveMany<TList>(Entity entity)
         where TList : struct, IHList
     {
-        ref var data = ref Buffer.GetRef(entity.Slot);
+        ref var data = ref Buffer.GetRef(entity.GetStateUnchecked().Slot);
         data.Filter(
             EntityComponentPredicate<TList>.Instance,
             new FilteredHListMover(entity));
@@ -213,9 +245,9 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         where UEntity : struct, IHList
         => throw new NotSupportedException("Sibling host not supported");
 
-    public virtual void GetSiblingHostType<UEntity>(
-        IGenericConcreteTypeHandler<IEntityHost<UEntity>> hostTypeHandler)
+    public virtual void GetSiblingHostType<UEntity, THandler>(in THandler hostTypeHandler)
         where UEntity : struct, IHList
+        where THandler : IGenericConcreteTypeHandler<IEntityHost<UEntity>>
         => throw new NotSupportedException("Sibling host not supported");
 
     public Span<Entity> UnsafeGetEntitySpan()
@@ -229,6 +261,22 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
 
     public void Dispose()
     {
+        foreach (var entity in _entities) {
+            var state = entity.GetStateUnchecked();
+            if (_ownsEntityStates) {
+                state.Host = null;
+                state.Slot = -1;
+            }
+            else {
+                EntityStates.Return(state);
+            }
+        }
+        _entities.Clear();
+        if (_ownsEntityStates) {
+            _entityStates?.Retire();
+        }
+        Buffer.AsSpan()[..Buffer.Count].Clear();
+        Buffer.Count = 0;
         Buffer.Dispose();
         OnDisposed?.Invoke(this);
         GC.SuppressFinalize(this);

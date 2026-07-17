@@ -20,8 +20,8 @@ public readonly record struct EntityTerm<TList, TChildren>(TList Components, TCh
         ref GraphContext ctx)
     {
         var entity = ctx.PeekSlot();
-        if (entity is { IsValid: true }) {
-            TList.HandleTypes(new DiffHandler(prev.Components, next.Components, entity));
+        if (entity is { IsValid: true } target) {
+            TList.HandleTypes(new DiffHandler(prev.Components, next.Components, target));
             ctx.Advance();
         }
         else {

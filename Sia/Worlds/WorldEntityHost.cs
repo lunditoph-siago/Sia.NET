@@ -29,7 +29,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     public event Action<IEntityHost>? OnDisposed;
 
     public World World { get; } = world;
-    public TInnerHost InnerHost { get; } = innerHost;
+    public TInnerHost InnerHost { get; } = InitializeInnerHost(world, innerHost);
 
     public Type EntityType => InnerHost.EntityType;
     public EntityDescriptor Descriptor => InnerHost.Descriptor;
@@ -40,16 +40,24 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
 
     public WorldEntityHost(World world) : this(world, new()) {}
 
+    private static TInnerHost InitializeInnerHost(World world, TInnerHost innerHost)
+    {
+        innerHost.OnInitialize(world);
+        return innerHost;
+    }
+
     public unsafe IEntityHost<UEntity> GetSiblingHost<UEntity>()
         where UEntity : struct, IHList
     {
         IEntityHost<UEntity>? host = null;
-        InnerHost.GetSiblingHostType(new SiblingInnerHostGetter<UEntity>(World, &host));
+        InnerHost.GetSiblingHostType<UEntity, SiblingInnerHostGetter<UEntity>>(
+            new(World, &host));
         return host!;
     }
 
-    public void GetSiblingHostType<UEntity>(IGenericConcreteTypeHandler<IEntityHost<UEntity>> hostTypeHandler)
+    public void GetSiblingHostType<UEntity, THandler>(in THandler hostTypeHandler)
         where UEntity : struct, IHList
+        where THandler : IGenericConcreteTypeHandler<IEntityHost<UEntity>>
         => throw new NotSupportedException("Cannot get concrete sibling type for world hosts");
 
     public IEnumerator<Entity> GetEnumerator() => InnerHost.GetEnumerator();
@@ -67,7 +75,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     public Entity Create(in TEntity initial)
     {
         var entity = InnerHost.Create(initial);
-        entity.Host = this;
+        entity.GetStateUnchecked().Host = this;
 
         World.Count++;
         OnEntityCreated?.Invoke(entity);
@@ -136,7 +144,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     public void MoveIn(Entity entity, in TEntity data)
     {
         InnerHost.MoveIn(entity, data);
-        entity.Host = this;
+        entity.GetStateUnchecked().Host = this;
     }
 
     public void MoveOut(Entity entity) => InnerHost.MoveOut(entity);

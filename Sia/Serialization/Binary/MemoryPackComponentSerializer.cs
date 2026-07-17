@@ -22,24 +22,37 @@ public struct MemoryPackComponentSerializer() : IComponentSerializer
     private class EntityFormatter : MemoryPackFormatter<Entity>
     {
         public override void Serialize<TBufferWriter>(
+            ref MemoryPackWriter<TBufferWriter> writer, scoped ref Entity value)
+            => writer.WriteValue(value.Id.Value);
+
+        public override void Deserialize(ref MemoryPackReader reader, scoped ref Entity value)
+        {
+            var map = ((DeserializerServiceProvider)reader.Options.ServiceProvider!).EntityMap;
+            var id = reader.ReadValue<int>();
+            value = map.TryGetValue(new(id), out var entity) ? entity : default;
+        }
+    }
+
+    private class NullableEntityFormatter : MemoryPackFormatter<Entity?>
+    {
+        public override void Serialize<TBufferWriter>(
             ref MemoryPackWriter<TBufferWriter> writer, scoped ref Entity? value)
-            => writer.WriteValue(value != null ? value.Id.Value : 0);
+            => writer.WriteValue(value?.Id.Value ?? 0);
 
         public override void Deserialize(ref MemoryPackReader reader, scoped ref Entity? value)
         {
             var map = ((DeserializerServiceProvider)reader.Options.ServiceProvider!).EntityMap;
             var id = reader.ReadValue<int>();
-            if (id == 0) {
-                value = null;
-                return;
-            }
-            value = map.TryGetValue(new(id), out var entity) ? entity : null;
+            value = id != 0 && map.TryGetValue(new(id), out var entity)
+                ? entity
+                : null;
         }
     }
 
     static MemoryPackComponentSerializer()
     {
         MemoryPackFormatterProvider.Register(new EntityFormatter());
+        MemoryPackFormatterProvider.Register(new NullableEntityFormatter());
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

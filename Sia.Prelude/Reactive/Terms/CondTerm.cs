@@ -21,7 +21,7 @@ public readonly record struct CondTerm<TTerm>(bool Condition, TTerm Term)
     {
         if (prev.Condition) {
             if (next.Condition) {
-                if (TTerm.SlotCount > 0 && ctx.PeekSlot() == null) {
+                if (TTerm.SlotCount > 0 && !ctx.PeekSlot().IsValid) {
                     var start = ctx.NextSlotIndex;
                     ctx.DestroyRange(TTerm.SlotCount);
                     ctx.RewindTo(start);
