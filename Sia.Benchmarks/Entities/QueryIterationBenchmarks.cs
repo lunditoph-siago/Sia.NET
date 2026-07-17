@@ -8,7 +8,7 @@ public class QueryIterationBenchmarks
 {
     private World _world = null!;
     private IReactiveEntityQuery _query = null!;
-    private Entity _first = null!;
+    private Entity _first;
 
     [Params(1_024, 65_536)]
     public int EntityCount { get; set; }
