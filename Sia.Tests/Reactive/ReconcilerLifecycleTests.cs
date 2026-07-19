@@ -70,12 +70,12 @@ public class ReconcilerLifecycleTests
 
         using var world = new World();
         var firstIdentity = NodeIdentity.Create();
-        var first = world.Create(HList.From(new ReactiveNode(firstIdentity)));
+        var first = world.Create(HList.From(new Cell { Identity = firstIdentity }));
         var slot = new CellSlot(first);
 
         first.Destroy();
         var secondIdentity = NodeIdentity.Create();
-        var second = world.Create(HList.From(new ReactiveNode(secondIdentity)));
+        var second = world.Create(HList.From(new Cell { Identity = secondIdentity }));
 
         Assert.True(second.IsValid);
         Assert.False(first.IsValid);

@@ -31,9 +31,12 @@ public sealed class Expander<TSpec, TState, TTree> : Expander
             throw;
         }
 
+        cellData = cell.GetUnchecked<Cell>();
         var ctx = new GraphContext(
             reconciler, world, cell, cellData.Slots, cellData.Depth,
             cellData.Schedule, cellData.Scope);
+        ctx.Output = cellData.Output;
+        ctx.MessageOwner = cellData.MessageOwner;
         if (prevTree.Mounted) {
             TTree.Reconcile(prevTree.Value, next, ref ctx);
         }

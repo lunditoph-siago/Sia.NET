@@ -18,6 +18,8 @@ public ref struct GraphContext(
 
     public ScheduleRegistry? Schedule = schedule;
     public ContextScope? Scope = scope;
+    internal Entity Output;
+    internal Entity MessageOwner;
 
     private readonly CellSlot[] _slots = slots;
     private int _cursor;
