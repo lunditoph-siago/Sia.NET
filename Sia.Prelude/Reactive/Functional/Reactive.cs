@@ -54,6 +54,45 @@ public static partial class Reactive
         => new(initialState, reduce, render);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ReactiveNode<FunctionalComponentTerm<
+        TProps, TState, TMessage>> Func<TProps, TState, TMessage>(
+        ReactiveInitial<TProps, TState> initial,
+        ReactiveReducer<TState, TMessage> reduce,
+        ReactiveRenderer<TProps, TState> render,
+        scoped in TProps props)
+        where TProps : struct
+        where TState : struct
+    {
+        ArgumentNullException.ThrowIfNull(initial);
+        ArgumentNullException.ThrowIfNull(reduce);
+        ArgumentNullException.ThrowIfNull(render);
+        return new(new FunctionalComponentTerm<TProps, TState, TMessage>(
+            FuncComponentCache<TProps, TState, TMessage>.GetOrAdd(initial, reduce, render),
+            props));
+    }
+
+    private static class FuncComponentCache<TProps, TState, TMessage>
+        where TProps : struct
+        where TState : struct
+    {
+        private static readonly ConditionalWeakTable<
+            ReactiveRenderer<TProps, TState>,
+            ReactiveComponent<TProps, TState, TMessage>> Cache = [];
+
+        public static ReactiveComponent<TProps, TState, TMessage> GetOrAdd(
+            ReactiveInitial<TProps, TState> initial,
+            ReactiveReducer<TState, TMessage> reduce,
+            ReactiveRenderer<TProps, TState> render)
+        {
+            if (Cache.TryGetValue(render, out var existing)) {
+                return existing;
+            }
+            var component = new ReactiveComponent<TProps, TState, TMessage>(initial, reduce, render);
+            return Cache.GetValue(render, _ => component);
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ReactiveNode<EntityTerm<TList, UnitTerm>> Entity<TList>(
         scoped in TList components)
         where TList : struct, IHList
