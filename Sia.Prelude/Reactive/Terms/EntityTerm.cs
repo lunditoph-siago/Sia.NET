@@ -11,8 +11,16 @@ public readonly record struct EntityTerm<TList, TChildren>(TList Components, TCh
 
     public static void Mount(in EntityTerm<TList, TChildren> self, ref GraphContext ctx)
     {
-        ctx.SetSlot(ctx.Reconciler.CreateOutput(self.Components));
-        TChildren.Mount(self.Children, ref ctx);
+        var output = ctx.Reconciler.CreateOutput(self.Components);
+        ctx.SetSlot(output);
+        var previousOutput = ctx.Output;
+        ctx.Output = output;
+        try {
+            TChildren.Mount(self.Children, ref ctx);
+        }
+        finally {
+            ctx.Output = previousOutput;
+        }
     }
 
     public static void Reconcile(
@@ -20,14 +28,24 @@ public readonly record struct EntityTerm<TList, TChildren>(TList Components, TCh
         ref GraphContext ctx)
     {
         var entity = ctx.PeekSlot();
+        Entity output;
         if (entity is { IsValid: true } target) {
             TList.HandleTypes(new DiffHandler(prev.Components, next.Components, target));
             ctx.Advance();
+            output = target;
         }
         else {
-            ctx.SetSlot(ctx.Reconciler.CreateOutput(next.Components));
+            output = ctx.Reconciler.CreateOutput(next.Components);
+            ctx.SetSlot(output);
         }
-        TChildren.Reconcile(prev.Children, next.Children, ref ctx);
+        var previousOutput = ctx.Output;
+        ctx.Output = output;
+        try {
+            TChildren.Reconcile(prev.Children, next.Children, ref ctx);
+        }
+        finally {
+            ctx.Output = previousOutput;
+        }
     }
 
     private readonly struct DiffHandler(in TList prev, in TList next, Entity target)

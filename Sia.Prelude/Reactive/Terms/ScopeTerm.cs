@@ -39,8 +39,12 @@ public readonly record struct ScopeTerm<TCtx, TChildren>(TCtx Value, TChildren C
 
         var saved = ctx.Scope;
         ctx.Scope = scope;
-        TChildren.Mount(self.Children, ref ctx);
-        ctx.Scope = saved;
+        try {
+            TChildren.Mount(self.Children, ref ctx);
+        }
+        finally {
+            ctx.Scope = saved;
+        }
     }
 
     public static void Reconcile(
@@ -76,7 +80,11 @@ public readonly record struct ScopeTerm<TCtx, TChildren>(TCtx Value, TChildren C
 
         var saved = ctx.Scope;
         ctx.Scope = scope;
-        TChildren.Reconcile(prev.Children, next.Children, ref ctx);
-        ctx.Scope = saved;
+        try {
+            TChildren.Reconcile(prev.Children, next.Children, ref ctx);
+        }
+        finally {
+            ctx.Scope = saved;
+        }
     }
 }
