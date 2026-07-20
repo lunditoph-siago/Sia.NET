@@ -1,10 +1,17 @@
 name: Test
 
 on:
+  pull_request:
+  push:
+    branches: [master]
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: test-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -23,43 +30,3 @@ jobs:
 
       - name: Run tests
         run: dotnet test Sia.Tests/Sia.Tests.csproj --configuration Release
-
-  benchmark:
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: 10.x
-
-      - name: Restore
-        run: dotnet restore Sia.Benchmarks/Sia.Benchmarks.csproj
-
-      - name: Run benchmarks
-        run: >
-          dotnet run --project Sia.Benchmarks/Sia.Benchmarks.csproj --configuration Release --
-          --filter "*" --job short --artifacts "${{ runner.temp }}/bench-results"
-
-      - name: Summarize benchmark results
-        if: always()
-        run: |
-          {
-            echo "## Benchmarks"
-            echo
-            shopt -s nullglob
-            reports=("${{ runner.temp }}/bench-results/results/"*-report-github.md)
-            if [ ${#reports[@]} -eq 0 ]; then
-              echo "No benchmark reports were produced."
-            else
-              for report in "${reports[@]}"; do
-                echo "### $(basename "$report" -report-github.md)"
-                echo
-                cat "$report"
-                echo
-              done
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
