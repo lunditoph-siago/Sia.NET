@@ -2,10 +2,8 @@ namespace Sia.Reactive;
 
 using System.Runtime.CompilerServices;
 
-public readonly record struct ReactiveKeyed<TKey, TValue>(
-    TKey Key,
-    TValue Value)
-    where TKey : notnull;
+[AttributeUsage(AttributeTargets.Parameter, Inherited = false, AllowMultiple = false)]
+internal sealed class NestedCallbackAttribute : Attribute;
 
 public delegate ReactiveNode<TTerm> ReactiveItemRenderer<TItem, TTerm>(
     scoped in TItem item)
@@ -44,21 +42,21 @@ public static partial class Reactive
 {
     public static ReactiveNode<UnitTerm> None => new(default);
 
-    public static ReactiveComponent<TProps, TState, TMessage> Define<
+    public static ReactiveComponent<TProps, TState, TMessage> Component<
         TProps, TState, TMessage>(
-        ReactiveInitial<TProps, TState> initialState,
-        ReactiveReducer<TState, TMessage> reduce,
-        ReactiveRenderer<TProps, TState> render)
+        [NestedCallback] ReactiveInitial<TProps, TState> initial,
+        [NestedCallback] ReactiveReducer<TState, TMessage> reduce,
+        [NestedCallback] ReactiveRenderer<TProps, TState> render)
         where TProps : struct
         where TState : struct
-        => new(initialState, reduce, render);
+        => new(initial, reduce, render);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ReactiveNode<FunctionalComponentTerm<
-        TProps, TState, TMessage>> Func<TProps, TState, TMessage>(
-        ReactiveInitial<TProps, TState> initial,
-        ReactiveReducer<TState, TMessage> reduce,
-        ReactiveRenderer<TProps, TState> render,
+        TProps, TState, TMessage>> Component<TProps, TState, TMessage>(
+        [NestedCallback] ReactiveInitial<TProps, TState> initial,
+        [NestedCallback] ReactiveReducer<TState, TMessage> reduce,
+        [NestedCallback] ReactiveRenderer<TProps, TState> render,
         scoped in TProps props)
         where TProps : struct
         where TState : struct
@@ -67,11 +65,23 @@ public static partial class Reactive
         ArgumentNullException.ThrowIfNull(reduce);
         ArgumentNullException.ThrowIfNull(render);
         return new(new FunctionalComponentTerm<TProps, TState, TMessage>(
-            FuncComponentCache<TProps, TState, TMessage>.GetOrAdd(initial, reduce, render),
+            InlineComponentCache<TProps, TState, TMessage>.GetOrAdd(initial, reduce, render),
             props));
     }
 
-    private static class FuncComponentCache<TProps, TState, TMessage>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ReactiveNode<FunctionalComponentTerm<
+        TProps, TState, TMessage>> Component<TProps, TState, TMessage>(
+        ReactiveComponent<TProps, TState, TMessage> component,
+        scoped in TProps props)
+        where TProps : struct
+        where TState : struct
+    {
+        ArgumentNullException.ThrowIfNull(component);
+        return new(new(component, props));
+    }
+
+    private static class InlineComponentCache<TProps, TState, TMessage>
         where TProps : struct
         where TState : struct
     {
@@ -136,90 +146,42 @@ public static partial class Reactive
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ReactiveNode<LiftTerm<ContextRenderSpec<TContext, TTerm>>>
         Use<TContext, TTerm>(
-            ReactiveContextRenderer<TContext, TTerm> render)
+            [NestedCallback] ReactiveContextRenderer<TContext, TTerm> render)
         where TContext : struct
         where TTerm : struct, ITerm<TTerm>
         => new(Term.Lift(new ContextRenderSpec<TContext, TTerm>(
             render ?? throw new ArgumentNullException(nameof(render)))));
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ReactiveKeyed<TKey, TValue> Keyed<TKey, TValue>(
-        TKey key,
-        scoped in TValue value)
-        where TKey : notnull
-        => new(key, value);
-
     public static ReactiveNode<ForEachTerm<TKey, ReactiveNodeSpec<TTerm>>>
         ForEach<TKey, TTerm>(
-            ReadOnlyMemory<ReactiveKeyed<TKey, ReactiveNode<TTerm>>> items)
+            params ReadOnlySpan<(TKey Key, ReactiveNode<TTerm> Value)> items)
         where TKey : notnull
         where TTerm : struct, ITerm<TTerm>
     {
-        var source = items.Span;
-        var keyed = new Keyed<TKey, ReactiveNodeSpec<TTerm>>[source.Length];
-        for (var index = 0; index < source.Length; index++) {
+        var keyed = new Keyed<TKey, ReactiveNodeSpec<TTerm>>[items.Length];
+        for (var index = 0; index < items.Length; index++) {
             keyed[index] = Term.Keyed(
-                source[index].Key,
-                new ReactiveNodeSpec<TTerm>(source[index].Value.Term));
+                items[index].Key,
+                new ReactiveNodeSpec<TTerm>(items[index].Value.Term));
         }
         return new(Term.ForEach<TKey, ReactiveNodeSpec<TTerm>>(keyed));
     }
 
-    public static ReactiveNode<ForEachTerm<TKey, ReactiveNodeSpec<TTerm>>>
-        ForEach<TKey, TTerm>(
-            params ReactiveKeyed<TKey, ReactiveNode<TTerm>>[] items)
-        where TKey : notnull
-        where TTerm : struct, ITerm<TTerm>
-    {
-        ArgumentNullException.ThrowIfNull(items);
-        return ForEach<TKey, TTerm>(items.AsMemory());
-    }
-
-    public static ReactiveNode<ForEachTerm<
-        TKey, ReactiveItemSpec<TItem, TTerm>>> ForEach<
-        TKey, TItem, TTerm>(
-        ReadOnlyMemory<ReactiveKeyed<TKey, TItem>> items,
-        ReactiveItemRenderer<TItem, TTerm> render)
+    public static ReactiveNode<ForEachTerm<TKey, ReactiveItemSpec<TItem, TTerm>>>
+        ForEach<TKey, TItem, TTerm>(
+            ReactiveItemRenderer<TItem, TTerm> render,
+            params ReadOnlySpan<(TKey Key, TItem Value)> items)
         where TKey : notnull
         where TTerm : struct, ITerm<TTerm>
     {
         ArgumentNullException.ThrowIfNull(render);
-        var source = items.Span;
-        var keyed = new Keyed<
-            TKey, ReactiveItemSpec<TItem, TTerm>>[source.Length];
-        for (var index = 0; index < source.Length; index++) {
+        var keyed = new Keyed<TKey, ReactiveItemSpec<TItem, TTerm>>[items.Length];
+        for (var index = 0; index < items.Length; index++) {
             keyed[index] = Term.Keyed(
-                source[index].Key,
-                new ReactiveItemSpec<TItem, TTerm>(
-                    source[index].Value,
-                    render));
+                items[index].Key,
+                new ReactiveItemSpec<TItem, TTerm>(items[index].Value, render));
         }
-        return new(Term.ForEach<
-            TKey, ReactiveItemSpec<TItem, TTerm>>(keyed));
-    }
-
-    public static ReactiveNode<ForEachTerm<
-        TKey, ReactiveItemSpec<TItem, TTerm>>> ForEach<
-        TKey, TItem, TTerm>(
-        ReactiveItemRenderer<TItem, TTerm> render,
-        params ReactiveKeyed<TKey, TItem>[] items)
-        where TKey : notnull
-        where TTerm : struct, ITerm<TTerm>
-    {
-        ArgumentNullException.ThrowIfNull(items);
-        return ForEach<TKey, TItem, TTerm>(items.AsMemory(), render);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ReactiveNode<FunctionalComponentTerm<
-        TProps, TState, TMessage>> Component<TProps, TState, TMessage>(
-        ReactiveComponent<TProps, TState, TMessage> component,
-        scoped in TProps props)
-        where TProps : struct
-        where TState : struct
-    {
-        ArgumentNullException.ThrowIfNull(component);
-        return new(new(component, props));
+        return new(Term.ForEach<TKey, ReactiveItemSpec<TItem, TTerm>>(keyed));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -239,7 +201,7 @@ public static partial class Reactive
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ReactiveNode<EventBindingTerm<TEvent, TMessage>> On<
         TEvent, TMessage>(
-        ReactiveEventHandler<TEvent, TMessage> handler)
+        [NestedCallback] ReactiveEventHandler<TEvent, TMessage> handler)
         where TEvent : IEvent
         => new(new(handler
             ?? throw new ArgumentNullException(nameof(handler))));
@@ -248,8 +210,8 @@ public static partial class Reactive
     public static ReactiveNode<DeferredEffectTerm<
         TDependencies, TResource>> Effect<TDependencies, TResource>(
         scoped in TDependencies dependencies,
-        ReactiveEffectSetup<TDependencies, TResource> setup,
-        ReactiveEffectCleanup<TResource> cleanup)
+        [NestedCallback] ReactiveEffectSetup<TDependencies, TResource> setup,
+        [NestedCallback] ReactiveEffectCleanup<TResource> cleanup)
         where TDependencies : struct, IEquatable<TDependencies>
         => new(new(
             dependencies,

@@ -1,5 +1,6 @@
 namespace Sia.CodeGenerators;
 
+using System.CodeDom.Compiler;
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -13,6 +14,8 @@ public partial class SiaReactiveGenerator : IIncrementalGenerator
 {
     private const string ReactiveComponentAttributeName =
         "Sia.Reactive.ReactiveComponentAttribute";
+
+    private const string ComponentsTrackingName = "Components";
 
     private static readonly DiagnosticDescriptor InvalidContainer = new(
         id: "SIA100",
@@ -75,10 +78,16 @@ public partial class SiaReactiveGenerator : IIncrementalGenerator
         ITypeSymbol Receiver,
         SemanticModel Model);
 
+    private readonly record struct PartialTypeShape(
+        bool IsStatic,
+        string Keyword,
+        string Name,
+        ImmutableArray<string> TypeParameters);
+
     private readonly record struct ComponentInfo(
-        INamespaceSymbol Namespace,
-        TypeDeclarationSyntax Declaration,
-        ImmutableArray<TypeDeclarationSyntax> ParentTypes,
+        string? Namespace,
+        PartialTypeShape Declaration,
+        ImmutableArray<PartialTypeShape> ParentTypes,
         string ComponentType,
         string DisplayName,
         string? PropsType,
@@ -116,7 +125,8 @@ public partial class SiaReactiveGenerator : IIncrementalGenerator
                     (TypeDeclarationSyntax)attribute.TargetNode,
                     (INamedTypeSymbol)attribute.TargetSymbol,
                     attribute.SemanticModel.Compilation,
-                    token));
+                    token))
+            .WithTrackingName(ComponentsTrackingName);
 
         context.RegisterSourceOutput(components, static (output, info) => {
             ReportDiagnostics(output, info);
@@ -243,9 +253,10 @@ public partial class SiaReactiveGenerator : IIncrementalGenerator
             symbol, compilation, message, token);
 
         return new(
-            symbol.ContainingNamespace,
-            declaration,
-            GetParentTypes(declaration),
+            symbol.ContainingNamespace.IsGlobalNamespace
+                ? null : symbol.ContainingNamespace.ToDisplayString(),
+            CreatePartialTypeShape(declaration),
+            [.. GetParentTypes(declaration).Select(CreatePartialTypeShape)],
             symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
             symbol.ToDisplayString(),
             props?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
@@ -260,6 +271,28 @@ public partial class SiaReactiveGenerator : IIncrementalGenerator
             nonStaticCallbacks,
             ambientAccesses,
             invalidEventMessages);
+    }
+
+    private static PartialTypeShape CreatePartialTypeShape(TypeDeclarationSyntax typeDecl)
+    {
+        var keyword = typeDecl.Kind() switch
+        {
+            SyntaxKind.ClassDeclaration => "partial class",
+            SyntaxKind.StructDeclaration => "partial struct",
+            SyntaxKind.RecordDeclaration => "partial record",
+            SyntaxKind.RecordStructDeclaration => "partial record struct",
+            _ => "partial class"
+        };
+        var typeParameters = typeDecl.TypeParameterList is { } typeParams
+            ? typeParams.Parameters
+                .Select(static p => p.Identifier.ToString())
+                .ToImmutableArray()
+            : ImmutableArray<string>.Empty;
+        return new(
+            typeDecl.Modifiers.Any(SyntaxKind.StaticKeyword),
+            keyword,
+            typeDecl.Identifier.ToString(),
+            typeParameters);
     }
 
     private static bool TryGetReceiver(
@@ -335,9 +368,7 @@ public partial class SiaReactiveGenerator : IIncrementalGenerator
                 }
                 foreach (var argument in operation.Arguments) {
                     if (argument.Parameter is not { } parameter
-                        || !IsNestedCallback(
-                            operation.TargetMethod.Name,
-                            parameter.Name)) {
+                        || !IsNestedCallback(parameter)) {
                         continue;
                     }
                     var expression = argument.Syntax is ArgumentSyntax syntax
@@ -356,15 +387,10 @@ public partial class SiaReactiveGenerator : IIncrementalGenerator
         return invalid.ToImmutable();
     }
 
-    private static bool IsNestedCallback(string method, string parameter)
-        => method switch
-        {
-            "On" => parameter == "handler",
-            "Effect" => parameter is "setup" or "cleanup",
-            "Use" => parameter == "render",
-            "Define" => parameter is "initialState" or "reduce" or "render",
-            _ => false
-        };
+    private static bool IsNestedCallback(IParameterSymbol parameter)
+        => parameter.GetAttributes().Any(static attribute =>
+            attribute.AttributeClass?.ToDisplayString()
+                == "Sia.Reactive.NestedCallbackAttribute");
 
     private static bool IsStaticCallback(
         ExpressionSyntax expression,
@@ -511,14 +537,18 @@ public partial class SiaReactiveGenerator : IIncrementalGenerator
         using var source = CreateFileSource(out var builder);
         source.WriteLine("#nullable enable");
         source.WriteLine();
-        using (GenerateInNamespace(source, info.Namespace)) {
-            using (GenerateInPartialTypes(source, info.ParentTypes)) {
-                source.Write("static partial class ");
-                WriteType(source, info.Declaration);
+        using (WriteNamespace(source, info.Namespace)) {
+            using (WriteContainerChain(source, info.ParentTypes)) {
+                if (info.Declaration.IsStatic) {
+                    source.Write("static ");
+                }
+                source.Write(info.Declaration.Keyword);
+                source.Write(' ');
+                WriteTypeShape(source, info.Declaration);
                 source.WriteLine();
                 source.WriteLine("{");
                 source.Indent++;
-                source.WriteLine($"[{GeneratedCodeAttribute}]");
+                source.WriteLine($"[{Common.GeneratedCodeAttribute}]");
                 source.Write("public static global::Sia.Reactive.ReactiveComponent<");
                 source.Write(info.PropsType);
                 source.Write(", ");
@@ -527,9 +557,9 @@ public partial class SiaReactiveGenerator : IIncrementalGenerator
                 source.Write(info.MessageType);
                 source.WriteLine("> Definition { get; }");
                 source.Indent++;
-                source.WriteLine("= global::Sia.Reactive.Reactive.Define(");
+                source.WriteLine("= global::Sia.Reactive.Reactive.Component(");
                 source.Indent++;
-                source.Write("initialState: static (scoped in ");
+                source.Write("initial: static (scoped in ");
                 source.Write(info.PropsType);
                 source.Write(" props) => ");
                 source.Write(info.ComponentType);
@@ -554,6 +584,53 @@ public partial class SiaReactiveGenerator : IIncrementalGenerator
             }
         }
         return builder.ToString();
+    }
+
+    private static IDisposable WriteNamespace(IndentedTextWriter source, string? ns)
+    {
+        if (ns is null) {
+            return EmptyDisposable.Instance;
+        }
+        source.Write("namespace ");
+        source.WriteLine(ns);
+        source.WriteLine("{");
+        source.Indent++;
+        return new EnclosingDisposable(source, 1);
+    }
+
+    private static IDisposable WriteContainerChain(
+        IndentedTextWriter source, ImmutableArray<PartialTypeShape> shapes)
+    {
+        foreach (var shape in shapes) {
+            if (shape.IsStatic) {
+                source.Write("static ");
+            }
+            source.Write(shape.Keyword);
+            source.Write(' ');
+            WriteTypeShape(source, shape);
+            source.WriteLine();
+            source.WriteLine("{");
+            source.Indent++;
+        }
+        return shapes.Length != 0
+            ? new EnclosingDisposable(source, shapes.Length)
+            : EmptyDisposable.Instance;
+    }
+
+    private static void WriteTypeShape(IndentedTextWriter source, PartialTypeShape shape)
+    {
+        source.Write(shape.Name);
+        if (shape.TypeParameters.IsEmpty) {
+            return;
+        }
+        source.Write('<');
+        for (var index = 0; index < shape.TypeParameters.Length; index++) {
+            if (index != 0) {
+                source.Write(", ");
+            }
+            source.Write(shape.TypeParameters[index]);
+        }
+        source.Write('>');
     }
 
     private static string GenerateFileName(in ComponentInfo info)
