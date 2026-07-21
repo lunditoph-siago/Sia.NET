@@ -115,7 +115,6 @@ public readonly record struct FunctionalComponentTerm<
         in FunctionalComponentTerm<TProps, TState, TMessage> next,
         ref GraphContext context)
     {
-        var slot = context.NextSlotIndex;
         var child = context.PeekSlot();
         if (child is not { IsValid: true }
             || !child.ContainsUnchecked<FunctionalSpec<
@@ -127,8 +126,7 @@ public readonly record struct FunctionalComponentTerm<
         ref var current = ref child.GetUnchecked<FunctionalSpec<
             TProps, TState, TMessage>>();
         if (!ReferenceEquals(current.Component, next.Component)) {
-            context.DestroyRange(1);
-            context.RewindTo(slot);
+            context.RemountRange(1);
             Mount(next, ref context);
             return;
         }

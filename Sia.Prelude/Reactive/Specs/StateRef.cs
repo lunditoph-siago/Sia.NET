@@ -17,7 +17,11 @@ public readonly struct StateRef<TState>(
         var owner = GetOwner();
         var reconciler = GetReconciler();
         reconciler.GuardStateMutation(owner);
-        owner.GetUnchecked<TState>() = value;
+        ref var current = ref owner.GetUnchecked<TState>();
+        if (EqualityComparer<TState>.Default.Equals(current, value)) {
+            return;
+        }
+        current = value;
         reconciler.EnqueueDirty(owner);
     }
 

@@ -136,9 +136,7 @@ internal readonly record struct OpaqueTerm(ReactiveNode Node)
             return;
         }
 
-        var slot = context.NextSlotIndex;
-        context.DestroyRange(1);
-        context.RewindTo(slot);
+        context.RemountRange(1);
         next.Node.Mount(ref context);
     }
 }

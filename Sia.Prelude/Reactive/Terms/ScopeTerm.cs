@@ -53,9 +53,7 @@ public readonly record struct ScopeTerm<TCtx, TChildren>(TCtx Value, TChildren C
     {
         var slot = ctx.PeekSlot();
         if (slot is not { IsValid: true } provider) {
-            var start = ctx.NextSlotIndex;
-            ctx.DestroyRange(SlotCount);
-            ctx.RewindTo(start);
+            ctx.RemountRange(SlotCount);
             Mount(next, ref ctx);
             return;
         }

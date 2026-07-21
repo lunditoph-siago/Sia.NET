@@ -43,6 +43,13 @@ public ref struct GraphContext(
 
     internal void RewindTo(int index) => _cursor = index;
 
+    public void RemountRange(int count)
+    {
+        var start = _cursor;
+        DestroyRange(count);
+        RewindTo(start);
+    }
+
     public void DestroyRange(int count)
     {
         var slots = _slots;

@@ -49,6 +49,7 @@ public readonly record struct ScheduleTerm<TLabel, TChildren>(TChildren Children
     {
         var slot = ctx.PeekSlot();
         if (slot is not { IsValid: true } node) {
+            ctx.RemountRange(SlotCount);
             Mount(next, ref ctx);
             return;
         }
