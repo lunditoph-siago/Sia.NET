@@ -10,17 +10,17 @@ public static partial class ExampleViewer
     public static Task Run() => BrowserExampleApp.Run(_runner);
 }
 
-internal static class BrowserExampleApp
+public static class BrowserExampleApp
 {
     public static async Task Run(ExampleRunner runner)
     {
+        ArgumentNullException.ThrowIfNull(runner);
+
         using var world = new World();
         Context<World>.Current = world;
 
-        var controller = new ExampleController();
-        var reconciler = world.AcquireAddon<Reconciler>();
         using var host = new BrowserHost();
-        var app = reconciler.Mount(new ExampleApp(runner, controller, host));
+        var app = world.Mount(ExampleApp.Definition, new(runner, host));
 
         try {
             while (true) {
@@ -30,15 +30,15 @@ internal static class BrowserExampleApp
                 }
 
                 var example = runner.Examples[index];
-                controller.BeginRun(index, example.Name);
-                reconciler.Flush();
+                app.Dispatch(new BeginExampleRun(index, example.Name));
+                world.FlushReactive();
 
                 // Let the browser paint the pending state before the
                 // synchronous example starts producing its output.
                 await Task.Delay(1);
 
-                controller.CompleteRun(runner.RunExample(index));
-                reconciler.Flush();
+                app.Dispatch(new CompleteExampleRun(runner.RunExample(index)));
+                world.FlushReactive();
             }
         }
         finally {
@@ -49,7 +49,7 @@ internal static class BrowserExampleApp
     }
 }
 
-internal sealed class BrowserHost : IExampleRenderHost, IDisposable
+public sealed class BrowserHost : IExampleRenderHost, IDisposable
 {
     private readonly BrowserElement _sidebar = BrowserElement.Find("sidebar");
     private readonly BrowserElement _output = BrowserElement.Find("output");
@@ -112,7 +112,7 @@ internal sealed class BrowserHost : IExampleRenderHost, IDisposable
     }
 }
 
-internal sealed class ExampleNode(
+public sealed class ExampleNode(
     BrowserElement root,
     BrowserElement name,
     BrowserElement description) : IDisposable
@@ -148,7 +148,7 @@ internal sealed class ExampleNode(
     }
 }
 
-internal sealed class BrowserElement(JSObject handle) : IDisposable
+public sealed class BrowserElement(JSObject handle) : IDisposable
 {
     internal JSObject Handle { get; } = handle;
 

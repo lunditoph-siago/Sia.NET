@@ -1,14 +1,6 @@
 using Sia;
 using Sia.Reactive;
 
-using ExampleTree = Sia.Reactive.EffectTerm<
-    Sia_Examples.RenderEffect<Sia_Examples.ExampleItemView>>;
-using AppTree = Sia.Reactive.Group<
-    Sia.Reactive.ForEachTerm<int, Sia_Examples.ExampleItem>,
-    Sia.Reactive.EffectTerm<
-        Sia_Examples.RenderEffect<Sia_Examples.ExampleOutputView>>,
-    Sia.Reactive.EffectTerm<Sia_Examples.ExampleCommitEffect>>;
-
 namespace Sia_Examples;
 
 public static partial class ExampleViewer
@@ -18,24 +10,11 @@ public static partial class ExampleViewer
     public static void Dispose() => _runner.Dispose();
 }
 
-internal sealed class ExampleController
-{
-    private State<ExampleAppState> _state;
+public readonly record struct ExampleAppProps(
+    ExampleRunner Runner,
+    IExampleRenderHost Host);
 
-    public void Attach(State<ExampleAppState> state)
-        => _state = state;
-
-    public void BeginRun(int index, string title)
-        => _state.Set(new(index, title, "Running\u2026", true));
-
-    public void CompleteRun(string output)
-    {
-        var current = _state.Value;
-        _state.Set(current with { Output = output, Loading = false });
-    }
-}
-
-internal readonly record struct ExampleAppState(
+public readonly record struct ExampleAppState(
     int SelectedIndex,
     string Title,
     string Output,
@@ -45,92 +24,117 @@ internal readonly record struct ExampleAppState(
         = new(-1, "Select an example", "\u2190 Choose an example to run it", false);
 }
 
-internal readonly record struct ExampleApp(
-    ExampleRunner Runner,
-    ExampleController Controller,
-    IExampleRenderHost Host)
-    : ISpec<ExampleApp, Unit, AppTree>
-{
-    public static AppTree Expand(
-        in ExampleApp props,
-        in Unit state,
-        in ExpandContext context)
-    {
-        var view = context.UseState(ExampleAppState.Initial);
-        props.Controller.Attach(view);
+public abstract record ExampleAppMessage;
 
+public sealed record BeginExampleRun(int Index, string Title)
+    : ExampleAppMessage;
+
+public sealed record CompleteExampleRun(string Output)
+    : ExampleAppMessage;
+
+[ReactiveComponent]
+public static partial class ExampleApp
+{
+    extension(scoped in ExampleAppProps props)
+    {
+        public ExampleAppState InitialState => ExampleAppState.Initial;
+
+        public ReactiveNode Render(scoped in ExampleAppState state)
+        {
+            var items = Reactive.ForEach(
+                RenderItem,
+                BuildItems(props, state.SelectedIndex));
+
+            return Reactive.Group(
+                items,
+                Effect(new RenderEffect<ExampleOutputView>(
+                    props.Host,
+                    new(state.Title, state.Output, state.Loading))),
+                Effect(new ExampleCommitEffect(props.Host)));
+        }
+    }
+
+    extension(scoped in ExampleAppState state)
+    {
+        public ExampleAppState Reduce(scoped in ExampleAppMessage message)
+            => message switch {
+                BeginExampleRun begin => new(
+                    begin.Index,
+                    begin.Title,
+                    "Running\u2026",
+                    true),
+                CompleteExampleRun complete => state with {
+                    Output = complete.Output,
+                    Loading = false,
+                },
+                _ => state,
+            };
+    }
+
+    private static (int Key, ExampleItem Value)[] BuildItems(
+        scoped in ExampleAppProps props,
+        int selectedIndex)
+    {
         var examples = props.Runner.Examples;
-        var children = new Keyed<int, ExampleItem>[examples.Count];
+        var items = new (int Key, ExampleItem Value)[examples.Count];
         for (var index = 0; index < examples.Count; index++) {
             var example = examples[index];
-            children[index] = Term.Keyed(
+            items[index] = (
                 index,
-                new ExampleItem(
+                new(
                     props.Host,
                     index,
                     example.Name,
                     example.Description,
-                    view.Value.SelectedIndex == index));
+                    selectedIndex == index));
         }
-
-        return Term.Group(
-            Term.ForEach<int, ExampleItem>(children),
-            Term.Effect(new RenderEffect<ExampleOutputView>(
-                props.Host,
-                new(
-                    view.Value.Title,
-                    view.Value.Output,
-                    view.Value.Loading))),
-            Term.Effect(new ExampleCommitEffect(props.Host)));
+        return items;
     }
+
+    private static ReactiveNode<EffectTerm<RenderEffect<ExampleItemView>>>
+        RenderItem(scoped in ExampleItem item)
+        => Effect(new RenderEffect<ExampleItemView>(
+            item.Host,
+            new(item.Index, item.Name, item.Description, item.Active)));
+
+    private static ReactiveNode<EffectTerm<TEffect>> Effect<TEffect>(
+        scoped in TEffect effect)
+        where TEffect : struct, IEffect<TEffect>
+        => new(Term.Effect(effect));
 }
 
-internal readonly record struct ExampleItem(
+public readonly record struct ExampleItem(
     IExampleRenderHost Host,
-    int Index,
-    string Name,
-    string Description,
-    bool Active)
-    : ISpec<ExampleItem, Unit, ExampleTree>
-{
-    public static ExampleTree Expand(
-        in ExampleItem props,
-        in Unit state,
-        in ExpandContext context)
-        => Term.Effect(new RenderEffect<ExampleItemView>(
-            props.Host,
-            new(
-                props.Index,
-                props.Name,
-                props.Description,
-                props.Active)));
-}
-
-internal readonly record struct ExampleItemView(
     int Index,
     string Name,
     string Description,
     bool Active);
 
-internal readonly record struct ExampleOutputView(
+public readonly record struct ExampleItemView(
+    int Index,
+    string Name,
+    string Description,
+    bool Active);
+
+public readonly record struct ExampleOutputView(
     string Title,
     string Output,
     bool Loading);
 
-internal interface IRenderHost<TView>
+public interface IRenderHost<TView>
     where TView : struct, IEquatable<TView>
 {
     void Upsert(in TView view);
     void Remove(in TView view);
 }
 
-internal interface IExampleRenderHost
+public interface IExampleRenderHost
     : IRenderHost<ExampleItemView>, IRenderHost<ExampleOutputView>
 {
     void Commit();
 }
 
-internal readonly record struct RenderEffect<TView>(
+public readonly record struct RenderEffect<TView>(
     IRenderHost<TView> Host,
     TView View)
     : IEffect<RenderEffect<TView>>
@@ -156,7 +160,7 @@ internal readonly record struct RenderEffect<TView>(
         => self.Host.Remove(self.View);
 }
 
-internal readonly record struct ExampleCommitEffect(IExampleRenderHost Host)
+public readonly record struct ExampleCommitEffect(IExampleRenderHost Host)
     : IEffect<ExampleCommitEffect>
 {
     public static void Mount(in ExampleCommitEffect self) => self.Host.Commit();

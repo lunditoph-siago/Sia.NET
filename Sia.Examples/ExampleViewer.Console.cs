@@ -10,21 +10,22 @@ public static partial class ExampleViewer
         => ConsoleExampleApp.Run(_runner, arguments);
 }
 
-internal static class ConsoleExampleApp
+public static class ConsoleExampleApp
 {
     public static void Run(ExampleRunner runner, IReadOnlyList<string> arguments)
     {
+        ArgumentNullException.ThrowIfNull(runner);
+        ArgumentNullException.ThrowIfNull(arguments);
+
         using var world = new World();
         Context<World>.Current = world;
 
-        var controller = new ExampleController();
-        var reconciler = world.AcquireAddon<Reconciler>();
         var host = new ConsoleHost(SuppressInitialCommit(arguments));
-        var app = reconciler.Mount(new ExampleApp(runner, controller, host));
+        var app = world.Mount(ExampleApp.Definition, new(runner, host));
 
         try {
             if (arguments.Count > 0) {
-                RunFromArguments(runner, controller, reconciler, arguments);
+                RunFromArguments(runner, app, world, arguments);
                 return;
             }
 
@@ -43,11 +44,11 @@ internal static class ConsoleExampleApp
                 }
 
                 var example = runner.Examples[index];
-                controller.BeginRun(index, example.Name);
-                reconciler.Flush();
+                app.Dispatch(new BeginExampleRun(index, example.Name));
+                world.FlushReactive();
 
-                controller.CompleteRun(runner.RunExample(index));
-                reconciler.Flush();
+                app.Dispatch(new CompleteExampleRun(runner.RunExample(index)));
+                world.FlushReactive();
 
                 Console.Write("\nPress any key to return to the examples\u2026");
                 Console.ReadKey(true);
@@ -62,8 +63,8 @@ internal static class ConsoleExampleApp
 
     private static void RunFromArguments(
         ExampleRunner runner,
-        ExampleController controller,
-        Reconciler reconciler,
+        ReactiveMount<ExampleAppProps, ExampleAppState, ExampleAppMessage> app,
+        World world,
         IReadOnlyList<string> arguments)
     {
         var selector = arguments[0] == "--example" && arguments.Count > 1
@@ -81,9 +82,9 @@ internal static class ConsoleExampleApp
         }
 
         var example = runner.Examples[index];
-        controller.BeginRun(index, example.Name);
-        controller.CompleteRun(runner.RunExample(index));
-        reconciler.Flush();
+        app.Dispatch(new BeginExampleRun(index, example.Name));
+        app.Dispatch(new CompleteExampleRun(runner.RunExample(index)));
+        world.FlushReactive();
     }
 
     private static bool SuppressInitialCommit(IReadOnlyList<string> arguments)
@@ -109,7 +110,7 @@ internal static class ConsoleExampleApp
     }
 }
 
-internal sealed class ConsoleHost(bool suppressNextCommit) : IExampleRenderHost
+public sealed class ConsoleHost(bool suppressNextCommit) : IExampleRenderHost
 {
     private readonly SortedDictionary<int, ExampleItemView> _items = [];
     private bool _suppressNextCommit = suppressNextCommit;
