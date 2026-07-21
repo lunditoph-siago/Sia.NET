@@ -11,9 +11,10 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
     private readonly List<Action> _effectCleanups = [];
     private readonly List<Action> _effectSetups = [];
     private readonly Dictionary<long, EntityReference> _roots = [];
-    private World? _graphWorld;
+    private readonly SparseSet<IEntityHost> _graphHosts = [];
     private Entity _expandingCell;
     private int _dirtyHead;
+    private int _reconcileDepth;
     private bool _flushing;
     private long _nextIdentity;
 
@@ -24,21 +25,15 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
     private Scheduler? _scheduler;
     private ScheduleRegistration? _sourceRegistration;
 
-    internal World GraphWorld
-        => _graphWorld
-            ?? throw new InvalidOperationException("The reconciler is not initialized.");
-
     public override void OnInitialize(World world)
     {
         base.OnInitialize(world);
         try {
-            _graphWorld = new World();
             _scheduler = world.AcquireAddon<Scheduler>();
             _sourceRegistration = _scheduler.RegisterSource(this);
         }
         catch (Exception error) {
             Outcome<Exception>.Failure(error)
-                .Attempt(() => _graphWorld?.Dispose())
                 .Attempt(() => base.OnUninitialize(world))
                 .ThrowFailure();
         }
@@ -64,8 +59,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         }
         _schedules.Clear();
         _rebuildQueue.Clear();
-        result = result.Attempt(() => _graphWorld?.Dispose());
-        _graphWorld = null;
+        result = DisposeGraphHosts(result);
         _cellSlotPools.Clear();
         _eachIndexPools.Clear();
         _scheduler = null;
@@ -105,6 +99,11 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
 
     internal void Unmount(Entity cell, NodeIdentity identity)
     {
+        if (_reconcileDepth != 0) {
+            throw new InvalidOperationException(
+                "Reactive mounts cannot be unmounted while a spec is expanding "
+                + "or its tree is reconciling.");
+        }
         if (!IsCell(cell, identity)) {
             throw new ObjectDisposedException(nameof(MountHandle<int>));
         }
@@ -156,6 +155,17 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
     {
         ArgumentNullException.ThrowIfNull(setup);
         _effectSetups.Add(setup);
+    }
+
+    private void ExpandCell(Entity cell)
+    {
+        _reconcileDepth++;
+        try {
+            cell.GetUnchecked<Cell>().Expander.Expand(this, cell);
+        }
+        finally {
+            _reconcileDepth--;
+        }
     }
 
     internal void BeginExpansion(Entity cell)
@@ -289,7 +299,34 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         => World.Create(components);
 
     internal Entity CreateNode<T>(in T component)
-        => GraphWorld.Create(HList.From(component));
+        => CreateGraphEntity(HList.From(component));
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private Entity CreateGraphEntity<TEntity>(in TEntity initial)
+        where TEntity : struct, IHList
+    {
+        if (_scheduler == null) {
+            throw new InvalidOperationException("The reconciler is not initialized.");
+        }
+
+        ref var rawHost = ref _graphHosts.GetOrAddValueRef(
+            TypeIndexer<TEntity>.Index,
+            out var exists);
+        if (!exists) {
+            rawHost = new ArrayEntityHost<TEntity>();
+        }
+        return ((ArrayEntityHost<TEntity>)rawHost).Create(initial);
+    }
+
+    private Outcome<Exception> DisposeGraphHosts(Outcome<Exception> result)
+    {
+        var hosts = _graphHosts.UnsafeRawValues;
+        for (var i = 0; i < hosts.Count; i++) {
+            result = result.Attempt(hosts[i].Dispose);
+        }
+        _graphHosts.Clear();
+        return result;
+    }
 
     internal Entity MountSub<TSpec>(
         in TSpec props, Entity parent, int depth, int slotInParent,
@@ -349,7 +386,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
                             continue;
                         }
                         cellData.InDirty = false;
-                        cellData.Expander.Expand(this, cell);
+                        ExpandCell(cell);
                         continue;
                     }
                     if (_rebuildQueue.Count > 0) {
@@ -365,7 +402,6 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
                 _dirtyHead = 0;
             }
             catch (Exception error) {
-                _effectSetups.Clear();
                 var result = DrainEffectCleanups(
                     Outcome<Exception>.Failure(error));
                 result.ThrowFailure();
@@ -707,7 +743,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             where TTree : struct, ITerm<TTree>
         {
             ref var typedProps = ref Unsafe.As<TProps, TSpec>(ref _props);
-            var cell = _reconciler.GraphWorld.Create(HList.From(
+            var cell = _reconciler.CreateGraphEntity(HList.From(
                 typedProps,
                 TSpec.InitialState(typedProps),
                 new PrevTree<TTree>(),
@@ -725,7 +761,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
                 }));
             Result = cell;
             try {
-                Expander<TSpec, TState, TTree>.Instance.Expand(_reconciler, cell);
+                _reconciler.ExpandCell(cell);
             }
             catch (Exception error) {
                 var owner = _reconciler;

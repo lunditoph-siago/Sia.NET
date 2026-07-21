@@ -85,21 +85,49 @@ public static partial class Reactive
         where TProps : struct
         where TState : struct
     {
+        private sealed class ComponentsByCallbacks
+        {
+            private readonly List<WeakReference<
+                ReactiveComponent<TProps, TState, TMessage>>> _components = [];
+
+            public ReactiveComponent<TProps, TState, TMessage> GetOrAdd(
+                ReactiveInitial<TProps, TState> initial,
+                ReactiveReducer<TState, TMessage> reduce,
+                ReactiveRenderer<TProps, TState> render)
+            {
+                lock (_components) {
+                    for (var index = _components.Count - 1;
+                        index >= 0;
+                        index--) {
+                        if (!_components[index].TryGetTarget(out var component)) {
+                            _components.RemoveAt(index);
+                            continue;
+                        }
+                        if (ReferenceEquals(component.Initial, initial)
+                            && ReferenceEquals(component.Reducer, reduce)) {
+                            return component;
+                        }
+                    }
+                    var created = new ReactiveComponent<
+                        TProps, TState, TMessage>(initial, reduce, render);
+                    _components.Add(new(created));
+                    return created;
+                }
+            }
+        }
+
         private static readonly ConditionalWeakTable<
             ReactiveRenderer<TProps, TState>,
-            ReactiveComponent<TProps, TState, TMessage>> Cache = [];
+            ComponentsByCallbacks> Cache = [];
 
         public static ReactiveComponent<TProps, TState, TMessage> GetOrAdd(
             ReactiveInitial<TProps, TState> initial,
             ReactiveReducer<TState, TMessage> reduce,
             ReactiveRenderer<TProps, TState> render)
-        {
-            if (Cache.TryGetValue(render, out var existing)) {
-                return existing;
-            }
-            var component = new ReactiveComponent<TProps, TState, TMessage>(initial, reduce, render);
-            return Cache.GetValue(render, _ => component);
-        }
+            => Cache.GetValue(
+                render,
+                static _ => new ComponentsByCallbacks())
+                .GetOrAdd(initial, reduce, render);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

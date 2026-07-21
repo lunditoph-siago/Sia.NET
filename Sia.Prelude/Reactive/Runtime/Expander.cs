@@ -43,6 +43,9 @@ public sealed class Expander<TSpec, TState, TTree> : Expander
         else {
             TTree.Mount(next, ref ctx);
         }
-        cell.GetUnchecked<PrevTree<TTree>>() = new() { Value = next, Mounted = true };
+        cell.GetUnchecked<PrevTree<TTree>>() = new() {
+            Value = next,
+            Mounted = true,
+        };
     }
 }
