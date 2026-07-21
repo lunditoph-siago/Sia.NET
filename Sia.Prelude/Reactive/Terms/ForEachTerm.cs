@@ -151,7 +151,14 @@ public readonly record struct ForEachTerm<TKey, TSpec>(ReadOnlyMemory<Keyed<TKey
             }
             else {
                 var created = ctx.Reconciler.MountSub(
-                    item.Props, ctx.Cell, ctx.Depth + 1, slotIndex, ctx.Schedule, ctx.Scope);
+                    item.Props,
+                    ctx.Cell,
+                    ctx.Depth + 1,
+                    slotIndex,
+                    ctx.Schedule,
+                    ctx.Scope,
+                    ctx.Output,
+                    ctx.MessageOwner);
                 entry.Cell = created;
             }
             entry.Stamp = stamp;

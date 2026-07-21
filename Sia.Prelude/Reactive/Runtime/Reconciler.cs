@@ -8,10 +8,13 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
     private readonly record struct DirtyEntry(EntityReference Cell, NodeIdentity Identity);
 
     private readonly List<DirtyEntry> _dirty = [];
+    private readonly List<Action> _effectCleanups = [];
+    private readonly List<Action> _effectSetups = [];
     private readonly Dictionary<long, EntityReference> _roots = [];
-    private World? _graphWorld;
+    private readonly SparseSet<IEntityHost> _graphHosts = [];
     private Entity _expandingCell;
     private int _dirtyHead;
+    private int _reconcileDepth;
     private bool _flushing;
     private long _nextIdentity;
 
@@ -22,21 +25,15 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
     private Scheduler? _scheduler;
     private ScheduleRegistration? _sourceRegistration;
 
-    internal World GraphWorld
-        => _graphWorld
-            ?? throw new InvalidOperationException("The reconciler is not initialized.");
-
     public override void OnInitialize(World world)
     {
         base.OnInitialize(world);
         try {
-            _graphWorld = new World();
             _scheduler = world.AcquireAddon<Scheduler>();
             _sourceRegistration = _scheduler.RegisterSource(this);
         }
         catch (Exception error) {
             Outcome<Exception>.Failure(error)
-                .Attempt(() => _graphWorld?.Dispose())
                 .Attempt(() => base.OnUninitialize(world))
                 .ThrowFailure();
         }
@@ -53,6 +50,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             }
         }
         _roots.Clear();
+        result = result.Attempt(DrainEffects);
 
         foreach (var registries in _schedules.Values) {
             foreach (var registry in registries) {
@@ -61,8 +59,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         }
         _schedules.Clear();
         _rebuildQueue.Clear();
-        result = result.Attempt(() => _graphWorld?.Dispose());
-        _graphWorld = null;
+        result = DisposeGraphHosts(result);
         _cellSlotPools.Clear();
         _eachIndexPools.Clear();
         _scheduler = null;
@@ -78,7 +75,14 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         where TSpec : struct, ISpec
     {
         var cell = MountSub(
-            props, parent: default, depth: 0, slotInParent: -1, schedule: null, scope: null);
+            props,
+            parent: default,
+            depth: 0,
+            slotInParent: -1,
+            schedule: null,
+            scope: null,
+            output: default,
+            messageOwner: default);
         var identity = cell.GetUnchecked<Cell>().Identity;
         _roots.Add(identity.Value, new(cell));
         try {
@@ -95,11 +99,19 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
 
     internal void Unmount(Entity cell, NodeIdentity identity)
     {
+        if (_reconcileDepth != 0) {
+            throw new InvalidOperationException(
+                "Reactive mounts cannot be unmounted while a spec is expanding "
+                + "or its tree is reconciling.");
+        }
         if (!IsCell(cell, identity)) {
             throw new ObjectDisposedException(nameof(MountHandle<int>));
         }
         _roots.Remove(identity.Value);
-        DestroyCell(cell, identity);
+        var result = Outcome<Exception>.Success
+            .Attempt(() => DestroyCell(cell, identity))
+            .Attempt(DrainEffects);
+        result.ThrowIfFailed();
     }
 
     internal void UpdateMount<TProps>(Entity cell, in TProps props)
@@ -111,6 +123,50 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
 
     internal void InvalidateMount(Entity cell)
         => EnqueueDirty(cell);
+
+    internal void DispatchMessage(
+        Entity cell,
+        NodeIdentity identity,
+        object message)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        if (!IsCell(cell, identity)) {
+            throw new ObjectDisposedException("ReactiveMount");
+        }
+        GuardStateMutation(cell);
+        var dispatcher = cell.GetUnchecked<Cell>().DispatchMessage
+            ?? throw new InvalidOperationException(
+                "The reactive cell does not define a message reducer.");
+        dispatcher(this, cell, message);
+    }
+
+    internal void QueueEffectCleanup(Action cleanup, bool prepend = false)
+    {
+        ArgumentNullException.ThrowIfNull(cleanup);
+        if (prepend) {
+            _effectCleanups.Insert(0, cleanup);
+        }
+        else {
+            _effectCleanups.Add(cleanup);
+        }
+    }
+
+    internal void QueueEffectSetup(Action setup)
+    {
+        ArgumentNullException.ThrowIfNull(setup);
+        _effectSetups.Add(setup);
+    }
+
+    private void ExpandCell(Entity cell)
+    {
+        _reconcileDepth++;
+        try {
+            cell.GetUnchecked<Cell>().Expander.Expand(this, cell);
+        }
+        finally {
+            _reconcileDepth--;
+        }
+    }
 
     internal void BeginExpansion(Entity cell)
     {
@@ -240,22 +296,54 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
 
     internal Entity CreateOutput<TList>(in TList components)
         where TList : struct, IHList
-        => World.Create(HList.Cons(
-            new ReactiveNode(NextIdentity()),
-            components));
+        => World.Create(components);
 
     internal Entity CreateNode<T>(in T component)
-        => GraphWorld.Create(HList.From(
-            component,
-            new ReactiveNode(NextIdentity())));
+        => CreateGraphEntity(HList.From(component));
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private Entity CreateGraphEntity<TEntity>(in TEntity initial)
+        where TEntity : struct, IHList
+    {
+        if (_scheduler == null) {
+            throw new InvalidOperationException("The reconciler is not initialized.");
+        }
+
+        ref var rawHost = ref _graphHosts.GetOrAddValueRef(
+            TypeIndexer<TEntity>.Index,
+            out var exists);
+        if (!exists) {
+            rawHost = new ArrayEntityHost<TEntity>();
+        }
+        return ((ArrayEntityHost<TEntity>)rawHost).Create(initial);
+    }
+
+    private Outcome<Exception> DisposeGraphHosts(Outcome<Exception> result)
+    {
+        var hosts = _graphHosts.UnsafeRawValues;
+        for (var i = 0; i < hosts.Count; i++) {
+            result = result.Attempt(hosts[i].Dispose);
+        }
+        _graphHosts.Clear();
+        return result;
+    }
 
     internal Entity MountSub<TSpec>(
         in TSpec props, Entity parent, int depth, int slotInParent,
-        ScheduleRegistry? schedule, ContextScope? scope)
+        ScheduleRegistry? schedule, ContextScope? scope, Entity output,
+        Entity messageOwner)
         where TSpec : struct, ISpec
     {
         var factory = new CellFactory<TSpec>(
-            this, props, parent, depth, slotInParent, schedule, scope);
+            this,
+            props,
+            parent,
+            depth,
+            slotInParent,
+            schedule,
+            scope,
+            output,
+            messageOwner);
         TSpec.HandleSignature(ref factory);
         return factory.Result.IsValid
             ? factory.Result
@@ -282,38 +370,69 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         }
         _flushing = true;
         try {
-            while (true) {
-                if (_dirtyHead < _dirty.Count) {
-                    var entry = _dirty[_dirtyHead];
-                    _dirty[_dirtyHead] = default;
-                    _dirtyHead++;
+            try {
+                while (true) {
+                    if (_dirtyHead < _dirty.Count) {
+                        var entry = _dirty[_dirtyHead];
+                        _dirty[_dirtyHead] = default;
+                        _dirtyHead++;
 
-                    if (!entry.Cell.TryGet(out var cell)
-                        || !IsCell(cell, entry.Identity)) {
+                        if (!entry.Cell.TryGet(out var cell)
+                            || !IsCell(cell, entry.Identity)) {
+                            continue;
+                        }
+                        ref var cellData = ref cell.GetUnchecked<Cell>();
+                        if (!cellData.InDirty) {
+                            continue;
+                        }
+                        cellData.InDirty = false;
+                        ExpandCell(cell);
                         continue;
                     }
-                    ref var cellData = ref cell.GetUnchecked<Cell>();
-                    if (!cellData.InDirty) {
+                    if (_rebuildQueue.Count > 0) {
+                        var registry = _rebuildQueue[^1];
+                        _rebuildQueue.RemoveAt(_rebuildQueue.Count - 1);
+                        registry.RebuildQueued = false;
+                        RebuildStage(registry);
                         continue;
                     }
-                    cellData.InDirty = false;
-                    cellData.Expander.Expand(this, cell);
-                    continue;
+                    break;
                 }
-                if (_rebuildQueue.Count > 0) {
-                    var registry = _rebuildQueue[^1];
-                    _rebuildQueue.RemoveAt(_rebuildQueue.Count - 1);
-                    registry.RebuildQueued = false;
-                    RebuildStage(registry);
-                    continue;
-                }
-                break;
+                _dirty.Clear();
+                _dirtyHead = 0;
             }
-            _dirty.Clear();
-            _dirtyHead = 0;
-        } finally {
+            catch (Exception error) {
+                var result = DrainEffectCleanups(
+                    Outcome<Exception>.Failure(error));
+                result.ThrowFailure();
+            }
+            DrainEffects();
+        }
+        finally {
             _flushing = false;
         }
+    }
+
+    private Outcome<Exception> DrainEffectCleanups(
+        Outcome<Exception> result)
+    {
+        var cleanups = _effectCleanups.ToArray();
+        _effectCleanups.Clear();
+        for (var index = cleanups.Length - 1; index >= 0; index--) {
+            result = result.Attempt(cleanups[index]);
+        }
+        return result;
+    }
+
+    private void DrainEffects()
+    {
+        var result = DrainEffectCleanups(Outcome<Exception>.Success);
+        var setups = _effectSetups.ToArray();
+        _effectSetups.Clear();
+        for (var index = 0; index < setups.Length; index++) {
+            result = result.Attempt(setups[index]);
+        }
+        result.ThrowIfFailed();
     }
 
     public IReadOnlyList<ScheduleRegistry> GetSchedules<TLabel>()
@@ -494,8 +613,6 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
 
     private void RebuildStage(ScheduleRegistry registry)
     {
-        // Tree order is the default execution order; descriptor edges
-        // (SiaBefore/SiaAfter) are applied on top by the SystemGraph sort.
         registry.Slots.Sort(static (a, b) => CompareTreeOrder(
             a.OwnerCell, a.SlotIndex, b.OwnerCell, b.SlotIndex));
 
@@ -561,7 +678,6 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             var parentA = cellDataA.ParentEntity;
             var parentB = cellDataB.ParentEntity;
             if (!parentA.IsValid || !parentB.IsValid) {
-                // Separate spawn roots: fall back to creation order.
                 return cellDataA.Identity.Value.CompareTo(cellDataB.Identity.Value);
             }
             slotA = cellDataA.SlotInParent;
@@ -586,7 +702,6 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             : throw new InvalidOperationException("Reactive cell has no parent.");
     }
 
-    // Pending cells are kept sorted by depth so parents expand before children.
     private void InsertByDepth(DirtyEntry entry, int depth)
     {
         var dirty = _dirty;
@@ -605,7 +720,8 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
 
     private struct CellFactory<TProps>(
         Reconciler reconciler, TProps props, Entity parent, int depth, int slotInParent,
-        ScheduleRegistry? schedule, ContextScope? scope)
+        ScheduleRegistry? schedule, ContextScope? scope, Entity output,
+        Entity messageOwner)
         : ISpecSignatureHandler
         where TProps : struct, ISpec
     {
@@ -618,16 +734,16 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         private readonly int _slotInParent = slotInParent;
         private readonly ScheduleRegistry? _schedule = schedule;
         private readonly ContextScope? _scope = scope;
+        private readonly Entity _output = output;
+        private readonly Entity _messageOwner = messageOwner;
 
         public void Handle<TSpec, TState, TTree>()
             where TSpec : struct, ISpec<TSpec, TState, TTree>
             where TState : struct
             where TTree : struct, ITerm<TTree>
         {
-            // HandleSignature dispatches to the spec's own signature, so
-            // TSpec is TProps; reinterpret instead of boxing.
             ref var typedProps = ref Unsafe.As<TProps, TSpec>(ref _props);
-            var cell = _reconciler.GraphWorld.Create(HList.From(
+            var cell = _reconciler.CreateGraphEntity(HList.From(
                 typedProps,
                 TSpec.InitialState(typedProps),
                 new PrevTree<TTree>(),
@@ -640,10 +756,12 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
                     Expander = Expander<TSpec, TState, TTree>.Instance,
                     Schedule = _schedule,
                     Scope = _scope,
+                    Output = _output,
+                    MessageOwner = _messageOwner,
                 }));
             Result = cell;
             try {
-                Expander<TSpec, TState, TTree>.Instance.Expand(_reconciler, cell);
+                _reconciler.ExpandCell(cell);
             }
             catch (Exception error) {
                 var owner = _reconciler;

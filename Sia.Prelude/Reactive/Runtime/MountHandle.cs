@@ -10,6 +10,10 @@ public readonly struct MountHandle<TProps>(
     private readonly EntityReference _cell = new(cell);
     private readonly NodeIdentity _identity = identity;
 
+    public NodeIdentity Identity => _identity;
+    public Entity Cell => GetCell();
+    public Reconciler Owner => GetOwner();
+
     public bool IsMounted
         => _owner != null
             && _owner.IsCell(_cell, _identity);

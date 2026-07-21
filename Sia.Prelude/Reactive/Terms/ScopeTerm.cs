@@ -39,8 +39,12 @@ public readonly record struct ScopeTerm<TCtx, TChildren>(TCtx Value, TChildren C
 
         var saved = ctx.Scope;
         ctx.Scope = scope;
-        TChildren.Mount(self.Children, ref ctx);
-        ctx.Scope = saved;
+        try {
+            TChildren.Mount(self.Children, ref ctx);
+        }
+        finally {
+            ctx.Scope = saved;
+        }
     }
 
     public static void Reconcile(
@@ -49,9 +53,7 @@ public readonly record struct ScopeTerm<TCtx, TChildren>(TCtx Value, TChildren C
     {
         var slot = ctx.PeekSlot();
         if (slot is not { IsValid: true } provider) {
-            var start = ctx.NextSlotIndex;
-            ctx.DestroyRange(SlotCount);
-            ctx.RewindTo(start);
+            ctx.RemountRange(SlotCount);
             Mount(next, ref ctx);
             return;
         }
@@ -76,7 +78,11 @@ public readonly record struct ScopeTerm<TCtx, TChildren>(TCtx Value, TChildren C
 
         var saved = ctx.Scope;
         ctx.Scope = scope;
-        TChildren.Reconcile(prev.Children, next.Children, ref ctx);
-        ctx.Scope = saved;
+        try {
+            TChildren.Reconcile(prev.Children, next.Children, ref ctx);
+        }
+        finally {
+            ctx.Scope = saved;
+        }
     }
 }

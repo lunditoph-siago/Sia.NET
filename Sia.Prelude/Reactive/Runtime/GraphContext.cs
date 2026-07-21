@@ -4,7 +4,6 @@ using System.Runtime.CompilerServices;
 
 public ref struct GraphContext(
     Reconciler reconciler,
-    World world,
     Entity cell,
     CellSlot[] slots,
     int depth,
@@ -12,12 +11,14 @@ public ref struct GraphContext(
     ContextScope? scope)
 {
     public readonly Reconciler Reconciler = reconciler;
-    public readonly World World = world;
+    public readonly World World => Reconciler.World;
     public readonly Entity Cell = cell;
     public readonly int Depth = depth;
 
     public ScheduleRegistry? Schedule = schedule;
     public ContextScope? Scope = scope;
+    internal Entity Output;
+    internal Entity MessageOwner;
 
     private readonly CellSlot[] _slots = slots;
     private int _cursor;
@@ -28,7 +29,7 @@ public ref struct GraphContext(
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void SetSlot(Entity entity) => _slots[_cursor++].Set(entity);
+    public void SetSlot(Entity entity) => _slots[_cursor++].Entity = entity;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public readonly Entity PeekSlot() => Reconciler.Validate(_slots[_cursor]);
@@ -40,6 +41,13 @@ public ref struct GraphContext(
     public void Skip(int count) => _cursor += count;
 
     internal void RewindTo(int index) => _cursor = index;
+
+    public void RemountRange(int count)
+    {
+        var start = _cursor;
+        DestroyRange(count);
+        RewindTo(start);
+    }
 
     public void DestroyRange(int count)
     {

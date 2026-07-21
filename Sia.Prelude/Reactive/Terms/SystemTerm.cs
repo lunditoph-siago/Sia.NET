@@ -35,8 +35,12 @@ public readonly record struct ScheduleTerm<TLabel, TChildren>(TChildren Children
 
         var saved = ctx.Schedule;
         ctx.Schedule = registry;
-        TChildren.Mount(self.Children, ref ctx);
-        ctx.Schedule = saved;
+        try {
+            TChildren.Mount(self.Children, ref ctx);
+        }
+        finally {
+            ctx.Schedule = saved;
+        }
     }
 
     public static void Reconcile(
@@ -45,6 +49,7 @@ public readonly record struct ScheduleTerm<TLabel, TChildren>(TChildren Children
     {
         var slot = ctx.PeekSlot();
         if (slot is not { IsValid: true } node) {
+            ctx.RemountRange(SlotCount);
             Mount(next, ref ctx);
             return;
         }
@@ -52,7 +57,11 @@ public readonly record struct ScheduleTerm<TLabel, TChildren>(TChildren Children
 
         var saved = ctx.Schedule;
         ctx.Schedule = node.GetUnchecked<ScheduleNode>().Registry;
-        TChildren.Reconcile(prev.Children, next.Children, ref ctx);
-        ctx.Schedule = saved;
+        try {
+            TChildren.Reconcile(prev.Children, next.Children, ref ctx);
+        }
+        finally {
+            ctx.Schedule = saved;
+        }
     }
 }

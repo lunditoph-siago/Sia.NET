@@ -72,6 +72,9 @@ public readonly struct State<T>(
     {
         var owner = GetOwner();
         _reconciler.GuardStateMutation(owner);
+        if (EqualityComparer<T>.Default.Equals(_cell.Value, value)) {
+            return;
+        }
         _cell.Value = value;
         _reconciler.EnqueueDirty(owner);
     }

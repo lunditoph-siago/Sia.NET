@@ -14,7 +14,6 @@ public sealed class Expander<TSpec, TState, TTree> : Expander
 
     public override void Expand(Reconciler reconciler, Entity cell)
     {
-        var world = reconciler.World;
         var props = cell.GetUnchecked<TSpec>();
         var state = cell.GetUnchecked<TState>();
         var cellData = cell.GetUnchecked<Cell>();
@@ -31,15 +30,21 @@ public sealed class Expander<TSpec, TState, TTree> : Expander
             throw;
         }
 
+        cellData = cell.GetUnchecked<Cell>();
         var ctx = new GraphContext(
-            reconciler, world, cell, cellData.Slots, cellData.Depth,
+            reconciler, cell, cellData.Slots, cellData.Depth,
             cellData.Schedule, cellData.Scope);
+        ctx.Output = cellData.Output;
+        ctx.MessageOwner = cellData.MessageOwner;
         if (prevTree.Mounted) {
             TTree.Reconcile(prevTree.Value, next, ref ctx);
         }
         else {
             TTree.Mount(next, ref ctx);
         }
-        cell.GetUnchecked<PrevTree<TTree>>() = new() { Value = next, Mounted = true };
+        cell.GetUnchecked<PrevTree<TTree>>() = new() {
+            Value = next,
+            Mounted = true,
+        };
     }
 }

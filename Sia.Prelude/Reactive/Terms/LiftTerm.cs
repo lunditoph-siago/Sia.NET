@@ -7,7 +7,14 @@ public readonly record struct LiftTerm<TSpec>(TSpec Props) : ITerm<LiftTerm<TSpe
 
     public static void Mount(in LiftTerm<TSpec> self, ref GraphContext ctx)
         => ctx.SetSlot(ctx.Reconciler.MountSub(
-            self.Props, ctx.Cell, ctx.Depth + 1, ctx.NextSlotIndex, ctx.Schedule, ctx.Scope));
+            self.Props,
+            ctx.Cell,
+            ctx.Depth + 1,
+            ctx.NextSlotIndex,
+            ctx.Schedule,
+            ctx.Scope,
+            ctx.Output,
+            ctx.MessageOwner));
 
     public static void Reconcile(
         in LiftTerm<TSpec> prev, in LiftTerm<TSpec> next, ref GraphContext ctx)
@@ -15,7 +22,14 @@ public readonly record struct LiftTerm<TSpec>(TSpec Props) : ITerm<LiftTerm<TSpe
         var sub = ctx.PeekSlot();
         if (sub is not { IsValid: true } cell) {
             ctx.SetSlot(ctx.Reconciler.MountSub(
-                next.Props, ctx.Cell, ctx.Depth + 1, ctx.NextSlotIndex, ctx.Schedule, ctx.Scope));
+                next.Props,
+                ctx.Cell,
+                ctx.Depth + 1,
+                ctx.NextSlotIndex,
+                ctx.Schedule,
+                ctx.Scope,
+                ctx.Output,
+                ctx.MessageOwner));
             return;
         }
         if (!prev.Props.Equals(next.Props)) {
