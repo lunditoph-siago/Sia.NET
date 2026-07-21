@@ -14,7 +14,6 @@ public sealed class Expander<TSpec, TState, TTree> : Expander
 
     public override void Expand(Reconciler reconciler, Entity cell)
     {
-        var world = reconciler.World;
         var props = cell.GetUnchecked<TSpec>();
         var state = cell.GetUnchecked<TState>();
         var cellData = cell.GetUnchecked<Cell>();
@@ -33,7 +32,7 @@ public sealed class Expander<TSpec, TState, TTree> : Expander
 
         cellData = cell.GetUnchecked<Cell>();
         var ctx = new GraphContext(
-            reconciler, world, cell, cellData.Slots, cellData.Depth,
+            reconciler, cell, cellData.Slots, cellData.Depth,
             cellData.Schedule, cellData.Scope);
         ctx.Output = cellData.Output;
         ctx.MessageOwner = cellData.MessageOwner;

@@ -1,12 +1,6 @@
 namespace Sia.Reactive;
 
-public readonly record struct NodeIdentity(long Value)
-{
-    private static long s_next;
-
-    public static NodeIdentity Create()
-        => new(Interlocked.Increment(ref s_next));
-}
+public readonly record struct NodeIdentity(long Value);
 
 public struct CellSlot(Entity entity = default)
 {
@@ -16,9 +10,6 @@ public struct CellSlot(Entity entity = default)
         readonly get => _entity.IsValid ? _entity : default;
         set => _entity = value.IsValid ? value : default;
     }
-
-    public void Set(Entity entity)
-        => _entity = entity.IsValid ? entity : default;
 }
 
 public struct Cell
