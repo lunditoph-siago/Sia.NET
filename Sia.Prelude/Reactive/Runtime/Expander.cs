@@ -35,7 +35,6 @@ public sealed class Expander<TSpec, TState, TTree> : Expander
             reconciler, cell, cellData.Slots, cellData.Depth,
             cellData.Schedule, cellData.Scope);
         ctx.Output = cellData.Output;
-        ctx.MessageOwner = cellData.MessageOwner;
         if (prevTree.Mounted) {
             TTree.Reconcile(prevTree.Value, next, ref ctx);
         }

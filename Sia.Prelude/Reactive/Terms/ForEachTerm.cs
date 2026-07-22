@@ -157,8 +157,7 @@ public readonly record struct ForEachTerm<TKey, TSpec>(ReadOnlyMemory<Keyed<TKey
                     slotIndex,
                     ctx.Schedule,
                     ctx.Scope,
-                    ctx.Output,
-                    ctx.MessageOwner);
+                    ctx.Output);
                 entry.Cell = created;
             }
             entry.Stamp = stamp;

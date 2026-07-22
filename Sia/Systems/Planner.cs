@@ -1,26 +1,52 @@
 namespace Sia;
 
+using System.Collections.Immutable;
+
 public static class Planner
 {
     public static ExecutionPlan Plan(IReadOnlyList<SystemChain.Entry> entries)
     {
         ArgumentNullException.ThrowIfNull(entries);
-        if (!HasConstraints(entries)) {
-            return new ExecutionPlan([.. entries]);
-        }
-
-        var result = DependencyGraph.Sort(entries, CreateEdges(entries));
-        if (result.HasCycle) {
-            throw new SystemCycleException(
-                result.Cycle.Select(entry => entry.Id).ToArray());
-        }
-        return new ExecutionPlan(result.Order);
+        var order = PlanOrder(entries);
+        return new ExecutionPlan(
+            order.Select(index => entries[index]).ToImmutableArray());
     }
 
-    private static bool HasConstraints(IReadOnlyList<SystemChain.Entry> entries)
+    internal static ImmutableArray<int> PlanOrder(
+        IReadOnlyList<SystemChain.Entry> entries)
+    {
+        ArgumentNullException.ThrowIfNull(entries);
+        var systems = new SystemChain.Entry?[entries.Count];
+        for (var i = 0; i < entries.Count; i++) {
+            systems[i] = entries[i];
+        }
+        return PlanOrder(systems);
+    }
+
+    internal static ImmutableArray<int> PlanOrder(
+        IReadOnlyList<SystemChain.Entry?> entries)
+    {
+        ArgumentNullException.ThrowIfNull(entries);
+        if (!HasConstraints(entries)) {
+            return Enumerable.Range(0, entries.Count).ToImmutableArray();
+        }
+
+        var nodes = Enumerable.Range(0, entries.Count).ToArray();
+        var result = DependencyGraph.Sort(nodes, CreateEdges(entries));
+        if (result.HasCycle) {
+            throw new SystemCycleException(
+                result.Cycle.Select(index => entries[index]!.Value.Id).ToArray());
+        }
+        return result.Order;
+    }
+
+    private static bool HasConstraints(IReadOnlyList<SystemChain.Entry?> entries)
     {
         for (var i = 0; i < entries.Count; i++) {
-            var descriptor = entries[i].Descriptor;
+            if (entries[i] is not { } entry) {
+                continue;
+            }
+            var descriptor = entry.Descriptor;
             if (!descriptor.RunsBefore.IsEmpty || !descriptor.RunsAfter.IsEmpty) {
                 return true;
             }
@@ -29,13 +55,15 @@ public static class Planner
     }
 
     private static HashSet<DependencyEdge> CreateEdges(
-        IReadOnlyList<SystemChain.Entry> entries)
+        IReadOnlyList<SystemChain.Entry?> entries)
     {
         var systemIndex = new Dictionary<SystemId, List<int>>(entries.Count);
         var setIndex = new Dictionary<SystemSetLabel, List<int>>();
 
         for (var i = 0; i < entries.Count; i++) {
-            var entry = entries[i];
+            if (entries[i] is not { } entry) {
+                continue;
+            }
             if (!systemIndex.TryGetValue(entry.Id, out var systems)) {
                 systems = [];
                 systemIndex.Add(entry.Id, systems);
@@ -53,10 +81,13 @@ public static class Planner
 
         var edges = new HashSet<DependencyEdge>();
         for (var i = 0; i < entries.Count; i++) {
-            foreach (var target in entries[i].Descriptor.RunsBefore) {
+            if (entries[i] is not { } entry) {
+                continue;
+            }
+            foreach (var target in entry.Descriptor.RunsBefore) {
                 AddTargetEdges(edges, i, target, systemIndex, setIndex, before: true);
             }
-            foreach (var target in entries[i].Descriptor.RunsAfter) {
+            foreach (var target in entry.Descriptor.RunsAfter) {
                 AddTargetEdges(edges, i, target, systemIndex, setIndex, before: false);
             }
         }

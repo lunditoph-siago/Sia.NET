@@ -13,8 +13,7 @@ public readonly record struct LiftTerm<TSpec>(TSpec Props) : ITerm<LiftTerm<TSpe
             ctx.NextSlotIndex,
             ctx.Schedule,
             ctx.Scope,
-            ctx.Output,
-            ctx.MessageOwner));
+            ctx.Output));
 
     public static void Reconcile(
         in LiftTerm<TSpec> prev, in LiftTerm<TSpec> next, ref GraphContext ctx)
@@ -28,8 +27,7 @@ public readonly record struct LiftTerm<TSpec>(TSpec Props) : ITerm<LiftTerm<TSpe
                 ctx.NextSlotIndex,
                 ctx.Schedule,
                 ctx.Scope,
-                ctx.Output,
-                ctx.MessageOwner));
+                ctx.Output));
             return;
         }
         if (!prev.Props.Equals(next.Props)) {

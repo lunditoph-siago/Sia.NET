@@ -2,7 +2,7 @@ namespace Sia.Reactive;
 
 using System.Collections.Immutable;
 
-public sealed class ScheduleRegistry(ScheduleLabel label) : IScheduleEntry
+public sealed class ScheduleRegistry(ScheduleLabel label) : ISystemScheduleEntry
 {
     internal readonly record struct Slot(
         Entity slotEntity,
@@ -28,14 +28,13 @@ public sealed class ScheduleRegistry(ScheduleLabel label) : IScheduleEntry
     internal readonly List<Slot> Slots = [];
     internal ScheduleRegistration? Registration;
     internal bool RebuildQueued;
+    internal int ScopeCount;
     internal ImmutableArray<SystemStage> RuntimeOrder = [];
 
-    void IScheduleEntry.Tick()
-    {
-        foreach (var runtime in RuntimeOrder) {
-            runtime.Tick();
-        }
-    }
+    ExecutionPlan? ISystemScheduleEntry.Plan => CurrentPlan;
+
+    void ISystemScheduleEntry.TickSystem(int index)
+        => RuntimeOrder[index].Tick();
 
     internal SystemStage? Remove(Entity slotEntity)
     {

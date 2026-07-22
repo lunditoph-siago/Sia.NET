@@ -1,5 +1,6 @@
 namespace Sia.Reactive;
 
+using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using Sia.Reactors;
 
@@ -81,8 +82,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             slotInParent: -1,
             schedule: null,
             scope: null,
-            output: default,
-            messageOwner: default);
+            output: default);
         var identity = cell.GetUnchecked<Cell>().Identity;
         _roots.Add(identity.Value, new(cell));
         try {
@@ -123,22 +123,6 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
 
     internal void InvalidateMount(Entity cell)
         => EnqueueDirty(cell);
-
-    internal void DispatchMessage(
-        Entity cell,
-        NodeIdentity identity,
-        object message)
-    {
-        ArgumentNullException.ThrowIfNull(message);
-        if (!IsCell(cell, identity)) {
-            throw new ObjectDisposedException("ReactiveMount");
-        }
-        GuardStateMutation(cell);
-        var dispatcher = cell.GetUnchecked<Cell>().DispatchMessage
-            ?? throw new InvalidOperationException(
-                "The reactive cell does not define a message reducer.");
-        dispatcher(this, cell, message);
-    }
 
     internal void QueueEffectCleanup(Action cleanup, bool prepend = false)
     {
@@ -330,8 +314,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
 
     internal Entity MountSub<TSpec>(
         in TSpec props, Entity parent, int depth, int slotInParent,
-        ScheduleRegistry? schedule, ContextScope? scope, Entity output,
-        Entity messageOwner)
+        ScheduleRegistry? schedule, ContextScope? scope, Entity output)
         where TSpec : struct, ISpec
     {
         var factory = new CellFactory<TSpec>(
@@ -342,8 +325,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             slotInParent,
             schedule,
             scope,
-            output,
-            messageOwner);
+            output);
         TSpec.HandleSignature(ref factory);
         return factory.Result.IsValid
             ? factory.Result
@@ -439,12 +421,21 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         where TLabel : struct
         => _schedules.TryGetValue(typeof(TLabel), out var registries) ? registries : [];
 
-    internal (ScheduleRegistry Registry, Entity Node) CreateSchedule(Type labelType)
+    internal (ScheduleRegistry Registry, Entity Node) CreateSchedule(
+        Type labelType,
+        ScheduleRegistry? parent)
     {
-        var label = new ScheduleLabel(
-            labelType.AssemblyQualifiedName
-                ?? labelType.FullName
-                ?? labelType.Name);
+        var label = ScheduleLabel.ForType(labelType);
+        if (parent is { } inherited && inherited.Label == label) {
+            inherited.ScopeCount++;
+            try {
+                return (inherited, CreateNode(new ScheduleNode(inherited)));
+            }
+            catch {
+                inherited.ScopeCount--;
+                throw;
+            }
+        }
         var registry = new ScheduleRegistry(label);
         if (!_schedules.TryGetValue(labelType, out var registries)) {
             registries = [];
@@ -463,6 +454,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             }
             throw;
         }
+        registry.ScopeCount = 1;
         try {
             return (registry, CreateNode(new ScheduleNode(registry)));
         }
@@ -522,8 +514,11 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
                 result = result.Attempt(runtime.Dispose);
             }
         } else if (slot.ContainsUnchecked<ScheduleNode>()) {
-            result = result.Attempt(
-                () => RemoveSchedule(slot.GetUnchecked<ScheduleNode>().Registry));
+            var registry = slot.GetUnchecked<ScheduleNode>().Registry;
+            registry.ScopeCount--;
+            if (registry.ScopeCount == 0) {
+                result = result.Attempt(() => RemoveSchedule(registry));
+            }
         } else if (slot.ContainsUnchecked<EachNode>()) {
             var cleanup = slot.GetUnchecked<EachNode>().Cleanup;
             recyclable = cleanup as IRecyclableForEachCleanup;
@@ -577,6 +572,9 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
                 static (in (Reconciler Owner, CellSlot Slot) value)
                     => value.Owner.DestroySlot(value.Slot));
         }
+        if (data.States is { } states) {
+            result = result.Attempt(states.Unmount);
+        }
         result = result.Attempt(
             cell,
             static (in Entity entity) => entity.Destroy());
@@ -608,6 +606,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         }
         _rebuildQueue.Remove(registry);
         registry.RebuildQueued = false;
+        registry.ScopeCount = 0;
         DisposeRegistry(registry);
     }
 
@@ -616,16 +615,17 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         registry.Slots.Sort(static (a, b) => CompareTreeOrder(
             a.OwnerCell, a.SlotIndex, b.OwnerCell, b.SlotIndex));
 
-        var plan = Planner.Plan(registry.Slots.Select(slot => slot.Entry).ToArray());
-        var runtimes = new SystemStage[plan.Entries.Length];
-        for (var i = 0; i < plan.Entries.Length; i++) {
-            var entry = plan.Entries[i];
-            runtimes[i] = registry.Slots
-                .First(slot => ReferenceEquals(slot.Entry.Creator, entry.Creator))
-                .Runtime;
+        var entries = registry.Slots.Select(slot => slot.Entry).ToArray();
+        var order = Planner.PlanOrder(entries);
+        var planEntries = ImmutableArray.CreateBuilder<SystemChain.Entry>(
+            order.Length);
+        var runtimes = ImmutableArray.CreateBuilder<SystemStage>(order.Length);
+        foreach (var index in order) {
+            planEntries.Add(entries[index]);
+            runtimes.Add(registry.Slots[index].Runtime);
         }
-        registry.CurrentPlan = plan;
-        registry.RuntimeOrder = [.. runtimes];
+        registry.CurrentPlan = new ExecutionPlan(planEntries.MoveToImmutable());
+        registry.RuntimeOrder = runtimes.MoveToImmutable();
         registry.Version++;
     }
 
@@ -720,8 +720,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
 
     private struct CellFactory<TProps>(
         Reconciler reconciler, TProps props, Entity parent, int depth, int slotInParent,
-        ScheduleRegistry? schedule, ContextScope? scope, Entity output,
-        Entity messageOwner)
+        ScheduleRegistry? schedule, ContextScope? scope, Entity output)
         : ISpecSignatureHandler
         where TProps : struct, ISpec
     {
@@ -735,7 +734,6 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         private readonly ScheduleRegistry? _schedule = schedule;
         private readonly ContextScope? _scope = scope;
         private readonly Entity _output = output;
-        private readonly Entity _messageOwner = messageOwner;
 
         public void Handle<TSpec, TState, TTree>()
             where TSpec : struct, ISpec<TSpec, TState, TTree>
@@ -757,7 +755,6 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
                     Schedule = _schedule,
                     Scope = _scope,
                     Output = _output,
-                    MessageOwner = _messageOwner,
                 }));
             Result = cell;
             try {

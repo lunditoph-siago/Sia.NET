@@ -6,126 +6,62 @@ namespace Sia.Reactive;
     AllowMultiple = false)]
 public sealed class ReactiveComponentAttribute : Attribute;
 
-public delegate TState ReactiveInitial<TProps, TState>(scoped in TProps props)
-    where TProps : struct
-    where TState : struct;
+public delegate ReactiveNode ReactiveComponent<TProps>(
+    in TProps props,
+    ref Hooks hooks)
+    where TProps : struct;
 
-public delegate TState ReactiveReducer<TState, TMessage>(
-    scoped in TState state,
-    scoped in TMessage message)
-    where TState : struct;
-
-public delegate ReactiveNode ReactiveRenderer<TProps, TState>(
-    scoped in TProps props,
-    scoped in TState state)
-    where TProps : struct
-    where TState : struct;
-
-public sealed class ReactiveComponent<TProps, TState, TMessage>
-    where TProps : struct
-    where TState : struct
-{
-    public ReactiveInitial<TProps, TState> Initial { get; }
-    public ReactiveReducer<TState, TMessage> Reducer { get; }
-    public ReactiveRenderer<TProps, TState> Renderer { get; }
-
-    public ReactiveComponent(
-        ReactiveInitial<TProps, TState> initial,
-        ReactiveReducer<TState, TMessage> reducer,
-        ReactiveRenderer<TProps, TState> renderer)
-    {
-        Initial = initial ?? throw new ArgumentNullException(nameof(initial));
-        Reducer = reducer ?? throw new ArgumentNullException(nameof(reducer));
-        Renderer = renderer ?? throw new ArgumentNullException(nameof(renderer));
-    }
-}
-
-internal readonly record struct FunctionalSpec<TProps, TState, TMessage>(
-    ReactiveComponent<TProps, TState, TMessage> Component,
+internal readonly record struct ComponentSpec<TProps>(
+    ReactiveComponent<TProps> Render,
     TProps Props)
-    : ISpec<FunctionalSpec<TProps, TState, TMessage>, TState, OpaqueTerm>
+    : ISpec<ComponentSpec<TProps>, Unit, OpaqueTerm>
     where TProps : struct
-    where TState : struct
 {
-    public static TState InitialState(
-        in FunctionalSpec<TProps, TState, TMessage> props)
-        => props.Component.Initial(props.Props);
-
     public static OpaqueTerm Expand(
-        in FunctionalSpec<TProps, TState, TMessage> props,
-        in TState state,
+        in ComponentSpec<TProps> props,
+        in Unit state,
         in ExpandContext context)
     {
-        ref var cell = ref context.Cell.GetUnchecked<Cell>();
-        cell.DispatchMessage ??= Dispatch;
-        cell.MessageOwner = context.Cell;
-        return new(props.Component.Renderer(props.Props, state));
-    }
-
-    private static void Dispatch(
-        Reconciler reconciler,
-        Entity cell,
-        object message)
-    {
-        if (message is not TMessage typedMessage) {
-            throw new ArgumentException(
-                $"Message type '{message.GetType()}' is not assignable to "
-                + $"'{typeof(TMessage)}'.",
-                nameof(message));
-        }
-
-        var spec = cell.GetUnchecked<FunctionalSpec<TProps, TState, TMessage>>();
-        var previous = cell.GetUnchecked<TState>();
-        var next = spec.Component.Reducer(previous, typedMessage);
-        if (EqualityComparer<TState>.Default.Equals(previous, next)) {
-            return;
-        }
-        cell.GetUnchecked<TState>() = next;
-        reconciler.EnqueueDirty(cell);
+        var hooks = new Hooks(context);
+        return new(props.Render(props.Props, ref hooks));
     }
 }
 
-public readonly record struct FunctionalComponentTerm<
-    TProps, TState, TMessage>(
-    ReactiveComponent<TProps, TState, TMessage> Component,
+public readonly record struct ComponentTerm<TProps>(
+    ReactiveComponent<TProps> Render,
     TProps Props)
-    : ITerm<FunctionalComponentTerm<TProps, TState, TMessage>>
+    : ITerm<ComponentTerm<TProps>>
     where TProps : struct
-    where TState : struct
 {
     public static int SlotCount => 1;
 
     public static void Mount(
-        in FunctionalComponentTerm<TProps, TState, TMessage> self,
+        in ComponentTerm<TProps> self,
         ref GraphContext context)
         => context.SetSlot(context.Reconciler.MountSub(
-            new FunctionalSpec<TProps, TState, TMessage>(
-                self.Component,
-                self.Props),
+            new ComponentSpec<TProps>(self.Render, self.Props),
             context.Cell,
             context.Depth + 1,
             context.NextSlotIndex,
             context.Schedule,
             context.Scope,
-            context.Output,
-            context.MessageOwner));
+            context.Output));
 
     public static void Reconcile(
-        in FunctionalComponentTerm<TProps, TState, TMessage> previous,
-        in FunctionalComponentTerm<TProps, TState, TMessage> next,
+        in ComponentTerm<TProps> previous,
+        in ComponentTerm<TProps> next,
         ref GraphContext context)
     {
         var child = context.PeekSlot();
         if (child is not { IsValid: true }
-            || !child.ContainsUnchecked<FunctionalSpec<
-                TProps, TState, TMessage>>()) {
+            || !child.ContainsUnchecked<ComponentSpec<TProps>>()) {
             Mount(next, ref context);
             return;
         }
 
-        ref var current = ref child.GetUnchecked<FunctionalSpec<
-            TProps, TState, TMessage>>();
-        if (!ReferenceEquals(current.Component, next.Component)) {
+        ref var current = ref child.GetUnchecked<ComponentSpec<TProps>>();
+        if (!EqualityComparer<ReactiveComponent<TProps>>.Default.Equals(
+                current.Render, next.Render)) {
             context.RemountRange(1);
             Mount(next, ref context);
             return;
@@ -134,9 +70,7 @@ public readonly record struct FunctionalComponentTerm<
                 current.Props, next.Props)) {
             context.Reconciler.UpdateMount(
                 child,
-                new FunctionalSpec<TProps, TState, TMessage>(
-                    next.Component,
-                    next.Props));
+                new ComponentSpec<TProps>(next.Render, next.Props));
         }
         context.Advance();
     }

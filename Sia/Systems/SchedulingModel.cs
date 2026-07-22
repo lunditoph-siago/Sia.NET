@@ -5,6 +5,18 @@ using System.Reflection;
 
 public readonly record struct ScheduleLabel(string Name)
 {
+    public static ScheduleLabel For<TLabel>()
+        => ForType(typeof(TLabel));
+
+    public static ScheduleLabel ForType(Type labelType)
+    {
+        ArgumentNullException.ThrowIfNull(labelType);
+        return new(
+            labelType.AssemblyQualifiedName
+                ?? labelType.FullName
+                ?? labelType.Name);
+    }
+
     public override string ToString() => $"Schedule<{Name}>";
 }
 
