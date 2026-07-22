@@ -4,13 +4,13 @@ public ref struct Hooks
 {
     private readonly Reconciler _reconciler;
     private readonly Entity _cell;
-    private readonly StateCells _states;
+    private StateCells? _states;
 
     internal Hooks(in ExpandContext context)
     {
         _reconciler = context.Reconciler;
         _cell = context.Cell;
-        _states = _reconciler.EnsureStateCells(_cell);
+        _states = null;
     }
 
     public State<T> UseState<T>(in T initial)
@@ -18,7 +18,7 @@ public ref struct Hooks
     {
         ref var cellData = ref _cell.GetUnchecked<Cell>();
         return new State<T>(
-            _states.NextState(initial),
+            EnsureStateCells().NextState(initial),
             _reconciler,
             _cell,
             cellData.Identity);
@@ -32,10 +32,16 @@ public ref struct Hooks
     {
         ArgumentNullException.ThrowIfNull(setup);
         ArgumentNullException.ThrowIfNull(cleanup);
-        _states.NextEffect(
+        EnsureStateCells().NextEffect(
             _reconciler,
             dependencies,
             setup,
             cleanup);
     }
+
+    private StateCells EnsureStateCells()
+        => _states ??= _reconciler.EnsureStateCells(_cell);
+
+    internal void CompleteRender()
+        => _cell.GetUnchecked<Cell>().HookLayoutInitialized = true;
 }

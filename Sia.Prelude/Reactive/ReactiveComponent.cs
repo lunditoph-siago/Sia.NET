@@ -23,7 +23,9 @@ internal readonly record struct ComponentSpec<TProps>(
         in ExpandContext context)
     {
         var hooks = new Hooks(context);
-        return new(props.Render(props.Props, ref hooks));
+        var tree = props.Render(props.Props, ref hooks);
+        hooks.CompleteRender();
+        return new(tree);
     }
 }
 

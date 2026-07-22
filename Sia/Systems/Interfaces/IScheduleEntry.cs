@@ -15,4 +15,12 @@ public interface ISystemScheduleEntry : IScheduleEntry
     ExecutionPlan? Plan { get; }
 
     void TickSystem(int index);
+
+    void IScheduleEntry.Tick()
+    {
+        var count = Plan?.Entries.Length ?? 0;
+        for (var index = 0; index < count; index++) {
+            TickSystem(index);
+        }
+    }
 }

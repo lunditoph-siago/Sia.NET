@@ -31,13 +31,6 @@ public sealed class ScheduleRegistry(ScheduleLabel label) : ISystemScheduleEntry
     internal int ScopeCount;
     internal ImmutableArray<SystemStage> RuntimeOrder = [];
 
-    void IScheduleEntry.Tick()
-    {
-        foreach (var runtime in RuntimeOrder) {
-            runtime.Tick();
-        }
-    }
-
     ExecutionPlan? ISystemScheduleEntry.Plan => CurrentPlan;
 
     void ISystemScheduleEntry.TickSystem(int index)

@@ -13,6 +13,11 @@ public sealed class StateCells
     private int _cursor;
     private bool _initialized;
 
+    public StateCells() { }
+
+    internal StateCells(bool initialized)
+        => _initialized = initialized;
+
     internal void BeginExpansion() => _cursor = 0;
 
     internal void CompleteExpansion()
@@ -29,9 +34,7 @@ public sealed class StateCells
         var index = _cursor++;
         if (index < _count) {
             return _cells[index] as StateCell<T>
-                ?? throw new InvalidOperationException(
-                    $"Hook #{index} was previously a different type; " +
-                    "hooks must be called in the same order on every expansion.");
+                ?? throw HookTypeChanged(index);
         }
         if (_initialized) {
             throw HookCountChanged();

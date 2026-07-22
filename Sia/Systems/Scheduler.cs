@@ -17,7 +17,7 @@ public sealed class Scheduler : IAddon, IDisposable
         public ScheduleLabel Label { get; } = label;
         public Schedule? Schedule { get; set; }
         public SystemStage? Stage { get; set; }
-        public ImmutableArray<Action> RuntimeOrder { get; set; } = [];
+        public ImmutableArray<RuntimeNode> RuntimeOrder { get; set; } = [];
         public Dictionary<EntryRegistration, int> EntryVersions { get; } = [];
         public List<EntryRegistration> Entries { get; } = [];
         public bool EntriesNeedCompaction { get; set; }
@@ -85,7 +85,7 @@ public sealed class Scheduler : IAddon, IDisposable
 
     private readonly record struct RuntimeNode(
         EntryRegistration? Registration,
-        ISystemScheduleEntry? SystemEntry,
+        IScheduleEntry Entry,
         int SystemIndex,
         int Version);
 
@@ -401,8 +401,18 @@ public sealed class Scheduler : IAddon, IDisposable
 
     private static void TickSlot(ScheduleSlot slot)
     {
-        foreach (var tick in slot.RuntimeOrder) {
-            tick();
+        foreach (var node in slot.RuntimeOrder) {
+            if (node.Registration is { Active: false }) {
+                continue;
+            }
+            if (node.SystemIndex < 0) {
+                node.Entry.Tick();
+                continue;
+            }
+            var systemEntry = (ISystemScheduleEntry)node.Entry;
+            if (systemEntry.Version == node.Version) {
+                systemEntry.TickSystem(node.SystemIndex);
+            }
         }
     }
 
@@ -415,12 +425,24 @@ public sealed class Scheduler : IAddon, IDisposable
         EnsureStage(slot);
         var nodes = new List<RuntimeNode>();
         var systems = new List<SystemChain.Entry?>();
-        if (slot.Stage is ISystemScheduleEntry staticEntry
-            && staticEntry.Plan is { } staticPlan) {
-            for (var i = 0; i < staticPlan.Entries.Length; i++) {
-                var system = staticPlan.Entries[i];
-                nodes.Add(new(null, staticEntry, i, staticEntry.Version));
-                systems.Add(system);
+        var hasDynamicSystems = slot.Entries.Any(static registration =>
+            registration is {
+                Active: true,
+                Entry: ISystemScheduleEntry { Plan.Entries.IsEmpty: false }
+            });
+        if (slot.Stage is { } staticStage) {
+            if (!hasDynamicSystems) {
+                nodes.Add(new(null, staticStage, -1, 0));
+                systems.Add(null);
+            }
+            else {
+                var staticEntry = (ISystemScheduleEntry)staticStage;
+                var staticPlan = staticEntry.Plan!;
+                for (var i = 0; i < staticPlan.Entries.Length; i++) {
+                    nodes.Add(new(
+                        null, staticEntry, i, staticEntry.Version));
+                    systems.Add(staticPlan.Entries[i]);
+                }
             }
         }
 
@@ -438,34 +460,15 @@ public sealed class Scheduler : IAddon, IDisposable
                 }
             }
             else {
-                nodes.Add(new(registration, null, -1, 0));
+                nodes.Add(new(registration, registration.Entry!, -1, 0));
                 systems.Add(null);
             }
         }
 
         var order = Planner.PlanOrder(systems);
-        var runtimeOrder = ImmutableArray.CreateBuilder<Action>(nodes.Count);
+        var runtimeOrder = ImmutableArray.CreateBuilder<RuntimeNode>(nodes.Count);
         foreach (var nodeIndex in order) {
-            var node = nodes[nodeIndex];
-            if (node.SystemEntry is { } systemEntry) {
-                var registration = node.Registration;
-                var systemIndex = node.SystemIndex;
-                var version = node.Version;
-                runtimeOrder.Add(() => {
-                    if ((registration is null || registration.Active)
-                        && systemEntry.Version == version) {
-                        systemEntry.TickSystem(systemIndex);
-                    }
-                });
-            }
-            else {
-                var registration = node.Registration!;
-                runtimeOrder.Add(() => {
-                    if (registration.Active) {
-                        registration.Entry!.Tick();
-                    }
-                });
-            }
+            runtimeOrder.Add(nodes[nodeIndex]);
         }
 
         slot.EntryVersions.Clear();
