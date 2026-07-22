@@ -12,7 +12,8 @@ public static partial class ExampleViewer
 
 public readonly record struct ExampleAppProps(
     ExampleRunner Runner,
-    IExampleRenderHost Host);
+    IExampleRenderHost Host,
+    ExampleAppState State);
 
 public readonly record struct ExampleAppState(
     int SelectedIndex,
@@ -22,53 +23,32 @@ public readonly record struct ExampleAppState(
 {
     public static ExampleAppState Initial { get; }
         = new(-1, "Select an example", "\u2190 Choose an example to run it", false);
+
+    public ExampleAppState Begin(int index, string title)
+        => new(index, title, "Running\u2026", true);
+
+    public ExampleAppState Complete(string output)
+        => this with { Output = output, Loading = false };
 }
-
-public abstract record ExampleAppMessage;
-
-public sealed record BeginExampleRun(int Index, string Title)
-    : ExampleAppMessage;
-
-public sealed record CompleteExampleRun(string Output)
-    : ExampleAppMessage;
 
 [ReactiveComponent]
 public static partial class ExampleApp
 {
-    extension(scoped in ExampleAppProps props)
+    public static ReactiveNode Render(
+        in ExampleAppProps props,
+        ref Hooks hooks)
     {
-        public ExampleAppState InitialState => ExampleAppState.Initial;
+        var state = props.State;
+        var items = Reactive.ForEach(
+            RenderItem,
+            BuildItems(props, state.SelectedIndex));
 
-        public ReactiveNode Render(scoped in ExampleAppState state)
-        {
-            var items = Reactive.ForEach(
-                RenderItem,
-                BuildItems(props, state.SelectedIndex));
-
-            return Reactive.Group(
-                items,
-                Effect(new RenderEffect<ExampleOutputView>(
-                    props.Host,
-                    new(state.Title, state.Output, state.Loading))),
-                Effect(new ExampleCommitEffect(props.Host)));
-        }
-    }
-
-    extension(scoped in ExampleAppState state)
-    {
-        public ExampleAppState Reduce(scoped in ExampleAppMessage message)
-            => message switch {
-                BeginExampleRun begin => new(
-                    begin.Index,
-                    begin.Title,
-                    "Running\u2026",
-                    true),
-                CompleteExampleRun complete => state with {
-                    Output = complete.Output,
-                    Loading = false,
-                },
-                _ => state,
-            };
+        return Reactive.Group(
+            items,
+            Effect(new RenderEffect<ExampleOutputView>(
+                props.Host,
+                new(state.Title, state.Output, state.Loading))),
+            Effect(new ExampleCommitEffect(props.Host)));
     }
 
     private static (int Key, ExampleItem Value)[] BuildItems(

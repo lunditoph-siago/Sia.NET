@@ -6,7 +6,7 @@ using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using CommunityToolkit.HighPerformance;
 
-public sealed class SystemStage : IScheduleEntry, IDisposable
+public sealed class SystemStage : ISystemScheduleEntry, IDisposable
 {
     public readonly record struct Entry(
         ISystem System, Action? Action, IDisposable? Disposable);
@@ -405,12 +405,21 @@ public sealed class SystemStage : IScheduleEntry, IDisposable
     public bool IsDisposed { get; private set; }
 
     private readonly Action _combinedAction;
+    private readonly ExecutionPlan? _plan;
 
     internal SystemStage(World world, IEnumerable<ISystem> systems)
+        : this(world, systems, null)
+    { }
+
+    private SystemStage(
+        World world,
+        IEnumerable<ISystem> systems,
+        ExecutionPlan? plan)
     {
         ArgumentNullException.ThrowIfNull(world);
         ArgumentNullException.ThrowIfNull(systems);
         World = world;
+        _plan = plan;
         var entries = ImmutableArray.CreateBuilder<Entry>();
         try {
             foreach (var system in systems) {
@@ -441,9 +450,21 @@ public sealed class SystemStage : IScheduleEntry, IDisposable
     }
 
     public SystemStage(World world, ExecutionPlan plan)
-        : this(world, (plan ?? throw new ArgumentNullException(nameof(plan)))
-            .Entries.Select(static entry => entry.Creator()))
+        : this(
+            world,
+            (plan ?? throw new ArgumentNullException(nameof(plan)))
+                .Entries.Select(static entry => entry.Creator()),
+            plan)
     { }
+
+    int ISystemScheduleEntry.Version => 0;
+    ExecutionPlan? ISystemScheduleEntry.Plan => _plan;
+
+    void ISystemScheduleEntry.TickSystem(int index)
+    {
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
+        Entries[index].Action?.Invoke();
+    }
 
     public void Dispose()
     {

@@ -21,7 +21,9 @@ public static class ConsoleExampleApp
         Context<World>.Current = world;
 
         var host = new ConsoleHost(SuppressInitialCommit(arguments));
-        var app = world.Mount(ExampleApp.Definition, new(runner, host));
+        var app = world.Mount(
+            ExampleApp.Definition,
+            new(runner, host, ExampleAppState.Initial));
 
         try {
             if (arguments.Count > 0) {
@@ -44,10 +46,14 @@ public static class ConsoleExampleApp
                 }
 
                 var example = runner.Examples[index];
-                app.Dispatch(new BeginExampleRun(index, example.Name));
+                app.Update(app.Props with {
+                    State = app.Props.State.Begin(index, example.Name)
+                });
                 world.FlushReactive();
 
-                app.Dispatch(new CompleteExampleRun(runner.RunExample(index)));
+                app.Update(app.Props with {
+                    State = app.Props.State.Complete(runner.RunExample(index))
+                });
                 world.FlushReactive();
 
                 Console.Write("\nPress any key to return to the examples\u2026");
@@ -63,7 +69,7 @@ public static class ConsoleExampleApp
 
     private static void RunFromArguments(
         ExampleRunner runner,
-        ReactiveMount<ExampleAppProps, ExampleAppState, ExampleAppMessage> app,
+        ReactiveMount<ExampleAppProps> app,
         World world,
         IReadOnlyList<string> arguments)
     {
@@ -82,8 +88,12 @@ public static class ConsoleExampleApp
         }
 
         var example = runner.Examples[index];
-        app.Dispatch(new BeginExampleRun(index, example.Name));
-        app.Dispatch(new CompleteExampleRun(runner.RunExample(index)));
+        app.Update(app.Props with {
+            State = app.Props.State.Begin(index, example.Name)
+        });
+        app.Update(app.Props with {
+            State = app.Props.State.Complete(runner.RunExample(index))
+        });
         world.FlushReactive();
     }
 

@@ -44,9 +44,59 @@ public sealed class StateCells
         return cell;
     }
 
+    internal void NextEffect<TDependencies, TResource>(
+        Reconciler reconciler,
+        in TDependencies dependencies,
+        ReactiveEffectSetup<TDependencies, TResource> setup,
+        ReactiveEffectCleanup<TResource> cleanup)
+        where TDependencies : struct, IEquatable<TDependencies>
+    {
+        var index = _cursor++;
+        if (index < _count) {
+            if (_cells[index] is not EffectLifetime<
+                    TDependencies, TResource> effect) {
+                throw HookTypeChanged(index);
+            }
+            effect.Reconcile(dependencies, setup, cleanup);
+            return;
+        }
+        if (_initialized) {
+            throw HookCountChanged();
+        }
+        if (_count == _cells.Length) {
+            Array.Resize(ref _cells, _cells.Length * 2);
+        }
+        var created = new EffectLifetime<TDependencies, TResource>(
+            reconciler,
+            dependencies,
+            setup,
+            cleanup);
+        _cells[_count++] = created;
+        created.ScheduleSetup();
+    }
+
+    internal void Unmount()
+    {
+        var result = Outcome<Exception>.Success;
+        for (var index = _count - 1; index >= 0; index--) {
+            if (_cells[index] is IEffectCleanup cleanup) {
+                result = result.Attempt(cleanup.Unmount);
+            }
+            _cells[index] = null!;
+        }
+        _count = 0;
+        _cursor = 0;
+        _initialized = false;
+        result.ThrowIfFailed();
+    }
+
     private InvalidOperationException HookCountChanged()
         => new($"Hook count changed from {_count} to {_cursor}; " +
             "hooks must be called unconditionally in the same order.");
+
+    private static InvalidOperationException HookTypeChanged(int index)
+        => new($"Hook #{index} was previously a different type; " +
+            "hooks must be called in the same order on every expansion.");
 }
 
 public readonly struct State<T>(

@@ -71,8 +71,7 @@ public readonly struct ReactiveNode : IEquatable<ReactiveNode>
                 context.NextSlotIndex,
                 context.Schedule,
                 context.Scope,
-                context.Output,
-                context.MessageOwner);
+                context.Output);
             context.SetSlot(node);
         }
 

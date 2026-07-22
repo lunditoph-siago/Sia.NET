@@ -29,9 +29,7 @@ public struct Cell
     public ScheduleRegistry? Schedule { get; init; }
     public ContextScope? Scope { get; init; }
     internal Entity Output { get; init; }
-    internal Entity MessageOwner { get; set; }
     public StateCells? States;
-    internal Action<Reconciler, Entity, object>? DispatchMessage;
     public List<ContextScope>? ContextDependencies;
     public List<ContextScope>? PendingContextDependencies;
     public bool InDirty;

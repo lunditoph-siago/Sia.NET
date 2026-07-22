@@ -22,10 +22,6 @@ public readonly record struct ReactiveItemSpec<TItem, TTerm>(
         => props.Render(props.Item).Term;
 }
 
-public delegate TMessage ReactiveEventHandler<TEvent, TMessage>(
-    scoped in TEvent @event)
-    where TEvent : IEvent;
-
 public delegate TResource ReactiveEffectSetup<TDependencies, TResource>(
     scoped in TDependencies dependencies)
     where TDependencies : struct, IEquatable<TDependencies>;
@@ -42,92 +38,15 @@ public static partial class Reactive
 {
     public static ReactiveNode<UnitTerm> None => new(default);
 
-    public static ReactiveComponent<TProps, TState, TMessage> Component<
-        TProps, TState, TMessage>(
-        [NestedCallback] ReactiveInitial<TProps, TState> initial,
-        [NestedCallback] ReactiveReducer<TState, TMessage> reduce,
-        [NestedCallback] ReactiveRenderer<TProps, TState> render)
-        where TProps : struct
-        where TState : struct
-        => new(initial, reduce, render);
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ReactiveNode<FunctionalComponentTerm<
-        TProps, TState, TMessage>> Component<TProps, TState, TMessage>(
-        [NestedCallback] ReactiveInitial<TProps, TState> initial,
-        [NestedCallback] ReactiveReducer<TState, TMessage> reduce,
-        [NestedCallback] ReactiveRenderer<TProps, TState> render,
+    public static ReactiveNode<ComponentTerm<TProps>> Component<
+        TProps>(
+        [NestedCallback] ReactiveComponent<TProps> render,
         scoped in TProps props)
         where TProps : struct
-        where TState : struct
     {
-        ArgumentNullException.ThrowIfNull(initial);
-        ArgumentNullException.ThrowIfNull(reduce);
         ArgumentNullException.ThrowIfNull(render);
-        return new(new FunctionalComponentTerm<TProps, TState, TMessage>(
-            InlineComponentCache<TProps, TState, TMessage>.GetOrAdd(initial, reduce, render),
-            props));
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ReactiveNode<FunctionalComponentTerm<
-        TProps, TState, TMessage>> Component<TProps, TState, TMessage>(
-        ReactiveComponent<TProps, TState, TMessage> component,
-        scoped in TProps props)
-        where TProps : struct
-        where TState : struct
-    {
-        ArgumentNullException.ThrowIfNull(component);
-        return new(new(component, props));
-    }
-
-    private static class InlineComponentCache<TProps, TState, TMessage>
-        where TProps : struct
-        where TState : struct
-    {
-        private sealed class ComponentsByCallbacks
-        {
-            private readonly List<WeakReference<
-                ReactiveComponent<TProps, TState, TMessage>>> _components = [];
-
-            public ReactiveComponent<TProps, TState, TMessage> GetOrAdd(
-                ReactiveInitial<TProps, TState> initial,
-                ReactiveReducer<TState, TMessage> reduce,
-                ReactiveRenderer<TProps, TState> render)
-            {
-                lock (_components) {
-                    for (var index = _components.Count - 1;
-                        index >= 0;
-                        index--) {
-                        if (!_components[index].TryGetTarget(out var component)) {
-                            _components.RemoveAt(index);
-                            continue;
-                        }
-                        if (ReferenceEquals(component.Initial, initial)
-                            && ReferenceEquals(component.Reducer, reduce)) {
-                            return component;
-                        }
-                    }
-                    var created = new ReactiveComponent<
-                        TProps, TState, TMessage>(initial, reduce, render);
-                    _components.Add(new(created));
-                    return created;
-                }
-            }
-        }
-
-        private static readonly ConditionalWeakTable<
-            ReactiveRenderer<TProps, TState>,
-            ComponentsByCallbacks> Cache = [];
-
-        public static ReactiveComponent<TProps, TState, TMessage> GetOrAdd(
-            ReactiveInitial<TProps, TState> initial,
-            ReactiveReducer<TState, TMessage> reduce,
-            ReactiveRenderer<TProps, TState> render)
-            => Cache.GetValue(
-                render,
-                static _ => new ComponentsByCallbacks())
-                .GetOrAdd(initial, reduce, render);
+        return new(new(render, props));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -227,12 +146,15 @@ public static partial class Reactive
         => new(Term.System<TSystem>());
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ReactiveNode<EventBindingTerm<TEvent, TMessage>> On<
-        TEvent, TMessage>(
-        [NestedCallback] ReactiveEventHandler<TEvent, TMessage> handler)
+    public static ReactiveNode<EventActionTerm<TEvent, TCapture>> On<
+        TEvent, TCapture>(
+        scoped in TCapture capture,
+        [NestedCallback] ReactiveEventAction<TEvent, TCapture> action)
         where TEvent : IEvent
-        => new(new(handler
-            ?? throw new ArgumentNullException(nameof(handler))));
+        where TCapture : struct
+        => new(new(
+            capture,
+            action ?? throw new ArgumentNullException(nameof(action))));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ReactiveNode<DeferredEffectTerm<
