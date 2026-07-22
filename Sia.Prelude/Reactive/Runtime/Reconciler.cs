@@ -208,12 +208,6 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         }
     }
 
-    internal StateCells EnsureStateCells(Entity cell)
-    {
-        ref var data = ref cell.GetUnchecked<Cell>();
-        return data.States ??= new StateCells(data.HookLayoutInitialized);
-    }
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool IsCell(Entity cell, NodeIdentity identity)
     {

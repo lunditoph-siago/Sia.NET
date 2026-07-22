@@ -1,5 +1,7 @@
 namespace Sia.Reactive;
 
+using System.Runtime.CompilerServices;
+
 public sealed class StateCell<T>
     where T : struct
 {
@@ -13,13 +15,14 @@ public sealed class StateCells
     private int _cursor;
     private bool _initialized;
 
-    public StateCells() { }
+    public StateCells() {}
 
-    internal StateCells(bool initialized)
-        => _initialized = initialized;
+    internal StateCells(bool initialized) => _initialized = initialized;
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void BeginExpansion() => _cursor = 0;
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void CompleteExpansion()
     {
         if (_cursor != _count) {
@@ -28,6 +31,7 @@ public sealed class StateCells
         _initialized = true;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal StateCell<T> NextState<T>(in T initial)
         where T : struct
     {
@@ -47,6 +51,7 @@ public sealed class StateCells
         return cell;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void NextEffect<TDependencies, TResource>(
         Reconciler reconciler,
         in TDependencies dependencies,
@@ -115,12 +120,14 @@ public readonly struct State<T>(
     private readonly NodeIdentity _identity = identity;
 
     public T Value {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get {
             _ = GetOwner();
             return _cell.Value;
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Set(in T value)
     {
         var owner = GetOwner();
@@ -132,6 +139,7 @@ public readonly struct State<T>(
         _reconciler.EnqueueDirty(owner);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Notify()
     {
         var owner = GetOwner();
@@ -139,6 +147,7 @@ public readonly struct State<T>(
         _reconciler.EnqueueDirty(owner);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private Entity GetOwner()
         => _reconciler.IsCell(_owner, _identity)
             ? _owner.GetUnchecked()

@@ -1,5 +1,7 @@
 namespace Sia.Reactive;
 
+using System.Runtime.CompilerServices;
+
 public ref struct Hooks
 {
     private readonly Reconciler _reconciler;
@@ -10,20 +12,19 @@ public ref struct Hooks
     {
         _reconciler = context.Reconciler;
         _cell = context.Cell;
-        _states = null;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public State<T> UseState<T>(in T initial)
         where T : struct
     {
         ref var cellData = ref _cell.GetUnchecked<Cell>();
-        return new State<T>(
-            EnsureStateCells().NextState(initial),
-            _reconciler,
-            _cell,
-            cellData.Identity);
+        var states = _states ??= cellData.States ??=
+            new StateCells(_cell.GetUnchecked<PrevTree<OpaqueTerm>>().Mounted);
+        return new State<T>(states.NextState(initial), _reconciler, _cell, cellData.Identity);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void UseEffect<TDependencies, TResource>(
         scoped in TDependencies dependencies,
         [NestedCallback] ReactiveEffectSetup<TDependencies, TResource> setup,
@@ -32,16 +33,9 @@ public ref struct Hooks
     {
         ArgumentNullException.ThrowIfNull(setup);
         ArgumentNullException.ThrowIfNull(cleanup);
-        EnsureStateCells().NextEffect(
-            _reconciler,
-            dependencies,
-            setup,
-            cleanup);
+        ref var cellData = ref _cell.GetUnchecked<Cell>();
+        var states = _states ??= cellData.States ??=
+            new StateCells(_cell.GetUnchecked<PrevTree<OpaqueTerm>>().Mounted);
+        states.NextEffect(_reconciler, dependencies, setup, cleanup);
     }
-
-    private StateCells EnsureStateCells()
-        => _states ??= _reconciler.EnsureStateCells(_cell);
-
-    internal void CompleteRender()
-        => _cell.GetUnchecked<Cell>().HookLayoutInitialized = true;
 }

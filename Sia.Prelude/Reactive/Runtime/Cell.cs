@@ -30,7 +30,6 @@ public struct Cell
     public ContextScope? Scope { get; init; }
     internal Entity Output { get; init; }
     public StateCells? States;
-    internal bool HookLayoutInitialized;
     public List<ContextScope>? ContextDependencies;
     public List<ContextScope>? PendingContextDependencies;
     public bool InDirty;
