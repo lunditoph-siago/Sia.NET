@@ -5,13 +5,11 @@ internal sealed class EffectLifetime<TDependencies, TResource>
     where TDependencies : struct, IEquatable<TDependencies>
 {
     private readonly Reconciler _owner;
+    private DeferredLifecycle _lifecycle;
     private TDependencies _dependencies;
     private ReactiveEffectSetup<TDependencies, TResource> _setup;
     private ReactiveEffectCleanup<TResource> _cleanup;
     private TResource _resource = default!;
-    private long _version;
-    private bool _mounted;
-    private bool _disposed;
     private bool _cleanupFailed;
 
     public EffectLifetime(
@@ -28,7 +26,7 @@ internal sealed class EffectLifetime<TDependencies, TResource>
 
     public void ScheduleSetup()
     {
-        var version = ++_version;
+        var version = _lifecycle.NextVersion();
         _owner.QueueEffectSetup(() => Setup(version));
     }
 
@@ -37,7 +35,7 @@ internal sealed class EffectLifetime<TDependencies, TResource>
         ReactiveEffectSetup<TDependencies, TResource> setup,
         ReactiveEffectCleanup<TResource> cleanup)
     {
-        if (_disposed) {
+        if (_lifecycle.Disposed) {
             throw new InvalidOperationException(
                 "Cannot reconcile an unmounted reactive effect.");
         }
@@ -55,38 +53,35 @@ internal sealed class EffectLifetime<TDependencies, TResource>
 
     public void Unmount()
     {
-        if (_disposed) {
+        if (!_lifecycle.TryBeginUnmount()) {
             return;
         }
-        _disposed = true;
-        _version++;
         ScheduleCleanup(prepend: true);
     }
 
     private void Setup(long version)
     {
-        if (_disposed || _mounted || _cleanupFailed || version != _version) {
+        if (_cleanupFailed || _lifecycle.Mounted || !_lifecycle.IsCurrent(version)) {
             return;
         }
         var resource = _setup(_dependencies);
-        if (_disposed || version != _version) {
+        if (!_lifecycle.IsCurrent(version)) {
             var cleanup = _cleanup;
             _owner.QueueEffectCleanup(() => cleanup(resource));
             return;
         }
         _resource = resource;
-        _mounted = true;
+        _lifecycle.MarkMounted();
     }
 
     private void ScheduleCleanup(bool prepend = false)
     {
-        if (!_mounted) {
+        if (!_lifecycle.TryBeginCleanup()) {
             return;
         }
         var resource = _resource;
         var cleanup = _cleanup;
         _resource = default!;
-        _mounted = false;
         _owner.QueueEffectCleanup(
             () => Cleanup(cleanup, resource),
             prepend);
