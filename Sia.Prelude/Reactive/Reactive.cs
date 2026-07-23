@@ -99,6 +99,7 @@ public static partial class Reactive
         => new(Term.Lift(new ContextRenderSpec<TContext, TTerm>(
             render ?? throw new ArgumentNullException(nameof(render)))));
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ReactiveNode<ForEachTerm<TKey, ReactiveNodeSpec<TTerm>>>
         ForEach<TKey, TTerm>(
             params ReadOnlySpan<(TKey Key, ReactiveNode<TTerm> Value)> items)
@@ -114,6 +115,7 @@ public static partial class Reactive
         return new(Term.ForEach<TKey, ReactiveNodeSpec<TTerm>>(keyed));
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ReactiveNode<ForEachTerm<TKey, ReactiveItemSpec<TItem, TTerm>>>
         ForEach<TKey, TItem, TTerm>(
             ReactiveItemRenderer<TItem, TTerm> render,
