@@ -7,17 +7,19 @@ using Sia.Reactors;
 public sealed class Reconciler : ReactorBase, IScheduleSource
 {
     private readonly record struct DirtyEntry(EntityReference Cell, NodeIdentity Identity);
+    private readonly record struct PendingEntry(EntityReference Cell, NodeIdentity Identity);
 
     public int MaxFlushPasses { get; set; } = 100;
 
     private readonly List<DirtyEntry> _dirty = [];
+    private readonly List<PendingEntry> _pendingWork = [];
     private readonly List<Action> _effectCleanups = [];
     private readonly List<Action> _effectSetups = [];
     private readonly Dictionary<long, EntityReference> _roots = [];
     private readonly SparseSet<IEntityHost> _graphHosts = [];
     private Entity _expandingCell;
     private int _dirtyHead;
-    private int _reconcileDepth;
+    private bool _reconciling;
     private bool _flushing;
     private long _nextIdentity;
 
@@ -103,7 +105,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
 
     internal void Unmount(Entity cell, NodeIdentity identity)
     {
-        if (_reconcileDepth != 0) {
+        if (_reconciling) {
             throw new InvalidOperationException(
                 "Reactive mounts cannot be unmounted while a spec is expanding "
                 + "or its tree is reconciling.");
@@ -147,12 +149,16 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
 
     private void ExpandCell(Entity cell)
     {
-        _reconcileDepth++;
+        _reconciling = true;
+        var mark = _pendingWork.Count;
         try {
             cell.GetUnchecked<Cell>().Expander.Expand(this, cell);
         }
         finally {
-            _reconcileDepth--;
+            _reconciling = false;
+            if (_pendingWork.Count > mark) {
+                _pendingWork.Reverse(mark, _pendingWork.Count - mark);
+            }
         }
     }
 
@@ -349,6 +355,9 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         InsertByDepth(new(new(cell), cellData.Identity), cellData.Depth);
     }
 
+    private void EnqueuePendingWork(Entity cell)
+        => _pendingWork.Add(new(new(cell), cell.GetUnchecked<Cell>().Identity));
+
     public void Flush()
     {
         if (_flushing) {
@@ -359,6 +368,17 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             for (var pass = 0; ; pass++) {
                 try {
                     while (true) {
+                        if (_pendingWork.Count > 0) {
+                            var entry = _pendingWork[^1];
+                            _pendingWork.RemoveAt(_pendingWork.Count - 1);
+
+                            if (!entry.Cell.TryGet(out var pendingCell)
+                                || !IsCell(pendingCell, entry.Identity)) {
+                                continue;
+                            }
+                            ExpandCell(pendingCell);
+                            continue;
+                        }
                         if (_dirtyHead < _dirty.Count) {
                             var entry = _dirty[_dirtyHead];
                             _dirty[_dirtyHead] = default;
@@ -396,7 +416,8 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
 
                 DrainEffects();
 
-                if (_dirtyHead >= _dirty.Count
+                if (_pendingWork.Count == 0
+                    && _dirtyHead >= _dirty.Count
                     && _rebuildQueue.Count == 0
                     && _effectSetups.Count == 0
                     && _effectCleanups.Count == 0) {
@@ -871,16 +892,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
                     Output = _output,
                 }));
             Result = cell;
-            try {
-                _reconciler.ExpandCell(cell);
-            }
-            catch (Exception error) {
-                var owner = _reconciler;
-                var identity = cell.GetUnchecked<Cell>().Identity;
-                Outcome<Exception>.Failure(error)
-                    .Attempt(() => owner.DestroyCell(cell, identity))
-                    .ThrowFailure();
-            }
+            _reconciler.EnqueuePendingWork(cell);
         }
     }
 }
