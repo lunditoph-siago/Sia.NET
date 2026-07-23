@@ -23,7 +23,7 @@ public static class ConsoleExampleApp
         var host = new ConsoleHost(SuppressInitialCommit(arguments));
         var app = world.Mount(
             ExampleApp.Definition,
-            new(runner, host, ExampleAppState.Initial));
+            new(runner, host));
 
         try {
             if (arguments.Count > 0) {
@@ -45,15 +45,12 @@ public static class ConsoleExampleApp
                     continue;
                 }
 
+                var state = app.GetState<ExampleAppState>();
                 var example = runner.Examples[index];
-                app.Update(app.Props with {
-                    State = app.Props.State.Begin(index, example.Name)
-                });
+                state.Update(s => s.Begin(index, example.Name));
                 world.FlushReactive();
 
-                app.Update(app.Props with {
-                    State = app.Props.State.Complete(runner.RunExample(index))
-                });
+                state.Update(s => s.Complete(runner.RunExample(index)));
                 world.FlushReactive();
 
                 Console.Write("\nPress any key to return to the examples\u2026");
@@ -88,12 +85,9 @@ public static class ConsoleExampleApp
         }
 
         var example = runner.Examples[index];
-        app.Update(app.Props with {
-            State = app.Props.State.Begin(index, example.Name)
-        });
-        app.Update(app.Props with {
-            State = app.Props.State.Complete(runner.RunExample(index))
-        });
+        var state = app.GetState<ExampleAppState>();
+        state.Update(s => s.Begin(index, example.Name));
+        state.Update(s => s.Complete(runner.RunExample(index)));
         world.FlushReactive();
     }
 

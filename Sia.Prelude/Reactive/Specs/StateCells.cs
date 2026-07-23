@@ -52,6 +52,20 @@ public sealed class StateCells
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal StateCell<T> PeekState<T>(int index)
+        where T : struct
+    {
+        if (index < 0 || index >= _count) {
+            throw new ArgumentOutOfRangeException(
+                nameof(index), index,
+                $"State index {index} is out of range. "
+                + $"Component has {_count} state cell(s).");
+        }
+        return _cells[index] as StateCell<T>
+            ?? throw HookTypeChanged(index);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void NextEffect<TDependencies, TResource>(
         Reconciler reconciler,
         in TDependencies dependencies,
@@ -145,6 +159,12 @@ public readonly struct State<T>(
         var owner = GetOwner();
         _reconciler.GuardStateMutation(owner);
         _reconciler.EnqueueDirty(owner);
+    }
+
+    public void Update(Func<T, T> transform)
+    {
+        ArgumentNullException.ThrowIfNull(transform);
+        Set(transform(Value));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

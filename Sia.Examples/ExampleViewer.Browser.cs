@@ -22,7 +22,7 @@ public static class BrowserExampleApp
         using var host = new BrowserHost();
         var app = world.Mount(
             ExampleApp.Definition,
-            new(runner, host, ExampleAppState.Initial));
+            new(runner, host));
 
         try {
             while (true) {
@@ -31,19 +31,16 @@ public static class BrowserExampleApp
                     continue;
                 }
 
+                var state = app.GetState<ExampleAppState>();
                 var example = runner.Examples[index];
-                app.Update(app.Props with {
-                    State = app.Props.State.Begin(index, example.Name)
-                });
+                state.Update(s => s.Begin(index, example.Name));
                 world.FlushReactive();
 
                 // Let the browser paint the pending state before the
                 // synchronous example starts producing its output.
                 await Task.Delay(1);
 
-                app.Update(app.Props with {
-                    State = app.Props.State.Complete(runner.RunExample(index))
-                });
+                state.Update(s => s.Complete(runner.RunExample(index)));
                 world.FlushReactive();
             }
         }
