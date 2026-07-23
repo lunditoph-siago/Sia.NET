@@ -76,8 +76,12 @@ public readonly record struct EitherTerm<TFirst, TSecond>(
             }
         }
         else if (next.IsFirst) {
-            TFirst.Mount(next.First, ref ctx);
+            var start = ctx.NextSlotIndex;
+            ctx.Skip(TFirst.SlotCount);
             ctx.DestroyRange(TSecond.SlotCount);
+            ctx.RewindTo(start);
+            TFirst.Mount(next.First, ref ctx);
+            ctx.Skip(TSecond.SlotCount);
         }
         else {
             ctx.Skip(TFirst.SlotCount);
