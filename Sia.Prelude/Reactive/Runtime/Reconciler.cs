@@ -25,6 +25,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
     private readonly List<ScheduleRegistry> _rebuildQueue = [];
     private readonly Dictionary<int, Stack<CellSlot[]>> _cellSlotPools = [];
     private readonly Dictionary<Type, Stack<IRecyclableForEachCleanup>> _eachIndexPools = [];
+    private readonly Stack<List<DestroyFrame>> _destroyWorklistPool = [];
     private Scheduler? _scheduler;
     private ScheduleRegistration? _sourceRegistration;
 
@@ -65,6 +66,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         result = DisposeGraphHosts(result);
         _cellSlotPools.Clear();
         _eachIndexPools.Clear();
+        _destroyWorklistPool.Clear();
         _scheduler = null;
         _expandingCell = default;
         result = result.Attempt(() => base.OnUninitialize(world));
@@ -521,40 +523,17 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             DestroyCell(slot, slot.GetUnchecked<Cell>().Identity);
             return;
         }
-        var result = Outcome<Exception>.Success;
-        IRecyclableForEachCleanup? recyclable = null;
-        if (slot.ContainsUnchecked<SystemNode>()) {
-            SystemStage? runtime = null;
-            result = result.Attempt(() => {
-                var registry = slot.GetUnchecked<SystemNode>().Registry;
-                runtime = registry.Remove(slot);
-                QueueRebuild(registry);
-            });
-            if (runtime != null) {
-                result = result.Attempt(runtime.Dispose);
+
+        var worklist = RentDestroyWorklist();
+        Outcome<Exception> result;
+        try {
+            result = ProcessNonCellSlot(slot, worklist, Outcome<Exception>.Success);
+            if (worklist.Count > 0) {
+                result = DrainDestroyWorklist(worklist, result);
             }
-        } else if (slot.ContainsUnchecked<ScheduleNode>()) {
-            var registry = slot.GetUnchecked<ScheduleNode>().Registry;
-            registry.ScopeCount--;
-            if (registry.ScopeCount == 0) {
-                result = result.Attempt(() => RemoveSchedule(registry));
-            }
-        } else if (slot.ContainsUnchecked<EachNode>()) {
-            var cleanup = slot.GetUnchecked<EachNode>().Cleanup;
-            recyclable = cleanup as IRecyclableForEachCleanup;
-            var operation = (Owner: this, Cleanup: cleanup);
-            result = result.Attempt(
-                operation,
-                static (in (Reconciler Owner, IForEachCleanup Cleanup) value)
-                    => value.Cleanup.DestroyChildren(value.Owner));
-        } else if (slot.ContainsUnchecked<EffectNode>()) {
-            result = result.Attempt(slot.GetUnchecked<EffectNode>().Cleanup.Unmount);
         }
-        result = result.Attempt(
-            slot,
-            static (in Entity entity) => entity.Destroy());
-        if (result.IsSuccess && recyclable != null) {
-            ReturnEachIndex(recyclable);
+        finally {
+            ReturnDestroyWorklist(worklist);
         }
         result.ThrowIfFailed();
     }
@@ -571,6 +550,40 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         if (!IsCell(cell, identity)) {
             return;
         }
+
+        var worklist = RentDestroyWorklist();
+        Outcome<Exception> result;
+        try {
+            PushCellFrame(worklist, cell, identity);
+            result = DrainDestroyWorklist(worklist, Outcome<Exception>.Success);
+        }
+        finally {
+            ReturnDestroyWorklist(worklist);
+        }
+        result.ThrowIfFailed();
+    }
+
+    private struct DestroyFrame(
+        Entity owner, CellSlot[] slots, IRecyclableForEachCleanup? recyclable, bool isEachNode)
+    {
+        public readonly Entity Owner = owner;
+        public readonly CellSlot[] Slots = slots;
+        public readonly IRecyclableForEachCleanup? Recyclable = recyclable;
+        public readonly bool IsEachNode = isEachNode;
+        public int Cursor = isEachNode ? 0 : slots.Length - 1;
+    }
+
+    private List<DestroyFrame> RentDestroyWorklist()
+        => _destroyWorklistPool.TryPop(out var worklist) ? worklist : [];
+
+    private void ReturnDestroyWorklist(List<DestroyFrame> worklist)
+    {
+        worklist.Clear();
+        _destroyWorklistPool.Push(worklist);
+    }
+
+    private void PushCellFrame(List<DestroyFrame> worklist, Entity cell, NodeIdentity identity)
+    {
         ref var data = ref cell.GetUnchecked<Cell>();
         data.IsDestroying = true;
         data.InDirty = false;
@@ -581,27 +594,108 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             }
             dependencies.Clear();
         }
-        var slots = data.Slots;
-        var result = Outcome<Exception>.Success;
-        for (var i = slots.Length - 1; i >= 0; i--) {
-            var slot = slots[i];
-            slots[i] = default;
-            var operation = (Owner: this, Slot: slot);
-            result = result.Attempt(
-                operation,
-                static (in (Reconciler Owner, CellSlot Slot) value)
-                    => value.Owner.DestroySlot(value.Slot));
+        worklist.Add(new DestroyFrame(cell, data.Slots, recyclable: null, isEachNode: false));
+    }
+
+    private Outcome<Exception> ProcessNonCellSlot(
+        Entity entity, List<DestroyFrame> worklist, Outcome<Exception> result)
+    {
+        if (entity.ContainsUnchecked<SystemNode>()) {
+            SystemStage? runtime = null;
+            result = result.Attempt(() => {
+                var registry = entity.GetUnchecked<SystemNode>().Registry;
+                runtime = registry.Remove(entity);
+                QueueRebuild(registry);
+            });
+            if (runtime != null) {
+                result = result.Attempt(runtime.Dispose);
+            }
         }
-        if (data.States is { } states) {
+        else if (entity.ContainsUnchecked<ScheduleNode>()) {
+            var registry = entity.GetUnchecked<ScheduleNode>().Registry;
+            registry.ScopeCount--;
+            if (registry.ScopeCount == 0) {
+                result = result.Attempt(() => RemoveSchedule(registry));
+            }
+        }
+        else if (entity.ContainsUnchecked<EachNode>()) {
+            var cleanup = entity.GetUnchecked<EachNode>().Cleanup;
+            var children = new List<Entity>();
+            cleanup.CollectChildren(children);
+            var slots = new CellSlot[children.Count];
+            for (var i = 0; i < children.Count; i++) {
+                slots[i] = new CellSlot(children[i]);
+            }
+            worklist.Add(new DestroyFrame(
+                entity, slots, cleanup as IRecyclableForEachCleanup, isEachNode: true));
+            return result;
+        }
+        else if (entity.ContainsUnchecked<EffectNode>()) {
+            result = result.Attempt(entity.GetUnchecked<EffectNode>().Cleanup.Unmount);
+        }
+        result = result.Attempt(entity, static (in Entity e) => e.Destroy());
+        return result;
+    }
+
+    private Outcome<Exception> FinalizeCellFrame(
+        in DestroyFrame frame, Outcome<Exception> result)
+    {
+        if (frame.Owner.GetUnchecked<Cell>().States is { } states) {
             result = result.Attempt(states.Unmount);
         }
-        result = result.Attempt(
-            cell,
-            static (in Entity entity) => entity.Destroy());
+        result = result.Attempt(frame.Owner, static (in Entity entity) => entity.Destroy());
         if (result.IsSuccess) {
-            ReturnCellSlots(slots);
+            ReturnCellSlots(frame.Slots);
         }
-        result.ThrowIfFailed();
+        return result;
+    }
+
+    private Outcome<Exception> FinalizeEachNodeFrame(
+        in DestroyFrame frame, Outcome<Exception> result)
+    {
+        result = result.Attempt(frame.Owner, static (in Entity entity) => entity.Destroy());
+        if (result.IsSuccess && frame.Recyclable != null) {
+            ReturnEachIndex(frame.Recyclable);
+        }
+        return result;
+    }
+
+    private Outcome<Exception> DrainDestroyWorklist(
+        List<DestroyFrame> worklist, Outcome<Exception> result)
+    {
+        while (worklist.Count > 0) {
+            var topIndex = worklist.Count - 1;
+            var frame = worklist[topIndex];
+            var hasNext = frame.IsEachNode
+                ? frame.Cursor < frame.Slots.Length
+                : frame.Cursor >= 0;
+
+            if (hasNext) {
+                var slot = frame.Slots[frame.Cursor];
+                frame.Slots[frame.Cursor] = default;
+                frame.Cursor += frame.IsEachNode ? 1 : -1;
+                worklist[topIndex] = frame;
+
+                if (Validate(slot) is not { IsValid: true } entity) {
+                    continue;
+                }
+                if (entity.ContainsUnchecked<Cell>()) {
+                    var identity = entity.GetUnchecked<Cell>().Identity;
+                    if (IsCell(entity, identity)) {
+                        PushCellFrame(worklist, entity, identity);
+                    }
+                    continue;
+                }
+                result = ProcessNonCellSlot(entity, worklist, result);
+                continue;
+            }
+
+            result = frame.IsEachNode
+                ? FinalizeEachNodeFrame(frame, result)
+                : FinalizeCellFrame(frame, result);
+            worklist.RemoveAt(topIndex);
+        }
+        return result;
     }
 
     private void QueueRebuild(ScheduleRegistry registry)
