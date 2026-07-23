@@ -104,24 +104,21 @@ public abstract class AggregatorBase<TId> : ReactorBase<TypeUnion<Sid<TId>>>
         RemoveFromAggregation(entity, id);
     }
 
-    protected abstract Entity CreateAggregationEntity();
+    protected abstract Entity CreateAggregationEntity(in TId id);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void AddToAggregation(Entity entity, in TId id)
     {
-        ref var aggrEntity = ref CollectionsMarshal.GetValueRefOrAddDefault(_aggrs, id, out bool exists);
-
-        if (!exists) {
-            aggrEntity = CreateAggregationEntity();
+        if (!_aggrs.TryGetValue(id, out var aggrEntity)) {
+            aggrEntity = CreateAggregationEntity(id);
 
             ref var aggr = ref aggrEntity.Get<Aggregation<TId>>();
-            aggr.Id = id;
             aggr.First = entity;
             aggr._group = _groupPool.TryPop(out var pooled) ? pooled : [];
             aggr._group.Add(entity);
         }
         else {
-            aggrEntity!.Get<Aggregation<TId>>()._group!.Add(entity);
+            aggrEntity.Get<Aggregation<TId>>()._group!.Add(entity);
         }
 
         World.Send(aggrEntity, new Aggregation<TId>.EntityAdded(entity));
@@ -158,6 +155,6 @@ public abstract class AggregatorBase<TId> : ReactorBase<TypeUnion<Sid<TId>>>
 public class Aggregator<TId> : AggregatorBase<TId>
     where TId : notnull, IEquatable<TId>
 {
-    protected override Entity CreateAggregationEntity()
-        => World.Create(HList.From(new Aggregation<TId>()));
+    protected override Entity CreateAggregationEntity(in TId id)
+        => World.Create(HList.From(new Aggregation<TId> { Id = id }));
 }
