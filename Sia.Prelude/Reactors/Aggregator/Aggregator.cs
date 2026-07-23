@@ -73,9 +73,11 @@ public abstract class AggregatorBase<TId> : ReactorBase<TypeUnion<Sid<TId>>>
     private void OnAggregationReleased(Entity entity)
     {
         ref var aggr = ref entity.Get<Aggregation<TId>>();
-        _aggrs.Remove(aggr.Id, out var removedEntity);
+        if (!_aggrs.Remove(aggr.Id, out var removedEntity)) {
+            return;
+        }
         if (removedEntity != entity)  {
-            _aggrs.Add(aggr.Id, removedEntity!);
+            _aggrs.Add(aggr.Id, removedEntity);
         }
     }
 
@@ -142,9 +144,10 @@ public abstract class AggregatorBase<TId> : ReactorBase<TypeUnion<Sid<TId>>>
         World.Send(aggrEntity, new Aggregation<TId>.EntityRemoved(entity));
 
         if (group.Count == 0) {
+            var groupEntity = aggrEntity;
             _aggrs.Remove(id);
             _groupPool.Push(group);
-            aggrEntity.Destroy();
+            groupEntity.Destroy();
         }
         else if (aggr.First == entity) {
             aggr.First = group.First();
