@@ -7,15 +7,19 @@ using Sia.Reactors;
 public sealed class Reconciler : ReactorBase, IScheduleSource
 {
     private readonly record struct DirtyEntry(EntityReference Cell, NodeIdentity Identity);
+    private readonly record struct PendingEntry(EntityReference Cell, NodeIdentity Identity);
+
+    public int MaxFlushPasses { get; set; } = 100;
 
     private readonly List<DirtyEntry> _dirty = [];
+    private readonly List<PendingEntry> _pendingWork = [];
     private readonly List<Action> _effectCleanups = [];
     private readonly List<Action> _effectSetups = [];
     private readonly Dictionary<long, EntityReference> _roots = [];
     private readonly SparseSet<IEntityHost> _graphHosts = [];
     private Entity _expandingCell;
     private int _dirtyHead;
-    private int _reconcileDepth;
+    private bool _reconciling;
     private bool _flushing;
     private long _nextIdentity;
 
@@ -23,6 +27,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
     private readonly List<ScheduleRegistry> _rebuildQueue = [];
     private readonly Dictionary<int, Stack<CellSlot[]>> _cellSlotPools = [];
     private readonly Dictionary<Type, Stack<IRecyclableForEachCleanup>> _eachIndexPools = [];
+    private readonly Stack<List<DestroyFrame>> _destroyWorklistPool = [];
     private Scheduler? _scheduler;
     private ScheduleRegistration? _sourceRegistration;
 
@@ -63,6 +68,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         result = DisposeGraphHosts(result);
         _cellSlotPools.Clear();
         _eachIndexPools.Clear();
+        _destroyWorklistPool.Clear();
         _scheduler = null;
         _expandingCell = default;
         result = result.Attempt(() => base.OnUninitialize(world));
@@ -99,7 +105,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
 
     internal void Unmount(Entity cell, NodeIdentity identity)
     {
-        if (_reconcileDepth != 0) {
+        if (_reconciling) {
             throw new InvalidOperationException(
                 "Reactive mounts cannot be unmounted while a spec is expanding "
                 + "or its tree is reconciling.");
@@ -143,12 +149,16 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
 
     private void ExpandCell(Entity cell)
     {
-        _reconcileDepth++;
+        _reconciling = true;
+        var mark = _pendingWork.Count;
         try {
             cell.GetUnchecked<Cell>().Expander.Expand(this, cell);
         }
         finally {
-            _reconcileDepth--;
+            _reconciling = false;
+            if (_pendingWork.Count > mark) {
+                _pendingWork.Reverse(mark, _pendingWork.Count - mark);
+            }
         }
     }
 
@@ -345,6 +355,9 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         InsertByDepth(new(new(cell), cellData.Identity), cellData.Depth);
     }
 
+    private void EnqueuePendingWork(Entity cell)
+        => _pendingWork.Add(new(new(cell), cell.GetUnchecked<Cell>().Identity));
+
     public void Flush()
     {
         if (_flushing) {
@@ -352,43 +365,73 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         }
         _flushing = true;
         try {
-            try {
-                while (true) {
-                    if (_dirtyHead < _dirty.Count) {
-                        var entry = _dirty[_dirtyHead];
-                        _dirty[_dirtyHead] = default;
-                        _dirtyHead++;
+            for (var pass = 0; ; pass++) {
+                try {
+                    while (true) {
+                        if (_pendingWork.Count > 0) {
+                            var entry = _pendingWork[^1];
+                            _pendingWork.RemoveAt(_pendingWork.Count - 1);
 
-                        if (!entry.Cell.TryGet(out var cell)
-                            || !IsCell(cell, entry.Identity)) {
+                            if (!entry.Cell.TryGet(out var pendingCell)
+                                || !IsCell(pendingCell, entry.Identity)) {
+                                continue;
+                            }
+                            ExpandCell(pendingCell);
                             continue;
                         }
-                        ref var cellData = ref cell.GetUnchecked<Cell>();
-                        if (!cellData.InDirty) {
+                        if (_dirtyHead < _dirty.Count) {
+                            var entry = _dirty[_dirtyHead];
+                            _dirty[_dirtyHead] = default;
+                            _dirtyHead++;
+
+                            if (!entry.Cell.TryGet(out var cell)
+                                || !IsCell(cell, entry.Identity)) {
+                                continue;
+                            }
+                            ref var cellData = ref cell.GetUnchecked<Cell>();
+                            if (!cellData.InDirty) {
+                                continue;
+                            }
+                            cellData.InDirty = false;
+                            ExpandCell(cell);
                             continue;
                         }
-                        cellData.InDirty = false;
-                        ExpandCell(cell);
-                        continue;
+                        if (_rebuildQueue.Count > 0) {
+                            var registry = _rebuildQueue[^1];
+                            _rebuildQueue.RemoveAt(_rebuildQueue.Count - 1);
+                            registry.RebuildQueued = false;
+                            RebuildStage(registry);
+                            continue;
+                        }
+                        break;
                     }
-                    if (_rebuildQueue.Count > 0) {
-                        var registry = _rebuildQueue[^1];
-                        _rebuildQueue.RemoveAt(_rebuildQueue.Count - 1);
-                        registry.RebuildQueued = false;
-                        RebuildStage(registry);
-                        continue;
-                    }
+                    _dirty.Clear();
+                    _dirtyHead = 0;
+                }
+                catch (Exception error) {
+                    var result = DrainEffectCleanups(
+                        Outcome<Exception>.Failure(error));
+                    result.ThrowFailure();
+                }
+
+                DrainEffects();
+
+                if (_pendingWork.Count == 0
+                    && _dirtyHead >= _dirty.Count
+                    && _rebuildQueue.Count == 0
+                    && _effectSetups.Count == 0
+                    && _effectCleanups.Count == 0) {
                     break;
                 }
-                _dirty.Clear();
-                _dirtyHead = 0;
+                if (pass + 1 >= MaxFlushPasses) {
+                    throw new InvalidOperationException(
+                        $"Reactive flush did not settle after {MaxFlushPasses} "
+                        + "passes. Effects or the state changes they trigger may "
+                        + "be retriggering each other indefinitely; increase "
+                        + "Reconciler.MaxFlushPasses if this many settle passes "
+                        + "is expected.");
+                }
             }
-            catch (Exception error) {
-                var result = DrainEffectCleanups(
-                    Outcome<Exception>.Failure(error));
-                result.ThrowFailure();
-            }
-            DrainEffects();
         }
         finally {
             _flushing = false;
@@ -501,40 +544,17 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             DestroyCell(slot, slot.GetUnchecked<Cell>().Identity);
             return;
         }
-        var result = Outcome<Exception>.Success;
-        IRecyclableForEachCleanup? recyclable = null;
-        if (slot.ContainsUnchecked<SystemNode>()) {
-            SystemStage? runtime = null;
-            result = result.Attempt(() => {
-                var registry = slot.GetUnchecked<SystemNode>().Registry;
-                runtime = registry.Remove(slot);
-                QueueRebuild(registry);
-            });
-            if (runtime != null) {
-                result = result.Attempt(runtime.Dispose);
+
+        var worklist = RentDestroyWorklist();
+        Outcome<Exception> result;
+        try {
+            result = ProcessNonCellSlot(slot, worklist, Outcome<Exception>.Success);
+            if (worklist.Count > 0) {
+                result = DrainDestroyWorklist(worklist, result);
             }
-        } else if (slot.ContainsUnchecked<ScheduleNode>()) {
-            var registry = slot.GetUnchecked<ScheduleNode>().Registry;
-            registry.ScopeCount--;
-            if (registry.ScopeCount == 0) {
-                result = result.Attempt(() => RemoveSchedule(registry));
-            }
-        } else if (slot.ContainsUnchecked<EachNode>()) {
-            var cleanup = slot.GetUnchecked<EachNode>().Cleanup;
-            recyclable = cleanup as IRecyclableForEachCleanup;
-            var operation = (Owner: this, Cleanup: cleanup);
-            result = result.Attempt(
-                operation,
-                static (in (Reconciler Owner, IForEachCleanup Cleanup) value)
-                    => value.Cleanup.DestroyChildren(value.Owner));
-        } else if (slot.ContainsUnchecked<EffectNode>()) {
-            result = result.Attempt(slot.GetUnchecked<EffectNode>().Cleanup.Unmount);
         }
-        result = result.Attempt(
-            slot,
-            static (in Entity entity) => entity.Destroy());
-        if (result.IsSuccess && recyclable != null) {
-            ReturnEachIndex(recyclable);
+        finally {
+            ReturnDestroyWorklist(worklist);
         }
         result.ThrowIfFailed();
     }
@@ -551,6 +571,40 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         if (!IsCell(cell, identity)) {
             return;
         }
+
+        var worklist = RentDestroyWorklist();
+        Outcome<Exception> result;
+        try {
+            PushCellFrame(worklist, cell, identity);
+            result = DrainDestroyWorklist(worklist, Outcome<Exception>.Success);
+        }
+        finally {
+            ReturnDestroyWorklist(worklist);
+        }
+        result.ThrowIfFailed();
+    }
+
+    private struct DestroyFrame(
+        Entity owner, CellSlot[] slots, IRecyclableForEachCleanup? recyclable, bool isEachNode)
+    {
+        public readonly Entity Owner = owner;
+        public readonly CellSlot[] Slots = slots;
+        public readonly IRecyclableForEachCleanup? Recyclable = recyclable;
+        public readonly bool IsEachNode = isEachNode;
+        public int Cursor = isEachNode ? 0 : slots.Length - 1;
+    }
+
+    private List<DestroyFrame> RentDestroyWorklist()
+        => _destroyWorklistPool.TryPop(out var worklist) ? worklist : [];
+
+    private void ReturnDestroyWorklist(List<DestroyFrame> worklist)
+    {
+        worklist.Clear();
+        _destroyWorklistPool.Push(worklist);
+    }
+
+    private void PushCellFrame(List<DestroyFrame> worklist, Entity cell, NodeIdentity identity)
+    {
         ref var data = ref cell.GetUnchecked<Cell>();
         data.IsDestroying = true;
         data.InDirty = false;
@@ -561,27 +615,108 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             }
             dependencies.Clear();
         }
-        var slots = data.Slots;
-        var result = Outcome<Exception>.Success;
-        for (var i = slots.Length - 1; i >= 0; i--) {
-            var slot = slots[i];
-            slots[i] = default;
-            var operation = (Owner: this, Slot: slot);
-            result = result.Attempt(
-                operation,
-                static (in (Reconciler Owner, CellSlot Slot) value)
-                    => value.Owner.DestroySlot(value.Slot));
+        worklist.Add(new DestroyFrame(cell, data.Slots, recyclable: null, isEachNode: false));
+    }
+
+    private Outcome<Exception> ProcessNonCellSlot(
+        Entity entity, List<DestroyFrame> worklist, Outcome<Exception> result)
+    {
+        if (entity.ContainsUnchecked<SystemNode>()) {
+            SystemStage? runtime = null;
+            result = result.Attempt(() => {
+                var registry = entity.GetUnchecked<SystemNode>().Registry;
+                runtime = registry.Remove(entity);
+                QueueRebuild(registry);
+            });
+            if (runtime != null) {
+                result = result.Attempt(runtime.Dispose);
+            }
         }
-        if (data.States is { } states) {
+        else if (entity.ContainsUnchecked<ScheduleNode>()) {
+            var registry = entity.GetUnchecked<ScheduleNode>().Registry;
+            registry.ScopeCount--;
+            if (registry.ScopeCount == 0) {
+                result = result.Attempt(() => RemoveSchedule(registry));
+            }
+        }
+        else if (entity.ContainsUnchecked<EachNode>()) {
+            var cleanup = entity.GetUnchecked<EachNode>().Cleanup;
+            var children = new List<Entity>();
+            cleanup.CollectChildren(children);
+            var slots = new CellSlot[children.Count];
+            for (var i = 0; i < children.Count; i++) {
+                slots[i] = new CellSlot(children[i]);
+            }
+            worklist.Add(new DestroyFrame(
+                entity, slots, cleanup as IRecyclableForEachCleanup, isEachNode: true));
+            return result;
+        }
+        else if (entity.ContainsUnchecked<EffectNode>()) {
+            result = result.Attempt(entity.GetUnchecked<EffectNode>().Cleanup.Unmount);
+        }
+        result = result.Attempt(entity, static (in Entity e) => e.Destroy());
+        return result;
+    }
+
+    private Outcome<Exception> FinalizeCellFrame(
+        in DestroyFrame frame, Outcome<Exception> result)
+    {
+        if (frame.Owner.GetUnchecked<Cell>().States is { } states) {
             result = result.Attempt(states.Unmount);
         }
-        result = result.Attempt(
-            cell,
-            static (in Entity entity) => entity.Destroy());
+        result = result.Attempt(frame.Owner, static (in Entity entity) => entity.Destroy());
         if (result.IsSuccess) {
-            ReturnCellSlots(slots);
+            ReturnCellSlots(frame.Slots);
         }
-        result.ThrowIfFailed();
+        return result;
+    }
+
+    private Outcome<Exception> FinalizeEachNodeFrame(
+        in DestroyFrame frame, Outcome<Exception> result)
+    {
+        result = result.Attempt(frame.Owner, static (in Entity entity) => entity.Destroy());
+        if (result.IsSuccess && frame.Recyclable != null) {
+            ReturnEachIndex(frame.Recyclable);
+        }
+        return result;
+    }
+
+    private Outcome<Exception> DrainDestroyWorklist(
+        List<DestroyFrame> worklist, Outcome<Exception> result)
+    {
+        while (worklist.Count > 0) {
+            var topIndex = worklist.Count - 1;
+            var frame = worklist[topIndex];
+            var hasNext = frame.IsEachNode
+                ? frame.Cursor < frame.Slots.Length
+                : frame.Cursor >= 0;
+
+            if (hasNext) {
+                var slot = frame.Slots[frame.Cursor];
+                frame.Slots[frame.Cursor] = default;
+                frame.Cursor += frame.IsEachNode ? 1 : -1;
+                worklist[topIndex] = frame;
+
+                if (Validate(slot) is not { IsValid: true } entity) {
+                    continue;
+                }
+                if (entity.ContainsUnchecked<Cell>()) {
+                    var identity = entity.GetUnchecked<Cell>().Identity;
+                    if (IsCell(entity, identity)) {
+                        PushCellFrame(worklist, entity, identity);
+                    }
+                    continue;
+                }
+                result = ProcessNonCellSlot(entity, worklist, result);
+                continue;
+            }
+
+            result = frame.IsEachNode
+                ? FinalizeEachNodeFrame(frame, result)
+                : FinalizeCellFrame(frame, result);
+            worklist.RemoveAt(topIndex);
+        }
+        return result;
     }
 
     private void QueueRebuild(ScheduleRegistry registry)
@@ -757,16 +892,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
                     Output = _output,
                 }));
             Result = cell;
-            try {
-                _reconciler.ExpandCell(cell);
-            }
-            catch (Exception error) {
-                var owner = _reconciler;
-                var identity = cell.GetUnchecked<Cell>().Identity;
-                Outcome<Exception>.Failure(error)
-                    .Attempt(() => owner.DestroyCell(cell, identity))
-                    .ThrowFailure();
-            }
+            _reconciler.EnqueuePendingWork(cell);
         }
     }
 }

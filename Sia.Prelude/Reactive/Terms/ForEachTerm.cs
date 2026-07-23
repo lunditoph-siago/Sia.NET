@@ -6,7 +6,7 @@ public readonly record struct Keyed<TKey, TSpec>(TKey Key, TSpec Props)
 
 public interface IForEachCleanup
 {
-    void DestroyChildren(Reconciler reconciler);
+    void CollectChildren(List<Entity> destination);
 }
 
 internal interface IRecyclableForEachCleanup : IForEachCleanup
@@ -47,22 +47,14 @@ public sealed class EachIndex<TKey> : IRecyclableForEachCleanup
         }
     }
 
-    public void DestroyChildren(Reconciler reconciler)
+    public void CollectChildren(List<Entity> destination)
     {
-        var result = Outcome<Exception>.Success;
         foreach (var entry in ByKey.Values) {
-            var cell = entry.Cell;
-            if (!cell.IsValid) {
-                continue;
+            if (entry.Cell.IsValid) {
+                destination.Add(entry.Cell);
             }
-            var operation = (Owner: reconciler, Cell: cell);
-            result = result.Attempt(
-                operation,
-                static (in (Reconciler Owner, Entity Cell) value)
-                    => value.Owner.DestroySlot(value.Cell));
         }
         ByKey.Clear();
-        result.ThrowIfFailed();
     }
 
     public void RemoveStale(Reconciler reconciler, int stamp)

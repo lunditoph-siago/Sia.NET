@@ -51,10 +51,11 @@ public ref struct GraphContext(
     public void DestroyRange(int count)
     {
         var slots = _slots;
-        var end = _cursor + count;
+        var start = _cursor;
+        var end = start + count;
         var result = Outcome<Exception>.Success;
         var reconciler = Reconciler;
-        for (var i = _cursor; i < end; i++) {
+        for (var i = end - 1; i >= start; i--) {
             var slot = slots[i];
             slots[i] = default;
             var operation = (Owner: reconciler, Slot: slot);
