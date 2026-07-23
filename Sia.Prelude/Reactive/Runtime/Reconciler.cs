@@ -8,6 +8,8 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
 {
     private readonly record struct DirtyEntry(EntityReference Cell, NodeIdentity Identity);
 
+    public int MaxFlushPasses { get; set; } = 100;
+
     private readonly List<DirtyEntry> _dirty = [];
     private readonly List<Action> _effectCleanups = [];
     private readonly List<Action> _effectSetups = [];
@@ -352,43 +354,61 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         }
         _flushing = true;
         try {
-            try {
-                while (true) {
-                    if (_dirtyHead < _dirty.Count) {
-                        var entry = _dirty[_dirtyHead];
-                        _dirty[_dirtyHead] = default;
-                        _dirtyHead++;
+            for (var pass = 0; ; pass++) {
+                try {
+                    while (true) {
+                        if (_dirtyHead < _dirty.Count) {
+                            var entry = _dirty[_dirtyHead];
+                            _dirty[_dirtyHead] = default;
+                            _dirtyHead++;
 
-                        if (!entry.Cell.TryGet(out var cell)
-                            || !IsCell(cell, entry.Identity)) {
+                            if (!entry.Cell.TryGet(out var cell)
+                                || !IsCell(cell, entry.Identity)) {
+                                continue;
+                            }
+                            ref var cellData = ref cell.GetUnchecked<Cell>();
+                            if (!cellData.InDirty) {
+                                continue;
+                            }
+                            cellData.InDirty = false;
+                            ExpandCell(cell);
                             continue;
                         }
-                        ref var cellData = ref cell.GetUnchecked<Cell>();
-                        if (!cellData.InDirty) {
+                        if (_rebuildQueue.Count > 0) {
+                            var registry = _rebuildQueue[^1];
+                            _rebuildQueue.RemoveAt(_rebuildQueue.Count - 1);
+                            registry.RebuildQueued = false;
+                            RebuildStage(registry);
                             continue;
                         }
-                        cellData.InDirty = false;
-                        ExpandCell(cell);
-                        continue;
+                        break;
                     }
-                    if (_rebuildQueue.Count > 0) {
-                        var registry = _rebuildQueue[^1];
-                        _rebuildQueue.RemoveAt(_rebuildQueue.Count - 1);
-                        registry.RebuildQueued = false;
-                        RebuildStage(registry);
-                        continue;
-                    }
+                    _dirty.Clear();
+                    _dirtyHead = 0;
+                }
+                catch (Exception error) {
+                    var result = DrainEffectCleanups(
+                        Outcome<Exception>.Failure(error));
+                    result.ThrowFailure();
+                }
+
+                DrainEffects();
+
+                if (_dirtyHead >= _dirty.Count
+                    && _rebuildQueue.Count == 0
+                    && _effectSetups.Count == 0
+                    && _effectCleanups.Count == 0) {
                     break;
                 }
-                _dirty.Clear();
-                _dirtyHead = 0;
+                if (pass + 1 >= MaxFlushPasses) {
+                    throw new InvalidOperationException(
+                        $"Reactive flush did not settle after {MaxFlushPasses} "
+                        + "passes. Effects or the state changes they trigger may "
+                        + "be retriggering each other indefinitely; increase "
+                        + "Reconciler.MaxFlushPasses if this many settle passes "
+                        + "is expected.");
+                }
             }
-            catch (Exception error) {
-                var result = DrainEffectCleanups(
-                    Outcome<Exception>.Failure(error));
-                result.ThrowFailure();
-            }
-            DrainEffects();
         }
         finally {
             _flushing = false;
