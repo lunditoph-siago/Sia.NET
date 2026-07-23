@@ -12,8 +12,7 @@ public static partial class ExampleViewer
 
 public readonly record struct ExampleAppProps(
     ExampleRunner Runner,
-    IExampleRenderHost Host,
-    ExampleAppState State);
+    IExampleRenderHost Host);
 
 public readonly record struct ExampleAppState(
     int SelectedIndex,
@@ -22,10 +21,10 @@ public readonly record struct ExampleAppState(
     bool Loading)
 {
     public static ExampleAppState Initial { get; }
-        = new(-1, "Select an example", "\u2190 Choose an example to run it", false);
+        = new(-1, "Select an example", "← Choose an example to run it", false);
 
     public ExampleAppState Begin(int index, string title)
-        => new(index, title, "Running\u2026", true);
+        => new(index, title, "Running…", true);
 
     public ExampleAppState Complete(string output)
         => this with { Output = output, Loading = false };
@@ -38,17 +37,30 @@ public static partial class ExampleApp
         in ExampleAppProps props,
         ref Hooks hooks)
     {
-        var state = props.State;
-        var items = Reactive.ForEach(
-            RenderItem,
-            BuildItems(props, state.SelectedIndex));
+        var state = hooks.UseState(ExampleAppState.Initial);
 
-        return Reactive.Group(
-            items,
-            Effect(new RenderEffect<ExampleOutputView>(
+        hooks.UseEffect(
+            new OutputDeps(
                 props.Host,
-                new(state.Title, state.Output, state.Loading))),
-            Effect(new ExampleCommitEffect(props.Host)));
+                state.Value.Title,
+                state.Value.Output,
+                state.Value.Loading),
+            static (in OutputDeps d) => {
+                d.Host.Upsert(new(d.Title, d.Output, d.Loading));
+                return d;
+            },
+            static (in OutputDeps d) => {
+                d.Host.Remove(new(d.Title, d.Output, d.Loading));
+            });
+
+        hooks.UseEffect(
+            new CommitDeps(props.Host, state.Value),
+            static (in CommitDeps d) => { d.Host.Commit(); return default(Unit); },
+            static (in Unit _) => { });
+
+        return Reactive.ForEach(
+            RenderItem,
+            BuildItems(props, state.Value.SelectedIndex));
     }
 
     private static (int Key, ExampleItem Value)[] BuildItems(
@@ -73,14 +85,15 @@ public static partial class ExampleApp
 
     private static ReactiveNode<EffectTerm<RenderEffect<ExampleItemView>>>
         RenderItem(scoped in ExampleItem item)
-        => Effect(new RenderEffect<ExampleItemView>(
+        => new(Term.Effect(new RenderEffect<ExampleItemView>(
             item.Host,
-            new(item.Index, item.Name, item.Description, item.Active)));
+            new(item.Index, item.Name, item.Description, item.Active))));
 
-    private static ReactiveNode<EffectTerm<TEffect>> Effect<TEffect>(
-        scoped in TEffect effect)
-        where TEffect : struct, IEffect<TEffect>
-        => new(Term.Effect(effect));
+    private readonly record struct OutputDeps(
+        IRenderHost<ExampleOutputView> Host, string Title, string Output, bool Loading);
+
+    private readonly record struct CommitDeps(
+        IExampleRenderHost Host, ExampleAppState State);
 }
 
 public readonly record struct ExampleItem(
@@ -138,17 +151,4 @@ public readonly record struct RenderEffect<TView>(
 
     public static void Unmount(in RenderEffect<TView> self)
         => self.Host.Remove(self.View);
-}
-
-public readonly record struct ExampleCommitEffect(IExampleRenderHost Host)
-    : IEffect<ExampleCommitEffect>
-{
-    public static void Mount(in ExampleCommitEffect self) => self.Host.Commit();
-
-    public static void Reconcile(
-        in ExampleCommitEffect previous,
-        in ExampleCommitEffect next)
-        => next.Host.Commit();
-
-    public static void Unmount(in ExampleCommitEffect self) { }
 }
