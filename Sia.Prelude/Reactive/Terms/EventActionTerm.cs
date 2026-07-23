@@ -72,12 +72,10 @@ internal sealed class EventActionState<TEvent, TCapture>
     where TCapture : struct
 {
     private readonly Reconciler _owner;
+    private DeferredLifecycle _lifecycle;
     private Entity _target;
     private TCapture _capture;
     private ReactiveEventAction<TEvent, TCapture> _action;
-    private long _version;
-    private bool _mounted;
-    private bool _disposed;
 
     public EventActionState(
         Reconciler owner,
@@ -93,7 +91,7 @@ internal sealed class EventActionState<TEvent, TCapture>
 
     public void ScheduleMount()
     {
-        var version = ++_version;
+        var version = _lifecycle.NextVersion();
         _owner.QueueEffectSetup(() => Mount(version));
     }
 
@@ -116,8 +114,8 @@ internal sealed class EventActionState<TEvent, TCapture>
     public bool OnEvent<TActual>(Entity target, in TActual @event)
         where TActual : IEvent
     {
-        if (_disposed
-            || !_mounted
+        if (_lifecycle.Disposed
+            || !_lifecycle.Mounted
             || target != _target
             || typeof(TActual) != typeof(TEvent)) {
             return false;
@@ -132,30 +130,27 @@ internal sealed class EventActionState<TEvent, TCapture>
 
     public void Unmount()
     {
-        if (_disposed) {
+        if (!_lifecycle.TryBeginUnmount()) {
             return;
         }
-        _disposed = true;
-        _version++;
         ScheduleCleanup(prepend: true);
     }
 
     private void Mount(long version)
     {
-        if (_disposed || _mounted || version != _version) {
+        if (_lifecycle.Mounted || !_lifecycle.IsCurrent(version)) {
             return;
         }
         _owner.World.Dispatcher.Listen(_target, this);
-        _mounted = true;
+        _lifecycle.MarkMounted();
     }
 
     private void ScheduleCleanup(bool prepend = false)
     {
-        if (!_mounted) {
+        if (!_lifecycle.TryBeginCleanup()) {
             return;
         }
         var target = _target;
-        _mounted = false;
         _owner.QueueEffectCleanup(
             () => _owner.World.Dispatcher.Unlisten(target, this),
             prepend);
@@ -163,7 +158,7 @@ internal sealed class EventActionState<TEvent, TCapture>
 
     private void ThrowIfDisposed()
     {
-        if (_disposed) {
+        if (_lifecycle.Disposed) {
             throw new InvalidOperationException(
                 "Cannot reconcile an unmounted reactive event action.");
         }
