@@ -57,6 +57,37 @@ public class BufferEntityHostTests
     }
 
     [Fact]
+    public void BulkIteration_AddressesSequentialLayoutAcrossArchetypes()
+    {
+        using var world = new World();
+        for (var i = 0; i < 96; i++) {
+            if ((i & 1) == 0) {
+                world.Create(HList.From(i, 1L));
+            }
+            else {
+                world.Create(HList.From(i, 1f));
+            }
+        }
+        var query = world.Query(Matchers.Of<int>());
+
+        var sum = 0;
+        query.ForSlice((ref int value) => sum += value);
+        Assert.Equal(4560, sum);
+
+        query.ForSlice((ref int value) => value += 1);
+        var total = 0;
+        foreach (var entity in query) {
+            total += entity.Get<int>();
+        }
+        Assert.Equal(4560 + 96, total);
+
+        var host = world.GetArrayHost<HList<int, HList<long, EmptyHList>>>();
+        var hostSum = 0L;
+        host.ForSlice((ref long value) => hostSum += value);
+        Assert.Equal(48, hostSum);
+    }
+
+    [Fact]
     public void EntityIds_RemainUniqueAcrossPoolsAndDirectAllocation()
     {
         using var first = BufferEntityHost<HList<int, EmptyHList>>.Create(

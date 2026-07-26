@@ -10,7 +10,7 @@ using System.Runtime.CompilerServices;
 using static WorldHostUtils;
 
 public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost innerHost)
-    : IEntityHost<TEntity>, IReactiveEntityHost
+    : IEntityHost<TEntity>, IReactiveEntityHost, ISequentialEntityHost
     where TEntity : struct, IHList
     where TInnerHost : IEntityHost<TEntity>, new()
 {
@@ -37,6 +37,9 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     public int Capacity => InnerHost.Capacity;
     public int Count => InnerHost.Count;
     public int Version => InnerHost.Version;
+
+    public Span<byte> Bytes =>
+        InnerHost is ISequentialEntityHost sequentialHost ? sequentialHost.Bytes : default;
 
     public WorldEntityHost(World world) : this(world, new()) {}
 
