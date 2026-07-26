@@ -1,6 +1,7 @@
 namespace Sia;
 
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 
 public sealed class Scheduler : IAddon, IDisposable
 {
@@ -17,8 +18,8 @@ public sealed class Scheduler : IAddon, IDisposable
         public ScheduleLabel Label { get; } = label;
         public Schedule? Schedule { get; set; }
         public SystemStage? Stage { get; set; }
-        public ImmutableArray<RuntimeNode> RuntimeOrder { get; set; } = [];
-        public Dictionary<EntryRegistration, int> EntryVersions { get; } = [];
+        public RuntimeNode[] RuntimeOrder { get; set; } = [];
+        public EntryVersion[] VersionSnapshot { get; set; } = [];
         public List<EntryRegistration> Entries { get; } = [];
         public bool EntriesNeedCompaction { get; set; }
         public bool RuntimePlanDirty { get; set; } = true;
@@ -86,7 +87,12 @@ public sealed class Scheduler : IAddon, IDisposable
     private readonly record struct RuntimeNode(
         EntryRegistration? Registration,
         IScheduleEntry Entry,
+        ISystemScheduleEntry? SystemEntry,
         int SystemIndex,
+        int Version);
+
+    private readonly record struct EntryVersion(
+        ISystemScheduleEntry Entry,
         int Version);
 
     public bool IsDisposed { get; private set; }
@@ -222,7 +228,7 @@ public sealed class Scheduler : IAddon, IDisposable
                 slot.Stage?.Dispose();
                 slot.Stage = null;
                 slot.RuntimeOrder = [];
-                slot.EntryVersions.Clear();
+                slot.VersionSnapshot = [];
                 slot.RuntimePlanDirty = true;
             }
             throw;
@@ -332,7 +338,7 @@ public sealed class Scheduler : IAddon, IDisposable
                 slot.Stage = null;
             }
             slot.RuntimeOrder = [];
-            slot.EntryVersions.Clear();
+            slot.VersionSnapshot = [];
         }
 
         _slots.Clear();
@@ -401,27 +407,34 @@ public sealed class Scheduler : IAddon, IDisposable
 
     private static void TickSlot(ScheduleSlot slot)
     {
-        foreach (var node in slot.RuntimeOrder) {
-            if (node.Registration is { Active: false }) {
+        var nodes = slot.RuntimeOrder;
+        for (var i = 0; i < nodes.Length; i++) {
+            ref var node = ref nodes[i];
+            var registration = node.Registration;
+            if (registration != null && !registration.Active) {
                 continue;
             }
-            if (node.SystemIndex < 0) {
+            var systemEntry = node.SystemEntry;
+            if (systemEntry == null) {
                 node.Entry.Tick();
-                continue;
             }
-            var systemEntry = (ISystemScheduleEntry)node.Entry;
-            if (systemEntry.Version == node.Version) {
+            else if (systemEntry.Version == node.Version) {
                 systemEntry.TickSystem(node.SystemIndex);
             }
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void EnsureSlotPlan(ScheduleSlot slot)
     {
-        if (!NeedsRuntimePlan(slot)) {
-            return;
+        if (NeedsRuntimePlan(slot)) {
+            BuildSlotPlan(slot);
         }
+    }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void BuildSlotPlan(ScheduleSlot slot)
+    {
         EnsureStage(slot);
         var nodes = new List<RuntimeNode>();
         var systems = new List<SystemChain.Entry?>();
@@ -432,7 +445,7 @@ public sealed class Scheduler : IAddon, IDisposable
             });
         if (slot.Stage is { } staticStage) {
             if (!hasDynamicSystems) {
-                nodes.Add(new(null, staticStage, -1, 0));
+                nodes.Add(new(null, staticStage, null, -1, 0));
                 systems.Add(null);
             }
             else {
@@ -440,7 +453,7 @@ public sealed class Scheduler : IAddon, IDisposable
                 var staticPlan = staticEntry.Plan!;
                 for (var i = 0; i < staticPlan.Entries.Length; i++) {
                     nodes.Add(new(
-                        null, staticEntry, i, staticEntry.Version));
+                        null, staticEntry, staticEntry, i, staticEntry.Version));
                     systems.Add(staticPlan.Entries[i]);
                 }
             }
@@ -455,49 +468,57 @@ public sealed class Scheduler : IAddon, IDisposable
                 var contributed = systemEntry.Plan?.Entries ?? [];
                 for (var i = 0; i < contributed.Length; i++) {
                     var system = contributed[i];
-                    nodes.Add(new(registration, systemEntry, i, version));
+                    nodes.Add(new(registration, systemEntry, systemEntry, i, version));
                     systems.Add(system);
                 }
             }
             else {
-                nodes.Add(new(registration, registration.Entry!, -1, 0));
+                nodes.Add(new(registration, registration.Entry!, null, -1, 0));
                 systems.Add(null);
             }
         }
 
         var order = Planner.PlanOrder(systems);
-        var runtimeOrder = ImmutableArray.CreateBuilder<RuntimeNode>(nodes.Count);
-        foreach (var nodeIndex in order) {
-            runtimeOrder.Add(nodes[nodeIndex]);
+        var runtimeOrder = new RuntimeNode[nodes.Count];
+        for (var i = 0; i < runtimeOrder.Length; i++) {
+            runtimeOrder[i] = nodes[order[i]];
         }
 
-        slot.EntryVersions.Clear();
+        var versionCount = 0;
         foreach (var registration in slot.Entries) {
-            if (registration is { Active: true, Entry: ISystemScheduleEntry entry }) {
-                slot.EntryVersions.Add(registration, entry.Version);
+            if (registration is { Active: true, Entry: ISystemScheduleEntry }) {
+                versionCount++;
             }
         }
-        slot.RuntimeOrder = runtimeOrder.MoveToImmutable();
+        var versionSnapshot = versionCount == 0
+            ? []
+            : new EntryVersion[versionCount];
+        versionCount = 0;
+        foreach (var registration in slot.Entries) {
+            if (registration is { Active: true, Entry: ISystemScheduleEntry entry }) {
+                versionSnapshot[versionCount++] = new(entry, entry.Version);
+            }
+        }
+
+        slot.VersionSnapshot = versionSnapshot;
+        slot.RuntimeOrder = runtimeOrder;
         slot.RuntimePlanDirty = false;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool NeedsRuntimePlan(ScheduleSlot slot)
     {
         if (slot.RuntimePlanDirty) {
             return true;
         }
-        var count = 0;
-        foreach (var registration in slot.Entries) {
-            if (registration is not { Active: true, Entry: ISystemScheduleEntry entry }) {
-                continue;
-            }
-            count++;
-            if (!slot.EntryVersions.TryGetValue(registration, out var version)
-                || version != entry.Version) {
+        var snapshot = slot.VersionSnapshot;
+        for (var i = 0; i < snapshot.Length; i++) {
+            ref var entry = ref snapshot[i];
+            if (entry.Entry.Version != entry.Version) {
                 return true;
             }
         }
-        return count != slot.EntryVersions.Count;
+        return false;
     }
 
     private void EnsureStage(ScheduleSlot slot)
@@ -528,7 +549,7 @@ public sealed class Scheduler : IAddon, IDisposable
                 slot.Stage = null;
             }
             slot.RuntimeOrder = [];
-            slot.EntryVersions.Clear();
+            slot.VersionSnapshot = [];
             slot.RuntimePlanDirty = true;
         }
         _planValid = false;
@@ -566,7 +587,7 @@ public sealed class Scheduler : IAddon, IDisposable
             slot.EntriesNeedCompaction = false;
             if (slot.Schedule is null && slot.Entries.Count == 0) {
                 slot.RuntimeOrder = [];
-                slot.EntryVersions.Clear();
+                slot.VersionSnapshot = [];
                 _slots.Remove(slot.Label);
                 _registrationOrder.Remove(slot);
                 _executionOrder.Remove(slot);
