@@ -38,6 +38,9 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     public int Count => InnerHost.Count;
     public int Version => InnerHost.Version;
 
+    public bool TryGetSequentialBytes(out Span<byte> bytes)
+        => InnerHost.TryGetSequentialBytes(out bytes);
+
     public WorldEntityHost(World world) : this(world, new()) {}
 
     private static TInnerHost InitializeInnerHost(World world, TInnerHost innerHost)

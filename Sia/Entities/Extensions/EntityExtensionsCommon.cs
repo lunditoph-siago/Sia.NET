@@ -4,6 +4,7 @@ namespace Sia;
 
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 internal static class EntityExtensionsCommon
 {
@@ -216,6 +217,18 @@ internal static class EntityExtensionsCommon
     {
         if (currentVersion != requiredVersion) {
             throw new InvalidOperationException("Entity host cannot be modified during the task");
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void GuardSequentialBytes(IEntityHost host, Span<byte> bytes)
+    {
+        if (host.TryGetSequentialBytes(out var current)
+            && !Unsafe.AreSame(
+                ref MemoryMarshal.GetReference(current),
+                ref MemoryMarshal.GetReference(bytes))) {
+            throw new InvalidOperationException(
+                "Entity host storage was reallocated during the iteration");
         }
     }
 }

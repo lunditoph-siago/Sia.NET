@@ -1,6 +1,8 @@
 namespace Sia;
 
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using static EntityExtensionsCommon;
 
 public static partial class EntityQueryExtensions
 {
@@ -119,13 +121,14 @@ public static partial class EntityQueryExtensions
                 var desc = host.Descriptor;
                 var c1Offset = desc.GetOffset<C1>();
 
-                if (host is ISequentialEntityHost seqHost) {
-                    ref var memRef = ref seqHost.Bytes[0];
-                    var size = seqHost.Descriptor.MemorySize;
+                if (host.TryGetSequentialBytes(out var bytes)) {
+                    ref var memRef = ref MemoryMarshal.GetReference(bytes);
+                    var size = host.Descriptor.MemorySize;
                     for (var i = from; i != to; ++i) {
                         nint offset = i * size;
                         handler(ref c1Offset.Get(ref memRef, offset));
                     }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -145,15 +148,16 @@ public static partial class EntityQueryExtensions
                 var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
 
-                if (host is ISequentialEntityHost seqHost) {
-                    ref var memRef = ref seqHost.Bytes[0];
-                    var size = seqHost.Descriptor.MemorySize;
+                if (host.TryGetSequentialBytes(out var bytes)) {
+                    ref var memRef = ref MemoryMarshal.GetReference(bytes);
+                    var size = host.Descriptor.MemorySize;
                     for (var i = from; i != to; ++i) {
                         nint offset = i * size;
                         handler(
                             ref c1Offset.Get(ref memRef, offset),
                             ref c2Offset.Get(ref memRef, offset));
                     }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -176,9 +180,9 @@ public static partial class EntityQueryExtensions
                 var c2Offset = desc.GetOffset<C2>();
                 var c3Offset = desc.GetOffset<C3>();
 
-                if (host is ISequentialEntityHost seqHost) {
-                    ref var memRef = ref seqHost.Bytes[0];
-                    var size = seqHost.Descriptor.MemorySize;
+                if (host.TryGetSequentialBytes(out var bytes)) {
+                    ref var memRef = ref MemoryMarshal.GetReference(bytes);
+                    var size = host.Descriptor.MemorySize;
                     for (var i = from; i != to; ++i) {
                         nint offset = i * size;
                         handler(
@@ -186,6 +190,7 @@ public static partial class EntityQueryExtensions
                             ref c2Offset.Get(ref memRef, offset),
                             ref c3Offset.Get(ref memRef, offset));
                     }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -210,9 +215,9 @@ public static partial class EntityQueryExtensions
                 var c3Offset = desc.GetOffset<C3>();
                 var c4Offset = desc.GetOffset<C4>();
 
-                if (host is ISequentialEntityHost seqHost) {
-                    ref var memRef = ref seqHost.Bytes[0];
-                    var size = seqHost.Descriptor.MemorySize;
+                if (host.TryGetSequentialBytes(out var bytes)) {
+                    ref var memRef = ref MemoryMarshal.GetReference(bytes);
+                    var size = host.Descriptor.MemorySize;
                     for (var i = from; i != to; ++i) {
                         nint offset = i * size;
                         handler(
@@ -221,6 +226,7 @@ public static partial class EntityQueryExtensions
                             ref c3Offset.Get(ref memRef, offset),
                             ref c4Offset.Get(ref memRef, offset));
                     }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -247,9 +253,9 @@ public static partial class EntityQueryExtensions
                 var c4Offset = desc.GetOffset<C4>();
                 var c5Offset = desc.GetOffset<C5>();
 
-                if (host is ISequentialEntityHost seqHost) {
-                    ref var memRef = ref seqHost.Bytes[0];
-                    var size = seqHost.Descriptor.MemorySize;
+                if (host.TryGetSequentialBytes(out var bytes)) {
+                    ref var memRef = ref MemoryMarshal.GetReference(bytes);
+                    var size = host.Descriptor.MemorySize;
                     for (var i = from; i != to; ++i) {
                         nint offset = i * size;
                         handler(
@@ -259,6 +265,7 @@ public static partial class EntityQueryExtensions
                             ref c4Offset.Get(ref memRef, offset),
                             ref c5Offset.Get(ref memRef, offset));
                     }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -287,9 +294,9 @@ public static partial class EntityQueryExtensions
                 var c5Offset = desc.GetOffset<C5>();
                 var c6Offset = desc.GetOffset<C6>();
 
-                if (host is ISequentialEntityHost seqHost) {
-                    ref var memRef = ref seqHost.Bytes[0];
-                    var size = seqHost.Descriptor.MemorySize;
+                if (host.TryGetSequentialBytes(out var bytes)) {
+                    ref var memRef = ref MemoryMarshal.GetReference(bytes);
+                    var size = host.Descriptor.MemorySize;
                     for (var i = from; i != to; ++i) {
                         nint offset = i * size;
                         handler(
@@ -300,6 +307,7 @@ public static partial class EntityQueryExtensions
                             ref c5Offset.Get(ref memRef, offset),
                             ref c6Offset.Get(ref memRef, offset));
                     }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -327,14 +335,15 @@ public static partial class EntityQueryExtensions
                 var handler = data.Item1;
                 ref readonly var userData = ref data.Item2;
 
-                if (host is ISequentialEntityHost seqHost) {
-                    ref var memRef = ref seqHost.Bytes[0];
-                    var size = seqHost.Descriptor.MemorySize;
+                if (host.TryGetSequentialBytes(out var bytes)) {
+                    ref var memRef = ref MemoryMarshal.GetReference(bytes);
+                    var size = host.Descriptor.MemorySize;
                     for (var i = from; i != to; ++i) {
                         nint offset = i * size;
                         handler(userData,
                             ref c1Offset.Get(ref memRef, offset));
                     }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -357,15 +366,16 @@ public static partial class EntityQueryExtensions
                 var handler = data.Item1;
                 ref readonly var userData = ref data.Item2;
 
-                if (host is ISequentialEntityHost seqHost) {
-                    ref var memRef = ref seqHost.Bytes[0];
-                    var size = seqHost.Descriptor.MemorySize;
+                if (host.TryGetSequentialBytes(out var bytes)) {
+                    ref var memRef = ref MemoryMarshal.GetReference(bytes);
+                    var size = host.Descriptor.MemorySize;
                     for (var i = from; i != to; ++i) {
                         nint offset = i * size;
                         handler(userData,
                             ref c1Offset.Get(ref memRef, offset),
                             ref c2Offset.Get(ref memRef, offset));
                     }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -391,9 +401,9 @@ public static partial class EntityQueryExtensions
                 var handler = data.Item1;
                 ref readonly var userData = ref data.Item2;
 
-                if (host is ISequentialEntityHost seqHost) {
-                    ref var memRef = ref seqHost.Bytes[0];
-                    var size = seqHost.Descriptor.MemorySize;
+                if (host.TryGetSequentialBytes(out var bytes)) {
+                    ref var memRef = ref MemoryMarshal.GetReference(bytes);
+                    var size = host.Descriptor.MemorySize;
                     for (var i = from; i != to; ++i) {
                         nint offset = i * size;
                         handler(userData,
@@ -401,6 +411,7 @@ public static partial class EntityQueryExtensions
                             ref c2Offset.Get(ref memRef, offset),
                             ref c3Offset.Get(ref memRef, offset));
                     }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -428,9 +439,9 @@ public static partial class EntityQueryExtensions
                 var handler = data.Item1;
                 ref readonly var userData = ref data.Item2;
 
-                if (host is ISequentialEntityHost seqHost) {
-                    ref var memRef = ref seqHost.Bytes[0];
-                    var size = seqHost.Descriptor.MemorySize;
+                if (host.TryGetSequentialBytes(out var bytes)) {
+                    ref var memRef = ref MemoryMarshal.GetReference(bytes);
+                    var size = host.Descriptor.MemorySize;
                     for (var i = from; i != to; ++i) {
                         nint offset = i * size;
                         handler(userData,
@@ -439,6 +450,7 @@ public static partial class EntityQueryExtensions
                             ref c3Offset.Get(ref memRef, offset),
                             ref c4Offset.Get(ref memRef, offset));
                     }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -468,9 +480,9 @@ public static partial class EntityQueryExtensions
                 var handler = data.Item1;
                 ref readonly var userData = ref data.Item2;
 
-                if (host is ISequentialEntityHost seqHost) {
-                    ref var memRef = ref seqHost.Bytes[0];
-                    var size = seqHost.Descriptor.MemorySize;
+                if (host.TryGetSequentialBytes(out var bytes)) {
+                    ref var memRef = ref MemoryMarshal.GetReference(bytes);
+                    var size = host.Descriptor.MemorySize;
                     for (var i = from; i != to; ++i) {
                         nint offset = i * size;
                         handler(userData,
@@ -480,6 +492,7 @@ public static partial class EntityQueryExtensions
                             ref c4Offset.Get(ref memRef, offset),
                             ref c5Offset.Get(ref memRef, offset));
                     }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -511,9 +524,9 @@ public static partial class EntityQueryExtensions
                 var handler = data.Item1;
                 ref readonly var userData = ref data.Item2;
 
-                if (host is ISequentialEntityHost seqHost) {
-                    ref var memRef = ref seqHost.Bytes[0];
-                    var size = seqHost.Descriptor.MemorySize;
+                if (host.TryGetSequentialBytes(out var bytes)) {
+                    ref var memRef = ref MemoryMarshal.GetReference(bytes);
+                    var size = host.Descriptor.MemorySize;
                     for (var i = from; i != to; ++i) {
                         nint offset = i * size;
                         handler(userData,
@@ -524,6 +537,7 @@ public static partial class EntityQueryExtensions
                             ref c5Offset.Get(ref memRef, offset),
                             ref c6Offset.Get(ref memRef, offset));
                     }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -729,13 +743,14 @@ public static partial class EntityQueryExtensions
                 var desc = host.Descriptor;
                 var c1Offset = desc.GetOffset<C1>();
 
-                if (host is ISequentialEntityHost seqHost) {
-                    ref var memRef = ref seqHost.Bytes[0];
-                    var size = seqHost.Descriptor.MemorySize;
+                if (host.TryGetSequentialBytes(out var bytes)) {
+                    ref var memRef = ref MemoryMarshal.GetReference(bytes);
+                    var size = host.Descriptor.MemorySize;
                     for (var i = from; i != to; ++i) {
                         nint offset = i * size;
                         handler(entities[i], ref c1Offset.Get(ref memRef, offset));
                     }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -756,15 +771,16 @@ public static partial class EntityQueryExtensions
                 var c1Offset = desc.GetOffset<C1>();
                 var c2Offset = desc.GetOffset<C2>();
 
-                if (host is ISequentialEntityHost seqHost) {
-                    ref var memRef = ref seqHost.Bytes[0];
-                    var size = seqHost.Descriptor.MemorySize;
+                if (host.TryGetSequentialBytes(out var bytes)) {
+                    ref var memRef = ref MemoryMarshal.GetReference(bytes);
+                    var size = host.Descriptor.MemorySize;
                     for (var i = from; i != to; ++i) {
                         nint offset = i * size;
                         handler(entities[i],
                             ref c1Offset.Get(ref memRef, offset),
                             ref c2Offset.Get(ref memRef, offset));
                     }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -788,9 +804,9 @@ public static partial class EntityQueryExtensions
                 var c2Offset = desc.GetOffset<C2>();
                 var c3Offset = desc.GetOffset<C3>();
 
-                if (host is ISequentialEntityHost seqHost) {
-                    ref var memRef = ref seqHost.Bytes[0];
-                    var size = seqHost.Descriptor.MemorySize;
+                if (host.TryGetSequentialBytes(out var bytes)) {
+                    ref var memRef = ref MemoryMarshal.GetReference(bytes);
+                    var size = host.Descriptor.MemorySize;
                     for (var i = from; i != to; ++i) {
                         nint offset = i * size;
                         handler(entities[i],
@@ -798,6 +814,7 @@ public static partial class EntityQueryExtensions
                             ref c2Offset.Get(ref memRef, offset),
                             ref c3Offset.Get(ref memRef, offset));
                     }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -823,9 +840,9 @@ public static partial class EntityQueryExtensions
                 var c3Offset = desc.GetOffset<C3>();
                 var c4Offset = desc.GetOffset<C4>();
 
-                if (host is ISequentialEntityHost seqHost) {
-                    ref var memRef = ref seqHost.Bytes[0];
-                    var size = seqHost.Descriptor.MemorySize;
+                if (host.TryGetSequentialBytes(out var bytes)) {
+                    ref var memRef = ref MemoryMarshal.GetReference(bytes);
+                    var size = host.Descriptor.MemorySize;
                     for (var i = from; i != to; ++i) {
                         nint offset = i * size;
                         handler(entities[i],
@@ -834,6 +851,7 @@ public static partial class EntityQueryExtensions
                             ref c3Offset.Get(ref memRef, offset),
                             ref c4Offset.Get(ref memRef, offset));
                     }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -861,9 +879,9 @@ public static partial class EntityQueryExtensions
                 var c4Offset = desc.GetOffset<C4>();
                 var c5Offset = desc.GetOffset<C5>();
 
-                if (host is ISequentialEntityHost seqHost) {
-                    ref var memRef = ref seqHost.Bytes[0];
-                    var size = seqHost.Descriptor.MemorySize;
+                if (host.TryGetSequentialBytes(out var bytes)) {
+                    ref var memRef = ref MemoryMarshal.GetReference(bytes);
+                    var size = host.Descriptor.MemorySize;
                     for (var i = from; i != to; ++i) {
                         nint offset = i * size;
                         handler(entities[i],
@@ -873,6 +891,7 @@ public static partial class EntityQueryExtensions
                             ref c4Offset.Get(ref memRef, offset),
                             ref c5Offset.Get(ref memRef, offset));
                     }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -902,9 +921,9 @@ public static partial class EntityQueryExtensions
                 var c5Offset = desc.GetOffset<C5>();
                 var c6Offset = desc.GetOffset<C6>();
 
-                if (host is ISequentialEntityHost seqHost) {
-                    ref var memRef = ref seqHost.Bytes[0];
-                    var size = seqHost.Descriptor.MemorySize;
+                if (host.TryGetSequentialBytes(out var bytes)) {
+                    ref var memRef = ref MemoryMarshal.GetReference(bytes);
+                    var size = host.Descriptor.MemorySize;
                     for (var i = from; i != to; ++i) {
                         nint offset = i * size;
                         handler(entities[i],
@@ -915,6 +934,7 @@ public static partial class EntityQueryExtensions
                             ref c5Offset.Get(ref memRef, offset),
                             ref c6Offset.Get(ref memRef, offset));
                     }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -943,14 +963,15 @@ public static partial class EntityQueryExtensions
                 var handler = data.Item1;
                 ref readonly var userData = ref data.Item2;
 
-                if (host is ISequentialEntityHost seqHost) {
-                    ref var memRef = ref seqHost.Bytes[0];
-                    var size = seqHost.Descriptor.MemorySize;
+                if (host.TryGetSequentialBytes(out var bytes)) {
+                    ref var memRef = ref MemoryMarshal.GetReference(bytes);
+                    var size = host.Descriptor.MemorySize;
                     for (var i = from; i != to; ++i) {
                         nint offset = i * size;
                         handler(entities[i], userData,
                             ref c1Offset.Get(ref memRef, offset));
                     }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -974,15 +995,16 @@ public static partial class EntityQueryExtensions
                 var handler = data.Item1;
                 ref readonly var userData = ref data.Item2;
 
-                if (host is ISequentialEntityHost seqHost) {
-                    ref var memRef = ref seqHost.Bytes[0];
-                    var size = seqHost.Descriptor.MemorySize;
+                if (host.TryGetSequentialBytes(out var bytes)) {
+                    ref var memRef = ref MemoryMarshal.GetReference(bytes);
+                    var size = host.Descriptor.MemorySize;
                     for (var i = from; i != to; ++i) {
                         nint offset = i * size;
                         handler(entities[i], userData,
                             ref c1Offset.Get(ref memRef, offset),
                             ref c2Offset.Get(ref memRef, offset));
                     }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -1009,9 +1031,9 @@ public static partial class EntityQueryExtensions
                 var handler = data.Item1;
                 ref readonly var userData = ref data.Item2;
 
-                if (host is ISequentialEntityHost seqHost) {
-                    ref var memRef = ref seqHost.Bytes[0];
-                    var size = seqHost.Descriptor.MemorySize;
+                if (host.TryGetSequentialBytes(out var bytes)) {
+                    ref var memRef = ref MemoryMarshal.GetReference(bytes);
+                    var size = host.Descriptor.MemorySize;
                     for (var i = from; i != to; ++i) {
                         nint offset = i * size;
                         handler(entities[i], userData,
@@ -1019,6 +1041,7 @@ public static partial class EntityQueryExtensions
                             ref c2Offset.Get(ref memRef, offset),
                             ref c3Offset.Get(ref memRef, offset));
                     }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -1047,9 +1070,9 @@ public static partial class EntityQueryExtensions
                 var handler = data.Item1;
                 ref readonly var userData = ref data.Item2;
 
-                if (host is ISequentialEntityHost seqHost) {
-                    ref var memRef = ref seqHost.Bytes[0];
-                    var size = seqHost.Descriptor.MemorySize;
+                if (host.TryGetSequentialBytes(out var bytes)) {
+                    ref var memRef = ref MemoryMarshal.GetReference(bytes);
+                    var size = host.Descriptor.MemorySize;
                     for (var i = from; i != to; ++i) {
                         nint offset = i * size;
                         handler(entities[i], userData,
@@ -1058,6 +1081,7 @@ public static partial class EntityQueryExtensions
                             ref c3Offset.Get(ref memRef, offset),
                             ref c4Offset.Get(ref memRef, offset));
                     }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -1088,9 +1112,9 @@ public static partial class EntityQueryExtensions
                 var handler = data.Item1;
                 ref readonly var userData = ref data.Item2;
 
-                if (host is ISequentialEntityHost seqHost) {
-                    ref var memRef = ref seqHost.Bytes[0];
-                    var size = seqHost.Descriptor.MemorySize;
+                if (host.TryGetSequentialBytes(out var bytes)) {
+                    ref var memRef = ref MemoryMarshal.GetReference(bytes);
+                    var size = host.Descriptor.MemorySize;
                     for (var i = from; i != to; ++i) {
                         nint offset = i * size;
                         handler(entities[i], userData,
@@ -1100,6 +1124,7 @@ public static partial class EntityQueryExtensions
                             ref c4Offset.Get(ref memRef, offset),
                             ref c5Offset.Get(ref memRef, offset));
                     }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -1132,9 +1157,9 @@ public static partial class EntityQueryExtensions
                 var handler = data.Item1;
                 ref readonly var userData = ref data.Item2;
 
-                if (host is ISequentialEntityHost seqHost) {
-                    ref var memRef = ref seqHost.Bytes[0];
-                    var size = seqHost.Descriptor.MemorySize;
+                if (host.TryGetSequentialBytes(out var bytes)) {
+                    ref var memRef = ref MemoryMarshal.GetReference(bytes);
+                    var size = host.Descriptor.MemorySize;
                     for (var i = from; i != to; ++i) {
                         nint offset = i * size;
                         handler(entities[i], userData,
@@ -1145,6 +1170,7 @@ public static partial class EntityQueryExtensions
                             ref c5Offset.Get(ref memRef, offset),
                             ref c6Offset.Get(ref memRef, offset));
                     }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {

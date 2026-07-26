@@ -14,7 +14,7 @@ public static class BufferEntityHost<TEntity>
 }
 
 public class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
-    : IEntityHost<TEntity>, ISequentialEntityHost
+    : IEntityHost<TEntity>
     where TEntity : struct, IHList
     where TBuffer : IBuffer<TEntity>
 {
@@ -27,8 +27,16 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     public int Count => Buffer.Count;
     public int Version { get; private set; }
 
-    public Span<byte> Bytes =>
-        Buffer.Count == 0 ? [] : MemoryMarshal.Cast<TEntity, byte>(Buffer.AsSpan());
+    public bool TryGetSequentialBytes(out Span<byte> bytes)
+    {
+        if (Buffer.Count == 0
+            || (long)Buffer.Capacity * Unsafe.SizeOf<TEntity>() > int.MaxValue) {
+            bytes = default;
+            return false;
+        }
+        bytes = MemoryMarshal.Cast<TEntity, byte>(Buffer.AsSpan());
+        return true;
+    }
 
     public TBuffer Buffer { get; } = buffer;
 

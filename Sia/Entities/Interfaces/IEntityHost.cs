@@ -40,6 +40,12 @@ public interface IEntityHost : IEnumerable<Entity>, IDisposable
         where THandler : IGenericConcreteTypeHandler<IEntityHost<UEntity>>;
 
     Span<Entity> UnsafeGetEntitySpan();
+
+    bool TryGetSequentialBytes(out Span<byte> bytes)
+    {
+        bytes = default;
+        return false;
+    }
 }
 
 public interface IReactiveEntityHost : IEntityHost
