@@ -52,4 +52,17 @@ public class QueryIterationBenchmarks
         return _first.Get<Position>().X;
     }
 
+    [Benchmark]
+    public float SliceIterationStructHandler()
+    {
+        var handler = new MovementHandler();
+        _query.ForSlice<Position, Velocity, MovementHandler>(ref handler);
+        return _first.Get<Position>().X;
+    }
+
+    private struct MovementHandler : ISliceHandler<Position, Velocity>
+    {
+        public readonly void Handle(ref Position position, ref Velocity velocity)
+            => position.X += velocity.X;
+    }
 }
