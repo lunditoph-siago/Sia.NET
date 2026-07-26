@@ -168,29 +168,33 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
     public void Send<UEvent>(TTarget target, in UEvent e)
         where UEvent : TEvent
     {
+        var globalListeners = _globalListeners;
+        var globalListenerCount = globalListeners.Count;
+
+        List<Listener<UEvent>>? eventListeners = null;
+        var eventListenerCount = 0;
+        ref var rawEventListeners = ref _eventListeners.GetRefOrNullRef(
+            EventTypeIndexer<UEvent>.Index);
+        if (!Unsafe.IsNullRef(ref rawEventListeners) && rawEventListeners != null) {
+            eventListeners = Unsafe.As<List<Listener<UEvent>>>(rawEventListeners);
+            eventListenerCount = eventListeners.Count;
+        }
+
+        List<IEventListener<TTarget>>? targetListeners = null;
+        var targetListenerCount = 0;
+        if (_targetListeners.Count != 0
+            && _targetListeners.TryGetValue(GetKey(target), out targetListeners)) {
+            targetListenerCount = targetListeners.Count;
+        }
+
+        if ((globalListenerCount | eventListenerCount | targetListenerCount) == 0) {
+            return;
+        }
+
         _sendDepth++;
-
-        var typeIndex = EventTypeIndexer<UEvent>.Index;
-
         try {
-            var globalListenerCount = _globalListeners.Count;
-            var eventListenerCount = 0;
-            var targetListenerCount = 0;
-
-            List<Listener<UEvent>>? eventListeners = null;
-            ref var rawEventListeners = ref _eventListeners.GetRefOrNullRef(typeIndex);
-
-            if (!Unsafe.IsNullRef(ref rawEventListeners) && rawEventListeners != null) {
-                eventListeners = (List<Listener<UEvent>>)rawEventListeners;
-                eventListenerCount = eventListeners.Count;
-            }
-            
-            if (_targetListeners.TryGetValue(GetKey(target), out var targetListeners)) {
-                targetListenerCount = targetListeners.Count;
-            }
-
             if (globalListenerCount != 0) {
-                ExecuteListeners(target, _globalListeners, e, globalListenerCount);
+                ExecuteListeners(target, globalListeners, e, globalListenerCount);
             }
             if (eventListenerCount != 0) {
                 ExecuteListeners(target, eventListeners!, e, eventListenerCount);

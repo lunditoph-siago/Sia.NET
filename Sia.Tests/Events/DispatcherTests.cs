@@ -32,6 +32,29 @@ public class DispatcherTests
     }
 
     [Fact]
+    public void Dispatcher_SendWithoutListeners_ThenListenersStillFire()
+    {
+        var dispatcher = new Dispatcher<int, IEvent>();
+        dispatcher.Send(1, new AssertCommand(1));
+
+        var typedCount = 0;
+        var targetListener = new CountingListener();
+        dispatcher.Listen((int target, in AssertCommand e) => {
+            typedCount++;
+            Assert.Throws<InvalidOperationException>(
+                () => dispatcher.Unlisten(1, targetListener));
+            return false;
+        });
+        dispatcher.Listen(1, targetListener);
+
+        dispatcher.Send(1, new AssertCommand(1));
+        dispatcher.Send(2, new AssertCommand(2));
+
+        Assert.Equal(2, typedCount);
+        Assert.Equal(1, targetListener.Count);
+    }
+
+    [Fact]
     public void Dispatcher_Test()
     {
         var dispatcher = new Dispatcher<int, IEvent>();
