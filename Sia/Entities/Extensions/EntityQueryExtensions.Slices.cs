@@ -22,14 +22,14 @@ public static partial class EntityQueryExtensions
             var c1Offset = desc.GetOffset<C1>();
             var version = host.Version;
 
-            var bytes = host is ISequentialEntityHost seqHost ? seqHost.Bytes : default;
-            if (!bytes.IsEmpty) {
+            if (host.TryGetSequentialBytes(out var bytes)) {
                 var size = desc.MemorySize;
                 ref var cursor = ref MemoryMarshal.GetReference(bytes);
                 for (var i = 0; i < count; i++) {
                     handler.Handle(ref c1Offset.Get(ref cursor));
                     cursor = ref Unsafe.AddByteOffset(ref cursor, size);
                 }
+                GuardSequentialBytes(host, bytes);
             }
             else {
                 for (var i = 0; i < count; i++) {
@@ -58,8 +58,7 @@ public static partial class EntityQueryExtensions
             var c2Offset = desc.GetOffset<C2>();
             var version = host.Version;
 
-            var bytes = host is ISequentialEntityHost seqHost ? seqHost.Bytes : default;
-            if (!bytes.IsEmpty) {
+            if (host.TryGetSequentialBytes(out var bytes)) {
                 var size = desc.MemorySize;
                 ref var cursor = ref MemoryMarshal.GetReference(bytes);
                 for (var i = 0; i < count; i++) {
@@ -68,6 +67,7 @@ public static partial class EntityQueryExtensions
                         ref c2Offset.Get(ref cursor));
                     cursor = ref Unsafe.AddByteOffset(ref cursor, size);
                 }
+                GuardSequentialBytes(host, bytes);
             }
             else {
                 for (var i = 0; i < count; i++) {
@@ -99,8 +99,7 @@ public static partial class EntityQueryExtensions
             var c3Offset = desc.GetOffset<C3>();
             var version = host.Version;
 
-            var bytes = host is ISequentialEntityHost seqHost ? seqHost.Bytes : default;
-            if (!bytes.IsEmpty) {
+            if (host.TryGetSequentialBytes(out var bytes)) {
                 var size = desc.MemorySize;
                 ref var cursor = ref MemoryMarshal.GetReference(bytes);
                 for (var i = 0; i < count; i++) {
@@ -110,6 +109,7 @@ public static partial class EntityQueryExtensions
                         ref c3Offset.Get(ref cursor));
                     cursor = ref Unsafe.AddByteOffset(ref cursor, size);
                 }
+                GuardSequentialBytes(host, bytes);
             }
             else {
                 for (var i = 0; i < count; i++) {
@@ -143,8 +143,7 @@ public static partial class EntityQueryExtensions
             var c4Offset = desc.GetOffset<C4>();
             var version = host.Version;
 
-            var bytes = host is ISequentialEntityHost seqHost ? seqHost.Bytes : default;
-            if (!bytes.IsEmpty) {
+            if (host.TryGetSequentialBytes(out var bytes)) {
                 var size = desc.MemorySize;
                 ref var cursor = ref MemoryMarshal.GetReference(bytes);
                 for (var i = 0; i < count; i++) {
@@ -155,6 +154,7 @@ public static partial class EntityQueryExtensions
                         ref c4Offset.Get(ref cursor));
                     cursor = ref Unsafe.AddByteOffset(ref cursor, size);
                 }
+                GuardSequentialBytes(host, bytes);
             }
             else {
                 for (var i = 0; i < count; i++) {
