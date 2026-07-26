@@ -49,21 +49,34 @@ public static partial class EntityQueryExtensions
             var (host, hostIndex, slotIndex) = FindHost(hosts, from);
             var version = host.Version;
 
-            while (true) {
-                var slotCount = host.Count;
-                remainingCount -= slotCount;
+            var slotCount = host.Count - slotIndex;
+            if (remainingCount <= slotCount) {
+                handler(host, slotIndex, slotIndex + remainingCount);
+                GuardVersion(version, host.Version);
+                return;
+            }
+            handler(host, slotIndex, slotIndex + slotCount);
+            GuardVersion(version, host.Version);
+            remainingCount -= slotCount;
+            if (remainingCount == 0) { return; }
 
+            host = hosts[++hostIndex];
+            version = host.Version;
+            slotCount = host.Count;
+
+            while (true) {
                 if (remainingCount <= slotCount) {
-                    handler(host, slotIndex, remainingCount);
+                    handler(host, 0, remainingCount);
                     GuardVersion(version, host.Version);
                     return;
                 }
-                else {
-                    handler(host, slotIndex, slotCount);
-                    GuardVersion(version, host.Version);
-                    host = hosts[++hostIndex];
-                    slotIndex = 0;
-                }
+                handler(host, 0, slotCount);
+                GuardVersion(version, host.Version);
+                remainingCount -= slotCount;
+
+                host = hosts[++hostIndex];
+                version = host.Version;
+                slotCount = host.Count;
             }
         }
 
@@ -103,6 +116,7 @@ public static partial class EntityQueryExtensions
             if (remainingCount == 0) { return; }
 
             host = hosts[++hostIndex];
+            version = host.Version;
             slotCount = host.Count;
 
             while (true) {
@@ -116,6 +130,7 @@ public static partial class EntityQueryExtensions
                 remainingCount -= slotCount;
 
                 host = hosts[++hostIndex];
+                version = host.Version;
                 slotCount = host.Count;
             }
         };
