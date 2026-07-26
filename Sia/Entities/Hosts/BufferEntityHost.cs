@@ -30,7 +30,7 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     public bool TryGetSequentialBytes(out Span<byte> bytes)
     {
         if (Buffer.Count == 0
-            || (long)Buffer.Capacity * Unsafe.SizeOf<TEntity>() > int.MaxValue) {
+            || (long)Buffer.Count * Unsafe.SizeOf<TEntity>() > int.MaxValue) {
             bytes = default;
             return false;
         }
