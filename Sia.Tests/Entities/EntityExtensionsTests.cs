@@ -41,6 +41,27 @@ public class EntityExtensionsTests
         }));
     }
 
+    private struct SliceSumHandler : ISliceHandler<Sid<ObjectId>>
+    {
+        public int Sum;
+
+        public void Handle(ref Sid<ObjectId> id) => Sum += id.Value.Value;
+    }
+
+    [Fact]
+    public void QueryForSlice_StructHandler_Test()
+    {
+        using var world = new World();
+        for (var i = 0; i < 32; i++) {
+            world.Create(HList.From(new Sid<ObjectId>(i)));
+        }
+        var query = world.Query(Matchers.Of<Sid<ObjectId>>());
+
+        var handler = new SliceSumHandler();
+        query.ForSlice<Sid<ObjectId>, SliceSumHandler>(ref handler);
+        Assert.Equal(496, handler.Sum);
+    }
+
     [Fact]
     public void EntityHostRecord_Test()
     {
