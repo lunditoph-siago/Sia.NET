@@ -272,21 +272,45 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
 
         public void EndExecution()
         {
-            var result = Outcome<Exception>.Success;
-            foreach (var host in _hosts) {
-                result = result.Attempt(host.ClearCollected);
+            List<Exception>? errors = null;
+            var hosts = _hosts;
+            for (var i = 0; i < hosts.Count; i++) {
+                try {
+                    hosts[i].ClearCollected();
+                }
+                catch (Exception error) {
+                    (errors ??= []).Add(error);
+                }
             }
             Executing = false;
-            foreach (var op in _deferredOps) {
-                if (!op.Collect) {
-                    result = result.Attempt(() => op.Host.Remove(op.Entity));
+            var deferredOps = _deferredOps;
+            for (var i = 0; i < deferredOps.Count; i++) {
+                var op = deferredOps[i];
+                try {
+                    if (!op.Collect) {
+                        op.Host.Remove(op.Entity);
+                    }
+                    else if (op.Entity.IsValid) {
+                        op.Host.Add(op.Entity);
+                    }
                 }
-                else if (op.Entity.IsValid) {
-                    result = result.Attempt(() => op.Host.Add(op.Entity));
+                catch (Exception error) {
+                    (errors ??= []).Add(error);
                 }
             }
-            _deferredOps.Clear();
-            result.ThrowIfFailed();
+            deferredOps.Clear();
+            if (errors != null) {
+                ThrowCollected(errors);
+            }
+        }
+
+        private static void ThrowCollected(List<Exception> errors)
+        {
+            var result = Outcome<Exception>.Failure(errors[0]);
+            for (var i = 1; i < errors.Count; i++) {
+                result = result.Combine(Outcome<Exception>.Failure(errors[i]));
+            }
+            result.ThrowFailure();
         }
 
         private void Collect(CollectedEntityHost host, Entity entity)
