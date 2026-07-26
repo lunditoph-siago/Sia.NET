@@ -89,6 +89,12 @@ public readonly struct ReactiveNode : IEquatable<ReactiveNode>
                 return;
             }
 
+            if (!node.GetUnchecked<Cell>().Expanded) {
+                context.RemountRange(1);
+                Mount(ref context);
+                return;
+            }
+
             var next = new ReactiveNodeSpec<TTerm>(_term);
             if (!EqualityComparer<ReactiveNodeSpec<TTerm>>.Default.Equals(
                     node.GetUnchecked<ReactiveNodeSpec<TTerm>>(), next)) {

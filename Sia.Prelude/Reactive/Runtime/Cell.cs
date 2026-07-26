@@ -34,6 +34,7 @@ public struct Cell
     public List<ContextScope>? PendingContextDependencies;
     public bool InDirty;
     public bool IsDestroying;
+    public bool Expanded;
 }
 
 public struct PrevTree<TTree>

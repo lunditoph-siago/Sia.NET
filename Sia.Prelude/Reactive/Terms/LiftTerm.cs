@@ -30,6 +30,18 @@ public readonly record struct LiftTerm<TSpec>(TSpec Props) : ITerm<LiftTerm<TSpe
                 ctx.Output));
             return;
         }
+        if (!cell.GetUnchecked<Cell>().Expanded) {
+            ctx.RemountRange(1);
+            ctx.SetSlot(ctx.Reconciler.MountSub(
+                next.Props,
+                ctx.Cell,
+                ctx.Depth + 1,
+                ctx.NextSlotIndex,
+                ctx.Schedule,
+                ctx.Scope,
+                ctx.Output));
+            return;
+        }
         if (!prev.Props.Equals(next.Props)) {
             cell.GetUnchecked<TSpec>() = next.Props;
             ctx.Reconciler.EnqueueDirty(cell);
