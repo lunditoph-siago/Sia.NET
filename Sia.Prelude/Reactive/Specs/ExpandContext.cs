@@ -14,7 +14,7 @@ public readonly ref struct ExpandContext(Reconciler reconciler, Entity cell)
         where T : struct
     {
         ref var cellData = ref Cell.GetUnchecked<Cell>();
-        var states = cellData.States ??= new StateCells();
+        var states = cellData.States ??= new StateCells(cellData.Expanded);
         return new State<T>(
             states.NextState(initial), Reconciler, Cell, cellData.Identity);
     }

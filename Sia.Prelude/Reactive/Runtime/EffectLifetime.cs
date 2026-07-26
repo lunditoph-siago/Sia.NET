@@ -39,8 +39,9 @@ internal sealed class EffectLifetime<TDependencies, TResource>
             throw new InvalidOperationException(
                 "Cannot reconcile an unmounted reactive effect.");
         }
-        if (EqualityComparer<TDependencies>.Default.Equals(
-                _dependencies, dependencies)) {
+        if (_lifecycle.Mounted
+                && EqualityComparer<TDependencies>.Default.Equals(
+                    _dependencies, dependencies)) {
             return;
         }
 

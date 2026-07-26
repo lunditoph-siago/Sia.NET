@@ -153,6 +153,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         var mark = _pendingWork.Count;
         try {
             cell.GetUnchecked<Cell>().Expander.Expand(this, cell);
+            cell.GetUnchecked<Cell>().Expanded = true;
         }
         finally {
             _reconciling = false;

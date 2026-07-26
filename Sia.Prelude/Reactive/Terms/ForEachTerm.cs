@@ -136,22 +136,27 @@ public readonly record struct ForEachTerm<TKey, TSpec>(ReadOnlyMemory<Keyed<TKey
         foreach (ref readonly var item in items) {
             if (byKey.TryGetValue(item.Key, out var entry)
                 && entry.Cell is { IsValid: true } cell) {
-                if (!cell.GetUnchecked<TSpec>().Equals(item.Props)) {
-                    cell.GetUnchecked<TSpec>() = item.Props;
-                    ctx.Reconciler.EnqueueDirty(cell);
+                if (cell.GetUnchecked<Cell>().Expanded) {
+                    if (!cell.GetUnchecked<TSpec>().Equals(item.Props)) {
+                        cell.GetUnchecked<TSpec>() = item.Props;
+                        ctx.Reconciler.EnqueueDirty(cell);
+                    }
+                    entry.Stamp = stamp;
+                    byKey[item.Key] = entry;
+                    continue;
                 }
+                ctx.Reconciler.DestroySlot(cell);
             }
-            else {
-                var created = ctx.Reconciler.MountSub(
-                    item.Props,
-                    ctx.Cell,
-                    ctx.Depth + 1,
-                    slotIndex,
-                    ctx.Schedule,
-                    ctx.Scope,
-                    ctx.Output);
-                entry.Cell = created;
-            }
+
+            var created = ctx.Reconciler.MountSub(
+                item.Props,
+                ctx.Cell,
+                ctx.Depth + 1,
+                slotIndex,
+                ctx.Schedule,
+                ctx.Scope,
+                ctx.Output);
+            entry.Cell = created;
             entry.Stamp = stamp;
             byKey[item.Key] = entry;
         }

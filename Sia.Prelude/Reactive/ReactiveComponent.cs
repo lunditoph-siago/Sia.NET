@@ -59,6 +59,12 @@ public readonly record struct ComponentTerm<TProps>(
             return;
         }
 
+        if (!child.GetUnchecked<Cell>().Expanded) {
+            context.RemountRange(1);
+            Mount(next, ref context);
+            return;
+        }
+
         ref var current = ref child.GetUnchecked<ComponentSpec<TProps>>();
         if (!EqualityComparer<ReactiveComponent<TProps>>.Default.Equals(
                 current.Render, next.Render)) {
