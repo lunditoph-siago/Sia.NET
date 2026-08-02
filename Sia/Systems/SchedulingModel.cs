@@ -1,6 +1,7 @@
 namespace Sia;
 
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 public readonly record struct ScheduleLabel(string Name)
@@ -189,8 +190,15 @@ public interface ISystemDescriptorProvider
 }
 
 [AttributeUsage(AttributeTargets.Assembly, AllowMultiple = true)]
-public sealed class SiaSystemDescriptorProviderAttribute(Type providerType) : Attribute
+public sealed class SiaSystemDescriptorProviderAttribute(
+    [DynamicallyAccessedMembers(
+        DynamicallyAccessedMemberTypes.PublicParameterlessConstructor
+        | DynamicallyAccessedMemberTypes.NonPublicConstructors)]
+    Type providerType) : Attribute
 {
+    [DynamicallyAccessedMembers(
+        DynamicallyAccessedMemberTypes.PublicParameterlessConstructor
+        | DynamicallyAccessedMemberTypes.NonPublicConstructors)]
     public Type ProviderType { get; } = providerType;
 }
 

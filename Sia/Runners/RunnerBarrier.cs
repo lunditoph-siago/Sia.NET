@@ -24,8 +24,8 @@ public sealed class RunnerBarrier
     private readonly record struct CallbackEntry(Action<object?> Callback, object? UserData);
 
 #if BROWSER
-    private volatile int _remaining;
-    public int ParticipantCount => _remaining;
+    private int _remaining;
+    public int ParticipantCount => Volatile.Read(ref _remaining);
 #else
     public Barrier Raw { get; } = new(0);
     public int ParticipantCount => Raw.ParticipantCount;

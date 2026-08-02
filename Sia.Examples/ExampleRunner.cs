@@ -59,10 +59,8 @@ public class ExampleRunner
             Console.SetOut(_outputWriter);
 
             Console.WriteLine($"== {example.Name} ==");
-            var world = new World();
-            Context<World>.Current = world;
-            example.Runner(world);
-            world.Dispose();
+            using var world = new World();
+            Context<World>.With(world, () => example.Runner(world));
             Console.WriteLine();
 
             return _outputWriter.ToString();
