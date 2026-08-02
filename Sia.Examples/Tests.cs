@@ -8,7 +8,7 @@ using TestEntity2 = Sia.HList<Position, Sia.HList<Rotation, Sia.EmptyHList>>;
 
 public record struct Position(float X, float Y, float Z)
 {
-    public List<int> ManagedTest;
+    public List<int>? ManagedTest;
 
     public readonly record struct Set(float X, float Y, float Z) : ICommand
     {

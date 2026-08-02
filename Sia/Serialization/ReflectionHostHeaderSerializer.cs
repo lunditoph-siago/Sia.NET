@@ -2,10 +2,15 @@ namespace Sia.Serialization;
 
 using System.Buffers;
 using System.Collections.Frozen;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 
+[RequiresUnreferencedCode(
+    "Serialized host and component types are resolved by name. Their members must be preserved by the caller.")]
+[RequiresDynamicCode(
+    "Deserializing arbitrary host types constructs generic types and methods at runtime.")]
 public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
 {
     private static readonly byte[] Dividor = Encoding.Unicode.GetBytes(";");

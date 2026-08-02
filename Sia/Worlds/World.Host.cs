@@ -39,8 +39,8 @@ public partial class World
         }
         Version++;
         var host = new WorldEntityHost<TEntity, THost>(this);
-        OnEntityHostAdded?.Invoke(host);
         rawHost = host;
+        OnEntityHostAdded?.Invoke(host);
         return host;
     }
 
@@ -55,8 +55,8 @@ public partial class World
         }
         Version++;
         var host = new WorldEntityHost<TEntity, THost>(this);
-        OnEntityHostAdded?.Invoke(host);
         rawHost = host;
+        OnEntityHostAdded?.Invoke(host);
         return host;
     }
 
