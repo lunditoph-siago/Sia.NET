@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Sia;
 
 namespace Sia_Examples;
@@ -24,22 +25,21 @@ public class ExampleRunner
     {
         var examples = new (string Name, string Description, ExampleDelegate Runner)[]
         {
-            ("Health & Damage", "Demonstrates health and damage system", Example1_HealthDamage.Run),
-            ("Health Recovery", "Demonstrates automatic health recovery system", Example2_HealthRecover.Run),
-            ("Move & Rotate", "Demonstrates movement and rotation system", Example3_MoveRotator.Run),
-            ("Aggregator", "Demonstrates aggregator system", Example4_Aggregator.Run),
-            ("Component Bundle", "Demonstrates component bundles", Example5_ComponentBundle.Run),
-            ("Hierarchy", "Demonstrates hierarchy system", Example6_Hierarchy.Run),
-            ("Mapper", "Demonstrates mapper functionality", Example7_Mapper.Run),
-            ("SIMD", "Demonstrates SIMD operations", Example8_Sum.Run),
-            ("SubWorld", "Demonstrates subworld render system ", Example9_SubWorld.Run),
-            ("Duplicate System", "Demonstrates duplicate system", Example10_DuplicateSystem.Run),
-            ("RPG System", "Demonstrates RPG system", Example11_RPG.Run),
-            ("Addon", "Demonstrates addon system", Example12_Addon.Run),
-            ("Parallel", "Demonstrates parallel processing", Example13_Parallel.Run),
-            ("Runner Context", "Demonstrates runner context", Example14_RunnerWithContext.Run),
-            ("Serialization", "Demonstrates serialization", Example15_Serialization.Run),
-            ("Event System", "Demonstrates event system", Example16_EventSystem.Run),
+            ("OOM Killer",
+                "Memory leak, GC, and the OOM killer",
+                Example1_OomKiller.Run),
+            ("Fork",
+                "Process tree, cgroups, and PID reuse",
+                Example2_Fork.Run),
+            ("Htop",
+                "Live monitoring from another thread",
+                Example3_Htop.Run),
+            ("Load Test",
+                "Five ways to sum a million requests",
+                Example4_LoadTest.Run),
+            ("Git",
+                "Commit log, diff, and reflog",
+                Example5_Git.Run),
         };
 
         foreach (var (name, description, runner) in examples)

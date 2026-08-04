@@ -4,6 +4,7 @@ namespace Sia.Serialization.Binary;
 
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Diagnostics.CodeAnalysis;
 using CommunityToolkit.HighPerformance;
 
 public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> : IWorldSerializer
@@ -55,6 +56,10 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
         }
     }
 
+    [RequiresUnreferencedCode(
+        "Calls THostHeaderSerializer.Serialize, which may resolve serialized types by name.")]
+    [RequiresDynamicCode(
+        "Calls THostHeaderSerializer.Serialize, which may construct generic types and methods at runtime.")]
     public static unsafe void Serialize<TBufferWriter>(ref TBufferWriter writer, World world)
         where TBufferWriter : IBufferWriter<byte>
     {
@@ -84,6 +89,10 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
         }
     }
 
+    [RequiresUnreferencedCode(
+        "Calls THostHeaderSerializer.Deserialize, which may resolve serialized types by name.")]
+    [RequiresDynamicCode(
+        "Calls THostHeaderSerializer.Deserialize, which may construct generic types and methods at runtime.")]
     public static unsafe void Deserialize(ref ReadOnlySequence<byte> buffer, World world)
     {
         using var serializer = new TComponentSerializer();
