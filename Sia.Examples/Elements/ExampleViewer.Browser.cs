@@ -2,64 +2,112 @@
 using System.Runtime.InteropServices.JavaScript;
 using Sia;
 using Sia.Reactive;
+using Sia_Examples.Notebook;
 
 namespace Sia_Examples;
 
 public static partial class ExampleViewer
 {
-    public static Task Run() => BrowserExampleApp.Run(_runner);
+    public static Task Run() => BrowserExampleApp.Run(_library);
 }
 
 public static class BrowserExampleApp
 {
-    public static async Task Run(ExampleRunner runner)
+    public static async Task Run(NotebookLibrary library)
     {
-        ArgumentNullException.ThrowIfNull(runner);
+        ArgumentNullException.ThrowIfNull(library);
 
         using var world = new World();
         Context<World>.Current = world;
 
         using var host = new BrowserHost();
-        var app = world.Mount(
-            ExampleApp.Definition,
-            new(runner, host));
+        var app = world.Mount(ExampleApp.Definition, new(library, host));
+
+        NotebookSession? session = null;
+        NotebookDocument? document = null;
 
         try {
             while (true) {
-                var index = await host.WaitForClick();
-                if (index < 0 || index >= runner.Examples.Count) {
-                    continue;
+                var evt = await host.WaitForClick();
+                var (kind, arg) = Split(evt);
+
+                switch (kind) {
+                    case "select": {
+                        if (!int.TryParse(arg, out var index) || index < 0 || index >= library.Notebooks.Count) {
+                            continue;
+                        }
+
+                        session?.Dispose();
+                        var info = library.Notebooks[index];
+                        document = library.Load(info);
+                        session = new NotebookSession(document, new MetadataReferenceProvider());
+                        session.Changed += () => host.ShowNotebook(NotebookRenderer.Render(document, session));
+                        await session.EnsureHighlightsAsync();
+                        host.ShowNotebook(NotebookRenderer.Render(document, session));
+
+                        var state = app.GetState<ExampleAppState>();
+                        state.Update(_ => new(index));
+                        world.FlushReactive();
+                        break;
+                    }
+
+                    case "compile" when session is not null:
+                        _ = session.CompileThroughAsync(arg);
+                        break;
+
+                    case "run" when session is not null:
+                        _ = session.RunThroughAsync(arg);
+                        break;
+
+                    case "stop" when session is not null:
+                        session.Interrupt();
+                        break;
+
+                    case "save" when session is not null:
+                        var source = host.ReadCellSource(arg);
+                        _ = session.UpdateCellSourceAsync(arg, source);
+                        break;
                 }
-
-                var state = app.GetState<ExampleAppState>();
-                var example = runner.Examples[index];
-                state.Update(s => s.Begin(index, example.Name));
-                world.FlushReactive();
-
-                // Let the browser paint the pending state before the
-                // synchronous example starts producing its output.
-                await Task.Delay(1);
-
-                state.Update(s => s.Complete(runner.RunExample(index)));
-                world.FlushReactive();
             }
         }
         finally {
+            session?.Dispose();
             if (app.IsMounted) {
                 app.Unmount();
             }
         }
+    }
+
+    private static (string Kind, string Arg) Split(string evt)
+    {
+        var i = evt.IndexOf(':');
+        return i < 0 ? (evt, "") : (evt[..i], evt[(i + 1)..]);
     }
 }
 
 public sealed class BrowserHost : IExampleRenderHost, IDisposable
 {
     private readonly BrowserElement _sidebar = BrowserElement.Find("sidebar");
-    private readonly BrowserElement _output = BrowserElement.Find("output");
-    private readonly BrowserElement _outputTitle = BrowserElement.Find("output-title");
+    private readonly BrowserElement _notebookContainer = BrowserElement.Find("notebook");
     private readonly SortedDictionary<int, ExampleNode> _examples = [];
+    private BrowserElement? _notebookContent;
 
-    public Task<int> WaitForClick() => BrowserDom.WaitForEvent();
+    public Task<string> WaitForClick() => BrowserDom.WaitForEvent();
+
+    public void ShowNotebook(BrowserElement content)
+    {
+        _notebookContent?.Remove();
+        _notebookContent?.Dispose();
+        _notebookContainer.Text("");
+        _notebookContent = content;
+        _notebookContainer.Append(content);
+    }
+
+    public string ReadCellSource(string cellId)
+    {
+        using var textarea = BrowserElement.Find(NotebookRenderer.SourceElementId(cellId));
+        return textarea.Value();
+    }
 
     public void Upsert(in ExampleItemView view)
     {
@@ -68,7 +116,6 @@ public sealed class BrowserHost : IExampleRenderHost, IDisposable
             _examples.Add(view.Index, node);
             _sidebar.InsertBefore(node.Root, FindNext(view.Index));
         }
-
         node.Render(view);
     }
 
@@ -79,18 +126,6 @@ public sealed class BrowserHost : IExampleRenderHost, IDisposable
         }
     }
 
-    public void Upsert(in ExampleOutputView view)
-    {
-        _outputTitle.Text(view.Title);
-        _output.Text(view.Output).ToggleClass("loading", view.Loading);
-    }
-
-    public void Remove(in ExampleOutputView view)
-    {
-        _outputTitle.Text("");
-        _output.Text("").ToggleClass("loading", false);
-    }
-
     public void Commit() { }
 
     public void Dispose()
@@ -99,8 +134,8 @@ public sealed class BrowserHost : IExampleRenderHost, IDisposable
             node.Dispose();
         }
         _examples.Clear();
-        _outputTitle.Dispose();
-        _output.Dispose();
+        _notebookContent?.Dispose();
+        _notebookContainer.Dispose();
         _sidebar.Dispose();
     }
 
@@ -128,7 +163,7 @@ public sealed class ExampleNode(
     {
         var root = BrowserElement.Create("button")
             .Class("example-btn")
-            .On("click", index);
+            .On("click", "select:" + index);
         var name = BrowserElement.Create("span").Class("name");
         var description = BrowserElement.Create("span").Class("desc");
         root.Append(name).Append(description);
@@ -157,6 +192,7 @@ public sealed class BrowserElement(JSObject handle) : IDisposable
 
     public static BrowserElement Find(string id) => new(BrowserDom.Find(id));
     public static BrowserElement Create(string tag) => new(BrowserDom.Create(tag));
+    public static BrowserElement CreateText(string value) => new(BrowserDom.CreateText(value));
 
     public BrowserElement Class(string name) => ToggleClass(name, true);
 
@@ -166,15 +202,29 @@ public sealed class BrowserElement(JSObject handle) : IDisposable
         return this;
     }
 
+    public BrowserElement Id(string id)
+    {
+        BrowserDom.SetId(Handle, id);
+        return this;
+    }
+
+    public BrowserElement Position(double top, double left)
+    {
+        BrowserDom.SetPosition(Handle, top, left);
+        return this;
+    }
+
+    public string Value() => BrowserDom.GetValue(Handle);
+
     public BrowserElement ToggleClass(string name, bool enabled)
     {
         BrowserDom.ToggleClass(Handle, name, enabled);
         return this;
     }
 
-    public BrowserElement On(string name, int eventId)
+    public BrowserElement On(string name, string payload)
     {
-        BrowserDom.Listen(Handle, name, eventId);
+        BrowserDom.Listen(Handle, name, payload);
         return this;
     }
 
@@ -199,14 +249,26 @@ internal static partial class BrowserDom
     [JSImport("create", "main.js")]
     internal static partial JSObject Create(string tag);
 
+    [JSImport("createText", "main.js")]
+    internal static partial JSObject CreateText(string value);
+
     [JSImport("setText", "main.js")]
     internal static partial void SetText(JSObject element, string value);
+
+    [JSImport("getValue", "main.js")]
+    internal static partial string GetValue(JSObject element);
+
+    [JSImport("setId", "main.js")]
+    internal static partial void SetId(JSObject element, string id);
+
+    [JSImport("setPosition", "main.js")]
+    internal static partial void SetPosition(JSObject element, double top, double left);
 
     [JSImport("toggleClass", "main.js")]
     internal static partial void ToggleClass(JSObject element, string name, bool enabled);
 
     [JSImport("listen", "main.js")]
-    internal static partial void Listen(JSObject element, string name, int eventId);
+    internal static partial void Listen(JSObject element, string name, string payload);
 
     [JSImport("insertBefore", "main.js")]
     internal static partial void InsertBefore(
@@ -218,7 +280,7 @@ internal static partial class BrowserDom
     internal static partial void Remove(JSObject element);
 
     [JSImport("waitForEvent", "main.js")]
-    [return: JSMarshalAs<JSType.Promise<JSType.Number>>]
-    internal static partial Task<int> WaitForEvent();
+    [return: JSMarshalAs<JSType.Promise<JSType.String>>]
+    internal static partial Task<string> WaitForEvent();
 }
 #endif
