@@ -6,7 +6,7 @@ namespace Sia_Examples;
 
 internal static partial class AnsiText
 {
-    [GeneratedRegex("\\[[0-9;]*m")]
+    [GeneratedRegex("\\e\\[[0-9;]*m")]
     private static partial Regex EscapeSequence();
 
     public static int VisibleLength(string s) => EscapeSequence().Replace(s, "").Length;
@@ -18,7 +18,7 @@ internal static partial class AnsiText
         }
         var visible = VisibleLength(s);
         if (visible <= width) {
-            return s + new string(' ', width - visible) + "[0m";
+            return s + new string(' ', width - visible) + "\e[0m";
         }
 
         var sb = new StringBuilder();
@@ -35,7 +35,7 @@ internal static partial class AnsiText
             count++;
             i++;
         }
-        sb.Append("[0m");
+        sb.Append("\e[0m");
         return sb.ToString();
     }
 }
@@ -44,23 +44,23 @@ internal sealed class ConsoleScreen : IDisposable
 {
     public ConsoleScreen()
     {
-        Console.Write("[?1049h[?25l[2J");
+        Console.Write("\e[?1049h\e[?25l\e[2J");
     }
 
     public int Width => Math.Max(Console.WindowWidth, 60);
     public int Height => Math.Max(Console.WindowHeight, 15);
 
     public void WriteRow(int row, int col, string text)
-        => Console.Write($"[{row + 1};{col + 1}H{text}");
+        => Console.Write($"\e[{row + 1};{col + 1}H{text}");
 
     public void ShowCursorAt(int row, int col)
-        => Console.Write($"[{row + 1};{col + 1}H[?25h");
+        => Console.Write($"\e[{row + 1};{col + 1}H\e[?25h");
 
-    public void HideCursor() => Console.Write("[?25l");
+    public void HideCursor() => Console.Write("\e[?25l");
 
     public void Dispose()
     {
-        Console.Write("[?25h[?1049l");
+        Console.Write("\e[?25h\e[?1049l");
     }
 }
 
