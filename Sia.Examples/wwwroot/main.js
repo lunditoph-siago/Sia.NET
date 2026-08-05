@@ -34,9 +34,12 @@ function editorKeyDown(e) {
     const cellId = e.target.dataset.editorCellId;
     if (!cellId) return;
 
+    const editor = editors[cellId];
+    const completionOpen = !!(editor && editor.pre && editor.pre.querySelector('.completion-popup'));
+
     const specialKeys = ['Escape', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
                          'Home', 'End', 'PageUp', 'PageDown'];
-    if (specialKeys.includes(e.key) || (e.ctrlKey && e.key === 's')) {
+    if (specialKeys.includes(e.key) || (e.ctrlKey && e.key === 's') || (completionOpen && e.key === 'Enter')) {
         e.preventDefault();
         emitEditor(`key:${cellId}:${e.key}:${e.ctrlKey}:${e.shiftKey}:${e.altKey}`);
     }
@@ -162,15 +165,14 @@ setModuleImports('main.js', {
         container.innerHTML = '';
         container.classList.remove('editor-container');
     },
-    setEditorText(container, text) {
+    setEditorText(container, text, selectionStart, selectionEnd) {
         const textarea = container.querySelector('textarea[data-editor-cell-id]');
-        if (textarea && textarea.value !== text) {
-            const start = textarea.selectionStart;
-            const end = textarea.selectionEnd;
+        if (!textarea) return;
+        if (textarea.value !== text) {
             textarea.value = text;
-            textarea.selectionStart = Math.min(start, text.length);
-            textarea.selectionEnd = Math.min(end, text.length);
         }
+        textarea.selectionStart = Math.min(selectionStart, text.length);
+        textarea.selectionEnd = Math.min(selectionEnd, text.length);
     },
 });
 

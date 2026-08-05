@@ -47,7 +47,8 @@ public static class NotebookRenderer
                         break;
                     }
                     case CodeCellBlock cell:
-                        sectionEl.Append(RenderCodeCell(cellNumbers[cell.Id], cell, session.GetState(cell.Id)));
+                        sectionEl.Append(RenderCodeCell(
+                            cellNumbers[cell.Id], cell, session.GetState(cell.Id), session.References));
                         break;
                 }
             }
@@ -72,7 +73,8 @@ public static class NotebookRenderer
         }
     }
 
-    private static BrowserElement RenderCodeCell(int number, CodeCellBlock cell, CellState state)
+    private static BrowserElement RenderCodeCell(
+        int number, CodeCellBlock cell, CellState state, IMetadataReferenceProvider references)
     {
         var wrapper = BrowserElement.Create("div").Class("cell");
 
@@ -97,8 +99,7 @@ public static class NotebookRenderer
             var editorContainer = BrowserElement.Create("div").Class("code").Class("code-edit");
             editorContainer.Id(EditorContainerId(cell.Id));
             wrapper.Append(editorContainer);
-            // Editor is created lazily on first focus or immediately
-            BrowserEditorHost.GetOrCreate(editorContainer, cell.Id, state.Source);
+            BrowserEditorHost.GetOrCreate(editorContainer, cell.Id, state.Source, references);
         }
         else {
             var pre = BrowserElement.Create("pre").Class("code");

@@ -28,21 +28,29 @@ public static class BrowserExampleApp
         NotebookDocument? document = null;
 
         try {
+            var clickTask = host.WaitForClick();
+            var editorTask = BrowserDom.WaitForEditorEvent();
+
             while (true) {
-                var clickTask = host.WaitForClick();
-                var editorTask = BrowserDom.WaitForEditorEvent();
                 var completed = await Task.WhenAny(clickTask, editorTask);
 
                 string evt;
                 if (completed == editorTask)
                 {
                     evt = await editorTask;
-                    HandleEditorEvent(evt, session);
+                    editorTask = BrowserDom.WaitForEditorEvent();
+                    try {
+                        await HandleEditorEvent(evt, session);
+                    }
+                    catch (Exception ex) {
+                        Console.Error.WriteLine($"Editor event '{evt}' failed: {ex}");
+                    }
                     continue;
                 }
                 else
                 {
                     evt = await clickTask;
+                    clickTask = host.WaitForClick();
                 }
 
                 var (kind, arg) = Split(evt);
@@ -58,13 +66,15 @@ public static class BrowserExampleApp
                         var info = library.Notebooks[index];
                         document = library.Load(info);
                         session = new NotebookSession(document, new MetadataReferenceProvider());
+                        await session.EnsureHighlightsAsync();
                         session.Changed += () => {
                             host.ShowNotebook(NotebookRenderer.Render(document, session));
                             BrowserEditorHost.AttachAll();
                         };
-                        await session.EnsureHighlightsAsync();
                         host.ShowNotebook(NotebookRenderer.Render(document, session));
                         BrowserEditorHost.AttachAll();
+
+                        _ = WarmUpCompletionAsync(session.References);
 
                         var state = app.GetState<ExampleAppState>();
                         state.Update(_ => new(index));
@@ -101,6 +111,17 @@ public static class BrowserExampleApp
         }
     }
 
+    private static async Task WarmUpCompletionAsync(IMetadataReferenceProvider references)
+    {
+        try {
+            const string warmUpSource = "var x = System.Con";
+            var warmUp = new LightweightCompletionProvider(references);
+            await warmUp.QueryAsync(warmUpSource, warmUpSource.Length).ConfigureAwait(false);
+        }
+        catch {
+        }
+    }
+
     private static (string Kind, string Arg) Split(string evt)
     {
         var i = evt.IndexOf(':');
@@ -120,7 +141,7 @@ public static class BrowserExampleApp
         }
     }
 
-    private static void HandleEditorEvent(string evt, NotebookSession? session)
+    private static async Task HandleEditorEvent(string evt, NotebookSession? session)
     {
         var parts = evt.Split(':', 3);
         if (parts.Length < 3) return;
@@ -137,11 +158,11 @@ public static class BrowserExampleApp
             var ctrl = bool.Parse(keyParts[1]);
             var shift = bool.Parse(keyParts[2]);
 
-            BrowserEditorHost.OnEditorKeyDown(cellId, key, ctrl, shift, false);
+            await BrowserEditorHost.OnEditorKeyDown(cellId, key, ctrl, shift, false);
         }
         else if (type == "input")
         {
-            BrowserEditorHost.OnEditorChanged(cellId, rest);
+            await BrowserEditorHost.OnEditorChanged(cellId, rest);
         }
     }
 }
@@ -257,6 +278,12 @@ public sealed class BrowserElement(JSObject handle) : IDisposable
     public static BrowserElement Create(string tag) => new(BrowserDom.Create(tag));
     public static BrowserElement CreateText(string value) => new(BrowserDom.CreateText(value));
 
+    public static BrowserElement? TryFind(string id)
+    {
+        var handle = BrowserDom.TryFind(id);
+        return handle is null ? null : new BrowserElement(handle);
+    }
+
     public BrowserElement Class(string name) => ToggleClass(name, true);
 
     public BrowserElement Text(string value)
@@ -308,6 +335,9 @@ internal static partial class BrowserDom
 {
     [JSImport("find", "main.js")]
     internal static partial JSObject Find(string id);
+
+    [JSImport("find", "main.js")]
+    internal static partial JSObject? TryFind(string id);
 
     [JSImport("create", "main.js")]
     internal static partial JSObject Create(string tag);

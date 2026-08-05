@@ -80,6 +80,8 @@ public sealed class NotebookSession : IDisposable
 
     public IReadOnlyList<CodeCellBlock> Cells => _cells;
 
+    public IMetadataReferenceProvider References => _references;
+
     public CellState GetState(string cellId) => _states[cellId];
 
     public bool IsBusy => _cts is not null || _running;
@@ -203,10 +205,6 @@ public sealed class NotebookSession : IDisposable
         }
         Changed?.Invoke();
 
-        // `_running` gates IsBusy for the whole session, so it must always come back
-        // down — mirrors the try/finally CompileThroughAsync already uses around `_cts`.
-        // ExecuteAsync itself no longer throws (see NotebookCompiler), but this is the
-        // backstop that keeps the session usable even if that ever regresses.
         try {
             var result = await NotebookCompiler.ExecuteAsync(assembly).ConfigureAwait(false);
             if (ReferenceEquals(_runToken, myToken)) {

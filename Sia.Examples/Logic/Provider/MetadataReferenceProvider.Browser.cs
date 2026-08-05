@@ -12,9 +12,6 @@ public sealed class MetadataReferenceProvider : IMetadataReferenceProvider
 
     internal static Task InitializeAsync(string[] assemblyUrls)
     {
-        // A failed load used to be cached forever in `_initTask` — every later call
-        // (e.g. a retry button, or the page reloading a stale service-worker copy)
-        // would just hand back the same faulted task with no way to try again.
         if (_initTask is { IsFaulted: true }) {
             _initTask = null;
         }
@@ -31,11 +28,6 @@ public sealed class MetadataReferenceProvider : IMetadataReferenceProvider
                 StringComparison.OrdinalIgnoreCase))
             .ToList();
 
-        // Fetch every candidate independently rather than via a single Task.WhenAll:
-        // previously, one failed request (a flaky network, a 404) made *all* fetches
-        // count as failed and left `Cache` completely empty, even for assemblies that
-        // downloaded fine — breaking every notebook's compilation, not just ones that
-        // actually needed the missing reference.
         var attempts = await Task.WhenAll(candidates.Select(async url => {
             try {
                 return (Url: url, Reference: await FetchReferenceAsync(url).ConfigureAwait(false), Error: (Exception?)null);

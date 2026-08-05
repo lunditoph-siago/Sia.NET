@@ -2,6 +2,7 @@
 using System.Runtime.InteropServices.JavaScript;
 using Sia;
 using Sia.Reactive;
+using Sia_Examples.Notebook;
 
 namespace Sia_Examples.Editor;
 
@@ -12,6 +13,7 @@ public sealed class BrowserEditorHost : IDisposable
     private readonly BrowserEditorView _view;
     private readonly World _world;
     private readonly string _initialSource;
+    private readonly IEditorCompletionProvider _completionProvider;
 
     private ReactiveMount<CellEditorProps> _mount;
     private State<EditorDoc> _docState;
@@ -19,15 +21,21 @@ public sealed class BrowserEditorHost : IDisposable
     private string _previousText;
     private bool _attached;
 
+    private CompletionQueryResult? _completion;
+    private int _completionIndex;
+    private int _completionGeneration;
+
     public string CellId => _cellId;
     public IEditorView View => _view;
 
-    public BrowserEditorHost(BrowserElement container, string cellId, string initialSource)
+    public BrowserEditorHost(
+        BrowserElement container, string cellId, string initialSource, IMetadataReferenceProvider references)
     {
         _cellId = cellId;
         _container = container;
         _initialSource = initialSource;
         _previousText = initialSource;
+        _completionProvider = new LightweightCompletionProvider(references);
 
         _view = new BrowserEditorView("editor-" + cellId);
         _view.SetVisibleLines(Math.Max(initialSource.Split('\n').Length, 10));
@@ -59,13 +67,13 @@ public sealed class BrowserEditorHost : IDisposable
         }
     }
 
-    public static void OnEditorChanged(string cellId, string newValue)
+    public static Task OnEditorChanged(string cellId, string newValue)
     {
         var host = FindHost(cellId);
-        if (host == null || !host._attached) return;
+        if (host == null || !host._attached) return Task.CompletedTask;
 
         var oldText = host._previousText;
-        if (oldText == newValue) return;
+        if (oldText == newValue) return Task.CompletedTask;
 
         var (pos, deleted, inserted) = ComputeDiff(oldText, newValue);
 
@@ -97,12 +105,31 @@ public sealed class BrowserEditorHost : IDisposable
         host._cursorState.Set(cursor);
         host._previousText = newValue;
         host._world.FlushReactive();
+
+        var looksLikeTyping = IsIdentifierInsertion(inserted) || (deleted > 0 && inserted.Length == 0);
+
+        if (looksLikeTyping)
+        {
+            _ = host.RequestCompletionAsync(doc, cursor);
+        }
+        else
+        {
+            host.ClosePopupIfOpen();
+        }
+
+        return Task.CompletedTask;
     }
 
-    public static void OnEditorKeyDown(string cellId, string key, bool ctrl, bool shift, bool alt)
+    public static async Task OnEditorKeyDown(string cellId, string key, bool ctrl, bool shift, bool alt)
     {
         var host = FindHost(cellId);
         if (host == null || !host._attached) return;
+
+        if (host._completion is { } open)
+        {
+            var consumed = await host.HandleCompletionKeyAsync(key, open).ConfigureAwait(false);
+            if (consumed) return;
+        }
 
         var cursor = host._cursorState.Value;
 
@@ -133,7 +160,155 @@ public sealed class BrowserEditorHost : IDisposable
         host._previousText = newDoc.Value.FullText;
         host._world.FlushReactive();
 
-        BrowserDom.SetEditorText(host._container.Handle, newDoc.Value.FullText);
+        host.SyncTextArea(newDoc.Value, newCursor);
+
+        host.ClosePopupIfOpen();
+    }
+
+    private async Task<bool> HandleCompletionKeyAsync(string key, CompletionQueryResult open)
+    {
+        switch (key)
+        {
+            case "ArrowDown":
+                _completionIndex = (_completionIndex + 1) % open.Items.Count;
+                RenderCompletionPopup();
+                return true;
+            case "ArrowUp":
+                _completionIndex = (_completionIndex - 1 + open.Items.Count) % open.Items.Count;
+                RenderCompletionPopup();
+                return true;
+            case "Enter":
+            case "Tab":
+                await AcceptCompletionAsync(open).ConfigureAwait(false);
+                return true;
+            case "Escape":
+                ClosePopupIfOpen();
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private async Task RequestCompletionAsync(EditorDoc doc, CursorState cursor)
+    {
+        var generation = ++_completionGeneration;
+
+        CompletionQueryResult result;
+        try
+        {
+            var offset = ToOffset(doc.Value, cursor.Line, cursor.Column);
+            result = await _completionProvider.QueryAsync(doc.Value.FullText, offset)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Completion query failed: {ex}");
+            if (generation == _completionGeneration) ClosePopupIfOpen();
+            return;
+        }
+
+        if (generation != _completionGeneration) return;
+
+        _completionIndex = 0;
+        if (result.IsOpen)
+        {
+            _completion = result;
+            RenderCompletionPopup();
+        }
+        else
+        {
+            ClosePopupIfOpen();
+        }
+    }
+
+    private Task AcceptCompletionAsync(CompletionQueryResult completion)
+    {
+        var item = completion.Items[_completionIndex];
+        ClosePopupIfOpen();
+
+        var doc = _docState.Value;
+        doc.Mutate(d =>
+        {
+            var (sl, sc) = OffsetToPosition(d, item.ReplaceStart);
+            var (el, ec) = OffsetToPosition(d, item.ReplaceEnd);
+            d.DeleteRange(sl, sc, el, ec);
+            d.Insert(sl, sc, item.InsertText);
+        });
+
+        var (nl, nc) = OffsetToPosition(doc.Value, item.ReplaceStart + item.InsertText.Length);
+        var newCursor = _cursorState.Value with { Line = nl, Column = nc, PreferredColumn = nc };
+
+        _docState.Set(doc);
+        _cursorState.Set(newCursor);
+        _previousText = doc.Value.FullText;
+        _world.FlushReactive();
+
+        SyncTextArea(doc.Value, newCursor);
+        return Task.CompletedTask;
+    }
+
+    private void ClosePopupIfOpen()
+    {
+        if (_completion is null) return;
+        _completion = null;
+        HideCompletionPopup();
+    }
+
+    private void RenderCompletionPopup()
+    {
+        if (_completion is not { } q) return;
+        HideCompletionPopup();
+
+        var lineEl = BrowserElement.TryFind(_view.CursorLineElementId);
+        if (lineEl is null) return;
+        using var line = lineEl;
+
+        var popup = BrowserElement.Create("div").Class("completion-popup").Id(CompletionPopupId);
+        for (var i = 0; i < q.Items.Count; i++)
+        {
+            var item = BrowserElement.Create("div").Class("completion-item");
+            item.ToggleClass("selected", i == _completionIndex);
+            item.Text(q.Items[i].Label);
+            popup.Append(item);
+        }
+        line.Append(popup);
+    }
+
+    private void HideCompletionPopup()
+    {
+        var popup = BrowserElement.TryFind(CompletionPopupId);
+        if (popup is null) return;
+        popup.Remove();
+        popup.Dispose();
+    }
+
+    private string CompletionPopupId => "editor-" + _cellId + "-completion-popup";
+
+    private static bool IsIdentifierInsertion(string inserted)
+        => inserted.Length > 0 && (inserted == "." || inserted.All(c => char.IsLetterOrDigit(c) || c == '_'));
+
+    private static int ToOffset(EditorDocument doc, int line, int col)
+    {
+        var offset = 0;
+        for (var i = 0; i < line; i++) offset += doc.LineLength(i) + 1;
+        return offset + col;
+    }
+
+    private void SyncTextArea(EditorDocument doc, CursorState cursor)
+    {
+        int start, end;
+        if (cursor.HasSelection)
+        {
+            var (sl, sc) = cursor.SelectionStart;
+            var (el, ec) = cursor.SelectionEnd;
+            start = ToOffset(doc, sl, sc);
+            end = ToOffset(doc, el, ec);
+        }
+        else
+        {
+            start = end = ToOffset(doc, cursor.Line, cursor.Column);
+        }
+        BrowserDom.SetEditorText(_container.Handle, doc.FullText, start, end);
     }
 
     public string GetSource()
@@ -154,56 +329,47 @@ public sealed class BrowserEditorHost : IDisposable
 
     public static void AttachAll()
     {
-        foreach (var (_, wr) in _hosts)
+        foreach (var host in _hosts.Values)
         {
-            if (wr.TryGetTarget(out var host))
-                host.AttachToDom();
+            host.AttachToDom();
         }
     }
 
     public static void DisposeAll()
     {
-        foreach (var (_, wr) in _hosts.ToArray())
+        foreach (var host in _hosts.Values.ToArray())
         {
-            if (wr.TryGetTarget(out var host))
-                host.Dispose();
+            host.Dispose();
         }
         _hosts.Clear();
     }
 
-
-    private static readonly Dictionary<string, WeakReference<BrowserEditorHost>> _hosts = [];
+    private static readonly Dictionary<string, BrowserEditorHost> _hosts = [];
 
     private static BrowserEditorHost? FindHost(string cellId)
-    {
-        if (_hosts.TryGetValue(cellId, out var wr) && wr.TryGetTarget(out var host))
-            return host;
-        return null;
-    }
+        => _hosts.GetValueOrDefault(cellId);
 
-    public static BrowserEditorHost Create(BrowserElement container, string cellId, string source)
+    public static BrowserEditorHost Create(
+        BrowserElement container, string cellId, string source, IMetadataReferenceProvider references)
     {
-        var host = new BrowserEditorHost(container, cellId, source);
-        _hosts[cellId] = new WeakReference<BrowserEditorHost>(host);
+        var host = new BrowserEditorHost(container, cellId, source, references);
+        _hosts[cellId] = host;
         return host;
     }
 
-    public static BrowserEditorHost GetOrCreate(BrowserElement container, string cellId, string source)
+    public static BrowserEditorHost GetOrCreate(
+        BrowserElement container, string cellId, string source, IMetadataReferenceProvider references)
     {
-        if (_hosts.TryGetValue(cellId, out var wr) && wr.TryGetTarget(out var existing))
+        if (_hosts.TryGetValue(cellId, out var existing))
         {
             existing.Dispose();
             _hosts.Remove(cellId);
         }
-        return Create(container, cellId, source);
+        return Create(container, cellId, source, references);
     }
 
     public static string? ReadSource(string cellId)
-    {
-        if (_hosts.TryGetValue(cellId, out var wr) && wr.TryGetTarget(out var host))
-            return host.GetSource();
-        return null;
-    }
+        => FindHost(cellId)?.GetSource();
 
 
     private static (int Offset, int Deleted, string Inserted) ComputeDiff(
@@ -252,6 +418,6 @@ internal static partial class BrowserDom
     internal static partial void DetachEditor(JSObject container, string cellId);
 
     [JSImport("setEditorText", "main.js")]
-    internal static partial void SetEditorText(JSObject container, string text);
+    internal static partial void SetEditorText(JSObject container, string text, int selectionStart, int selectionEnd);
 }
 #endif

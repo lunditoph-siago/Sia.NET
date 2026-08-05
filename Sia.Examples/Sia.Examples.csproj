@@ -21,6 +21,7 @@
     <ProjectReference Include="..\Sia.CodeGenerators\Sia.CodeGenerators.csproj" OutputItemType="Analyzer" />
     <ProjectReference Include="..\Sia.Prelude\Sia.Prelude.csproj" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.3.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Features" Version="5.3.0" />
   </ItemGroup>
 
   <ItemGroup>

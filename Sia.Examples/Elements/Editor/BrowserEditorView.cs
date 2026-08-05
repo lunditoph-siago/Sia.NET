@@ -13,6 +13,8 @@ public sealed class BrowserEditorView : IEditorView
 
     public int VisibleLines => _visibleLines;
 
+    public string CursorLineElementId => _containerId + "-cursor-line";
+
     public BrowserEditorView(string containerId)
     {
         _containerId = containerId;
@@ -42,7 +44,10 @@ public sealed class BrowserEditorView : IEditorView
     {
         var lineEl = BrowserElement.Create("span").Class("editor-line");
         if (lineIndex == cursor.Line)
+        {
             lineEl.ToggleClass("cursor-line", true);
+            lineEl.Id(CursorLineElementId);
+        }
 
         var html = BuildHighlightedHtml(text, highlights, lineStartOffset);
         BrowserDom.SetInnerHtml(lineEl.Handle, html);

@@ -20,6 +20,9 @@ public sealed class ConsoleEditorView(ConsoleScreen screen, int left, int top, i
 
     public int VisibleLines { get; } = Math.Max(height, 3);
 
+    public int CursorScreenRow => _cursorScreenRow;
+    public int CursorScreenCol => _cursorScreenCol;
+
     public void BeginRender()
     {
         for (var i = 0; i < VisibleLines; i++)

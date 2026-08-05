@@ -397,9 +397,37 @@ body {
 
                         .editor-line {
                             display: block;
+                            position: relative;
 
                             &.cursor-line {
                                 background: rgba(255, 255, 255, 0.04);
+                            }
+                        }
+
+                        .completion-popup {
+                            position: absolute;
+                            top: 100%;
+                            left: 0;
+                            z-index: 20;
+                            min-width: 10rem;
+                            max-width: 22rem;
+                            max-height: 12rem;
+                            overflow-y: auto;
+                            background: var(--color-bg);
+                            border: 1px solid rgba(127, 127, 127, 0.4);
+                            border-radius: 4px;
+                            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+                            font-size: 0.8rem;
+                            line-height: 1.4;
+
+                            .completion-item {
+                                padding: 0.15rem 0.5rem;
+                                white-space: nowrap;
+
+                                &.selected {
+                                    background: var(--color-accent);
+                                    color: var(--color-bg);
+                                }
                             }
                         }
                     }

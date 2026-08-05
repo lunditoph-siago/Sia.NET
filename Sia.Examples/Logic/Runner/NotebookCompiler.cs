@@ -119,11 +119,6 @@ public sealed class NotebookCompiler : IDisposable
         Console.SetOut(stdOut);
         Console.SetError(stdErr);
         try {
-            // Assembly.Load must live inside the try: it can legitimately throw (a bad
-            // image, an AOT/trimming edge case, ...), and previously that exception
-            // propagated straight out of ExecuteAsync — past the caller's `_running = true`
-            // in NotebookSession.RunThroughAsync — leaving the session permanently "busy"
-            // with no way to recover short of discarding it.
             var assembly = Assembly.Load(assemblyImage);
             var entryPoint = assembly.EntryPoint
                 ?? throw new InvalidOperationException("No entry point found in the compiled program.");

@@ -124,18 +124,18 @@ public static class ConsoleExampleApp
 
                 switch (action) {
                     case 'c':
-                        Fire(session.CompileThroughAsync(cell.Id));
+                        RunBlocking(session.CompileThroughAsync(cell.Id));
                         break;
                     case 'r':
-                        Fire(session.RunThroughAsync(cell.Id));
+                        RunBlocking(session.RunThroughAsync(cell.Id));
                         break;
                     case 'e':
                         using (var editor = new Sia_Examples.Editor.ConsoleEditorHost(
-                            screen, cell.Id, session.GetState(cell.Id).Source))
+                            screen, cell.Id, session.GetState(cell.Id).Source, references))
                         {
                             var result = editor.Edit(host.BuildSidebarLines(), ref scroll);
                             if (result != null)
-                                Fire(session.UpdateCellSourceAsync(cell.Id, result));
+                                RunBlocking(session.UpdateCellSourceAsync(cell.Id, result));
                         }
                         Redraw();
                         break;
@@ -159,10 +159,15 @@ public static class ConsoleExampleApp
         return input;
     }
 
-    private static void Fire(Task task)
-        => _ = task.ContinueWith(
-            t => Console.Error.WriteLine(t.Exception),
-            TaskContinuationOptions.OnlyOnFaulted);
+    private static void RunBlocking(Task task)
+    {
+        try {
+            task.GetAwaiter().GetResult();
+        }
+        catch (Exception ex) {
+            Console.Error.WriteLine(ex);
+        }
+    }
 
     private static void RunFromArguments(NotebookLibrary library, IReadOnlyList<string> arguments)
     {

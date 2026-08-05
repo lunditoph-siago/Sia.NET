@@ -1,6 +1,7 @@
 #if !BROWSER
 using Sia;
 using Sia.Reactive;
+using Sia_Examples.Notebook;
 
 namespace Sia_Examples.Editor;
 
@@ -14,16 +15,22 @@ public sealed class ConsoleEditorHost : IDisposable
     private readonly ReactiveMount<CellEditorProps> _mount;
     private readonly string _cellId;
     private readonly int _gutterWidth = 5;
+    private readonly IEditorCompletionProvider _completionProvider;
 
     private State<EditorDoc> _docState;
     private State<CursorState> _cursorState;
     private bool _saved;
 
-    public ConsoleEditorHost(ConsoleScreen screen, string cellId, string initialSource)
+    private CompletionQueryResult? _completion;
+    private int _completionIndex;
+
+    public ConsoleEditorHost(
+        ConsoleScreen screen, string cellId, string initialSource, IMetadataReferenceProvider references)
     {
         _screen = screen;
         _pane = new SplitPaneRenderer(screen);
         _cellId = cellId;
+        _completionProvider = new RoslynCompletionProvider(references);
 
         var layout = _pane.Layout();
         _view = new ConsoleEditorView(screen,
@@ -51,6 +58,20 @@ public sealed class ConsoleEditorHost : IDisposable
         {
             var key = Console.ReadKey(intercept: true);
             var cursor = _cursorState.Value;
+
+            if (_completion is { } open)
+            {
+                if (key.Key == ConsoleKey.Escape)
+                {
+                    _completion = null;
+                    _docState.Notify();
+                }
+                else if (HandleCompletionKey(key, open))
+                {
+                    continue;
+                }
+            }
+
             var cmd = ConsoleKeyMap.Map(key, cursor.Mode);
 
             if (cmd is SaveCommand)
@@ -86,8 +107,110 @@ public sealed class ConsoleEditorHost : IDisposable
             _docState.Set(newDoc);
             _cursorState.Set(newCursor);
 
+            UpdateCompletion(cmd, cursor.Mode, newDoc, newCursor);
+
             _world.FlushReactive();
+            DrawCompletionPopup();
         }
+    }
+
+    private bool HandleCompletionKey(ConsoleKeyInfo key, CompletionQueryResult open)
+    {
+        switch (key.Key)
+        {
+            case ConsoleKey.DownArrow:
+                _completionIndex = (_completionIndex + 1) % open.Items.Count;
+                DrawCompletionPopup();
+                return true;
+            case ConsoleKey.UpArrow:
+                _completionIndex = (_completionIndex - 1 + open.Items.Count) % open.Items.Count;
+                DrawCompletionPopup();
+                return true;
+            case ConsoleKey.Enter:
+            case ConsoleKey.Tab:
+                AcceptCompletion(open);
+                _world.FlushReactive();
+                DrawCompletionPopup();
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private void UpdateCompletion(ICommand cmd, EditorMode modeBeforeCommand, EditorDoc newDoc, CursorState newCursor)
+    {
+        var shouldQuery = modeBeforeCommand == EditorMode.Insert
+            && newCursor.Mode == EditorMode.Insert
+            && (cmd is DeleteLeftCommand
+                || cmd is InsertCharCommand { Char: var ch } && (char.IsLetterOrDigit(ch) || ch is '_' or '.'));
+
+        if (!shouldQuery)
+        {
+            _completion = null;
+            return;
+        }
+
+        var offset = ToOffset(newDoc.Value, newCursor.Line, newCursor.Column);
+        var result = _completionProvider.QueryAsync(newDoc.Value.FullText, offset)
+            .GetAwaiter().GetResult();
+
+        _completion = result.IsOpen ? result : null;
+        _completionIndex = 0;
+    }
+
+    private void AcceptCompletion(CompletionQueryResult completion)
+    {
+        var item = completion.Items[_completionIndex];
+        _completion = null;
+
+        var doc = _docState.Value;
+        doc.Mutate(d =>
+        {
+            var (sl, sc) = FromOffset(d, item.ReplaceStart);
+            var (el, ec) = FromOffset(d, item.ReplaceEnd);
+            d.DeleteRange(sl, sc, el, ec);
+            d.Insert(sl, sc, item.InsertText);
+        });
+
+        var (nl, nc) = FromOffset(doc.Value, item.ReplaceStart + item.InsertText.Length);
+        var newCursor = EnsureCursorVisible(doc, _cursorState.Value with { Line = nl, Column = nc, PreferredColumn = nc });
+
+        _docState.Set(doc);
+        _cursorState.Set(newCursor);
+    }
+
+    private void DrawCompletionPopup()
+    {
+        if (_completion is not { } q) return;
+
+        var lines = new List<string>(q.Items.Count);
+        for (var i = 0; i < q.Items.Count; i++)
+        {
+            var marker = i == _completionIndex ? "▶ " : "  ";
+            lines.Add(marker + q.Items[i].Label);
+        }
+        var width = Math.Clamp(lines.Count == 0 ? 10 : lines.Max(l => l.Length) + 1, 10, 40);
+        _pane.RenderFloatingAt(_view.CursorScreenRow, _view.CursorScreenCol, lines, width);
+    }
+
+    private static int ToOffset(EditorDocument doc, int line, int col)
+    {
+        var offset = 0;
+        for (var i = 0; i < line; i++) offset += doc.LineLength(i) + 1;
+        return offset + col;
+    }
+
+    private static (int Line, int Col) FromOffset(EditorDocument doc, int offset)
+    {
+        var remaining = offset;
+        for (var i = 0; i < doc.LineCount; i++)
+        {
+            var len = doc.LineLength(i);
+            if (remaining <= len) return (i, remaining);
+            remaining -= len + 1;
+        }
+        var last = doc.LineCount - 1;
+        return (last, doc.LineLength(last));
     }
 
     private void Redraw(IReadOnlyList<string> sidebarLines)
