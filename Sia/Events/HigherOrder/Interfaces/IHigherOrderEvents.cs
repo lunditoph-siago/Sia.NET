@@ -1,6 +1,6 @@
 namespace Sia;
 
-public interface IHigherOrderEvent
+public interface IHigherOrderEvent : IEvent
 {
     public Type InnerEventType { get; }
 }

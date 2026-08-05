@@ -1,0 +1,152 @@
+<Notebook Title="Fork: Process Trees, cgroups, and PID Reuse">
+  <Section Title="Welcome">
+    <Paragraph>
+      Both cells below share <Code>Scope="fork"</Code>, so they compile and run together as one
+      program: the first cell creates <Code>world</Code> once, and the second cell reuses it plus
+      every type the first cell declared. Press Run on the second cell to see both scenes; press
+      Run on the first alone to see just the container-image scene.
+    </Paragraph>
+  </Section>
+
+  <Section Title="Scene 1: fork() From a Container Image">
+    <Paragraph>
+      <Code>[SiaBundle]</Code> groups several components into one shape you can add or remove as
+      a unit — <Code>world.Create().AddBundle(new ContainerImage())</Code> stamps out a process
+      with <Code>Process</Code>, <Code>Owner</Code>, and <Code>Sandboxed</Code> all at once, and
+      <Code>RemoveBundle&lt;ProcessImage&gt;()</Code> strips a matching subset back off, returning
+      whatever it removed.
+    </Paragraph>
+    <CodeCell Id="scene1-fork-container" Editable="true" Scope="fork"><![CDATA[
+      Console.WriteLine("-- Scene 1: fork() from a container image --");
+
+      var proc1 = world.Create().AddBundle(new ContainerImage());
+      Console.WriteLine(proc1.Get<Process>().Name);
+      Console.WriteLine("owner uid: " + proc1.Get<Owner>().Value.Value);
+      Console.WriteLine("sandboxed: " + proc1.Contains<Sandboxed>());
+
+      var proc2 = world.Create()
+          .AddBundle(new ContainerImage())
+          .Remove<Sandboxed>();
+      Console.WriteLine("graduated out of the sandbox: " + !proc2.Contains<Sandboxed>());
+      Console.WriteLine(proc2.RemoveBundle<ProcessImage>().Boxed);
+
+      public readonly record struct Process(string Name);
+
+      public readonly record struct Uid(int Value)
+      {
+          public static implicit operator Uid(int value) => new(value);
+      }
+
+      public readonly record struct Pid(int Value)
+      {
+          public static implicit operator Pid(int value) => new(value);
+      }
+
+      public sealed class ProcessTree {}
+
+      public readonly record struct Owner(Uid Value);
+
+      [SiaBundle]
+      public partial record struct ProcessImage(Process Process, Owner Owner);
+
+      public readonly record struct Sandboxed;
+
+      [SiaBundle]
+      public partial record struct ContainerImage(Process Process, Owner Owner, Sandboxed Sandboxed)
+      {
+          public ContainerImage() : this(
+              new Process("container-init"),
+              new Owner(new Uid(1000)),
+              default) {}
+      }
+    ]]></CodeCell>
+  </Section>
+
+  <Section Title="Scene 2: pstree, cgroups, and /proc">
+    <Paragraph>
+      <Code>Hierarchy&lt;ProcessTree&gt;</Code> tracks parent/child links (with a cgroup-style
+      "freeze this subtree" flag), <Code>Aggregator&lt;Uid&gt;</Code> groups entities by a shared
+      key so <Code>ProcessCountByOwnerSystem</Code> can react whenever the group's membership
+      changes, and <Code>Mapper&lt;Pid&gt;</Code> is a stable id -&gt; entity lookup — like
+      <Code>/proc/&lt;pid&gt;</Code> — that survives a destroyed entity's id being reassigned to a
+      brand new one.
+    </Paragraph>
+    <CodeCell Id="scene2-process-tree" Editable="true" Scope="fork"><![CDATA[
+      using Sia.Reactors;
+
+      Console.WriteLine();
+      Console.WriteLine("-- Scene 2: pstree, cgroups and /proc --");
+
+      world.AcquireAddon<Hierarchy<ProcessTree>>();
+      world.AcquireAddon<Aggregator<Uid>>();
+      var mapper = world.AcquireAddon<Mapper<Pid>>();
+
+      var stage = SystemChain.Empty
+          .Add<ProcessCountByOwnerSystem>()
+          .CreateStage(world);
+
+      var init = Init.Create(world, "init", uid: 0, pid: 1);
+      var sshd = Init.Create(world, "sshd", uid: 0, pid: 100, parent: init);
+      var bash = Init.Create(world, "bash", uid: 1000, pid: 101, parent: sshd);
+      var vim = Init.Create(world, "vim", uid: 1000, pid: 102, parent: bash);
+
+      stage.Tick();
+
+      Console.WriteLine("pstree (children of sshd):");
+      foreach (var child in sshd.Get<Node<ProcessTree>>().Children) {
+          Console.WriteLine("  " + child.Get<Process>().Name);
+      }
+
+      Console.WriteLine("/proc/102 -> " + (mapper[102] == vim));
+
+      Console.WriteLine("freezing sshd's cgroup...");
+      _ = new Node<ProcessTree>.View(sshd, world) {
+          IsSelfEnabled = false
+      };
+      Console.WriteLine("bash frozen: " + !bash.Get<Node<ProcessTree>>().IsEnabled);
+      Console.WriteLine("vim frozen: " + !vim.Get<Node<ProcessTree>>().IsEnabled);
+
+      Console.WriteLine("vim exits; pid 102 gets reused by a fresh nano process...");
+      vim.Destroy();
+      var nano = Init.Create(world, "nano", uid: 1000, pid: 103, parent: bash);
+      nano.SetSid(new Pid(102));
+      stage.Tick();
+      Console.WriteLine("/proc/102 -> " + (mapper[102] == nano ? "nano (reused)" : "someone else"));
+
+      Console.WriteLine("session leader sshd exits; the whole session goes with it...");
+      sshd.Destroy();
+      Console.WriteLine("remaining processes: " + world.Count);
+
+      stage.Dispose();
+
+      public static class Init
+      {
+          public static Entity Create(
+              World world, string name, Uid uid, Pid pid, Entity? parent = null)
+              => world.Create(HList.From(
+                  new Process(name),
+                  new Node<ProcessTree>(parent),
+                  Sid.From(uid),
+                  Sid.From(pid)));
+      }
+
+      public sealed class ProcessCountByOwnerSystem() : SystemBase(
+          Matchers.Of<Aggregation<Uid>>(),
+          EventUnion.Of<Aggregation<Uid>.EntityAdded, Aggregation<Uid>.EntityRemoved>())
+      {
+          public override void Execute(World world, IEntityQuery query)
+          {
+              foreach (var entity in query) {
+                  ref var aggr = ref entity.Get<Aggregation<Uid>>();
+                  Console.WriteLine($"uid {aggr.Id.Value} now owns {aggr.Group.Count} process(es)");
+              }
+          }
+      }
+    ]]></CodeCell>
+    <Paragraph>
+      Both scenes ran as one program: <Code>Process</Code>, <Code>Uid</Code>, and the rest of
+      Scene 1's types were declared in the first cell but used here, unqualified, with no
+      re-declaration needed.
+    </Paragraph>
+  </Section>
+</Notebook>

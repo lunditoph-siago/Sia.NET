@@ -5,29 +5,16 @@ namespace Sia_Examples;
 
 public static partial class ExampleViewer
 {
-    private static readonly ExampleRunner _runner = new();
-
-    public static void Dispose() => _runner.Dispose();
+    private static readonly Notebook.NotebookLibrary _library = new();
 }
 
 public readonly record struct ExampleAppProps(
-    ExampleRunner Runner,
+    Notebook.NotebookLibrary Library,
     IExampleRenderHost Host);
 
-public readonly record struct ExampleAppState(
-    int SelectedIndex,
-    string Title,
-    string Output,
-    bool Loading)
+public readonly record struct ExampleAppState(int SelectedIndex)
 {
-    public static ExampleAppState Initial { get; }
-        = new(-1, "Select an example", "← Choose an example to run it", false);
-
-    public ExampleAppState Begin(int index, string title)
-        => new(index, title, "Running…", true);
-
-    public ExampleAppState Complete(string output)
-        => this with { Output = output, Loading = false };
+    public static ExampleAppState Initial { get; } = new(-1);
 }
 
 [ReactiveComponent]
@@ -40,44 +27,28 @@ public static partial class ExampleApp
         var state = hooks.UseState(ExampleAppState.Initial);
 
         hooks.UseEffect(
-            new OutputDeps(
-                props.Host,
-                state.Value.Title,
-                state.Value.Output,
-                state.Value.Loading),
-            static (in OutputDeps d) => {
-                d.Host.Upsert(new(d.Title, d.Output, d.Loading));
-                return d;
-            },
-            static (in OutputDeps d) => {
-                d.Host.Remove(new(d.Title, d.Output, d.Loading));
-            });
-
-        hooks.UseEffect(
             new CommitDeps(props.Host, state.Value),
             static (in CommitDeps d) => { d.Host.Commit(); return default(Unit); },
             static (in Unit _) => { });
 
-        return Reactive.ForEach(
-            RenderItem,
-            BuildItems(props, state.Value.SelectedIndex));
+        return Reactive.ForEach(RenderItem, BuildItems(props, state.Value.SelectedIndex));
     }
 
     private static (int Key, ExampleItem Value)[] BuildItems(
         scoped in ExampleAppProps props,
         int selectedIndex)
     {
-        var examples = props.Runner.Examples;
-        var items = new (int Key, ExampleItem Value)[examples.Count];
-        for (var index = 0; index < examples.Count; index++) {
-            var example = examples[index];
+        var notebooks = props.Library.Notebooks;
+        var items = new (int Key, ExampleItem Value)[notebooks.Count];
+        for (var index = 0; index < notebooks.Count; index++) {
+            var notebook = notebooks[index];
             items[index] = (
                 index,
                 new(
                     props.Host,
                     index,
-                    example.Name,
-                    example.Description,
+                    notebook.Name,
+                    notebook.Description,
                     selectedIndex == index));
         }
         return items;
@@ -88,9 +59,6 @@ public static partial class ExampleApp
         => new(Term.Effect(new RenderEffect<ExampleItemView>(
             item.Host,
             new(item.Index, item.Name, item.Description, item.Active))));
-
-    private readonly record struct OutputDeps(
-        IRenderHost<ExampleOutputView> Host, string Title, string Output, bool Loading);
 
     private readonly record struct CommitDeps(
         IExampleRenderHost Host, ExampleAppState State);
@@ -109,11 +77,6 @@ public readonly record struct ExampleItemView(
     string Description,
     bool Active);
 
-public readonly record struct ExampleOutputView(
-    string Title,
-    string Output,
-    bool Loading);
-
 public interface IRenderHost<TView>
     where TView : struct, IEquatable<TView>
 {
@@ -122,7 +85,7 @@ public interface IRenderHost<TView>
 }
 
 public interface IExampleRenderHost
-    : IRenderHost<ExampleItemView>, IRenderHost<ExampleOutputView>
+    : IRenderHost<ExampleItemView>
 {
     void Commit();
 }

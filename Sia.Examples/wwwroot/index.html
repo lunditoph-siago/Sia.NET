@@ -13,8 +13,16 @@
     <div id="app">
         <aside id="sidebar"></aside>
         <main id="content">
-            <div id="output-bar"><span id="output-title">Select an example</span></div>
-            <pre id="output"><span class="placeholder">← Choose an example to run it</span></pre>
+            <div id="content-header">
+                <button id="sidebar-toggle" class="sidebar-toggle" aria-label="Toggle sidebar">
+                    <svg viewBox="0 0 24 24" width="20" height="20">
+                        <line class="bar bar-top" x1="3" y1="6" x2="21" y2="6" />
+                        <line class="bar bar-mid" x1="3" y1="12" x2="21" y2="12" />
+                        <line class="bar bar-bot" x1="3" y1="18" x2="21" y2="18" />
+                    </svg>
+                </button>
+            </div>
+            <div id="notebook"><span class="placeholder">← Choose a notebook to open it</span></div>
         </main>
     </div>
 </body>
