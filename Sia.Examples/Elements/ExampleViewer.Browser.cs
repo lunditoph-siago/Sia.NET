@@ -2,6 +2,7 @@
 using System.Runtime.InteropServices.JavaScript;
 using Sia;
 using Sia.Reactive;
+using Sia_Examples.Editor;
 using Sia_Examples.Notebook;
 
 namespace Sia_Examples;
@@ -28,7 +29,22 @@ public static class BrowserExampleApp
 
         try {
             while (true) {
-                var evt = await host.WaitForClick();
+                var clickTask = host.WaitForClick();
+                var editorTask = BrowserDom.WaitForEditorEvent();
+                var completed = await Task.WhenAny(clickTask, editorTask);
+
+                string evt;
+                if (completed == editorTask)
+                {
+                    evt = await editorTask;
+                    HandleEditorEvent(evt, session);
+                    continue;
+                }
+                else
+                {
+                    evt = await clickTask;
+                }
+
                 var (kind, arg) = Split(evt);
 
                 switch (kind) {
@@ -38,12 +54,17 @@ public static class BrowserExampleApp
                         }
 
                         session?.Dispose();
+                        BrowserEditorHost.DisposeAll();
                         var info = library.Notebooks[index];
                         document = library.Load(info);
                         session = new NotebookSession(document, new MetadataReferenceProvider());
-                        session.Changed += () => host.ShowNotebook(NotebookRenderer.Render(document, session));
+                        session.Changed += () => {
+                            host.ShowNotebook(NotebookRenderer.Render(document, session));
+                            BrowserEditorHost.AttachAll();
+                        };
                         await session.EnsureHighlightsAsync();
                         host.ShowNotebook(NotebookRenderer.Render(document, session));
+                        BrowserEditorHost.AttachAll();
 
                         var state = app.GetState<ExampleAppState>();
                         state.Update(_ => new(index));
@@ -52,10 +73,12 @@ public static class BrowserExampleApp
                     }
 
                     case "compile" when session is not null:
+                        await SyncEditableCells(session, host).ConfigureAwait(false);
                         _ = session.CompileThroughAsync(arg);
                         break;
 
                     case "run" when session is not null:
+                        await SyncEditableCells(session, host).ConfigureAwait(false);
                         _ = session.RunThroughAsync(arg);
                         break;
 
@@ -83,6 +106,44 @@ public static class BrowserExampleApp
         var i = evt.IndexOf(':');
         return i < 0 ? (evt, "") : (evt[..i], evt[(i + 1)..]);
     }
+
+    private static async Task SyncEditableCells(NotebookSession session, BrowserHost host)
+    {
+        foreach (var cell in session.Cells) {
+            if (!cell.Editable) {
+                continue;
+            }
+            var current = host.ReadCellSource(cell.Id);
+            if (current != session.GetState(cell.Id).Source) {
+                await session.UpdateCellSourceAsync(cell.Id, current).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private static void HandleEditorEvent(string evt, NotebookSession? session)
+    {
+        var parts = evt.Split(':', 3);
+        if (parts.Length < 3) return;
+
+        var type = parts[0];
+        var cellId = parts[1];
+        var rest = parts[2];
+
+        if (type == "key")
+        {
+            var keyParts = rest.Split(':');
+            if (keyParts.Length < 4) return;
+            var key = keyParts[0];
+            var ctrl = bool.Parse(keyParts[1]);
+            var shift = bool.Parse(keyParts[2]);
+
+            BrowserEditorHost.OnEditorKeyDown(cellId, key, ctrl, shift, false);
+        }
+        else if (type == "input")
+        {
+            BrowserEditorHost.OnEditorChanged(cellId, rest);
+        }
+    }
 }
 
 public sealed class BrowserHost : IExampleRenderHost, IDisposable
@@ -105,6 +166,8 @@ public sealed class BrowserHost : IExampleRenderHost, IDisposable
 
     public string ReadCellSource(string cellId)
     {
+        var editorSource = Editor.BrowserEditorHost.ReadSource(cellId);
+        if (editorSource != null) return editorSource;
         using var textarea = BrowserElement.Find(NotebookRenderer.SourceElementId(cellId));
         return textarea.Value();
     }
@@ -282,5 +345,9 @@ internal static partial class BrowserDom
     [JSImport("waitForEvent", "main.js")]
     [return: JSMarshalAs<JSType.Promise<JSType.String>>]
     internal static partial Task<string> WaitForEvent();
+
+    [JSImport("waitForEditorEvent", "main.js")]
+    [return: JSMarshalAs<JSType.Promise<JSType.String>>]
+    internal static partial Task<string> WaitForEditorEvent();
 }
 #endif

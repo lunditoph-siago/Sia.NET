@@ -123,7 +123,7 @@ public static class NotebookProgramBuilder
 
     public static IReadOnlyDictionary<string, string> SliceOutput(string captured, NotebookProgram program)
     {
-        var result = new Dictionary<string, string>();
+        Dictionary<string, string> result = [];
         foreach (var range in program.CellRanges) {
             var startIndex = captured.IndexOf(range.StartToken, StringComparison.Ordinal);
             if (startIndex < 0) {

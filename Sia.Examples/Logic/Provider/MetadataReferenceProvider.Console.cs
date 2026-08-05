@@ -18,7 +18,7 @@ public sealed class MetadataReferenceProvider : IMetadataReferenceProvider
                 "TRUSTED_PLATFORM_ASSEMBLIES is unavailable; runtime compilation requires a framework-dependent (non-AOT, non-single-file) build.");
         }
 
-        var references = new List<MetadataReference>();
+        List<MetadataReference> references = [];
         foreach (var path in tpa.Split(Path.PathSeparator)) {
             var fileName = Path.GetFileNameWithoutExtension(path);
             if (string.IsNullOrEmpty(fileName)

@@ -203,14 +203,20 @@ public sealed class NotebookSession : IDisposable
         }
         Changed?.Invoke();
 
-        var result = await NotebookCompiler.ExecuteAsync(assembly).ConfigureAwait(false);
-
-        _running = false;
-        if (ReferenceEquals(_runToken, myToken)) {
-            ApplyRunResult(result, program, scopeCells, targetIndex);
+        // `_running` gates IsBusy for the whole session, so it must always come back
+        // down — mirrors the try/finally CompileThroughAsync already uses around `_cts`.
+        // ExecuteAsync itself no longer throws (see NotebookCompiler), but this is the
+        // backstop that keeps the session usable even if that ever regresses.
+        try {
+            var result = await NotebookCompiler.ExecuteAsync(assembly).ConfigureAwait(false);
+            if (ReferenceEquals(_runToken, myToken)) {
+                ApplyRunResult(result, program, scopeCells, targetIndex);
+            }
         }
-
-        Changed?.Invoke();
+        finally {
+            _running = false;
+            Changed?.Invoke();
+        }
     }
 
     public void Interrupt() => _cts?.Cancel();

@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 
 namespace Sia_Examples;
 
-internal static partial class AnsiText
+public static partial class AnsiText
 {
     [GeneratedRegex("\\e\\[[0-9;]*m")]
     private static partial Regex EscapeSequence();
@@ -40,7 +40,7 @@ internal static partial class AnsiText
     }
 }
 
-internal sealed class ConsoleScreen : IDisposable
+public sealed class ConsoleScreen : IDisposable
 {
     public ConsoleScreen()
     {
@@ -64,9 +64,9 @@ internal sealed class ConsoleScreen : IDisposable
     }
 }
 
-internal readonly record struct SplitLayout(int SidebarWidth, int WorkspaceCol, int WorkspaceWidth, int ContentHeight, int InputRow);
+public readonly record struct SplitLayout(int SidebarWidth, int WorkspaceCol, int WorkspaceWidth, int ContentHeight, int InputRow);
 
-internal sealed class SplitPaneRenderer(ConsoleScreen screen)
+public sealed class SplitPaneRenderer(ConsoleScreen screen)
 {
     public SplitLayout Layout()
     {

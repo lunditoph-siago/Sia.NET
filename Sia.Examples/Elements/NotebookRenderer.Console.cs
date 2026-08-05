@@ -14,14 +14,13 @@ public static class NotebookRenderer
     private const string Yellow = "\e[33m";
     private const string InlineCodeColor = "\e[38;5;222m";
 
-    public static IReadOnlyList<string> RenderLines(
-        NotebookDocument document, NotebookSession session, string? editingCellId = null, IReadOnlyList<string>? editingBuffer = null)
+    public static IReadOnlyList<string> RenderLines(NotebookDocument document, NotebookSession session)
     {
         var sb = new StringBuilder();
         sb.Append(Bold).Append(document.Title).Append(Reset).Append("\n\n");
 
         var number = 0;
-        var cellNumbers = new Dictionary<string, int>();
+        Dictionary<string, int> cellNumbers = [];
         foreach (var cell in session.Cells) {
             cellNumbers[cell.Id] = ++number;
         }
@@ -45,10 +44,6 @@ public static class NotebookRenderer
                             sb.Append('\n');
                         }
                         sb.Append('\n');
-                        break;
-
-                    case CodeCellBlock cell when cell.Id == editingCellId:
-                        AppendEditingCell(sb, cellNumbers[cell.Id], cell, editingBuffer ?? []);
                         break;
 
                     case CodeCellBlock cell:
@@ -98,17 +93,6 @@ public static class NotebookRenderer
             }
         }
 
-        sb.Append('\n');
-    }
-
-    private static void AppendEditingCell(StringBuilder sb, int number, CodeCellBlock cell, IReadOnlyList<string> buffer)
-    {
-        sb.Append(Bold).Append('[').Append(number).Append("] ").Append(cell.Id).Append(Reset)
-          .Append("  ").Append(Yellow).Append("editing…").Append(Reset).Append('\n');
-        foreach (var line in buffer) {
-            sb.Append(line).Append('\n');
-        }
-        sb.Append(Dim).Append("(blank line + :end to save, :cancel to discard)").Append(Reset).Append('\n');
         sb.Append('\n');
     }
 

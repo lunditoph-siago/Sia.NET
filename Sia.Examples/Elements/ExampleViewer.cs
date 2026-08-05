@@ -6,8 +6,6 @@ namespace Sia_Examples;
 public static partial class ExampleViewer
 {
     private static readonly Notebook.NotebookLibrary _library = new();
-
-    public static void Dispose() { }
 }
 
 public readonly record struct ExampleAppProps(

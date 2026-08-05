@@ -1,6 +1,7 @@
 #if !BROWSER
 using Sia;
 using Sia.Reactive;
+using Sia_Examples.Editor;
 using Sia_Examples.Notebook;
 
 namespace Sia_Examples;
@@ -73,11 +74,9 @@ public static class ConsoleExampleApp
         using var session = new NotebookSession(document, references);
 
         var scroll = 0;
-        string? editingCellId = null;
-        List<string>? editingBuffer = null;
 
         void Redraw() => host.ShowWorkspace(
-            NotebookRenderer.RenderLines(document, session, editingCellId, editingBuffer), scroll);
+            NotebookRenderer.RenderLines(document, session), scroll);
 
         session.Changed += Redraw;
         try {
@@ -131,24 +130,13 @@ public static class ConsoleExampleApp
                         Fire(session.RunThroughAsync(cell.Id));
                         break;
                     case 'e':
-                        editingCellId = cell.Id;
-                        editingBuffer = new List<string>(session.GetState(cell.Id).Source.Split('\n'));
-                        Redraw();
-                        while (true) {
-                            host.SetStatus($"Editing [{number}] {cell.Id} — type source, blank line + :end to save, :cancel to discard.");
-                            var line = ReadLine(screen);
-                            if (line == ":cancel") {
-                                break;
-                            }
-                            if (line == ":end") {
-                                Fire(session.UpdateCellSourceAsync(cell.Id, string.Join('\n', editingBuffer)));
-                                break;
-                            }
-                            editingBuffer.Add(line);
-                            Redraw();
+                        using (var editor = new Sia_Examples.Editor.ConsoleEditorHost(
+                            screen, cell.Id, session.GetState(cell.Id).Source))
+                        {
+                            var result = editor.Edit(host.BuildSidebarLines(), ref scroll);
+                            if (result != null)
+                                Fire(session.UpdateCellSourceAsync(cell.Id, result));
                         }
-                        editingCellId = null;
-                        editingBuffer = null;
                         Redraw();
                         break;
                     default:
@@ -200,7 +188,7 @@ public static class ConsoleExampleApp
         var references = new MetadataReferenceProvider();
         using var session = new NotebookSession(document, references);
 
-        var seenScopeLastCell = new Dictionary<string, string>();
+        Dictionary<string, string> seenScopeLastCell = [];
         foreach (var cell in session.Cells) {
             var scopeKey = cell.Scope ?? $"$solo:{cell.Id}";
             seenScopeLastCell[scopeKey] = cell.Id;
@@ -260,7 +248,7 @@ internal sealed class ConsoleHost(ConsoleScreen screen) : IExampleRenderHost
         Commit();
     }
 
-    public void Commit()
+    public IReadOnlyList<string> BuildSidebarLines()
     {
         var sidebar = new List<string> { "Notebooks", "" };
         foreach (var item in _items.Values) {
@@ -268,9 +256,13 @@ internal sealed class ConsoleHost(ConsoleScreen screen) : IExampleRenderHost
             sidebar.Add($"{marker}[{item.Index + 1}] {item.Name}");
             sidebar.Add($"      {item.Description}");
         }
+        return sidebar;
+    }
 
+    public void Commit()
+    {
         var visible = _workspaceLines.Skip(_scroll).ToList();
-        _renderer.Render(sidebar, visible, _status);
+        _renderer.Render(BuildSidebarLines(), visible, _status);
     }
 }
 #endif

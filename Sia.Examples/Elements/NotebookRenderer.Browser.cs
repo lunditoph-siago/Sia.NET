@@ -1,9 +1,12 @@
 #if BROWSER
+using Sia_Examples.Editor;
+
 namespace Sia_Examples.Notebook;
 
 public static class NotebookRenderer
 {
     public static string SourceElementId(string cellId) => "cell-source-" + cellId;
+    public static string EditorContainerId(string cellId) => "editor-" + cellId;
 
     public static BrowserElement Render(NotebookDocument document, NotebookSession session)
     {
@@ -14,7 +17,7 @@ public static class NotebookRenderer
         root.Append(title);
 
         var number = 0;
-        var cellNumbers = new Dictionary<string, int>();
+        Dictionary<string, int> cellNumbers = [];
         foreach (var cell in session.Cells) {
             cellNumbers[cell.Id] = ++number;
         }
@@ -91,10 +94,11 @@ public static class NotebookRenderer
         wrapper.Append(header);
 
         if (cell.Editable) {
-            var textarea = BrowserElement.Create("textarea").Class("code").Class("code-edit");
-            textarea.Id(SourceElementId(cell.Id));
-            textarea.Text(state.Source);
-            wrapper.Append(textarea);
+            var editorContainer = BrowserElement.Create("div").Class("code").Class("code-edit");
+            editorContainer.Id(EditorContainerId(cell.Id));
+            wrapper.Append(editorContainer);
+            // Editor is created lazily on first focus or immediately
+            BrowserEditorHost.GetOrCreate(editorContainer, cell.Id, state.Source);
         }
         else {
             var pre = BrowserElement.Create("pre").Class("code");

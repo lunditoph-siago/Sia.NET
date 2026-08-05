@@ -112,8 +112,6 @@ public sealed class NotebookCompiler : IDisposable
         Justification = "Loads a freshly emitted in-memory assembly, not application code trimming can affect.")]
     public static async Task<NotebookExecuteResult> ExecuteAsync(byte[] assemblyImage)
     {
-        var assembly = Assembly.Load(assemblyImage);
-
         var stdOut = new StringWriter();
         var stdErr = new StringWriter();
         var originalOut = Console.Out;
@@ -121,6 +119,12 @@ public sealed class NotebookCompiler : IDisposable
         Console.SetOut(stdOut);
         Console.SetError(stdErr);
         try {
+            // Assembly.Load must live inside the try: it can legitimately throw (a bad
+            // image, an AOT/trimming edge case, ...), and previously that exception
+            // propagated straight out of ExecuteAsync — past the caller's `_running = true`
+            // in NotebookSession.RunThroughAsync — leaving the session permanently "busy"
+            // with no way to recover short of discarding it.
+            var assembly = Assembly.Load(assemblyImage);
             var entryPoint = assembly.EntryPoint
                 ?? throw new InvalidOperationException("No entry point found in the compiled program.");
             var result = entryPoint.Invoke(null, [Array.Empty<string>()]);
@@ -143,7 +147,7 @@ public sealed class NotebookCompiler : IDisposable
     private static IReadOnlyList<NotebookDiagnostic> BuildDiagnostics(
         IEnumerable<Diagnostic> diagnostics, SyntaxTree userTree)
     {
-        var results = new List<NotebookDiagnostic>();
+        List<NotebookDiagnostic> results = [];
         foreach (var diagnostic in diagnostics) {
             if (diagnostic.Severity == DiagnosticSeverity.Hidden) {
                 continue;

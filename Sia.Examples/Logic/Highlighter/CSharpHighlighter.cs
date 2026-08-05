@@ -38,7 +38,7 @@ public static class CSharpHighlighter
             .OrderBy(r => r.Start)
             .ThenByDescending(r => r.Length);
 
-        var result = new List<HighlightRun>();
+        List<HighlightRun> result = [];
         var cursor = 0;
         foreach (var run in bySpan) {
             if (run.Start < cursor) {

@@ -33,7 +33,7 @@ public static class NotebookDocumentParser
     private static NotebookSection ParseSection(XElement element)
     {
         var title = (string?)element.Attribute("Title") ?? "";
-        var blocks = new List<NotebookBlock>();
+        List<NotebookBlock> blocks = [];
         foreach (var child in element.Elements()) {
             blocks.Add(child.Name.LocalName switch {
                 "Paragraph" => new ParagraphBlock(ParseInlines(child)),
@@ -51,7 +51,7 @@ public static class NotebookDocumentParser
 
     private static IReadOnlyList<Inline> ParseInlines(XElement element)
     {
-        var inlines = new List<Inline>();
+        List<Inline> inlines = [];
         foreach (var node in element.Nodes()) {
             switch (node) {
                 case XText text: {
