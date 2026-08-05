@@ -8,9 +8,11 @@ public static class CommandBridge
     {
         public readonly World World = new();
         public readonly Entity Entity;
+        private readonly World? _prev;
 
         public TempContext(EditorDoc doc, CursorState cursor)
         {
+            _prev = Context<World>.Current;
             Context<World>.Current = World;
             Entity = World.Create(HList.From(doc, cursor));
         }
@@ -21,7 +23,11 @@ public static class CommandBridge
             return (Entity.Get<EditorDoc>(), Entity.Get<CursorState>());
         }
 
-        public void Dispose() => World.Dispose();
+        public void Dispose()
+        {
+            Context<World>.Current = _prev;
+            World.Dispose();
+        }
     }
 
     public static (EditorDoc Doc, CursorState Cursor) Apply(

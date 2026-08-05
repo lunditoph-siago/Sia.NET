@@ -1,5 +1,6 @@
 using Sia;
 using Sia.Reactive;
+using Sia_Examples.Notebook;
 
 namespace Sia_Examples.Editor;
 
@@ -12,20 +13,36 @@ public static partial class CellEditor
         var view = props.View;
         var doc = hooks.UseState(new EditorDoc(props.InitialSource));
         var cursor = hooks.UseState(CursorState.Default);
+        var highlights = hooks.UseState(new HighlightCache([]));
 
         hooks.UseEffect(
-            new ViewBinding(view, doc.Value, cursor.Value),
+            new TokenizeDeps(doc.Value, highlights),
+            setup: static (in TokenizeDeps d) =>
+            {
+                d.Highlights.Set(new HighlightCache(EditorTokenizer.Tokenize(d.Doc.Value.FullText)));
+                return default(Unit);
+            },
+            cleanup: static (in Unit _) => { });
+
+        hooks.UseEffect(
+            new ViewBinding(view, doc.Value, cursor.Value, highlights.Value.Runs),
             setup: static (in ViewBinding b) =>
             {
-                var (docComp, cur, v) = (b.Doc, b.Cursor, b.View);
+                var (docComp, cur, v, runs) = (b.Doc, b.Cursor, b.View, b.Highlights);
                 v.BeginRender();
-                var scrollLine = cur.ScrollLine;
+                var scrollLine = Math.Clamp(cur.ScrollLine, 0, Math.Max(docComp.LineCount - v.VisibleLines, 0));
+                if (cur.Line < scrollLine) scrollLine = cur.Line;
+                if (cur.Line >= scrollLine + v.VisibleLines) scrollLine = cur.Line - v.VisibleLines + 1;
+                scrollLine = Math.Clamp(scrollLine, 0, Math.Max(docComp.LineCount - 1, 0));
                 var endLine = Math.Min(scrollLine + v.VisibleLines, docComp.LineCount);
+                var offset = 0;
+                for (var i = 0; i < scrollLine; i++) offset += docComp.Value[i].Length + 1;
                 for (var i = scrollLine; i < endLine; i++)
                 {
                     var screenRow = i - scrollLine;
                     v.RenderGutter(screenRow, i, i == cur.Line);
-                    v.RenderLine(screenRow, docComp.Value[i], cur, i);
+                    v.RenderLine(screenRow, docComp.Value[i], cur, i, runs, offset);
+                    offset += docComp.Value[i].Length + 1;
                 }
                 v.RenderCursor(cur.Line - scrollLine, cur.Column);
                 v.RenderStatus(
@@ -52,7 +69,12 @@ public static partial class CellEditor
 
 public readonly record struct EditorEntityTag(string CellId);
 
+public readonly record struct HighlightCache(List<HighlightRun> Runs);
+
+public readonly record struct TokenizeDeps(EditorDoc Doc, State<HighlightCache> Highlights);
+
 public readonly record struct ViewBinding(
     IEditorView View,
     EditorDoc Doc,
-    CursorState Cursor);
+    CursorState Cursor,
+    List<HighlightRun> Highlights);

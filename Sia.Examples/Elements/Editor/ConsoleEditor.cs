@@ -10,6 +10,7 @@ public sealed class ConsoleEditorHost : IDisposable
     private readonly SplitPaneRenderer _pane;
     private readonly ConsoleEditorView _view;
     private readonly World _world;
+    private readonly World? _prevContext;
     private readonly ReactiveMount<CellEditorProps> _mount;
     private readonly string _cellId;
     private readonly int _gutterWidth = 5;
@@ -31,6 +32,7 @@ public sealed class ConsoleEditorHost : IDisposable
             _gutterWidth);
 
         _world = new World();
+        _prevContext = Context<World>.Current;
         Context<World>.Current = _world;
 
         var props = new CellEditorProps(cellId, initialSource, _view);
@@ -130,7 +132,6 @@ public sealed class ConsoleEditorHost : IDisposable
 
     private ColonResult HandleForceQuit()
     {
-        _saved = true;
         return ColonResult.Exit;
     }
 
@@ -166,6 +167,7 @@ public sealed class ConsoleEditorHost : IDisposable
     {
         _mount.Unmount();
         _world.Dispose();
+        Context<World>.Current = _prevContext;
     }
 }
 #endif

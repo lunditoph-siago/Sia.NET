@@ -37,12 +37,47 @@ public sealed class ConsoleEditorView(ConsoleScreen screen, int left, int top, i
         screen.WriteRow(top + screenRow, left, gutter);
     }
 
-    public void RenderLine(int screenRow, string text, CursorState cursor, int lineIndex)
+    public void RenderLine(int screenRow, string text, CursorState cursor, int lineIndex, List<Sia_Examples.Notebook.HighlightRun> highlights, int lineStartOffset)
     {
-        var styled = ApplySelection(text, lineIndex, cursor);
+        var ansi = text.Length > 0
+            ? BuildAnsiLine(text, highlights, lineStartOffset)
+            : " ";
+        var styled = ApplySelection(ansi, lineIndex, cursor);
         screen.WriteRow(top + screenRow, left + gutterWidth,
             AnsiText.Fit(styled, _width - gutterWidth));
     }
+
+    private static string BuildAnsiLine(string text, List<Sia_Examples.Notebook.HighlightRun> runs, int lineStart)
+    {
+        if (text.Length == 0) return " ";
+        var lineEnd = lineStart + text.Length;
+        var sb = new StringBuilder();
+        var cursor = 0;
+        foreach (var run in runs)
+        {
+            if (run.Start + run.Length <= lineStart) continue;
+            if (run.Start >= lineEnd) break;
+            var rs = Math.Max(run.Start, lineStart) - lineStart;
+            var re = Math.Min(run.Start + run.Length, lineEnd) - lineStart;
+            if (rs > cursor) sb.Append(text[cursor..rs]);
+            var color = AnsiColor(run.Classification);
+            if (color >= 0) { sb.Append("\e[38;5;").Append(color).Append('m'); }
+            sb.Append(text[rs..re]);
+            if (color >= 0) sb.Append(Reset);
+            cursor = re;
+        }
+        if (cursor < text.Length) sb.Append(text[cursor..]);
+        return sb.ToString();
+    }
+
+    private static int AnsiColor(string classification) => classification switch
+    {
+        "keyword" or "control keyword" or "preprocessor keyword" => 183,
+        "string literal" => 150,
+        "comment" => 103,
+        "numeric literal" => 216,
+        _ => -1,
+    };
 
     public void RenderCursor(int screenRow, int column)
     {

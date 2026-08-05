@@ -435,6 +435,7 @@ public static class EditOps
     public static (EditorDocument Doc, CursorState Cursor) InsertTab(
         EditorDocument doc, CursorState c, int tabSize = 4)
     {
+        if (tabSize <= 0) return (doc, c);
         var spaces = tabSize - (c.Column % tabSize);
         doc.Insert(c.Line, c.Column, new string(' ', spaces));
         return (doc, c with { Column = c.Column + spaces, PreferredColumn = c.Column + spaces });
@@ -522,6 +523,7 @@ public static class EditOps
     public static (EditorDocument Doc, CursorState Cursor) Indent(
         EditorDocument doc, CursorState c, int tabSize = 4)
     {
+        if (tabSize <= 0) return (doc, c);
         var (startLine, _) = c.HasSelection ? c.SelectionStart : (c.Line, 0);
         var (endLine, _) = c.HasSelection ? c.SelectionEnd : (c.Line, 0);
         for (var i = startLine; i <= endLine && i < doc.LineCount; i++)
@@ -533,15 +535,18 @@ public static class EditOps
     public static (EditorDocument Doc, CursorState Cursor) Outdent(
         EditorDocument doc, CursorState c, int tabSize = 4)
     {
+        if (tabSize <= 0) return (doc, c);
         var (startLine, _) = c.HasSelection ? c.SelectionStart : (c.Line, 0);
         var (endLine, _) = c.HasSelection ? c.SelectionEnd : (c.Line, 0);
+        var cursorSpacesRemoved = 0;
         for (var i = startLine; i <= endLine && i < doc.LineCount; i++)
         {
             var line = doc[i]; var spaces = 0;
             while (spaces < tabSize && spaces < line.Length && line[spaces] == ' ') spaces++;
             if (spaces > 0) doc.Delete(i, 0, spaces);
+            if (i == c.Line) cursorSpacesRemoved = spaces;
         }
-        var newCol = Math.Max(0, c.Column - (c.HasSelection ? 0 : tabSize));
+        var newCol = c.HasSelection ? c.Column : Math.Max(0, c.Column - cursorSpacesRemoved);
         return (doc, c with { Column = newCol, PreferredColumn = newCol });
     }
 

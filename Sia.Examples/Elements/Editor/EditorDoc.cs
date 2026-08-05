@@ -1,13 +1,17 @@
-using Sia;
-
 namespace Sia_Examples.Editor;
 
-public struct EditorDoc(string initialText) : IEquatable<EditorDoc>
+public struct EditorDoc : IEquatable<EditorDoc>
 {
-    private EditorDocument _value = new(initialText);
-    private int _version = 1;
+    private EditorDocument _value;
+    private int _version;
 
-    public readonly EditorDocument Value => _value;
+    public EditorDoc(string initialText)
+    {
+        _value = new EditorDocument(initialText);
+        _version = 1;
+    }
+
+    public readonly EditorDocument Value => _value ?? throw new InvalidOperationException("EditorDoc is uninitialized");
     public readonly int Version => _version;
     public readonly int LineCount => _value.LineCount;
     public readonly string FullText => _value.FullText;
