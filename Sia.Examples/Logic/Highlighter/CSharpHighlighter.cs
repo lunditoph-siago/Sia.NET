@@ -85,7 +85,7 @@ public static class CSharpHighlighter
         .Replace(" ", "-", StringComparison.Ordinal)
         .ToLowerInvariant();
 
-    private static int? AnsiColor(string classification) => classification switch {
+    public static int? AnsiColor(string classification) => classification switch {
         ClassificationTypeNames.Keyword
             or ClassificationTypeNames.ControlKeyword
             or ClassificationTypeNames.PreprocessorKeyword => 183,

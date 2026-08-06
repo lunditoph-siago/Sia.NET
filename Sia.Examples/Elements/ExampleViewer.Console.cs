@@ -72,6 +72,7 @@ public static class ConsoleExampleApp
         var document = library.Load(info);
         var references = new MetadataReferenceProvider();
         using var session = new NotebookSession(document, references);
+        session.EnsurePackagesAsync().GetAwaiter().GetResult();
 
         var scroll = 0;
 
@@ -84,7 +85,7 @@ public static class ConsoleExampleApp
             Redraw();
 
             while (true) {
-                host.SetStatus("c<N> compile  r<N> run  e<N> edit  u/d scroll  s stop  b back  q quit");
+                host.SetStatus("c<N> compile  r<N> run  e<N> edit  u/d scroll  s stop  b back  q quit  pkg <src> <id>");
                 var input = ReadLine(screen);
                 if (input.Length == 0) {
                     continue;
@@ -109,6 +110,18 @@ public static class ConsoleExampleApp
                     Redraw();
                     continue;
                 }
+                if (input.StartsWith("pkg ", StringComparison.OrdinalIgnoreCase)) {
+                    var parts = input[4..].Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length < 2 || (parts[0].ToLowerInvariant() is not ("nuget" or "framework"))) {
+                        host.SetStatus("Usage: pkg <nuget|framework> <id> [version]");
+                        continue;
+                    }
+                    var packageSource = parts[0].Equals("nuget", StringComparison.OrdinalIgnoreCase)
+                        ? PackageSource.NuGet : PackageSource.Framework;
+                    var version = parts.Length > 2 ? parts[2] : null;
+                    RunBlocking(session.AddPackageAsync(new PackageRef(packageSource, parts[1], version)));
+                    continue;
+                }
 
                 var action = input[0];
                 if (!int.TryParse(input[1..], out var number) || number < 1 || number > session.Cells.Count) {
@@ -127,11 +140,13 @@ public static class ConsoleExampleApp
                         RunBlocking(session.CompileThroughAsync(cell.Id));
                         break;
                     case 'r':
+
                         RunBlocking(session.RunThroughAsync(cell.Id));
                         break;
                     case 'e':
                         using (var editor = new Sia_Examples.Editor.ConsoleEditorHost(
-                            screen, cell.Id, session.GetState(cell.Id).Source, references))
+                            screen, cell.Id, session.GetState(cell.Id).Source,
+                            session.GetState(cell.Id).Highlights, session.References))
                         {
                             var result = editor.Edit(host.BuildSidebarLines(), ref scroll);
                             if (result != null)
@@ -192,6 +207,7 @@ public static class ConsoleExampleApp
         var document = library.Load(info);
         var references = new MetadataReferenceProvider();
         using var session = new NotebookSession(document, references);
+        session.EnsurePackagesAsync().GetAwaiter().GetResult();
 
         Dictionary<string, string> seenScopeLastCell = [];
         foreach (var cell in session.Cells) {

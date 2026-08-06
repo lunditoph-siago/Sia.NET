@@ -13,7 +13,7 @@ public sealed record ListBlock(IReadOnlyList<IReadOnlyList<Inline>> Items) : Not
 public sealed record CodeCellBlock(string Id, string InitialSource, bool Editable, string? Scope) : NotebookBlock;
 
 public sealed record NotebookSection(string Title, IReadOnlyList<NotebookBlock> Blocks);
-public sealed record NotebookDocument(string Title, IReadOnlyList<NotebookSection> Sections);
+public sealed record NotebookDocument(string Title, IReadOnlyList<PackageRef> Packages, IReadOnlyList<NotebookSection> Sections);
 
 public static class NotebookDocumentParser
 {
@@ -26,8 +26,24 @@ public static class NotebookDocumentParser
         }
 
         var title = (string?)root.Attribute("Title") ?? "";
+
+        var packages = root.Element("Packages")?.Elements("Package").Select(ParsePackageRef).ToList()
+            ?? [];
         var sections = root.Elements("Section").Select(ParseSection).ToList();
-        return new(title, sections);
+        return new(title, packages, sections);
+    }
+
+    private static PackageRef ParsePackageRef(XElement element)
+    {
+        var sourceText = (string?)element.Attribute("Source") ?? nameof(PackageSource.Framework);
+        if (!Enum.TryParse<PackageSource>(sourceText, ignoreCase: true, out var source)) {
+            throw new FormatException(
+                $"Unknown <Package Source=\"{sourceText}\"> — expected \"Framework\" or \"NuGet\".");
+        }
+        var id = (string?)element.Attribute("Id")
+            ?? throw new FormatException("<Package> requires an Id attribute.");
+        var version = (string?)element.Attribute("Version");
+        return new(source, id, version);
     }
 
     private static NotebookSection ParseSection(XElement element)

@@ -22,6 +22,7 @@ public static class BrowserExampleApp
         Context<World>.Current = world;
 
         using var host = new BrowserHost();
+
         var app = world.Mount(ExampleApp.Definition, new(library, host));
 
         NotebookSession? session = null;
@@ -66,13 +67,19 @@ public static class BrowserExampleApp
                         var info = library.Notebooks[index];
                         document = library.Load(info);
                         session = new NotebookSession(document, new MetadataReferenceProvider());
-                        await session.EnsureHighlightsAsync();
+                        host.EnsureFrameworkAssemblyOptions(session.References.AvailableFrameworkAssemblyNames);
                         session.Changed += () => {
+                            Console.WriteLine($"[diag] session.Changed fired -> full ShowNotebook re-render, thread={Environment.CurrentManagedThreadId}");
                             host.ShowNotebook(NotebookRenderer.Render(document, session));
-                            BrowserEditorHost.AttachAll();
+                            host.ShowPackagePanel(NotebookRenderer.RenderPackagePanel(session.PackageStatuses), session.PackageStatuses.Count);
+                            BrowserEditorHost.BuildAll();
                         };
                         host.ShowNotebook(NotebookRenderer.Render(document, session));
-                        BrowserEditorHost.AttachAll();
+                        host.ShowPackagePanel(NotebookRenderer.RenderPackagePanel(session.PackageStatuses), session.PackageStatuses.Count);
+                        BrowserEditorHost.BuildAll();
+
+                        await session.EnsurePackagesAsync();
+                        await session.EnsureHighlightsAsync();
 
                         _ = WarmUpCompletionAsync(session.References);
 
@@ -100,6 +107,18 @@ public static class BrowserExampleApp
                         var source = host.ReadCellSource(arg);
                         _ = session.UpdateCellSourceAsync(arg, source);
                         break;
+
+                    case "addpkg" when session is not null: {
+                        var packageSource = arg == "Framework" ? PackageSource.Framework : PackageSource.NuGet;
+                        var id = BrowserElement.TryFind("package-add-id")?.Value().Trim() ?? "";
+                        if (id.Length == 0) {
+                            break;
+                        }
+                        var version = BrowserElement.TryFind("package-add-version")?.Value().Trim();
+                        _ = session.AddPackageAsync(new PackageRef(
+                            packageSource, id, string.IsNullOrEmpty(version) ? null : version));
+                        break;
+                    }
                 }
             }
         }
@@ -115,7 +134,7 @@ public static class BrowserExampleApp
     {
         try {
             const string warmUpSource = "var x = System.Con";
-            var warmUp = new LightweightCompletionProvider(references);
+            using var warmUp = new RoslynCompletionProvider(references);
             await warmUp.QueryAsync(warmUpSource, warmUpSource.Length).ConfigureAwait(false);
         }
         catch {
@@ -141,29 +160,10 @@ public static class BrowserExampleApp
         }
     }
 
-    private static async Task HandleEditorEvent(string evt, NotebookSession? session)
+    private static Task HandleEditorEvent(string evt, NotebookSession? session)
     {
-        var parts = evt.Split(':', 3);
-        if (parts.Length < 3) return;
-
-        var type = parts[0];
-        var cellId = parts[1];
-        var rest = parts[2];
-
-        if (type == "key")
-        {
-            var keyParts = rest.Split(':');
-            if (keyParts.Length < 4) return;
-            var key = keyParts[0];
-            var ctrl = bool.Parse(keyParts[1]);
-            var shift = bool.Parse(keyParts[2]);
-
-            await BrowserEditorHost.OnEditorKeyDown(cellId, key, ctrl, shift, false);
-        }
-        else if (type == "input")
-        {
-            await BrowserEditorHost.OnEditorChanged(cellId, rest);
-        }
+        BrowserEditorHost.RouteEvent(evt);
+        return Task.CompletedTask;
     }
 }
 
@@ -171,8 +171,22 @@ public sealed class BrowserHost : IExampleRenderHost, IDisposable
 {
     private readonly BrowserElement _sidebar = BrowserElement.Find("sidebar");
     private readonly BrowserElement _notebookContainer = BrowserElement.Find("notebook");
+    private readonly BrowserElement _packagesPopover = BrowserElement.Find("packages-popover");
+    private readonly BrowserElement _packagesBadge = BrowserElement.Find("packages-badge");
+    private readonly BrowserElement _frameworkDatalist = BrowserElement.Find("framework-assemblies");
     private readonly SortedDictionary<int, ExampleNode> _examples = [];
     private BrowserElement? _notebookContent;
+    private BrowserElement? _packagesContent;
+    private bool _frameworkOptionsPopulated;
+
+    public void EnsureFrameworkAssemblyOptions(IReadOnlyList<string> names)
+    {
+        if (_frameworkOptionsPopulated) return;
+        _frameworkOptionsPopulated = true;
+        foreach (var name in names) {
+            _frameworkDatalist.Append(BrowserElement.Create("option").Attr("value", name));
+        }
+    }
 
     public Task<string> WaitForClick() => BrowserDom.WaitForEvent();
 
@@ -185,13 +199,19 @@ public sealed class BrowserHost : IExampleRenderHost, IDisposable
         _notebookContainer.Append(content);
     }
 
-    public string ReadCellSource(string cellId)
+    public void ShowPackagePanel(BrowserElement content, int count)
     {
-        var editorSource = Editor.BrowserEditorHost.ReadSource(cellId);
-        if (editorSource != null) return editorSource;
-        using var textarea = BrowserElement.Find(NotebookRenderer.SourceElementId(cellId));
-        return textarea.Value();
+        _packagesContent?.Remove();
+        _packagesContent?.Dispose();
+        _packagesPopover.Text("");
+        _packagesContent = content;
+        _packagesPopover.Append(content);
+        _packagesBadge.Text(count > 0 ? count.ToString() : "");
     }
+
+    public string ReadCellSource(string cellId)
+        => Editor.BrowserEditorHost.ReadSource(cellId)
+           ?? throw new InvalidOperationException($"No built BrowserEditorHost for cell '{cellId}'");
 
     public void Upsert(in ExampleItemView view)
     {
@@ -221,6 +241,10 @@ public sealed class BrowserHost : IExampleRenderHost, IDisposable
         _notebookContent?.Dispose();
         _notebookContainer.Dispose();
         _sidebar.Dispose();
+        _packagesContent?.Dispose();
+        _packagesPopover.Dispose();
+        _packagesBadge.Dispose();
+        _frameworkDatalist.Dispose();
     }
 
     private BrowserElement? FindNext(int index)
@@ -306,6 +330,12 @@ public sealed class BrowserElement(JSObject handle) : IDisposable
 
     public string Value() => BrowserDom.GetValue(Handle);
 
+    public BrowserElement Attr(string name, string value)
+    {
+        BrowserDom.SetAttr(Handle, name, value);
+        return this;
+    }
+
     public BrowserElement ToggleClass(string name, bool enabled)
     {
         BrowserDom.ToggleClass(Handle, name, enabled);
@@ -353,6 +383,9 @@ internal static partial class BrowserDom
 
     [JSImport("setId", "main.js")]
     internal static partial void SetId(JSObject element, string id);
+
+    [JSImport("setAttr", "main.js")]
+    internal static partial void SetAttr(JSObject element, string name, string value);
 
     [JSImport("setPosition", "main.js")]
     internal static partial void SetPosition(JSObject element, double top, double left);

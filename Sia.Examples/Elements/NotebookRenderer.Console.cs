@@ -19,6 +19,8 @@ public static class NotebookRenderer
         var sb = new StringBuilder();
         sb.Append(Bold).Append(document.Title).Append(Reset).Append("\n\n");
 
+        AppendPackagePanel(sb, session.PackageStatuses);
+
         var number = 0;
         Dictionary<string, int> cellNumbers = [];
         foreach (var cell in session.Cells) {
@@ -54,6 +56,32 @@ public static class NotebookRenderer
         }
 
         return sb.ToString().Split('\n');
+    }
+
+    private static void AppendPackagePanel(StringBuilder sb, IReadOnlyList<PackageStatus> statuses)
+    {
+        sb.Append(Dim).Append("Packages").Append(Reset)
+          .Append(Dim).Append("  (pkg <nuget|framework> <id> [version] to add one)").Append(Reset).Append('\n');
+        if (statuses.Count == 0) {
+            sb.Append("  ").Append(Dim).Append("none declared").Append(Reset).Append('\n');
+        }
+        foreach (var status in statuses) {
+            var (label, color) = status.State switch {
+                PackageLoadState.Loading => ("loading…", Yellow),
+                PackageLoadState.Loaded => ("loaded", Green),
+                PackageLoadState.Failed => ("failed", Red),
+                _ => (status.State.ToString(), Dim),
+            };
+            var source = status.Package.Source == PackageSource.NuGet ? "NuGet" : "Framework";
+            var version = status.Package.Version is { } v ? $" ({v})" : "";
+            sb.Append("  ").Append(Dim).Append('[').Append(source).Append(']').Append(Reset)
+              .Append(' ').Append(status.Package.Id).Append(version)
+              .Append("  ").Append(color).Append(label).Append(Reset).Append('\n');
+            if (status.State == PackageLoadState.Failed && status.Error is { } error) {
+                sb.Append("    ").Append(Red).Append(error).Append(Reset).Append('\n');
+            }
+        }
+        sb.Append('\n');
     }
 
     private static void AppendInlines(StringBuilder sb, IReadOnlyList<Inline> inlines)

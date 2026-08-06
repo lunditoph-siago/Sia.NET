@@ -39,6 +39,8 @@ public sealed class NotebookSession : IDisposable
     private readonly Dictionary<string, CellState> _states = [];
     private readonly IMetadataReferenceProvider _references;
 
+    private readonly PackageRegistry _packageRegistry = new();
+
     private CancellationTokenSource? _cts;
     private bool _running;
     private object _runToken = new();
@@ -48,6 +50,10 @@ public sealed class NotebookSession : IDisposable
     public NotebookSession(NotebookDocument document, IMetadataReferenceProvider references)
     {
         _references = references;
+
+        foreach (var package in document.Packages) {
+            _packageRegistry.Declare(package);
+        }
         _cells = document.Sections
             .SelectMany(s => s.Blocks)
             .OfType<CodeCellBlock>()
@@ -85,6 +91,42 @@ public sealed class NotebookSession : IDisposable
     public CellState GetState(string cellId) => _states[cellId];
 
     public bool IsBusy => _cts is not null || _running;
+
+    public IReadOnlyList<PackageStatus> PackageStatuses => _packageRegistry.Snapshot;
+
+    public Task EnsurePackagesAsync(CancellationToken cancellationToken = default)
+    {
+        var pending = _packageRegistry.Snapshot
+            .Where(s => s.State == PackageLoadState.Loading)
+            .Select(s => s.Package)
+            .ToList();
+        if (pending.Count == 0) {
+            return Task.CompletedTask;
+        }
+        return Task.WhenAll(pending.Select(package => LoadOneAsync(package, cancellationToken)));
+    }
+
+    public Task<PackageStatus> AddPackageAsync(PackageRef package, CancellationToken cancellationToken = default)
+    {
+        _packageRegistry.Declare(package);
+        Changed?.Invoke();
+        return LoadOneAsync(package, cancellationToken);
+    }
+
+    private async Task<PackageStatus> LoadOneAsync(PackageRef package, CancellationToken cancellationToken)
+    {
+        PackageStatus status;
+        try {
+            await _references.EnsurePackagesAsync([package], cancellationToken).ConfigureAwait(false);
+            status = new PackageStatus(package, PackageLoadState.Loaded, null);
+        }
+        catch (Exception ex) {
+            status = new PackageStatus(package, PackageLoadState.Failed, ex.Message);
+        }
+        _packageRegistry.Resolve(package, status.State, status.Error);
+        Changed?.Invoke();
+        return status;
+    }
 
     public async Task EnsureHighlightsAsync()
     {

@@ -11,5 +11,5 @@ public sealed record CompletionQueryResult(IReadOnlyList<CompletionCandidate> It
 
 public interface IEditorCompletionProvider
 {
-    Task<CompletionQueryResult> QueryAsync(string source, int position, CancellationToken cancellationToken = default);
+    public Task<CompletionQueryResult> QueryAsync(string source, int position, CancellationToken cancellationToken = default);
 }

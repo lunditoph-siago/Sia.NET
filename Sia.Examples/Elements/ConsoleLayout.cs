@@ -42,6 +42,8 @@ public static partial class AnsiText
 
 public sealed class ConsoleScreen : IDisposable
 {
+    private readonly Dictionary<(int Row, int Col), string> _drawn = [];
+
     public ConsoleScreen()
     {
         Console.Write("\e[?1049h\e[?25l\e[2J");
@@ -51,12 +53,19 @@ public sealed class ConsoleScreen : IDisposable
     public int Height => Math.Max(Console.WindowHeight, 15);
 
     public void WriteRow(int row, int col, string text)
-        => Console.Write($"\e[{row + 1};{col + 1}H{text}");
+    {
+        var key = (row, col);
+        if (_drawn.TryGetValue(key, out var prev) && prev == text) return;
+        _drawn[key] = text;
+        Console.Write($"\e[{row + 1};{col + 1}H{text}");
+    }
 
     public void ShowCursorAt(int row, int col)
         => Console.Write($"\e[{row + 1};{col + 1}H\e[?25h");
 
     public void HideCursor() => Console.Write("\e[?25l");
+
+    public void Invalidate() => _drawn.Clear();
 
     public void Dispose()
     {
@@ -94,10 +103,12 @@ public sealed class SplitPaneRenderer(ConsoleScreen screen)
         screen.WriteRow(layout.InputRow, 0, AnsiText.Fit(statusLine, screen.Width));
     }
 
-    public void RenderFloatingAt(int anchorRow, int anchorCol, IReadOnlyList<string> lines, int width)
+    public (int Top, int Left, int Width, int Height) RenderFloatingAt(
+        int anchorRow, int anchorCol, IReadOnlyList<string> lines, int width)
     {
+        var boxWidth = width + 2;
         var height = lines.Count + 2;
-        var left = Math.Clamp(anchorCol, 0, Math.Max(screen.Width - width - 2, 0));
+        var left = Math.Clamp(anchorCol, 0, Math.Max(screen.Width - boxWidth, 0));
         var top = anchorRow + height < screen.Height ? anchorRow + 1 : Math.Max(anchorRow - height, 0);
 
         screen.WriteRow(top, left, "┌" + new string('─', width) + "┐");
@@ -105,6 +116,13 @@ public sealed class SplitPaneRenderer(ConsoleScreen screen)
             screen.WriteRow(top + 1 + i, left, "│" + AnsiText.Fit(lines[i], width) + "│");
         }
         screen.WriteRow(top + height - 1, left, "└" + new string('─', width) + "┘");
+        return (top, left, boxWidth, height);
+    }
+
+    public void ClearArea(int top, int left, int width, int height)
+    {
+        var blank = new string(' ', width);
+        for (var i = 0; i < height; i++) screen.WriteRow(top + i, left, blank);
     }
 }
 #endif

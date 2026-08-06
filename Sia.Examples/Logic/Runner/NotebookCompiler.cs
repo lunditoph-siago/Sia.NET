@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Emit;
 using Microsoft.CodeAnalysis.Text;
 
 namespace Sia_Examples.Notebook;
@@ -45,6 +46,8 @@ public sealed class NotebookCompiler : IDisposable
     private readonly IMetadataReferenceProvider _referenceProvider;
     private readonly CSharpParseOptions _parseOptions = CSharpParseOptions.Default;
 
+    private string _referenceHintSource = "";
+
     public NotebookCompiler(NotebookProgram program, IMetadataReferenceProvider referenceProvider)
     {
         _referenceProvider = referenceProvider;
@@ -59,24 +62,28 @@ public sealed class NotebookCompiler : IDisposable
             .WithConcurrentBuild(false)
             .WithNullableContextOptions(NullableContextOptions.Enable);
 
+        var globalUsings = GlobalUsings(program.NeedsWrapperUsing);
         var solution = _workspace.CurrentSolution
             .AddProject(_projectId, assemblyName, assemblyName, LanguageNames.CSharp)
             .WithProjectCompilationOptions(_projectId, compilationOptions)
             .WithProjectParseOptions(_projectId, _parseOptions)
             .AddDocument(_documentId, "Cell.cs", SourceText.From(program.Source))
-            .AddDocument(_globalUsingsId, "GlobalUsings.g.cs", SourceText.From(GlobalUsings(program.NeedsWrapperUsing)));
+            .AddDocument(_globalUsingsId, "GlobalUsings.g.cs", SourceText.From(globalUsings));
 
         _workspace.TryApplyChanges(solution);
+        _referenceHintSource = $"{globalUsings}\n{program.Source}";
     }
 
     public Document CurrentDocument => _workspace.CurrentSolution.GetDocument(_documentId)!;
 
     public void UpdateProgram(NotebookProgram program)
     {
+        var globalUsings = GlobalUsings(program.NeedsWrapperUsing);
         var solution = _workspace.CurrentSolution
             .WithDocumentText(_documentId, SourceText.From(program.Source))
-            .WithDocumentText(_globalUsingsId, SourceText.From(GlobalUsings(program.NeedsWrapperUsing)));
+            .WithDocumentText(_globalUsingsId, SourceText.From(globalUsings));
         _workspace.TryApplyChanges(solution);
+        _referenceHintSource = $"{globalUsings}\n{program.Source}";
     }
 
     private static string GlobalUsings(bool needsWrapperUsing)
@@ -86,8 +93,21 @@ public sealed class NotebookCompiler : IDisposable
 
     public async Task<NotebookCompileResult> CompileAsync(CancellationToken cancellationToken = default)
     {
+        var references = await _referenceProvider.GetReferencesAsync(_referenceHintSource).ConfigureAwait(false);
+        var (emitResult, diagnostics, image) = await EmitAsync(references, cancellationToken).ConfigureAwait(false);
+
+        if (!emitResult.Success && HasMissingReferenceDiagnostics(emitResult.Diagnostics)) {
+            var allReferences = await _referenceProvider.GetAllReferencesAsync().ConfigureAwait(false);
+            (emitResult, diagnostics, image) = await EmitAsync(allReferences, cancellationToken).ConfigureAwait(false);
+        }
+
+        return emitResult.Success ? new(true, image, diagnostics) : new(false, null, diagnostics);
+    }
+
+    private async Task<(EmitResult EmitResult, IReadOnlyList<NotebookDiagnostic> Diagnostics, byte[] Image)> EmitAsync(
+        IReadOnlyList<MetadataReference> references, CancellationToken cancellationToken)
+    {
         var document = CurrentDocument;
-        var references = await _referenceProvider.GetReferencesAsync().ConfigureAwait(false);
         var solution = document.Project.Solution.WithProjectMetadataReferences(document.Project.Id, references);
         document = solution.GetDocument(document.Id)!;
 
@@ -101,12 +121,12 @@ public sealed class NotebookCompiler : IDisposable
         var emitResult = expanded.Emit(stream, cancellationToken: cancellationToken);
         var diagnostics = BuildDiagnostics(emitResult.Diagnostics.Concat(generatorDiagnostics), userTree);
 
-        if (!emitResult.Success) {
-            return new(false, null, diagnostics);
-        }
-
-        return new(true, stream.ToArray(), diagnostics);
+        return (emitResult, diagnostics, emitResult.Success ? stream.ToArray() : []);
     }
+
+    private static bool HasMissingReferenceDiagnostics(IEnumerable<Diagnostic> diagnostics)
+        => diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error
+            && d.Id is "CS0246" or "CS0234" or "CS0012");
 
     [UnconditionalSuppressMessage("Trimming", "IL2026",
         Justification = "Loads a freshly emitted in-memory assembly, not application code trimming can affect.")]

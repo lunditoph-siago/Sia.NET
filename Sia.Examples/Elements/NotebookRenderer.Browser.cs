@@ -5,7 +5,6 @@ namespace Sia_Examples.Notebook;
 
 public static class NotebookRenderer
 {
-    public static string SourceElementId(string cellId) => "cell-source-" + cellId;
     public static string EditorContainerId(string cellId) => "editor-" + cellId;
 
     public static BrowserElement Render(NotebookDocument document, NotebookSession session)
@@ -15,6 +14,7 @@ public static class NotebookRenderer
         var title = BrowserElement.Create("h2").Class("title");
         title.Text(document.Title);
         root.Append(title);
+
 
         var number = 0;
         Dictionary<string, int> cellNumbers = [];
@@ -59,6 +59,61 @@ public static class NotebookRenderer
         return root;
     }
 
+    public static BrowserElement RenderPackagePanel(IReadOnlyList<PackageStatus> statuses)
+    {
+        var panel = BrowserElement.Create("div").Class("packages-body");
+
+        if (statuses.Count == 0) {
+            var empty = BrowserElement.Create("div").Class("packages-empty");
+            empty.Text("No packages declared or added yet.");
+            panel.Append(empty);
+        }
+
+        foreach (var status in statuses) {
+            var row = BrowserElement.Create("div").Class("package").Class(PackageStateClass(status.State));
+
+            var source = BrowserElement.Create("span").Class("package-source");
+            source.Text(status.Package.Source == PackageSource.NuGet ? "NuGet" : "Framework");
+            row.Append(source);
+
+            var id = BrowserElement.Create("span").Class("package-id");
+            id.Text(status.Package.Id + (status.Package.Version is { } v ? $" ({v})" : ""));
+            row.Append(id);
+
+            var state = BrowserElement.Create("span").Class("package-state");
+            state.Text(PackageStateLabel(status.State));
+            row.Append(state);
+
+            panel.Append(row);
+
+            if (status.State == PackageLoadState.Failed && status.Error is { } error) {
+                var errorEl = BrowserElement.Create("div").Class("package-error");
+                errorEl.Text(error);
+                panel.Append(errorEl);
+            }
+        }
+
+        var addRow = BrowserElement.Create("div").Class("package-add");
+        addRow.Append(BrowserElement.Create("input").Class("package-add-input")
+            .Id("package-add-id").Attr("placeholder", "Package Id").Attr("list", "framework-assemblies"));
+        addRow.Append(BrowserElement.Create("input").Class("package-add-input")
+            .Id("package-add-version").Attr("placeholder", "Version (optional)"));
+        addRow.Append(BrowserElement.Create("button").Class("btn").On("click", "addpkg:NuGet").Text("+ NuGet"));
+        addRow.Append(BrowserElement.Create("button").Class("btn").On("click", "addpkg:Framework").Text("+ Framework"));
+        panel.Append(addRow);
+
+        return panel;
+    }
+
+    private static string PackageStateClass(PackageLoadState state) => "package-" + state.ToString().ToLowerInvariant();
+
+    private static string PackageStateLabel(PackageLoadState state) => state switch {
+        PackageLoadState.Loading => "loading…",
+        PackageLoadState.Loaded => "loaded",
+        PackageLoadState.Failed => "failed",
+        _ => state.ToString(),
+    };
+
     private static void AppendInlines(BrowserElement parent, IReadOnlyList<Inline> inlines)
     {
         foreach (var inline in inlines) {
@@ -99,7 +154,7 @@ public static class NotebookRenderer
             var editorContainer = BrowserElement.Create("div").Class("code").Class("code-edit");
             editorContainer.Id(EditorContainerId(cell.Id));
             wrapper.Append(editorContainer);
-            BrowserEditorHost.GetOrCreate(editorContainer, cell.Id, state.Source, references);
+            BrowserEditorHost.GetOrCreate(editorContainer, cell.Id, state.Source, state.Highlights, references);
         }
         else {
             var pre = BrowserElement.Create("pre").Class("code");

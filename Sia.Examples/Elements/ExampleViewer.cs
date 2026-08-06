@@ -80,14 +80,14 @@ public readonly record struct ExampleItemView(
 public interface IRenderHost<TView>
     where TView : struct, IEquatable<TView>
 {
-    void Upsert(in TView view);
-    void Remove(in TView view);
+    public void Upsert(in TView view);
+    public void Remove(in TView view);
 }
 
 public interface IExampleRenderHost
     : IRenderHost<ExampleItemView>
 {
-    void Commit();
+    public void Commit();
 }
 
 public readonly record struct RenderEffect<TView>(

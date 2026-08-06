@@ -4,176 +4,166 @@ document.getElementById('sidebar-toggle')?.addEventListener('click', () => {
     document.getElementById('app')?.classList.toggle('sidebar-open');
 });
 
+document.getElementById('packages-toggle')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.getElementById('header-packages')?.classList.toggle('open');
+});
+document.addEventListener('click', (e) => {
+    const container = document.getElementById('header-packages');
+    if (container?.classList.contains('open') && !container.contains(e.target)) {
+        container.classList.remove('open');
+    }
+});
+
+console.log('[diag] crossOriginIsolated=' + self.crossOriginIsolated);
+console.log('[diag] calling dotnet.create()...');
 const { setModuleImports, runMain, getConfig, getAssemblyExports } = await dotnet.create();
+console.log('[diag] dotnet.create() resolved');
 
 const events = [];
 const listeners = [];
+function emit(payload) {
+    if (listeners.length > 0) { listeners.shift()(payload); }
+    else { events.push(payload); }
+}
 
 const editorEvents = [];
 const editorListeners = [];
-
-function emit(payload) {
-    if (listeners.length > 0) {
-        listeners.shift()(payload);
-    } else {
-        events.push(payload);
-    }
-}
-
 function emitEditor(payload) {
-    if (editorListeners.length > 0) {
-        editorListeners.shift()(payload);
-    } else {
-        editorEvents.push(payload);
-    }
+    if (editorListeners.length > 0) { editorListeners.shift()(payload); }
+    else { editorEvents.push(payload); }
 }
 
-const editors = {};
-
-function editorKeyDown(e) {
-    const cellId = e.target.dataset.editorCellId;
-    if (!cellId) return;
-
-    const editor = editors[cellId];
-    const completionOpen = !!(editor && editor.pre && editor.pre.querySelector('.completion-popup'));
-
-    const specialKeys = ['Escape', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
-                         'Home', 'End', 'PageUp', 'PageDown'];
-    if (specialKeys.includes(e.key) || (e.ctrlKey && e.key === 's') || (completionOpen && e.key === 'Enter')) {
-        e.preventDefault();
-        emitEditor(`key:${cellId}:${e.key}:${e.ctrlKey}:${e.shiftKey}:${e.altKey}`);
-    }
-}
-
-function editorInput(e) {
-    const cellId = e.target.dataset.editorCellId;
-    if (!cellId) return;
-    emitEditor(`input:${cellId}:${e.target.value}`);
-}
-
-function editorScroll(e) {
-    const cellId = e.target.dataset.editorCellId;
-    if (!cellId) return;
-    const editor = editors[cellId];
-    if (editor && editor.pre) {
-        editor.pre.scrollTop = e.target.scrollTop;
-        editor.pre.scrollLeft = e.target.scrollLeft;
-    }
-}
+const editorHandlers = {};
 
 setModuleImports('main.js', {
-    find(id) {
-        return document.getElementById(id);
+    find(id)                    { return document.getElementById(id); },
+    create(tag)                 { return document.createElement(tag); },
+    createText(value)           { return document.createTextNode(value); },
+    remove(element)             { element?.remove(); },
+    insertBefore(parent, child, before) { parent?.insertBefore(child, before); },
+
+    setText(element, value)     { if (element) element.textContent = value; },
+    getText(element)            { return element?.textContent ?? ''; },
+    getValue(element)           { return element?.value ?? ''; },
+    setId(element, id)          { if (element) element.id = id; },
+    setCssText(element, css)   { if (element) element.style.cssText = css; },
+    toggleClass(element, name, on) { element?.classList.toggle(name, on); },
+    setAttr(element, name, value) { element?.setAttribute(name, value); },
+    focus(element)              { element?.focus(); },
+
+    attachEditorSurface(cellId, element) {
+        if (editorHandlers[cellId]) return;
+        const h = {};
+        const special = ['Escape','Tab','ArrowUp','ArrowDown','ArrowLeft','ArrowRight',
+                        'Home','End','PageUp','PageDown','Enter','Backspace','Delete'];
+
+        const lineOf = (node) => {
+            let n = node;
+            while (n && n !== element) {
+                if (n.nodeType === 1 && n.dataset && n.dataset.ln !== undefined) return n;
+                n = n.parentNode;
+            }
+            return null;
+        };
+        const colInLine = (lineEl, node, offset) => {
+            const r = document.createRange();
+            r.setStart(lineEl, 0);
+            r.setEnd(node, offset);
+            return r.toString().length;
+        };
+        const reportSelection = () => {
+            const sel = window.getSelection();
+            if (!sel || sel.rangeCount === 0 || !element.contains(sel.anchorNode)) return;
+            const aLine = lineOf(sel.anchorNode), fLine = lineOf(sel.focusNode);
+            if (!aLine || !fLine) return;
+            const aCol = colInLine(aLine, sel.anchorNode, sel.anchorOffset);
+            const fCol = colInLine(fLine, sel.focusNode, sel.focusOffset);
+            emitEditor(`sel:${cellId}:${aLine.dataset.ln}:${aCol}:${fLine.dataset.ln}:${fCol}`);
+        };
+        const reportMutation = () => {
+            const sel = window.getSelection();
+            const line = sel && sel.anchorNode ? lineOf(sel.anchorNode) : null;
+            if (line && line.parentNode === element) {
+                emitEditor(`mutline:${cellId}:${line.dataset.ln}\0${line.textContent}`);
+            } else {
+                emitEditor(`mutall:${cellId}:\0${element.innerText}`);
+            }
+        };
+
+        h.keydown = e => {
+            if (e.isComposing) return;
+            const ctrlOnly = (e.ctrlKey || e.metaKey) && !e.altKey;
+            if (special.includes(e.key) || ctrlOnly) {
+                e.preventDefault();
+                emitEditor(`key:${cellId}:${e.key}:${e.ctrlKey || e.metaKey}:${e.shiftKey}:${e.altKey}`);
+            }
+        };
+        h.input = e => {
+            if (e.isComposing) return;
+            reportMutation();
+            reportSelection();
+        };
+        h.compositionend = () => {
+            reportMutation();
+            reportSelection();
+        };
+        h.selectionchange = () => reportSelection();
+
+        element.addEventListener('keydown', h.keydown);
+        element.addEventListener('input', h.input);
+        element.addEventListener('compositionend', h.compositionend);
+        document.addEventListener('selectionchange', h.selectionchange);
+        editorHandlers[cellId] = h;
     },
-    create(tag) {
-        return document.createElement(tag);
+    detachEditorSurface(cellId, element) {
+        const h = editorHandlers[cellId];
+        if (!h) return;
+        element.removeEventListener('keydown', h.keydown);
+        element.removeEventListener('input', h.input);
+        element.removeEventListener('compositionend', h.compositionend);
+        document.removeEventListener('selectionchange', h.selectionchange);
+        delete editorHandlers[cellId];
     },
-    createText(value) {
-        return document.createTextNode(value);
+    setEditorSelection(element, anchorLine, anchorCol, headLine, headCol) {
+        const findLine = (ln) => element.querySelector(`[data-ln="${ln}"]`);
+        const pointIn = (lineEl, col) => {
+            let remaining = col;
+            const walker = document.createTreeWalker(lineEl, NodeFilter.SHOW_TEXT);
+            let node = walker.nextNode();
+            let last = null;
+            while (node) {
+                const len = node.nodeValue.length;
+                if (remaining <= len) return { node, offset: remaining };
+                remaining -= len;
+                last = node;
+                node = walker.nextNode();
+            }
+            return last ? { node: last, offset: last.nodeValue.length } : { node: lineEl, offset: 0 };
+        };
+        const aLine = findLine(anchorLine), hLine = findLine(headLine);
+        if (!aLine || !hLine) return;
+        const a = pointIn(aLine, anchorCol), h = pointIn(hLine, headCol);
+        const sel = window.getSelection();
+        if (sel.setBaseAndExtent) sel.setBaseAndExtent(a.node, a.offset, h.node, h.offset);
+        hLine.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     },
-    setText(element, value) {
-        if (element?.textContent !== value) {
-            element.textContent = value;
-        }
+    syncGutterScroll(scrollEl, gutterEl) {
+        if (!scrollEl || !gutterEl) return;
+        scrollEl.addEventListener('scroll', () => { gutterEl.scrollTop = scrollEl.scrollTop; });
     },
-    getValue(element) {
-        return element?.value ?? "";
-    },
-    setId(element, id) {
-        if (element) element.id = id;
-    },
-    setPosition(element, top, left) {
-        if (!element) return;
-        element.style.position = 'fixed';
-        element.style.top = top + 'px';
-        element.style.left = left + 'px';
-    },
-    toggleClass(element, name, enabled) {
-        element?.classList.toggle(name, enabled);
-    },
-    listen(element, name, payload) {
-        element?.addEventListener(name, () => emit(payload));
-    },
-    insertBefore(parent, child, before) {
-        parent?.insertBefore(child, before);
-    },
-    remove(element) {
-        element?.remove();
-    },
+
+    listen(element, name, payload) { element?.addEventListener(name, () => emit(payload)); },
+
     waitForEvent() {
-        if (events.length > 0) {
-            return Promise.resolve(events.shift());
-        }
+        if (events.length > 0) return Promise.resolve(events.shift());
         return new Promise(resolve => listeners.push(resolve));
     },
     waitForEditorEvent() {
-        if (editorEvents.length > 0) {
-            return Promise.resolve(editorEvents.shift());
-        }
+        if (editorEvents.length > 0) return Promise.resolve(editorEvents.shift());
         return new Promise(resolve => editorListeners.push(resolve));
     },
-    setInnerHtml(element, html) {
-        if (element) element.innerHTML = html;
-    },
-    attachEditor(container, cellId, initialValue) {
-        container.innerHTML = '';
-        container.classList.add('editor-container');
-
-        const editorId = 'editor-' + cellId;
-
-        const gutter = document.createElement('div');
-        gutter.className = 'editor-gutter';
-        gutter.id = editorId + '-gutter';
-
-        const wrap = document.createElement('div');
-        wrap.className = 'editor-content-wrap';
-
-        const pre = document.createElement('pre');
-        pre.className = 'editor-content';
-        pre.id = editorId + '-content';
-        pre.setAttribute('aria-hidden', 'true');
-
-        const textarea = document.createElement('textarea');
-        textarea.className = 'editor-textarea';
-        textarea.id = editorId + '-textarea';
-        textarea.value = initialValue;
-        textarea.spellcheck = false;
-        textarea.autocorrect = 'off';
-        textarea.autocapitalize = 'off';
-        textarea.setAttribute('wrap', 'off');
-        textarea.dataset.editorCellId = cellId;
-
-        textarea.addEventListener('keydown', editorKeyDown);
-        textarea.addEventListener('input', editorInput);
-        textarea.addEventListener('scroll', editorScroll);
-
-        wrap.appendChild(pre);
-        wrap.appendChild(textarea);
-        container.appendChild(gutter);
-        container.appendChild(wrap);
-
-        editors[cellId] = { textarea, pre, gutter };
-    },
-    detachEditor(container, cellId) {
-        const editor = editors[cellId];
-        if (editor) {
-            editor.textarea.removeEventListener('keydown', editorKeyDown);
-            editor.textarea.removeEventListener('input', editorInput);
-            editor.textarea.removeEventListener('scroll', editorScroll);
-            delete editors[cellId];
-        }
-        container.innerHTML = '';
-        container.classList.remove('editor-container');
-    },
-    setEditorText(container, text, selectionStart, selectionEnd) {
-        const textarea = container.querySelector('textarea[data-editor-cell-id]');
-        if (!textarea) return;
-        if (textarea.value !== text) {
-            textarea.value = text;
-        }
-        textarea.selectionStart = Math.min(selectionStart, text.length);
-        textarea.selectionEnd = Math.min(selectionEnd, text.length);
-    },
+    setInnerHtml(element, html) { if (element) element.innerHTML = html; },
 });
 
 function showBootError(message) {
@@ -187,18 +177,20 @@ async function initNotebook() {
     const config = getConfig();
     const resources = config.resources ?? {};
     const urls = [...(resources.coreAssembly ?? []), ...(resources.assembly ?? [])]
-        .map(asset => asset.resolvedUrl)
-        .filter(Boolean)
+        .map(asset => asset.resolvedUrl).filter(Boolean)
         .map(url => new URL(url, document.baseURI).href);
-
     const exports = await getAssemblyExports(config.mainAssemblyName);
     await exports.Sia_Examples.Notebook.BrowserNotebookInterop.InitNotebookAsync(urls);
 }
 
 try {
+    console.log('[diag] calling initNotebook()...');
     await initNotebook();
+    console.log('[diag] initNotebook() resolved');
 } catch (err) {
     console.error('Failed to initialize notebook runtime:', err);
     showBootError('Some example dependencies failed to load — notebooks may fail to compile. Try reloading the page.');
 }
+console.log('[diag] calling runMain()...');
 await runMain();
+console.log('[diag] runMain() returned');
