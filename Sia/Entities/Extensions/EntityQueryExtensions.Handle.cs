@@ -153,25 +153,4 @@ public static partial class EntityQueryExtensions
 
     #endregion // CurrentThreadRunner
 
-    #region ParallelRunner
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void HandleOnParallel(
-        this IEntityQuery query, EntityHostRangeHandler handler)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.Handle(handler, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void HandleOnParallel<TData>(
-        this IEntityQuery query, in TData data, EntityHostRangeHandler<TData> handler)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.Handle(data, handler, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
-
-    #endregion // ParallelRunner
 }
