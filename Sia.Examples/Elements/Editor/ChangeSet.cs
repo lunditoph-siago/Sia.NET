@@ -23,11 +23,9 @@ public class ChangeSet : ChangeDesc
     {
         var sections = (int[])Sections.Clone();
         var inserted = new List<Text>();
-        for (int i = 0, pos = 0; i < sections.Length; i += 2)
-        {
+        for (int i = 0, pos = 0; i < sections.Length; i += 2) {
             int len = sections[i], ins = sections[i + 1];
-            if (ins >= 0)
-            {
+            if (ins >= 0) {
                 sections[i] = ins; sections[i + 1] = len;
                 while (inserted.Count < (i >> 1)) inserted.Add(Text.Empty);
                 inserted.Add(len > 0 ? doc.Slice(pos, pos + len) : Text.Empty);
@@ -46,11 +44,9 @@ public class ChangeSet : ChangeDesc
     {
         var rs = new List<int>(); var ri = new List<Text>(); var fs = new List<int>();
         var iter = new SectionIter(this);
-        for (int i = 0, pos = 0; ;)
-        {
+        for (int i = 0, pos = 0; ;) {
             var next = i == ranges.Length ? int.MaxValue : ranges[i++];
-            while (pos < next || (pos == next && iter.Len == 0))
-            {
+            while (pos < next || (pos == next && iter.Len == 0)) {
                 if (iter.Done) goto done;
                 var len = Math.Min(iter.Len, next - pos);
                 SecHelp.Add(fs, len, -1);
@@ -60,8 +56,7 @@ public class ChangeSet : ChangeDesc
                 iter.Forward(len); pos += len;
             }
             var end = ranges[i++];
-            while (pos < end)
-            {
+            while (pos < end) {
                 if (iter.Done) goto done;
                 var len = Math.Min(iter.Len, end - pos);
                 SecHelp.Add(rs, len, -1);
@@ -85,8 +80,7 @@ public class ChangeSet : ChangeDesc
             total = total == null ? set : total.Compose(set);
             sections.Clear(); inserted.Clear(); pos = 0;
         }
-        foreach (var spec in changes)
-        {
+        foreach (var spec in changes) {
             int from = spec.From, to = spec.To ?? from;
             if (from > to || from < 0 || to > length) throw new ArgumentOutOfRangeException();
             var insText = spec.Insert == null ? Text.Empty : Text.OfString(spec.Insert);
@@ -107,15 +101,11 @@ public class ChangeSet : ChangeDesc
     internal static void IterChanges(ChangeDesc desc, Action<int, int, int, int, Text> f, bool individual)
     {
         var inserted = (desc as ChangeSet)?.Inserted;
-        for (int posA = 0, posB = 0, i = 0; i < desc.Sections.Length;)
-        {
+        for (int posA = 0, posB = 0, i = 0; i < desc.Sections.Length;) {
             int len = desc.Sections[i++], ins = desc.Sections[i++];
-            if (ins < 0) { posA += len; posB += len; }
-            else
-            {
+            if (ins < 0) { posA += len; posB += len; } else {
                 int endA = posA, endB = posB; var text = Text.Empty;
-                while (true)
-                {
+                while (true) {
                     endA += len; endB += ins;
                     if (ins > 0 && inserted != null) text = text.Append(inserted[(i - 2) >> 1]);
                     if (individual || i == desc.Sections.Length || desc.Sections[i + 1] < 0) break;
@@ -131,18 +121,12 @@ public class ChangeSet : ChangeDesc
     {
         var sections = new List<int>(); var insert = mkSet ? new List<Text>() : null;
         var ai = new SectionIter(a); var bi = new SectionIter(b);
-        for (var open = false; ;)
-        {
+        for (var open = false; ;) {
             if (ai.Done && bi.Done) return new ChangeSet([.. sections], insert?.ToArray() ?? []);
-            if (ai.Ins == 0) { SecHelp.Add(sections, ai.Len, 0, open); ai.Next(); }
-            else if (bi.Len == 0 && !bi.Done) { SecHelp.Add(sections, 0, bi.Ins, open); if (insert != null) SecHelp.AddInsert(insert, sections, bi.Text); bi.Next(); }
-            else if (ai.Done || bi.Done) throw new InvalidOperationException("Mismatched lengths");
-            else
-            {
+            if (ai.Ins == 0) { SecHelp.Add(sections, ai.Len, 0, open); ai.Next(); } else if (bi.Len == 0 && !bi.Done) { SecHelp.Add(sections, 0, bi.Ins, open); if (insert != null) SecHelp.AddInsert(insert, sections, bi.Text); bi.Next(); } else if (ai.Done || bi.Done) throw new InvalidOperationException("Mismatched lengths");
+            else {
                 int len = Math.Min(ai.Len2, bi.Len), sl = sections.Count;
-                if (ai.Ins == -1) { var ib = bi.Ins == -1 ? -1 : bi.Off != 0 ? 0 : bi.Ins; SecHelp.Add(sections, len, ib, open); if (insert != null && ib > 0) SecHelp.AddInsert(insert, sections, bi.Text); }
-                else if (bi.Ins == -1) { SecHelp.Add(sections, ai.Off != 0 ? 0 : ai.Len, len, open); if (insert != null) SecHelp.AddInsert(insert, sections, ai.TextBit(len)); }
-                else { SecHelp.Add(sections, ai.Off != 0 ? 0 : ai.Len, bi.Off != 0 ? 0 : bi.Ins, open); if (insert != null && bi.Off == 0) SecHelp.AddInsert(insert, sections, bi.Text); }
+                if (ai.Ins == -1) { var ib = bi.Ins == -1 ? -1 : bi.Off != 0 ? 0 : bi.Ins; SecHelp.Add(sections, len, ib, open); if (insert != null && ib > 0) SecHelp.AddInsert(insert, sections, bi.Text); } else if (bi.Ins == -1) { SecHelp.Add(sections, ai.Off != 0 ? 0 : ai.Len, len, open); if (insert != null) SecHelp.AddInsert(insert, sections, ai.TextBit(len)); } else { SecHelp.Add(sections, ai.Off != 0 ? 0 : ai.Len, bi.Off != 0 ? 0 : bi.Ins, open); if (insert != null && bi.Off == 0) SecHelp.AddInsert(insert, sections, bi.Text); }
                 open = (ai.Ins > len || (bi.Ins >= 0 && bi.Len > len)) && (open || sections.Count > sl);
                 ai.Forward2(len); bi.Forward(len);
             }
@@ -158,8 +142,7 @@ internal static class SecHelp
         var last = s.Count - 2;
         if (last >= 0 && ins <= 0 && ins == s[last + 1]) s[last] += len;
         else if (last >= 0 && len == 0 && s[last] == 0) s[last + 1] += ins;
-        else if (force) { s[last] += len; s[last + 1] += ins; }
-        else { s.Add(len); s.Add(ins); }
+        else if (force) { s[last] += len; s[last + 1] += ins; } else { s.Add(len); s.Add(ins); }
     }
 
     public static void AddInsert(List<Text> v, List<int> s, Text val)
@@ -184,10 +167,8 @@ internal sealed class SectionIter
     }
     public bool Done => Ins == -2;
     public int Len2 => Ins < 0 ? Len : Ins;
-    public Text Text
-    {
-        get
-        {
+    public Text Text {
+        get {
             var ins = (_set as ChangeSet)?.Inserted;
             if (ins == null) return Text.Empty;
             var idx = (I - 2) >> 1;

@@ -14,8 +14,7 @@ public static class LineIdentity
 {
     public static readonly StateField<LineIds> Field = StateField<LineIds>.Define(
         create: static state => LineIds.Initial(state.Doc.Lines),
-        update: static (old, tr) =>
-        {
+        update: static (old, tr) => {
             if (!tr.DocChanged) return old;
 
             var map = LineReuseMap.Compute(tr.Changes.Desc, tr.StartState.Doc, tr.NewDoc);

@@ -5,8 +5,7 @@ public static class LineCommands
     internal static List<(int From, int To)> SelectedLineBlocks(EditorState s)
     {
         var blocks = new List<(int From, int To)>(); var upto = -1;
-        foreach (var r in s.Selection.Ranges)
-        {
+        foreach (var r in s.Selection.Ranges) {
             var sl = s.Doc.LineAt(r.From); var el = s.Doc.LineAt(r.To);
             if (!r.Empty && r.To == el.From) el = s.Doc.LineAt(r.To - 1);
             if (upto >= sl.Number) blocks[^1] = (blocks[^1].From, el.To);
@@ -63,10 +62,8 @@ public static class LineCommands
     {
         if (t.State.ReadOnly) return false;
         var s = t.State; var cl = new List<ChangeSpec>();
-        foreach (var r in s.Selection.Ranges)
-        {
-            if (r.Empty && r.From > 0 && r.From < s.Doc.Length)
-            {
+        foreach (var r in s.Selection.Ranges) {
+            if (r.Empty && r.From > 0 && r.From < s.Doc.Length) {
                 var pos = r.From; var line = s.Doc.LineAt(pos);
                 var from = pos == line.From ? pos - 1 : CharUtil.FindClusterBreak(line.Text, pos - line.From, false) + line.From;
                 var to = pos == line.To ? pos + 1 : CharUtil.FindClusterBreak(line.Text, pos - line.From, true) + line.From;
@@ -82,8 +79,7 @@ public static class LineCommands
     {
         if (t.State.ReadOnly) return false;
         var s = t.State; var blocks = SelectedLineBlocks(s);
-        var cl = blocks.Select(b =>
-        {
+        var cl = blocks.Select(b => {
             int f = b.From, to = b.To;
             if (f > 0) f--; else if (to < s.Doc.Length) to++;
             return new ChangeSpec(f, to, "");
@@ -98,11 +94,9 @@ public static class LineCommands
         if (t.State.ReadOnly) return false;
         var s = t.State; var indent = "    "; var changes = new List<ChangeSpec>(); var atLine = -1;
         foreach (var r in s.Selection.Ranges)
-            for (var pos = r.From; pos <= r.To;)
-            {
+            for (var pos = r.From; pos <= r.To;) {
                 var line = s.Doc.LineAt(pos);
-                if (line.Number > atLine && (r.Empty || r.To > line.From))
-                { changes.Add(new ChangeSpec(line.From, line.From, indent)); atLine = line.Number; }
+                if (line.Number > atLine && (r.Empty || r.To > line.From)) { changes.Add(new ChangeSpec(line.From, line.From, indent)); atLine = line.Number; }
                 pos = line.To + 1;
             }
         t.Apply(s.Apply(new TransactionSpec { Changes = [.. changes], UserEvent = "input.indent" }));
@@ -114,11 +108,9 @@ public static class LineCommands
         if (t.State.ReadOnly) return false;
         var s = t.State; var changes = new List<ChangeSpec>(); var atLine = -1;
         foreach (var r in s.Selection.Ranges)
-            for (var pos = r.From; pos <= r.To;)
-            {
+            for (var pos = r.From; pos <= r.To;) {
                 var line = s.Doc.LineAt(pos);
-                if (line.Number > atLine && (r.Empty || r.To > line.From))
-                {
+                if (line.Number > atLine && (r.Empty || r.To > line.From)) {
                     var text = line.Text; var spaces = 0;
                     while (spaces < 4 && spaces < text.Length && text[spaces] == ' ') spaces++;
                     if (spaces > 0) changes.Add(new ChangeSpec(line.From, line.From + spaces, ""));

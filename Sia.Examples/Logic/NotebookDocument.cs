@@ -77,9 +77,10 @@ public static class NotebookDocumentParser
                     }
                     break;
                 }
-                case XElement { Name.LocalName: "Code" } code:
+                case XElement { Name.LocalName: "Code" } code: {
                     inlines.Add(new CodeInline(NormalizeWhitespace(code.Value)));
                     break;
+                }
             }
         }
         return inlines;

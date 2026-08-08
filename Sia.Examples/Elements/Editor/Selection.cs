@@ -86,8 +86,7 @@ public sealed class EditorSelection : IEquatable<EditorSelection>
     public static EditorSelection Create(SelectionRange[] ranges, int mainIndex = 0)
     {
         if (ranges.Length == 0) throw new ArgumentException("Need at least one range");
-        for (int pos = 0, i = 0; i < ranges.Length; i++)
-        { var r = ranges[i]; if (r.Empty ? r.From <= pos : r.From < pos) return Normalize(ranges, mainIndex); pos = r.To; }
+        for (int pos = 0, i = 0; i < ranges.Length; i++) { var r = ranges[i]; if (r.Empty ? r.From <= pos : r.From < pos) return Normalize(ranges, mainIndex); pos = r.To; }
         return new EditorSelection(ranges, mainIndex);
     }
 
@@ -96,11 +95,9 @@ public sealed class EditorSelection : IEquatable<EditorSelection>
         var main = ranges[mainIndex];
         Array.Sort(ranges, (a, b) => a.From.CompareTo(b.From));
         mainIndex = Array.IndexOf(ranges, main);
-        for (var i = 1; i < ranges.Length; i++)
-        {
+        for (var i = 1; i < ranges.Length; i++) {
             var r = ranges[i]; var p = ranges[i - 1];
-            if (r.Empty ? r.From <= p.To : r.From < p.To)
-            {
+            if (r.Empty ? r.From <= p.To : r.From < p.To) {
                 int f = p.From, t = Math.Max(r.To, p.To);
                 if (i <= mainIndex) mainIndex--;
                 ranges[i - 1] = r.Anchor > r.Head ? Range(t, f) : Range(f, t);

@@ -6,8 +6,7 @@ public static class EditorHighlights
 
     public static readonly StateField<RangeSet<Decoration>> Field = StateField<RangeSet<Decoration>>.Define(
         create: static _ => DecorationSet.Empty,
-        update: static (value, tr) =>
-        {
+        update: static (value, tr) => {
             var next = StateEffects.FindLast(tr.Effects, SetHighlights);
             if (next is not null) return next;
             return tr.DocChanged ? value.Map(tr.Changes.Desc) : value;

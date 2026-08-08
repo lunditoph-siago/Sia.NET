@@ -38,8 +38,7 @@ public sealed class ConsoleEditorHost : IDisposable
         _prevContext = Context<World>.Current;
         Context<World>.Current = _world;
 
-        var state = EditorState.Create(new EditorStateConfig
-        {
+        var state = EditorState.Create(new EditorStateConfig {
             Doc = Text.OfString(initialSource),
             Selection = EditorSelection.Single(0),
             Extensions = [EditorHighlights.Field],
@@ -62,29 +61,22 @@ public sealed class ConsoleEditorHost : IDisposable
     {
         Redraw(sidebarLines);
 
-        while (true)
-        {
+        while (true) {
             var key = Console.ReadKey(intercept: true);
 
-            if (key.Modifiers == ConsoleModifiers.Control && key.Key == ConsoleKey.S)
-            {
+            if (key.Modifiers == ConsoleModifiers.Control && key.Key == ConsoleKey.S) {
                 return _stateCell.Value.Doc.SliceDoc();
             }
 
-            if (key.Modifiers == ConsoleModifiers.Control && key.Key == ConsoleKey.Q)
-            {
+            if (key.Modifiers == ConsoleModifiers.Control && key.Key == ConsoleKey.Q) {
                 return null;
             }
 
-            if (_completion is { } open)
-            {
-                if (key.Key == ConsoleKey.Escape)
-                {
+            if (_completion is { } open) {
+                if (key.Key == ConsoleKey.Escape) {
                     _completion = null;
                     ClearPopupArea();
-                }
-                else if (HandleCompletionKey(key, open))
-                {
+                } else if (HandleCompletionKey(key, open)) {
                     continue;
                 }
             }
@@ -93,13 +85,11 @@ public sealed class ConsoleEditorHost : IDisposable
             if (cmd == null) continue;
 
             var state = _stateCell.Value;
-            var handled = cmd(new CommandTarget(state, newState =>
-            {
+            var handled = cmd(new CommandTarget(state, newState => {
                 _stateCell.Set(newState);
             }));
 
-            if (handled)
-            {
+            if (handled) {
                 UpdateCompletion(key, state, _stateCell.Value);
                 _world.FlushReactive();
                 DrawCompletionPopup();
@@ -109,8 +99,7 @@ public sealed class ConsoleEditorHost : IDisposable
 
     private bool HandleCompletionKey(ConsoleKeyInfo key, CompletionQueryResult open)
     {
-        switch (key.Key)
-        {
+        switch (key.Key) {
             case ConsoleKey.DownArrow:
                 _completionIndex = (_completionIndex + 1) % open.Items.Count;
                 DrawCompletionPopup();
@@ -138,15 +127,13 @@ public sealed class ConsoleEditorHost : IDisposable
                 || (key.Modifiers == 0 && key.KeyChar >= ' '
                     && (char.IsLetterOrDigit(key.KeyChar) || key.KeyChar is '_' or '.'));
 
-        if (!shouldQuery)
-        {
+        if (!shouldQuery) {
             _completion = null;
             ClearPopupArea();
             return;
         }
 
-        if (Console.KeyAvailable)
-        {
+        if (Console.KeyAvailable) {
             return;
         }
 
@@ -166,8 +153,7 @@ public sealed class ConsoleEditorHost : IDisposable
         ClearPopupArea();
 
         var state = _stateCell.Value;
-        var newState = state.Apply(new TransactionSpec
-        {
+        var newState = state.Apply(new TransactionSpec {
             Changes = [new ChangeSpec(item.ReplaceStart, item.ReplaceEnd, item.InsertText)],
             Selection = EditorSelection.Single(item.ReplaceStart + item.InsertText.Length),
             ScrollIntoView = true,
@@ -181,8 +167,7 @@ public sealed class ConsoleEditorHost : IDisposable
         if (_completion is not { } q) return;
 
         var lines = new List<string>(q.Items.Count);
-        for (var i = 0; i < q.Items.Count; i++)
-        {
+        for (var i = 0; i < q.Items.Count; i++) {
             var marker = i == _completionIndex ? "▶ " : "  ";
             lines.Add(marker + q.Items[i].Label);
         }
@@ -202,8 +187,7 @@ public sealed class ConsoleEditorHost : IDisposable
 
     private static StateCommand? MapKeyToCommand(ConsoleKeyInfo key)
     {
-        return (key.Modifiers, key.Key) switch
-        {
+        return (key.Modifiers, key.Key) switch {
             (0, ConsoleKey.LeftArrow) => CursorCommands.CharLeft,
             (0, ConsoleKey.RightArrow) => CursorCommands.CharRight,
             (0, ConsoleKey.UpArrow) => CursorCommands.LineUp,
@@ -236,14 +220,12 @@ public sealed class ConsoleEditorHost : IDisposable
         };
     }
 
-    private static StateCommand InsertChar(char ch) => t =>
-    {
+    private static StateCommand InsertChar(char ch) => t => {
         var s = t.State;
         if (s.ReadOnly) return false;
 
         var (changes, selection) = ChangeHelpers.InsertPerRange(s.Selection.Ranges, _ => ch.ToString());
-        var newState = s.Apply(new TransactionSpec
-        {
+        var newState = s.Apply(new TransactionSpec {
             Changes = changes,
             Selection = selection,
             ScrollIntoView = true,
@@ -256,8 +238,7 @@ public sealed class ConsoleEditorHost : IDisposable
     private void Redraw(IReadOnlyList<string> sidebarLines)
     {
         var layout = _pane.Layout();
-        for (var row = 0; row < layout.ContentHeight; row++)
-        {
+        for (var row = 0; row < layout.ContentHeight; row++) {
             var sidebar = row < sidebarLines.Count ? sidebarLines[row] : "";
             _screen.WriteRow(row, 0, AnsiText.Fit(sidebar, layout.SidebarWidth));
             _screen.WriteRow(row, layout.SidebarWidth, "│");

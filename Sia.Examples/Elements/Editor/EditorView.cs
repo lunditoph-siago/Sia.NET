@@ -48,8 +48,7 @@ public static partial class EditorViewComponent
 
         hooks.UseEffect(
             new ViewRenderDeps(state.Value, renderer),
-            setup: static (in ViewRenderDeps d) =>
-            {
+            setup: static (in ViewRenderDeps d) => {
                 var s = d.State; var r = d.Renderer;
                 var sel = s.Selection.Main;
                 var anchorLine = s.Doc.LineAt(sel.Anchor);

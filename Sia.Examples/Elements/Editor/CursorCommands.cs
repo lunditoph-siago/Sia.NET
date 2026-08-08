@@ -36,8 +36,7 @@ public static class CursorCommands
     {
         if (!r.Empty) return RangeEnd(r, fwd);
         var pos = r.Head; var line = s.Doc.LineAt(pos);
-        while (true)
-        {
+        while (true) {
             var next = CharUtil.FindClusterBreak(line.Text, pos - line.From, fwd) + line.From;
             if (next == pos || next <= line.From || next >= line.To) break;
             pos = next;
@@ -66,8 +65,7 @@ public static class CursorCommands
     public static bool DocEnd(CommandTarget t)
     { t.Apply(t.State.Apply(new TransactionSpec { Selection = EditorSelection.Single(t.State.Doc.Length), ScrollIntoView = true })); return true; }
 
-    public static bool PageUp(CommandTarget t, int pageSize = 20) => MoveSel(t, r =>
-    {
+    public static bool PageUp(CommandTarget t, int pageSize = 20) => MoveSel(t, r => {
         if (!r.Empty) return RangeEnd(r, false);
         var line = t.State.Doc.LineAt(r.Head);
         var tl = t.State.Doc.Line(Math.Max(1, line.Number - pageSize));
@@ -75,8 +73,7 @@ public static class CursorCommands
         return EditorSelection.Cursor(tl.From + col, 0, null, col);
     });
 
-    public static bool PageDown(CommandTarget t, int pageSize = 20) => MoveSel(t, r =>
-    {
+    public static bool PageDown(CommandTarget t, int pageSize = 20) => MoveSel(t, r => {
         if (!r.Empty) return RangeEnd(r, true);
         var line = t.State.Doc.LineAt(r.Head);
         var tl = t.State.Doc.Line(Math.Min(t.State.Doc.Lines, line.Number + pageSize));

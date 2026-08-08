@@ -70,7 +70,9 @@ public static class ConsoleExampleApp
     {
         var info = library.Notebooks[index];
         var document = library.Load(info);
-        var references = new MetadataReferenceProvider();
+        var references = new MetadataReferenceProvider(
+            new AssemblyLoader(),
+            new PackageReferenceLoader(new HttpClient())));
         using var session = new NotebookSession(document, references);
         session.EnsurePackagesAsync().GetAwaiter().GetResult();
 
@@ -146,8 +148,7 @@ public static class ConsoleExampleApp
                     case 'e':
                         using (var editor = new Sia_Examples.Editor.ConsoleEditorHost(
                             screen, cell.Id, session.GetState(cell.Id).Source,
-                            session.GetState(cell.Id).Highlights, session.References))
-                        {
+                            session.GetState(cell.Id).Highlights, session.References)) {
                             var result = editor.Edit(host.BuildSidebarLines(), ref scroll);
                             if (result != null)
                                 RunBlocking(session.UpdateCellSourceAsync(cell.Id, result));
@@ -205,7 +206,9 @@ public static class ConsoleExampleApp
 
         var info = library.Notebooks[index];
         var document = library.Load(info);
-        var references = new MetadataReferenceProvider();
+        var references = new MetadataReferenceProvider(
+            new AssemblyLoader(),
+            new PackageReferenceLoader(new HttpClient())));
         using var session = new NotebookSession(document, references);
         session.EnsurePackagesAsync().GetAwaiter().GetResult();
 

@@ -164,6 +164,25 @@ setModuleImports('main.js', {
         return new Promise(resolve => editorListeners.push(resolve));
     },
     setInnerHtml(element, html) { if (element) element.innerHTML = html; },
+
+    fetchScheduler: (() => {
+        const c = new Map();
+        const batch = async (jsonUrls) => {
+            const jobs = JSON.parse(jsonUrls);
+            const results = await Promise.all(jobs.map(async j => {
+                try {
+                    if (c.has(j.Url)) return { Name: j.Name, B64: c.get(j.Url) };
+                    const r = await fetch(j.Url); if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                    const b = new Uint8Array(await r.arrayBuffer());
+                    let s = ''; for (let i = 0; i < b.length; i += 8192)
+                        s += String.fromCharCode.apply(null, b.subarray(i, i + 8192));
+                    const v = btoa(s); c.set(j.Url, v); return { Name: j.Name, B64: v };
+                } catch (ex) { console.error(`fetch failed: ${j.Name}`, ex); return null; }
+            }));
+            return JSON.stringify(results.filter(r => r !== null));
+        };
+        return { batchBase64: batch };
+    })(),
 });
 
 function showBootError(message) {
@@ -176,11 +195,12 @@ function showBootError(message) {
 async function initNotebook() {
     const config = getConfig();
     const resources = config.resources ?? {};
-    const urls = [...(resources.coreAssembly ?? []), ...(resources.assembly ?? [])]
-        .map(asset => asset.resolvedUrl).filter(Boolean)
-        .map(url => new URL(url, document.baseURI).href);
+    const assets = [...(resources.coreAssembly ?? []), ...(resources.assembly ?? [])]
+        .filter(asset => asset.resolvedUrl && asset.virtualPath);
+    const virtualPaths = assets.map(asset => asset.virtualPath);
+    const urls = assets.map(asset => new URL(asset.resolvedUrl, document.baseURI).href);
     const exports = await getAssemblyExports(config.mainAssemblyName);
-    await exports.Sia_Examples.Notebook.BrowserNotebookInterop.InitNotebookAsync(urls);
+    await exports.Sia_Examples.Notebook.AssemblyLoader.InitNotebookAsync(virtualPaths, urls);
 }
 
 try {

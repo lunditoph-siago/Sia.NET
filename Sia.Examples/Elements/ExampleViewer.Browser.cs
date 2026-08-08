@@ -66,7 +66,12 @@ public static class BrowserExampleApp
                         BrowserEditorHost.DisposeAll();
                         var info = library.Notebooks[index];
                         document = library.Load(info);
-                        session = new NotebookSession(document, new MetadataReferenceProvider());
+                        var (assemblyVirtualPaths, assemblyUrls) = AssemblyLoader.AssemblyManifest;
+                        var assemblies = new AssemblyLoader(assemblyVirtualPaths, assemblyUrls);
+                        await assemblies.PreloadAsync();
+                        session = new NotebookSession(document, new MetadataReferenceProvider(
+                            assemblies,
+                            new PackageReferenceLoader(new HttpClient())));
                         host.EnsureFrameworkAssemblyOptions(session.References.AvailableFrameworkAssemblyNames);
                         session.Changed += () => {
                             Console.WriteLine($"[diag] session.Changed fired -> full ShowNotebook re-render, thread={Environment.CurrentManagedThreadId}");
