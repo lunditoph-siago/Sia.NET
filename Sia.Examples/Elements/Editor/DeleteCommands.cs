@@ -2,95 +2,88 @@ namespace Sia_Examples.Editor;
 
 public static class DeleteCommands
 {
-    private static bool DeleteBy(CommandTarget t, Func<SelectionRange, int> by)
+    public static bool CharBackward(CommandTarget target)
+        => DeleteBy(target, range => FindCharacterBoundary(target.State, range, false));
+
+    public static bool CharForward(CommandTarget target)
+        => DeleteBy(target, range => FindCharacterBoundary(target.State, range, true));
+
+    public static bool ToLineEnd(CommandTarget target)
+        => DeleteBy(target, range => {
+            var line = target.State.Doc.LineAt(range.Head);
+            return range.Head < line.To
+                ? line.To
+                : Math.Min(target.State.Doc.Length, range.Head + 1);
+        });
+
+    private static bool DeleteBy(
+        CommandTarget target,
+        Func<SelectionRange, int> findBoundary)
     {
-        if (t.State.ReadOnly) return false;
-        var evt = "delete.selection"; var s = t.State;
         var changes = new List<ChangeSpec>();
-        foreach (var r in s.Selection.Ranges) {
-            int from = r.From, to = r.To;
+        foreach (var range in target.State.Selection.Ranges) {
+            var from = range.From;
+            var to = range.To;
             if (from == to) {
-                var towards = by(r);
-                if (towards < from) evt = "delete.backward";
-                else if (towards > from) evt = "delete.forward";
-                from = Math.Min(from, towards); to = Math.Max(to, towards);
+                var boundary = findBoundary(range);
+                from = Math.Min(from, boundary);
+                to = Math.Max(to, boundary);
             }
-            if (from != to) changes.Add(new ChangeSpec(from, to, ""));
+            if (from != to) {
+                changes.Add(new(from, to, string.Empty));
+            }
         }
-        if (changes.Count == 0) return false;
-        t.Apply(s.Apply(new TransactionSpec { Changes = [.. changes], ScrollIntoView = true, UserEvent = evt }));
+
+        if (changes.Count == 0) {
+            return false;
+        }
+        target.Apply(target.State.Apply(new() { Changes = [.. changes] }));
         return true;
     }
 
-    public static bool CharBackward(CommandTarget t) => DeleteBy(t, r => {
-        var pos = r.From; var s = t.State; var line = s.Doc.LineAt(pos);
-        if (pos > line.From && pos < line.From + 200) {
-            var before = line.Text[..(pos - line.From)];
-            if (before.Length > 0 && before.All(c => c == ' ' || c == '\t')) {
-                if (before[^1] == '\t') return pos - 1;
-                var col = ColumnUtil.CountColumn(before, s.TabSize);
-                var drop = col % 4; if (drop == 0) drop = 4;
-                var p2 = pos;
-                for (var i = 0; i < drop && before.Length - 1 - i >= 0 && before[^(1 + i)] == ' '; i++) p2--;
-                return p2;
+    private static int FindCharacterBoundary(
+        EditorState state,
+        SelectionRange range,
+        bool forward)
+    {
+        var position = range.From;
+        var line = state.Doc.LineAt(position);
+        if (!forward && position > line.From && position < line.From + 200) {
+            var prefix = line.Text[..(position - line.From)];
+            if (prefix.Length > 0 && prefix.All(static character => character is ' ' or '\t')) {
+                if (prefix[^1] == '\t') {
+                    return position - 1;
+                }
+
+                var columns = ColumnUtil.CountColumn(prefix, EditorState.TabSize);
+                var drop = columns % EditorState.TabSize;
+                drop = drop == 0 ? EditorState.TabSize : drop;
+                var indentationBoundary = position;
+                for (var index = 0;
+                    index < drop
+                        && prefix.Length - index - 1 >= 0
+                        && prefix[^(index + 1)] == ' ';
+                    index++) {
+                    indentationBoundary--;
+                }
+                return indentationBoundary;
             }
         }
-        var tp = CharUtil.FindClusterBreak(line.Text, pos - line.From, false) + line.From;
-        return tp == pos && line.Number > 1 ? tp - 1 : tp;
-    });
 
-    public static bool CharForward(CommandTarget t) => DeleteBy(t, r => {
-        var pos = r.From; var line = t.State.Doc.LineAt(pos);
-        var tp = CharUtil.FindClusterBreak(line.Text, pos - line.From, true) + line.From;
-        return tp == pos && line.Number < t.State.Doc.Lines ? tp + 1 : tp;
-    });
-
-    public static bool GroupBackward(CommandTarget t) => DeleteBy(t, r => {
-        var pos = r.Head; var s = t.State; var line = s.Doc.LineAt(pos);
-        for (; ; )
-        {
-            if (pos == line.From) { if (pos == r.Head && line.Number > 1) pos--; break; }
-            var next = CharUtil.FindClusterBreak(line.Text, pos - line.From, false) + line.From;
-            if (next == pos) break; pos = next;
-            if (CharUtil.IsWordChar(line.Text[pos - line.From])) break;
+        var boundaryInLine = CharUtil.FindClusterBreak(
+            line.Text,
+            position - line.From,
+            forward);
+        var boundary = line.From + boundaryInLine;
+        if (boundary != position) {
+            return boundary;
         }
-        return pos;
-    });
-
-    public static bool GroupForward(CommandTarget t) => DeleteBy(t, r => {
-        var pos = r.Head; var s = t.State; var line = s.Doc.LineAt(pos);
-        for (; ; )
-        {
-            if (pos == line.To) { if (pos == r.Head && line.Number < s.Doc.Lines) pos++; break; }
-            var next = CharUtil.FindClusterBreak(line.Text, pos - line.From, true) + line.From;
-            if (next == pos) break; pos = next;
-            if (CharUtil.IsWordChar(line.Text[pos - line.From])) break;
+        if (forward && line.Number < state.Doc.Lines) {
+            return boundary + 1;
         }
-        return pos;
-    });
-
-    public static bool ToLineEnd(CommandTarget t) => DeleteBy(t, r => {
-        var line = t.State.Doc.LineAt(r.Head);
-        return r.Head < line.To ? line.To : Math.Min(t.State.Doc.Length, r.Head + 1);
-    });
-
-    public static bool ToLineStart(CommandTarget t) => DeleteBy(t, r => {
-        var line = t.State.Doc.LineAt(r.Head);
-        return r.Head > line.From ? line.From : Math.Max(0, r.Head - 1);
-    });
-
-    public static bool TrailingWhitespace(CommandTarget t)
-    {
-        if (t.State.ReadOnly) return false;
-        var s = t.State; var changes = new List<ChangeSpec>();
-        for (var i = 1; i <= s.Doc.Lines; i++) {
-            var line = s.Doc.Line(i); var text = line.Text;
-            var end = text.Length;
-            while (end > 0 && char.IsWhiteSpace(text[end - 1])) end--;
-            if (end < text.Length) changes.Add(new ChangeSpec(line.From + end, line.To, ""));
+        if (!forward && line.Number > 1) {
+            return boundary - 1;
         }
-        if (changes.Count == 0) return false;
-        t.Apply(s.Apply(new TransactionSpec { Changes = [.. changes], UserEvent = "delete" }));
-        return true;
+        return boundary;
     }
 }

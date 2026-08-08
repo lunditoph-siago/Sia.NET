@@ -2,104 +2,160 @@ namespace Sia_Examples.Editor;
 
 public static class CursorCommands
 {
-    internal static bool MoveSel(CommandTarget t, Func<SelectionRange, SelectionRange> f)
+    public static bool CharLeft(CommandTarget target)
+        => Move(target, range => range.Empty
+            ? ByCharacter(target.State, range, false)
+            : Collapse(range, false));
+
+    public static bool CharRight(CommandTarget target)
+        => Move(target, range => range.Empty
+            ? ByCharacter(target.State, range, true)
+            : Collapse(range, true));
+
+    public static bool GroupLeft(CommandTarget target)
+        => Move(target, range => ByGroup(target.State, range, false));
+
+    public static bool GroupRight(CommandTarget target)
+        => Move(target, range => ByGroup(target.State, range, true));
+
+    public static bool LineUp(CommandTarget target)
+        => Move(target, range => range.Empty
+            ? Vertically(target.State, range, false)
+            : Collapse(range, false));
+
+    public static bool LineDown(CommandTarget target)
+        => Move(target, range => range.Empty
+            ? Vertically(target.State, range, true)
+            : Collapse(range, true));
+
+    public static bool LineStart(CommandTarget target)
+        => Move(target, range => EditorSelection.Cursor(
+            target.State.Doc.LineAt(range.Head).From,
+            1));
+
+    public static bool LineEnd(CommandTarget target)
+        => Move(target, range => EditorSelection.Cursor(
+            target.State.Doc.LineAt(range.Head).To,
+            -1));
+
+    public static bool DocumentStart(CommandTarget target)
+        => SetSelection(target, EditorSelection.Single(0));
+
+    public static bool DocumentEnd(CommandTarget target)
+        => SetSelection(target, EditorSelection.Single(target.State.Doc.Length));
+
+    public static bool PageUp(CommandTarget target)
+        => MovePage(target, -20);
+
+    public static bool PageDown(CommandTarget target)
+        => MovePage(target, 20);
+
+    private static bool Move(
+        CommandTarget target,
+        Func<SelectionRange, SelectionRange> transform)
     {
-        var sel = EditorSelection.Create([.. t.State.Selection.Ranges.Select(f)], t.State.Selection.MainIndex);
-        if (sel.Eq(t.State.Selection, true)) return false;
-        t.Apply(t.State.Apply(new TransactionSpec { Selection = sel, ScrollIntoView = true, UserEvent = "select" }));
+        var selection = EditorSelection.Create(
+            [.. target.State.Selection.Ranges.Select(transform)],
+            target.State.Selection.MainIndex);
+        return selection.Eq(target.State.Selection, true)
+            ? false
+            : SetSelection(target, selection);
+    }
+
+    private static bool MovePage(CommandTarget target, int lineOffset)
+        => Move(target, range => {
+            if (!range.Empty) {
+                return Collapse(range, lineOffset > 0);
+            }
+
+            var document = target.State.Doc;
+            var currentLine = document.LineAt(range.Head);
+            var targetLine = document.Line(Math.Clamp(
+                currentLine.Number + lineOffset,
+                1,
+                document.Lines));
+            var column = Math.Min(
+                range.GoalColumn ?? (range.Head - currentLine.From),
+                targetLine.Length);
+            return EditorSelection.Cursor(targetLine.From + column, 0, null, column);
+        });
+
+    private static bool SetSelection(CommandTarget target, EditorSelection selection)
+    {
+        target.Apply(target.State.Apply(new() { Selection = selection }));
         return true;
     }
 
-    internal static SelectionRange RangeEnd(SelectionRange r, bool fwd)
-        => EditorSelection.Cursor(fwd ? r.To : r.From);
+    private static SelectionRange Collapse(SelectionRange range, bool forward)
+        => EditorSelection.Cursor(forward ? range.To : range.From);
 
-    internal static SelectionRange ByChar(EditorState s, SelectionRange r, bool fwd)
+    private static SelectionRange ByCharacter(
+        EditorState state,
+        SelectionRange range,
+        bool forward)
     {
-        var pos = r.Head; var line = s.Doc.LineAt(pos);
-        if (pos == (fwd ? line.To : line.From))
-            pos = fwd ? Math.Min(s.Doc.Length, line.To + 1) : Math.Max(0, line.From - 1);
-        else pos = line.From + CharUtil.FindClusterBreak(line.Text, pos - line.From, fwd);
-        return EditorSelection.Cursor(pos, fwd ? -1 : 1);
-    }
-
-    internal static SelectionRange Vertical(EditorState s, SelectionRange r, bool down)
-    {
-        var line = s.Doc.LineAt(r.Head);
-        var tl = down ? line.Number + 1 : line.Number - 1;
-        if (tl < 1 || tl > s.Doc.Lines) return r;
-        var target = s.Doc.Line(tl);
-        var col = Math.Min(r.GoalColumn ?? (r.Head - line.From), target.Length);
-        return EditorSelection.Cursor(target.From + col, 0, null, col);
-    }
-
-    internal static SelectionRange ByGroup(EditorState s, SelectionRange r, bool fwd)
-    {
-        if (!r.Empty) return RangeEnd(r, fwd);
-        var pos = r.Head; var line = s.Doc.LineAt(pos);
-        while (true) {
-            var next = CharUtil.FindClusterBreak(line.Text, pos - line.From, fwd) + line.From;
-            if (next == pos || next <= line.From || next >= line.To) break;
-            pos = next;
-            if (fwd && CharUtil.IsWordChar(line.Text[pos - line.From])) break;
-            if (!fwd && pos > line.From && CharUtil.IsWordChar(line.Text[pos - line.From - 1])) break;
+        var position = range.Head;
+        var line = state.Doc.LineAt(position);
+        if (position == (forward ? line.To : line.From)) {
+            position = forward
+                ? Math.Min(state.Doc.Length, line.To + 1)
+                : Math.Max(0, line.From - 1);
+        } else {
+            position = line.From + CharUtil.FindClusterBreak(
+                line.Text,
+                position - line.From,
+                forward);
         }
-        return EditorSelection.Cursor(pos, fwd ? -1 : 1);
+        return EditorSelection.Cursor(position, forward ? -1 : 1);
     }
 
-    public static bool CharLeft(CommandTarget t) => MoveSel(t, r => r.Empty ? ByChar(t.State, r, false) : RangeEnd(r, false));
-    public static bool CharRight(CommandTarget t) => MoveSel(t, r => r.Empty ? ByChar(t.State, r, true) : RangeEnd(r, true));
-    public static bool GroupLeft(CommandTarget t) => MoveSel(t, r => ByGroup(t.State, r, false));
-    public static bool GroupRight(CommandTarget t) => MoveSel(t, r => ByGroup(t.State, r, true));
-    public static bool LineUp(CommandTarget t) => MoveSel(t, r => r.Empty ? Vertical(t.State, r, false) : RangeEnd(r, false));
-    public static bool LineDown(CommandTarget t) => MoveSel(t, r => r.Empty ? Vertical(t.State, r, true) : RangeEnd(r, true));
-
-    public static bool LineStart(CommandTarget t)
-        => MoveSel(t, r => EditorSelection.Cursor(t.State.Doc.LineAt(r.Head).From, 1));
-
-    public static bool LineEnd(CommandTarget t)
-        => MoveSel(t, r => EditorSelection.Cursor(t.State.Doc.LineAt(r.Head).To, -1));
-
-    public static bool DocStart(CommandTarget t)
-    { t.Apply(t.State.Apply(new TransactionSpec { Selection = EditorSelection.Single(0), ScrollIntoView = true })); return true; }
-
-    public static bool DocEnd(CommandTarget t)
-    { t.Apply(t.State.Apply(new TransactionSpec { Selection = EditorSelection.Single(t.State.Doc.Length), ScrollIntoView = true })); return true; }
-
-    public static bool PageUp(CommandTarget t, int pageSize = 20) => MoveSel(t, r => {
-        if (!r.Empty) return RangeEnd(r, false);
-        var line = t.State.Doc.LineAt(r.Head);
-        var tl = t.State.Doc.Line(Math.Max(1, line.Number - pageSize));
-        var col = Math.Min(r.GoalColumn ?? (r.Head - line.From), tl.Length);
-        return EditorSelection.Cursor(tl.From + col, 0, null, col);
-    });
-
-    public static bool PageDown(CommandTarget t, int pageSize = 20) => MoveSel(t, r => {
-        if (!r.Empty) return RangeEnd(r, true);
-        var line = t.State.Doc.LineAt(r.Head);
-        var tl = t.State.Doc.Line(Math.Min(t.State.Doc.Lines, line.Number + pageSize));
-        var col = Math.Min(r.GoalColumn ?? (r.Head - line.From), tl.Length);
-        return EditorSelection.Cursor(tl.From + col, 0, null, col);
-    });
-
-    public static bool MatchingBracket(CommandTarget t)
+    private static SelectionRange Vertically(
+        EditorState state,
+        SelectionRange range,
+        bool down)
     {
-        var s = t.State; var found = false;
-        var brackets = new Dictionary<char, char> { ['('] = ')', [')'] = '(', ['['] = ']', [']'] = '[', ['{'] = '}', ['}'] = '{' };
-        var sel = EditorSelection.Create([.. s.Selection.Ranges.Select(r =>
-        {
-            var pos = r.Head;
-            var ch = pos < s.Doc.Length ? s.SliceDoc(pos, pos + 1)[0] : '\0';
-            if (!brackets.TryGetValue(ch, out var match))
-            { if (pos > 0) { ch = s.SliceDoc(pos - 1, pos)[0]; if (!brackets.TryGetValue(ch, out match)) return r; } else return r; }
-            int dir = match is ')' or ']' or '}' ? 1 : -1, depth = 1, sp = dir > 0 ? pos + 1 : pos - 1;
-            while (depth > 0 && sp >= 0 && sp < s.Doc.Length)
-            { var c = s.SliceDoc(sp, sp + 1)[0]; if (c == ch) depth++; else if (c == match) depth--; if (depth > 0) sp += dir; }
-            if (depth != 0) return r;
-            found = true;
-            return EditorSelection.Cursor(sp);
-        })], s.Selection.MainIndex);
-        if (!found) return false;
-        t.Apply(s.Apply(new TransactionSpec { Selection = sel, ScrollIntoView = true }));
-        return true;
+        var line = state.Doc.LineAt(range.Head);
+        var lineNumber = line.Number + (down ? 1 : -1);
+        if (lineNumber < 1 || lineNumber > state.Doc.Lines) {
+            return range;
+        }
+
+        var targetLine = state.Doc.Line(lineNumber);
+        var column = Math.Min(
+            range.GoalColumn ?? (range.Head - line.From),
+            targetLine.Length);
+        return EditorSelection.Cursor(targetLine.From + column, 0, null, column);
+    }
+
+    private static SelectionRange ByGroup(
+        EditorState state,
+        SelectionRange range,
+        bool forward)
+    {
+        if (!range.Empty) {
+            return Collapse(range, forward);
+        }
+
+        var position = range.Head;
+        var line = state.Doc.LineAt(position);
+        while (true) {
+            var next = line.From + CharUtil.FindClusterBreak(
+                line.Text,
+                position - line.From,
+                forward);
+            if (next == position || next <= line.From || next >= line.To) {
+                break;
+            }
+            position = next;
+            if (forward && CharUtil.IsWordChar(line.Text[position - line.From])) {
+                break;
+            }
+            if (!forward
+                && position > line.From
+                && CharUtil.IsWordChar(line.Text[position - line.From - 1])) {
+                break;
+            }
+        }
+        return EditorSelection.Cursor(position, forward ? -1 : 1);
     }
 }

@@ -3,69 +3,48 @@ namespace Sia_Examples.Editor;
 public readonly record struct EditorState(
     Text Doc,
     EditorSelection Selection,
-    int TabSize,
-    bool ReadOnly,
-    string LineBreak,
-    int Version,
-    EditorExtensions Extensions
-) : IEquatable<EditorState>
+    RangeSet<Decoration> Decorations,
+    EditorLineIdentities LineIdentities,
+    int Version) : IEquatable<EditorState>
 {
+    public const int TabSize = 4;
+
     public bool Equals(EditorState other) => Version == other.Version;
+
     public override int GetHashCode() => Version;
 
     public string SliceDoc(int from = 0, int to = int.MaxValue) => Doc.SliceDoc(from, to);
-    public Line LineAt(int pos) => Doc.LineAt(pos);
 
-    public T Field<T>(StateField<T> field) => Extensions.Field(field);
+    public Line LineAt(int position) => Doc.LineAt(position);
 
-    public TOutput Facet<TInput, TOutput>(Facet<TInput, TOutput> facet) => Extensions.Facet(facet);
-
-    public EditorState Apply(TransactionSpec spec) => ToTransaction(spec).NewState;
-
-    public Transaction ToTransaction(TransactionSpec spec)
+    public EditorState Apply(EditorUpdate update)
     {
-        var changes = spec.Changes != null
-            ? ChangeSet.Of(spec.Changes, Doc.Length, LineBreak)
+        ArgumentNullException.ThrowIfNull(update);
+        var changes = update.Changes is { Length: > 0 }
+            ? ChangeSet.Of(update.Changes, Doc.Length)
             : ChangeSet.Empty(Doc.Length);
-
-        var annotations = new List<object>();
-        if (spec.Annotations != null) annotations.AddRange(spec.Annotations);
-        if (spec.UserEvent != null) annotations.Add(Transaction.UserEvent.Of(spec.UserEvent));
-        annotations.Add(Transaction.Time.Of(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()));
-
-        var newSel = spec.Selection ?? Selection.Map(changes);
-        var effects = spec.Effects ?? [];
-
-        var provisional = this with { Doc = changes.Apply(Doc), Selection = newSel, Version = Version + 1 };
-        var tr = new Transaction(this, provisional, changes, newSel, effects, [.. annotations], spec.ScrollIntoView);
-        return tr.WithExtensions(Extensions.Update(tr));
+        var document = changes.Apply(Doc);
+        return new(
+            document,
+            update.Selection ?? Selection.Map(changes),
+            update.Decorations ?? Decorations.Map(changes),
+            LineIdentities.Map(changes, Doc, document),
+            Version + 1);
     }
 
-    public static EditorState Create(EditorStateConfig config)
+    public EditorState WithDecorations(RangeSet<Decoration> decorations)
+        => ReferenceEquals(Decorations, decorations)
+            ? this
+            : this with { Decorations = decorations, Version = Version + 1 };
+
+    public static EditorState Create(string source, RangeSet<Decoration> decorations)
     {
-        var doc = config.Doc ?? Text.Of([""]);
-        var state = new EditorState(
-            Doc: doc,
-            Selection: config.Selection ?? EditorSelection.Single(0),
-            TabSize: config.TabSize,
-            ReadOnly: config.ReadOnly,
-            LineBreak: config.LineBreak ?? "\n",
-            Version: 1,
-            Extensions: EditorExtensions.Empty);
-
-        var extensions = config.Extensions;
-        return extensions is null or { Length: 0 }
-            ? state
-            : state with { Extensions = EditorExtensions.Create(extensions, state) };
+        var document = Text.OfString(source);
+        return new(
+            document,
+            EditorSelection.Single(0),
+            decorations,
+            EditorLineIdentities.Create(document.Lines),
+            1);
     }
-}
-
-public sealed class EditorStateConfig
-{
-    public Text? Doc { get; set; }
-    public EditorSelection? Selection { get; set; }
-    public IExtension[]? Extensions { get; set; }
-    public int TabSize { get; set; } = 4;
-    public bool ReadOnly { get; set; }
-    public string? LineBreak { get; set; }
 }

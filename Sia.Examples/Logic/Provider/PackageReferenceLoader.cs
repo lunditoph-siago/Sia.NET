@@ -1,51 +1,72 @@
-using System.Collections.Concurrent;
 using System.IO.Compression;
 using System.Text.Json;
 
 namespace Sia_Examples.Notebook;
 
-public sealed class PackageReferenceLoader : IPackageReferenceLoader
+public sealed class PackageReferenceLoader
 {
-    private const string Base = "https://api.nuget.org/v3-flatcontainer";
+    private const string _baseUrl = "https://api.nuget.org/v3-flatcontainer";
 
-    private readonly HttpClient _client;
-    private readonly ConcurrentDictionary<string, Task<IReadOnlyList<FetchedAssembly>>> _cache = new();
+    private readonly IResourceLoader _resources;
+    private readonly Dictionary<string, IReadOnlyList<FetchedAssembly>> _cache = [];
 
-    public PackageReferenceLoader(HttpClient client) => _client = client;
+    public PackageReferenceLoader(IResourceLoader resources)
+    {
+        _resources = resources;
+    }
 
-    public Task<IReadOnlyList<FetchedAssembly>> LoadReferencesAsync(
-        string packageId, string? version, CancellationToken ct = default)
+    public async ValueTask<IReadOnlyList<FetchedAssembly>> LoadReferencesAsync(
+        string packageId,
+        string? version,
+        CancellationToken cancellationToken = default)
     {
         var key = $"{packageId.ToLowerInvariant()}@{version ?? "latest"}";
-        return _cache.GetOrAdd(key, _ => FetchAsync(packageId, version, ct));
+        if (_cache.TryGetValue(key, out var cached)) {
+            return cached;
+        }
+
+        var references = await FetchAsync(packageId, version, cancellationToken);
+        _cache.Add(key, references);
+        return references;
     }
 
-    private async Task<IReadOnlyList<FetchedAssembly>> FetchAsync(
-        string id, string? version, CancellationToken ct)
+    private async ValueTask<IReadOnlyList<FetchedAssembly>> FetchAsync(
+        string id,
+        string? version,
+        CancellationToken cancellationToken)
     {
-        var ver = version ?? await ResolveLatestStableAsync(id, ct);
-        var url = NupkgUrl(id, ver);
-        var bytes = await _client.GetByteArrayAsync(url, ct);
+        var resolvedVersion = version
+            ?? await ResolveLatestStableAsync(id, cancellationToken);
+        var bytes = await _resources.FetchBytesAsync(
+            GetPackageUrl(id, resolvedVersion),
+            cancellationToken);
         using var zip = new ZipArchive(new MemoryStream(bytes), ZipArchiveMode.Read);
-        return NuGetAssemblyExtractor.Extract(zip, id, ver);
+        return NuGetAssemblyExtractor.Extract(zip, id, resolvedVersion);
     }
 
-    private async Task<string> ResolveLatestStableAsync(string id, CancellationToken ct)
+    private async ValueTask<string> ResolveLatestStableAsync(
+        string id,
+        CancellationToken cancellationToken)
     {
-        var json = await _client.GetStringAsync(
-                $"{Base}/{id.ToLowerInvariant()}/index.json", ct);
+        var json = await _resources.FetchTextAsync(
+            $"{_baseUrl}/{id.ToLowerInvariant()}/index.json",
+            cancellationToken);
         using var doc = JsonDocument.Parse(json);
         var versions = doc.RootElement.GetProperty("versions")
-            .EnumerateArray().Select(v => v.GetString()!).ToList();
-        if (versions.Count == 0)
+            .EnumerateArray()
+            .Select(static version => version.GetString()!)
+            .ToList();
+        if (versions.Count == 0) {
             throw new InvalidOperationException($"NuGet package '{id}' has no published versions.");
+        }
         var stable = versions.Where(v => !v.Contains('-', StringComparison.Ordinal)).ToList();
         return stable.Count > 0 ? stable[^1] : versions[^1];
     }
 
-    private static string NupkgUrl(string id, string ver)
+    private static string GetPackageUrl(string id, string version)
     {
-        var i = id.ToLowerInvariant(); var v = ver.ToLowerInvariant();
-        return $"{Base}/{i}/{v}/{i}.{v}.nupkg";
+        var normalizedId = id.ToLowerInvariant();
+        var normalizedVersion = version.ToLowerInvariant();
+        return $"{_baseUrl}/{normalizedId}/{normalizedVersion}/{normalizedId}.{normalizedVersion}.nupkg";
     }
 }

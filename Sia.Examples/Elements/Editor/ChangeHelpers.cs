@@ -8,12 +8,12 @@ public static class ChangeHelpers
         var changes = new ChangeSpec[ranges.Count];
         var newRanges = new SelectionRange[ranges.Count];
         var shift = 0;
-        for (var i = 0; i < ranges.Count; i++) {
-            var r = ranges[i];
-            var text = insert(r);
-            changes[i] = new ChangeSpec(r.From, r.To, text);
-            newRanges[i] = EditorSelection.Cursor(r.From + shift + text.Length);
-            shift += text.Length - (r.To - r.From);
+        for (var index = 0; index < ranges.Count; index++) {
+            var range = ranges[index];
+            var text = insert(range);
+            changes[index] = new(range.From, range.To, text);
+            newRanges[index] = EditorSelection.Cursor(range.From + shift + text.Length);
+            shift += text.Length - (range.To - range.From);
         }
         return (changes, EditorSelection.Create(newRanges));
     }

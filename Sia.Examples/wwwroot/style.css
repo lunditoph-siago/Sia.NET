@@ -6,6 +6,10 @@
     padding: 0;
 }
 
+.hidden {
+    display: none !important;
+}
+
 :root {
     --color-bg: #eff1f5;
     --color-fg: #4c4f69;

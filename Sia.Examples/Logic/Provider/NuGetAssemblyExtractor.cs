@@ -4,7 +4,7 @@ namespace Sia_Examples.Notebook;
 
 public static class NuGetAssemblyExtractor
 {
-    private static readonly string[] PreferredTfms =
+    private static readonly string[] _preferredTfms =
     [
         "net11.0", "net10.0", "net9.0", "net8.0", "net7.0", "net6.0", "net5.0",
         "netstandard2.1", "netstandard2.0", "netstandard1.6", "netstandard1.3",
@@ -17,9 +17,10 @@ public static class NuGetAssemblyExtractor
             .Where(e => e.FullName.StartsWith("lib/", StringComparison.OrdinalIgnoreCase)
                 && e.FullName.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
             .ToList();
-        if (libEntries.Count == 0)
+        if (libEntries.Count == 0) {
             throw new InvalidOperationException(
                 $"NuGet package '{packageId}' {version} has no lib/*.dll assemblies.");
+        }
 
         var folder = PickBestTfm(libEntries);
         var chosen = folder is null
@@ -28,16 +29,18 @@ public static class NuGetAssemblyExtractor
 
         List<FetchedAssembly> result = [];
         foreach (var entry in chosen) {
-            using var s = entry.Open();
-            using var b = new MemoryStream();
-            s.CopyTo(b);
+            using var stream = entry.Open();
+            using var buffer = new MemoryStream();
+            stream.CopyTo(buffer);
             result.Add(new FetchedAssembly(
-                Path.GetFileNameWithoutExtension(entry.Name), b.ToArray()));
+                Path.GetFileNameWithoutExtension(entry.Name),
+                buffer.ToArray()));
         }
 
-        if (result.Count == 0)
+        if (result.Count == 0) {
             throw new InvalidOperationException(
                 $"NuGet package '{packageId}' {version} matched no assemblies after TFM selection.");
+        }
         return result;
     }
 
@@ -48,8 +51,11 @@ public static class NuGetAssemblyExtractor
         var tfms = new HashSet<string>(
             entries.Select(e => TfmOf(e.FullName)), StringComparer.OrdinalIgnoreCase);
         tfms.Remove("");
-        foreach (var p in PreferredTfms)
-            if (tfms.Contains(p)) return p;
+        foreach (var preferredTfm in _preferredTfms) {
+            if (tfms.Contains(preferredTfm)) {
+                return preferredTfm;
+            }
+        }
         return tfms.Count > 0 ? tfms.First() : null;
     }
 }

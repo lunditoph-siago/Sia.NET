@@ -2,124 +2,88 @@ namespace Sia_Examples.Editor;
 
 public static class LineCommands
 {
-    internal static List<(int From, int To)> SelectedLineBlocks(EditorState s)
+    public static bool InsertNewlineAndIndent(CommandTarget target)
     {
-        var blocks = new List<(int From, int To)>(); var upto = -1;
-        foreach (var r in s.Selection.Ranges) {
-            var sl = s.Doc.LineAt(r.From); var el = s.Doc.LineAt(r.To);
-            if (!r.Empty && r.To == el.From) el = s.Doc.LineAt(r.To - 1);
-            if (upto >= sl.Number) blocks[^1] = (blocks[^1].From, el.To);
-            else blocks.Add((sl.From, el.To));
-            upto = el.Number + 1;
-        }
-        return blocks;
-    }
-
-    public static bool SplitLine(CommandTarget t)
-    {
-        if (t.State.ReadOnly) return false;
-        var (changes, selection) = ChangeHelpers.InsertPerRange(t.State.Selection.Ranges, _ => "\n");
-        t.Apply(t.State.Apply(new TransactionSpec { Changes = changes, Selection = selection, ScrollIntoView = true, UserEvent = "input" }));
-        return true;
-    }
-
-    public static bool InsertNewline(CommandTarget t)
-    {
-        var s = t.State;
-        var main = s.Selection.Main;
-        t.Apply(s.Apply(new TransactionSpec {
-            Changes = [new ChangeSpec(main.From, main.To, "\n")],
-            Selection = EditorSelection.Single(main.From + 1),
-            ScrollIntoView = true, UserEvent = "input"
+        var state = target.State;
+        var (changes, selection) = ChangeHelpers.InsertPerRange(
+            state.Selection.Ranges,
+            range => "\n" + new string(
+                ' ',
+                state.Doc.LineAt(range.From).Text.TakeWhile(char.IsWhiteSpace).Count()));
+        target.Apply(state.Apply(new() {
+            Changes = changes,
+            Selection = selection,
         }));
         return true;
     }
 
-    public static bool InsertNewlineAndIndent(CommandTarget t)
+    public static bool InsertTab(CommandTarget target)
     {
-        if (t.State.ReadOnly) return false;
-        var s = t.State;
-        var (changes, selection) = ChangeHelpers.InsertPerRange(s.Selection.Ranges, r =>
-            "\n" + new string(' ', s.Doc.LineAt(r.From).Text.TakeWhile(char.IsWhiteSpace).Count()));
-        t.Apply(s.Apply(new TransactionSpec { Changes = changes, Selection = selection, ScrollIntoView = true, UserEvent = "input" }));
-        return true;
-    }
+        var state = target.State;
+        if (state.Selection.Ranges.Any(static range => !range.Empty)) {
+            return IndentMore(target);
+        }
 
-    public static bool InsertTab(CommandTarget t)
-    {
-        var s = t.State;
-        if (s.Selection.Ranges.Any(r => !r.Empty)) return IndentMore(t);
-        var main = s.Selection.Main;
-        t.Apply(s.Apply(new TransactionSpec {
-            Changes = [new ChangeSpec(main.From, main.To, "\t")],
-            Selection = EditorSelection.Single(main.From + 1),
-            ScrollIntoView = true, UserEvent = "input"
+        var selection = state.Selection.Main;
+        target.Apply(state.Apply(new() {
+            Changes = [new(selection.From, selection.To, "\t")],
+            Selection = EditorSelection.Single(selection.From + 1),
         }));
         return true;
     }
 
-    public static bool TransposeChars(CommandTarget t)
+    public static bool IndentLess(CommandTarget target)
     {
-        if (t.State.ReadOnly) return false;
-        var s = t.State; var cl = new List<ChangeSpec>();
-        foreach (var r in s.Selection.Ranges) {
-            if (r.Empty && r.From > 0 && r.From < s.Doc.Length) {
-                var pos = r.From; var line = s.Doc.LineAt(pos);
-                var from = pos == line.From ? pos - 1 : CharUtil.FindClusterBreak(line.Text, pos - line.From, false) + line.From;
-                var to = pos == line.To ? pos + 1 : CharUtil.FindClusterBreak(line.Text, pos - line.From, true) + line.From;
-                cl.Add(new ChangeSpec(from, to, s.SliceDoc(pos, to) + s.SliceDoc(from, pos)));
+        var changes = VisitSelectedLines(target.State, static line => {
+            var spaces = 0;
+            while (spaces < EditorState.TabSize
+                && spaces < line.Text.Length
+                && line.Text[spaces] == ' ') {
+                spaces++;
             }
-        }
-        if (cl.Count == 0) return false;
-        t.Apply(s.Apply(new TransactionSpec { Changes = [.. cl], ScrollIntoView = true, UserEvent = "move.character" }));
-        return true;
+            return spaces == 0
+                ? null
+                : new ChangeSpec(line.From, line.From + spaces, string.Empty);
+        });
+        return ApplyChanges(target, changes);
     }
 
-    public static bool DeleteLine(CommandTarget t)
+    private static bool IndentMore(CommandTarget target)
     {
-        if (t.State.ReadOnly) return false;
-        var s = t.State; var blocks = SelectedLineBlocks(s);
-        var cl = blocks.Select(b => {
-            int f = b.From, to = b.To;
-            if (f > 0) f--; else if (to < s.Doc.Length) to++;
-            return new ChangeSpec(f, to, "");
-        }).ToList();
-        if (cl.Count == 0) return false;
-        t.Apply(s.Apply(new TransactionSpec { Changes = [.. cl], ScrollIntoView = true, UserEvent = "delete.line" }));
-        return true;
+        var indentation = new string(' ', EditorState.TabSize);
+        var changes = VisitSelectedLines(
+            target.State,
+            line => new ChangeSpec(line.From, line.From, indentation));
+        return ApplyChanges(target, changes);
     }
 
-    public static bool IndentMore(CommandTarget t)
+    private static List<ChangeSpec> VisitSelectedLines(
+        EditorState state,
+        Func<Line, ChangeSpec?> createChange)
     {
-        if (t.State.ReadOnly) return false;
-        var s = t.State; var indent = "    "; var changes = new List<ChangeSpec>(); var atLine = -1;
-        foreach (var r in s.Selection.Ranges)
-            for (var pos = r.From; pos <= r.To;) {
-                var line = s.Doc.LineAt(pos);
-                if (line.Number > atLine && (r.Empty || r.To > line.From)) { changes.Add(new ChangeSpec(line.From, line.From, indent)); atLine = line.Number; }
-                pos = line.To + 1;
-            }
-        t.Apply(s.Apply(new TransactionSpec { Changes = [.. changes], UserEvent = "input.indent" }));
-        return true;
-    }
-
-    public static bool IndentLess(CommandTarget t)
-    {
-        if (t.State.ReadOnly) return false;
-        var s = t.State; var changes = new List<ChangeSpec>(); var atLine = -1;
-        foreach (var r in s.Selection.Ranges)
-            for (var pos = r.From; pos <= r.To;) {
-                var line = s.Doc.LineAt(pos);
-                if (line.Number > atLine && (r.Empty || r.To > line.From)) {
-                    var text = line.Text; var spaces = 0;
-                    while (spaces < 4 && spaces < text.Length && text[spaces] == ' ') spaces++;
-                    if (spaces > 0) changes.Add(new ChangeSpec(line.From, line.From + spaces, ""));
-                    atLine = line.Number;
+        var changes = new List<ChangeSpec>();
+        var lastLineNumber = -1;
+        foreach (var range in state.Selection.Ranges) {
+            for (var position = range.From; position <= range.To;) {
+                var line = state.Doc.LineAt(position);
+                if (line.Number > lastLineNumber
+                    && (range.Empty || range.To > line.From)
+                    && createChange(line) is { } change) {
+                    changes.Add(change);
                 }
-                pos = line.To + 1;
+                lastLineNumber = Math.Max(lastLineNumber, line.Number);
+                position = line.To + 1;
             }
-        if (changes.Count == 0) return false;
-        t.Apply(s.Apply(new TransactionSpec { Changes = [.. changes], UserEvent = "delete.dedent" }));
+        }
+        return changes;
+    }
+
+    private static bool ApplyChanges(CommandTarget target, List<ChangeSpec> changes)
+    {
+        if (changes.Count == 0) {
+            return false;
+        }
+        target.Apply(target.State.Apply(new() { Changes = [.. changes] }));
         return true;
     }
 }

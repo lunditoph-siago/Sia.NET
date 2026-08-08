@@ -1,79 +1,86 @@
-#if BROWSER
-using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Runtime.InteropServices.JavaScript;
-using System.Text.Json;
 using Microsoft.CodeAnalysis;
+using Sia_Examples.Browser;
 
 namespace Sia_Examples.Notebook;
 
-public sealed partial class AssemblyLoader : IAssemblyLoader
+public sealed partial class AssemblyLoader
 {
-    private static string[]? _initNames;
-    private static string[]? _initUrls;
+    private static ImmutableArray<AssemblyAsset> _manifest;
+
+    private readonly BrowserMainThread _mainThread;
+    private readonly BrowserResourceLoader _resources;
+    private readonly Dictionary<string, string> _urls;
+    private readonly Dictionary<string, MetadataReference> _references =
+        new(StringComparer.OrdinalIgnoreCase);
 
     [JSExport]
-    public static Task InitNotebookAsync(string[] assemblyVirtualPaths, string[] assemblyUrls)
+    public static Task InitializeAsync(
+        string[] assemblyVirtualPaths,
+        string[] assemblyUrls)
     {
-        if (assemblyVirtualPaths.Length != assemblyUrls.Length)
-            throw new ArgumentException("assemblyVirtualPaths and assemblyUrls must have the same length.");
-        _initNames = assemblyVirtualPaths;
-        _initUrls = assemblyUrls;
+        ArgumentNullException.ThrowIfNull(assemblyVirtualPaths);
+        ArgumentNullException.ThrowIfNull(assemblyUrls);
+        if (assemblyVirtualPaths.Length != assemblyUrls.Length) {
+            throw new ArgumentException(
+                "Assembly virtual paths and URLs must contain the same number of entries.");
+        }
+
+        var assets = ImmutableArray.CreateBuilder<AssemblyAsset>(assemblyVirtualPaths.Length);
+        for (var index = 0; index < assemblyVirtualPaths.Length; index++) {
+            var name = Path.GetFileNameWithoutExtension(assemblyVirtualPaths[index]);
+            if (!string.IsNullOrWhiteSpace(name)) {
+                assets.Add(new(name, assemblyUrls[index]));
+            }
+        }
+        _manifest = assets.MoveToImmutable();
         return Task.CompletedTask;
     }
 
-    public static (string[] VirtualPaths, string[] Urls) AssemblyManifest
-        => _initNames is { } names && _initUrls is { } urls
-            ? (names, urls)
-            : throw new InvalidOperationException("InitNotebookAsync has not been called.");
-
-    private readonly ConcurrentDictionary<string, string> _urls = new(StringComparer.OrdinalIgnoreCase);
-    private readonly ConcurrentDictionary<string, MetadataReference> _cache = new();
-
     public IReadOnlySet<string> KnownAssemblyNames { get; }
 
-    public AssemblyLoader(string[] assemblyVirtualPaths, string[] assemblyUrls)
+    public AssemblyLoader(BrowserMainThread mainThread, BrowserResourceLoader resources)
     {
-        if (assemblyVirtualPaths.Length != assemblyUrls.Length)
-            throw new ArgumentException("assemblyVirtualPaths and assemblyUrls must have the same length.");
-        var set = ImmutableHashSet.CreateBuilder<string>(StringComparer.OrdinalIgnoreCase);
-        for (var i = 0; i < assemblyVirtualPaths.Length; i++)
-        {
-            var name = Path.GetFileNameWithoutExtension(assemblyVirtualPaths[i]);
-            if (string.IsNullOrEmpty(name)) continue;
-            set.Add(name);
-            _urls.TryAdd(name, assemblyUrls[i]);
+        if (_manifest.IsDefault) {
+            throw new InvalidOperationException(
+                "The browser assembly manifest has not been initialized.");
         }
-        KnownAssemblyNames = set.ToImmutable();
+
+        _mainThread = mainThread;
+        _resources = resources;
+        _urls = _manifest.ToDictionary(
+            static asset => asset.Name,
+            static asset => asset.Url,
+            StringComparer.OrdinalIgnoreCase);
+        KnownAssemblyNames = _urls.Keys.ToImmutableHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
-    public async Task PreloadAsync()
+    public bool TryGetLoaded(string name, out MetadataReference reference)
     {
-        var json = JsonSerializer.Serialize(
-            _urls.Select(kv => new { Name = kv.Key, Url = kv.Value }));
+        _mainThread.VerifyAccess();
+        return _references.TryGetValue(name, out reference!);
+    }
 
-        var resultJson = await Bindings.FetchBatchAsync(json);
-        var entries = JsonSerializer.Deserialize<Entry[]>(resultJson)!;
-        foreach (var e in entries)
-        {
-            var bytes = Convert.FromBase64String(e.B64);
-            _cache.TryAdd(e.Name, MetadataReference.CreateFromImage(bytes, filePath: e.Name));
+    public async ValueTask<MetadataReference> LoadAsync(
+        string name,
+        CancellationToken cancellationToken = default)
+    {
+        _mainThread.VerifyAccess();
+        if (_references.TryGetValue(name, out var cached)) {
+            return cached;
         }
+        if (!_urls.TryGetValue(name, out var url)) {
+            throw new KeyNotFoundException($"Framework assembly '{name}' is not available.");
+        }
+
+        var image = await _resources.FetchBytesAsync(url, cancellationToken);
+        _mainThread.VerifyAccess();
+
+        var reference = MetadataReference.CreateFromImage(image, filePath: name);
+        _references.Add(name, reference);
+        return reference;
     }
 
-    public Task<MetadataReference> LoadAsync(string name, CancellationToken ct = default)
-    {
-        if (_cache.TryGetValue(name, out var cached))
-            return Task.FromResult(cached);
-        throw new KeyNotFoundException($"Assembly '{name}' is not preloaded.");
-    }
-
-    private sealed record Entry(string Name, string B64);
-
-    private static partial class Bindings
-    {
-        [JSImport("fetchScheduler.batchBase64", "main.js")]
-        public static partial Task<string> FetchBatchAsync(string jsonUrls);
-    }
+    private readonly record struct AssemblyAsset(string Name, string Url);
 }
-#endif

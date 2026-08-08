@@ -2,59 +2,75 @@ using Microsoft.CodeAnalysis;
 
 namespace Sia_Examples.Notebook;
 
-public sealed class MetadataReferenceProvider : IMetadataReferenceProvider
+public sealed class MetadataReferenceProvider : ICompilationReferenceResolver
 {
-    private static readonly string[] AlwaysCore =
+    private static readonly string[] _coreAssemblyNames =
         ["System.Private.CoreLib", "System.Runtime", "System.Console", "netstandard", "mscorlib"];
 
-    private readonly IAssemblyLoader _assemblies;
-    private readonly IPackageReferenceLoader _packages;
-    private readonly HashSet<string> _declared = new(StringComparer.OrdinalIgnoreCase);
-    private readonly List<MetadataReference> _packageRefs = [];
+    private readonly AssemblyLoader _assemblies;
+    private readonly PackageReferenceLoader _packages;
+    private readonly HashSet<string> _declaredAssemblyNames =
+        new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, MetadataReference> _packageReferences =
+        new(StringComparer.OrdinalIgnoreCase);
 
-    public MetadataReferenceProvider(IAssemblyLoader assemblies, IPackageReferenceLoader packages)
+    public MetadataReferenceProvider(
+        AssemblyLoader assemblies,
+        PackageReferenceLoader packages)
     {
         _assemblies = assemblies;
         _packages = packages;
+        AvailableFrameworkAssemblyNames = _assemblies.KnownAssemblyNames
+            .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
-    public IReadOnlyList<string> AvailableFrameworkAssemblyNames =>
-        _assemblies.KnownAssemblyNames.OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
+    public IReadOnlyList<string> AvailableFrameworkAssemblyNames { get; }
 
-    public async ValueTask<IReadOnlyList<MetadataReference>> GetReferencesAsync(string source)
+    public async ValueTask<IReadOnlyList<MetadataReference>> GetReferencesAsync(
+        string source,
+        CancellationToken cancellationToken = default)
     {
         var wanted = ResolveWanted(source);
-        await FetchMissingAsync(wanted);
+        await LoadMissingAsync(wanted, cancellationToken);
         return BuildReferences(wanted);
     }
 
-    public async ValueTask<IReadOnlyList<MetadataReference>> GetAllReferencesAsync()
+    public async ValueTask<IReadOnlyList<MetadataReference>> GetAllReferencesAsync(
+        CancellationToken cancellationToken = default)
     {
         var wanted = new HashSet<string>(_assemblies.KnownAssemblyNames, StringComparer.OrdinalIgnoreCase);
-        wanted.UnionWith(_declared);
-        await FetchMissingAsync(wanted);
+        wanted.UnionWith(_declaredAssemblyNames);
+        await LoadMissingAsync(wanted, cancellationToken);
         return BuildReferences(wanted);
     }
 
-    public async Task EnsurePackagesAsync(IReadOnlyList<PackageRef> packages, CancellationToken ct = default)
+    public async ValueTask EnsurePackagesAsync(
+        IReadOnlyList<PackageRef> packages,
+        CancellationToken cancellationToken = default)
     {
-        foreach (var p in packages)
-        {
-            if (p.Source == PackageSource.Framework)
-            {
-                if (!_assemblies.KnownAssemblyNames.Contains(p.Id))
+        foreach (var package in packages) {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (package.Source == PackageSource.Framework) {
+                if (!_assemblies.KnownAssemblyNames.Contains(package.Id)) {
                     throw new InvalidOperationException(
-                        $"Framework assembly '{p.Id}' not found in available assemblies.");
-                _declared.Add(p.Id);
+                        $"Framework assembly '{package.Id}' is not available.");
+                }
+                _declaredAssemblyNames.Add(package.Id);
+                await _assemblies.LoadAsync(package.Id, cancellationToken);
                 continue;
             }
 
-            var asm = await _packages.LoadReferencesAsync(p.Id, p.Version, ct);
-            foreach (var a in asm)
-            {
-                _packageRefs.Add(MetadataReference.CreateFromImage(a.Image, filePath: a.Name));
-                DynamicAssemblyRegistry.Register(a.Name, a.Image);
-                _declared.Add(a.Name);
+            var fetchedAssemblies = await _packages.LoadReferencesAsync(
+                package.Id,
+                package.Version,
+                cancellationToken);
+            foreach (var assembly in fetchedAssemblies) {
+                _packageReferences[assembly.Name] = MetadataReference.CreateFromImage(
+                    assembly.Image,
+                    filePath: assembly.Name);
+                DynamicAssemblyRegistry.Register(assembly.Name, assembly.Image);
+                _declaredAssemblyNames.Add(assembly.Name);
             }
         }
     }
@@ -66,46 +82,37 @@ public sealed class MetadataReferenceProvider : IMetadataReferenceProvider
             _assemblies.KnownAssemblyNames);
 
         var wanted = new HashSet<string>(names, StringComparer.OrdinalIgnoreCase);
-        foreach (var c in AlwaysCore)
-            if (_assemblies.KnownAssemblyNames.Contains(c)) wanted.Add(c);
-        wanted.UnionWith(_declared);
+        foreach (var coreAssemblyName in _coreAssemblyNames) {
+            if (_assemblies.KnownAssemblyNames.Contains(coreAssemblyName)) {
+                wanted.Add(coreAssemblyName);
+            }
+        }
+        wanted.UnionWith(_declaredAssemblyNames);
         return wanted;
     }
 
-    private async Task FetchMissingAsync(HashSet<string> wanted)
+    private async ValueTask LoadMissingAsync(
+        HashSet<string> wanted,
+        CancellationToken cancellationToken)
     {
-        var missing = wanted.Where(n => !IsLoaded(n)).ToList();
-        if (missing.Count == 0) return;
-
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        var sem = new SemaphoreSlim(4);
-        var tasks = missing.Select(async n =>
-        {
-            await sem.WaitAsync(cts.Token);
-            try { await _assemblies.LoadAsync(n, cts.Token); }
-            catch (OperationCanceledException) { }
-            finally { sem.Release(); }
-        });
-
-        await Task.WhenAll(tasks);
-    }
-
-    private bool IsLoaded(string name)
-    {
-        var task = _assemblies.LoadAsync(name);
-        return task.IsCompletedSuccessfully;
+        foreach (var name in wanted) {
+            if (!_packageReferences.ContainsKey(name)
+                && !_assemblies.TryGetLoaded(name, out _)) {
+                await _assemblies.LoadAsync(name, cancellationToken);
+            }
+        }
     }
 
     private IReadOnlyList<MetadataReference> BuildReferences(HashSet<string> wanted)
     {
         List<MetadataReference> result = [];
-        foreach (var n in wanted)
-        {
-            var task = _assemblies.LoadAsync(n);
-            if (task.IsCompletedSuccessfully)
-                result.Add(task.Result);
+        foreach (var name in wanted) {
+            if (_packageReferences.TryGetValue(name, out var packageReference)) {
+                result.Add(packageReference);
+            } else if (_assemblies.TryGetLoaded(name, out var frameworkReference)) {
+                result.Add(frameworkReference);
+            }
         }
-        result.AddRange(_packageRefs);
         return result;
     }
 }

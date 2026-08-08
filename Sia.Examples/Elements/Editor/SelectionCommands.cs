@@ -2,34 +2,27 @@ namespace Sia_Examples.Editor;
 
 public static class SelectionCommands
 {
-    public static bool SelectAll(CommandTarget t)
+    public static bool SelectAll(CommandTarget target)
     {
-        t.Apply(t.State.Apply(new TransactionSpec { Selection = EditorSelection.Single(0, t.State.Doc.Length), UserEvent = "select" }));
+        target.Apply(target.State.Apply(new() {
+            Selection = EditorSelection.Single(0, target.State.Doc.Length),
+        }));
         return true;
     }
 
-    public static bool SelectLine(CommandTarget t)
+    public static bool SimplifySelection(CommandTarget target)
     {
-        var s = t.State; var lines = LineCommands.SelectedLineBlocks(s);
-        var ranges = lines.Select(l => EditorSelection.Range(l.From, Math.Min(l.To + 1, s.Doc.Length))).ToArray();
-        t.Apply(s.Apply(new TransactionSpec { Selection = EditorSelection.Create(ranges), UserEvent = "select" }));
+        var selection = target.State.Selection;
+        EditorSelection simplified;
+        if (selection.Ranges.Count > 1) {
+            simplified = EditorSelection.Create([selection.Main]);
+        } else if (!selection.Main.Empty) {
+            simplified = EditorSelection.Single(selection.Main.Head);
+        } else {
+            return false;
+        }
+
+        target.Apply(target.State.Apply(new() { Selection = simplified }));
         return true;
     }
-
-    public static bool SimplifySelection(CommandTarget t)
-    {
-        var cur = t.State.Selection;
-        if (cur.Ranges.Count > 1)
-            t.Apply(t.State.Apply(new TransactionSpec { Selection = EditorSelection.Create([cur.Main]), UserEvent = "select" }));
-        else if (!cur.Main.Empty)
-            t.Apply(t.State.Apply(new TransactionSpec { Selection = EditorSelection.Create([EditorSelection.Cursor(cur.Main.Head)]), UserEvent = "select" }));
-        else return false;
-        return true;
-    }
-
-    public static bool SelectDocStart(CommandTarget t)
-    { t.Apply(t.State.Apply(new TransactionSpec { Selection = EditorSelection.Create([EditorSelection.Range(t.State.Selection.Main.Anchor, 0)]), UserEvent = "select" })); return true; }
-
-    public static bool SelectDocEnd(CommandTarget t)
-    { t.Apply(t.State.Apply(new TransactionSpec { Selection = EditorSelection.Create([EditorSelection.Range(t.State.Selection.Main.Anchor, t.State.Doc.Length)]), UserEvent = "select" })); return true; }
 }
