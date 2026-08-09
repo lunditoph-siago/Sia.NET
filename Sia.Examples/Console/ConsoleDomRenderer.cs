@@ -409,7 +409,8 @@ internal sealed class ConsoleDomRenderer
         }
         if (focusedLine < scrollOffset) {
             scrollOffset = focusedLine;
-        } else if (focusedLine >= scrollOffset + height) {
+        }
+        else if (focusedLine >= scrollOffset + height) {
             scrollOffset = focusedLine - height + 1;
         }
     }

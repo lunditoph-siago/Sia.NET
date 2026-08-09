@@ -57,7 +57,8 @@ internal sealed partial class ConsoleDomBackend
         var nodes = InteractiveNodes(_activePane);
         if (nodes.Length == 0) {
             _focused = null;
-        } else if (_focused is null || !nodes.Contains(_focused)) {
+        }
+        else if (_focused is null || !nodes.Contains(_focused)) {
             _focused = nodes[0];
         }
     }

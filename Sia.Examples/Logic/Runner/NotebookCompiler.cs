@@ -114,7 +114,8 @@ public sealed class NotebookCompiler
             var inner = e is TargetInvocationException { InnerException: { } captured } ? captured : e;
             stdErr.WriteLine(inner.ToString());
             return new(false, stdOut.ToString(), stdErr.ToString());
-        } finally {
+        }
+        finally {
             global::System.Console.SetOut(originalOut);
             global::System.Console.SetError(originalErr);
         }

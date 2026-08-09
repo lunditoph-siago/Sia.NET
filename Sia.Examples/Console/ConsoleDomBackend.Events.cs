@@ -129,7 +129,8 @@ internal sealed partial class ConsoleDomBackend
             _events.Writer.TryWrite(payload);
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) {
-        } finally {
+        }
+        finally {
             lock (_scheduleLock) {
                 if (_scheduled.TryGetValue(key, out var current)
                     && ReferenceEquals(current, cancellation)) {

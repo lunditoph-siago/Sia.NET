@@ -87,7 +87,8 @@ internal static class DomApplication
                     }
                     DomRuntime.Flush();
                 }
-            } finally {
+            }
+            finally {
                 if (workspace is not null) {
                     await workspace.DisposeAsync();
                 }
@@ -95,7 +96,8 @@ internal static class DomApplication
                     app.Unmount();
                 }
             }
-        } finally {
+        }
+        finally {
             DomRuntime.Dispose();
         }
     }

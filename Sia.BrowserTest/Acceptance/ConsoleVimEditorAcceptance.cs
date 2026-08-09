@@ -64,7 +64,8 @@ public sealed class ConsoleVimEditorAcceptance : IAcceptanceStage
             await DriveUntilQuietAsync(backend, registry, cancellationToken);
 
             AcceptanceAssert.Equal("one\ntwo", host.Source);
-        } finally {
+        }
+        finally {
             DomRuntime.Dispose();
         }
     }
@@ -92,7 +93,8 @@ public sealed class ConsoleVimEditorAcceptance : IAcceptanceStage
             await DriveUntilQuietAsync(backend, registry, cancellationToken);
 
             AcceptanceAssert.Equal("one\ntwo", host.Source);
-        } finally {
+        }
+        finally {
             DomRuntime.Dispose();
         }
     }
@@ -119,7 +121,8 @@ public sealed class ConsoleVimEditorAcceptance : IAcceptanceStage
             await DriveUntilQuietAsync(backend, registry, cancellationToken);
 
             AcceptanceAssert.Equal("one\nthree", host.Source);
-        } finally {
+        }
+        finally {
             DomRuntime.Dispose();
         }
     }
@@ -148,7 +151,8 @@ public sealed class ConsoleVimEditorAcceptance : IAcceptanceStage
             await DriveUntilQuietAsync(backend, registry, cancellationToken);
 
             AcceptanceAssert.Equal("ne\ntwo\nhree", host.Source);
-        } finally {
+        }
+        finally {
             DomRuntime.Dispose();
         }
     }
@@ -206,7 +210,8 @@ public sealed class ConsoleVimEditorAcceptance : IAcceptanceStage
                 cursorRow is not null,
                 "expected the second code line to render with the cursor split around 'r'");
             AcceptanceAssert.Contains("[7m", cursorRow!, "expected a reverse-video cursor cell");
-        } finally {
+        }
+        finally {
             DomRuntime.Dispose();
         }
     }
@@ -237,7 +242,8 @@ public sealed class ConsoleVimEditorAcceptance : IAcceptanceStage
             AcceptanceAssert.True(
                 terminal.Rows.Any(row => row.Contains("NORMAL", StringComparison.Ordinal)),
                 "expected the status bar to show NORMAL mode after activating the editor");
-        } finally {
+        }
+        finally {
             DomRuntime.Dispose();
         }
     }
@@ -264,7 +270,8 @@ public sealed class ConsoleVimEditorAcceptance : IAcceptanceStage
             await DriveEventsAsync(backend, registry, cancellationToken, count: 2);
 
             AcceptanceAssert.Equal("hi", host.Source);
-        } finally {
+        }
+        finally {
             DomRuntime.Dispose();
         }
     }
@@ -289,7 +296,8 @@ public sealed class ConsoleVimEditorAcceptance : IAcceptanceStage
             await DriveEventsAsync(backend, registry, cancellationToken, count: 1);
 
             AcceptanceAssert.Equal("bc", host.Source);
-        } finally {
+        }
+        finally {
             DomRuntime.Dispose();
         }
     }
@@ -315,7 +323,8 @@ public sealed class ConsoleVimEditorAcceptance : IAcceptanceStage
             var payload = await backend.WaitForEventAsync(cancellationToken);
 
             AcceptanceAssert.Equal("quit", payload);
-        } finally {
+        }
+        finally {
             DomRuntime.Dispose();
         }
     }
