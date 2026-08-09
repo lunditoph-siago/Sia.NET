@@ -96,10 +96,10 @@ public sealed class NotebookCompiler
     {
         var stdOut = new StringWriter();
         var stdErr = new StringWriter();
-        var originalOut = Console.Out;
-        var originalErr = Console.Error;
-        Console.SetOut(stdOut);
-        Console.SetError(stdErr);
+        var originalOut = global::System.Console.Out;
+        var originalErr = global::System.Console.Error;
+        global::System.Console.SetOut(stdOut);
+        global::System.Console.SetError(stdErr);
         try {
             var assembly = Assembly.Load(assemblyImage);
             var entryPoint = assembly.EntryPoint
@@ -114,9 +114,10 @@ public sealed class NotebookCompiler
             var inner = e is TargetInvocationException { InnerException: { } captured } ? captured : e;
             stdErr.WriteLine(inner.ToString());
             return new(false, stdOut.ToString(), stdErr.ToString());
-        } finally {
-            Console.SetOut(originalOut);
-            Console.SetError(originalErr);
+        }
+        finally {
+            global::System.Console.SetOut(originalOut);
+            global::System.Console.SetError(originalErr);
         }
     }
 

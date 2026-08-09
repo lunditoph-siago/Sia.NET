@@ -1,10 +1,11 @@
-namespace Sia.Tests.Reactive;
 
 using global::Sia.Reactive;
 
-using BranchList = HList<BranchValue, EmptyHList>;
-using ItemList = HList<KeyedValue, EmptyHList>;
-using ScopedList = HList<ScopedValue, EmptyHList>;
+using BranchList = Sia.HList<Sia.Tests.Reactive.BranchValue, Sia.EmptyHList>;
+using ItemList = Sia.HList<Sia.Tests.Reactive.KeyedValue, Sia.EmptyHList>;
+using ScopedList = Sia.HList<Sia.Tests.Reactive.ScopedValue, Sia.EmptyHList>;
+
+namespace Sia.Tests.Reactive;
 
 public class ReactiveTermTests
 {
@@ -81,6 +82,53 @@ public class ReactiveTermTests
             mount.Unmount();
             Assert.Empty(FindAll<KeyedValue>(world));
         }
+    }
+
+    [Fact]
+    public void PatchForEach_UpdatesOnlyNamedKeysAndRemovesExplicitKeys()
+    {
+        using var world = new World();
+        var reconciler = world.AcquireAddon<Reconciler>();
+        var mount = reconciler.Mount(new PatchListSpec(
+            new KeyedValue[] { new(1, 10), new(2, 20) },
+            Array.Empty<int>()));
+        var initial = FindAll<KeyedValue>(world)
+            .ToDictionary(entity => entity.Get<KeyedValue>().Key);
+
+        mount.Update(new PatchListSpec(
+            new KeyedValue[] { new(2, 21), new(3, 30) },
+            Array.Empty<int>()));
+        reconciler.Flush();
+        var patched = FindAll<KeyedValue>(world)
+            .ToDictionary(entity => entity.Get<KeyedValue>().Key);
+
+        Assert.Equal(initial[1], patched[1]);
+        Assert.Equal(initial[2], patched[2]);
+        Assert.Equal(21, patched[2].Get<KeyedValue>().Value);
+        Assert.Equal(30, patched[3].Get<KeyedValue>().Value);
+
+        mount.Update(new PatchListSpec(Array.Empty<KeyedValue>(), new[] { 1 }));
+        reconciler.Flush();
+        var remaining = FindAll<KeyedValue>(world)
+            .ToDictionary(entity => entity.Get<KeyedValue>().Key);
+        Assert.DoesNotContain(1, remaining.Keys);
+        Assert.Equal(patched[2], remaining[2]);
+        Assert.Equal(patched[3], remaining[3]);
+    }
+
+    [Fact]
+    public void UseRef_PreservesOneValueAcrossComponentUpdates()
+    {
+        using var world = new World();
+        var probe = new RefProbe();
+        var mount = world.Mount(RefComponent.Definition, new(probe, 1));
+        world.FlushReactive();
+
+        mount.Update(new(probe, 2));
+        world.FlushReactive();
+
+        Assert.Equal(2, probe.Values.Count);
+        Assert.Same(probe.Values[0], probe.Values[1]);
     }
 
     [Fact]
@@ -196,6 +244,22 @@ public readonly record struct ListSpec(ReadOnlyMemory<KeyedValue> Items)
                 .ToArray());
 }
 
+public readonly record struct PatchListSpec(
+    ReadOnlyMemory<KeyedValue> Upserts,
+    ReadOnlyMemory<int> Removals)
+    : ISpec<PatchListSpec, int, PatchForEachTerm<int, ItemSpec>>
+{
+    public static PatchForEachTerm<int, ItemSpec> Expand(
+        in PatchListSpec props,
+        in int state,
+        in ExpandContext context)
+        => new(
+            props.Upserts.ToArray()
+                .Select(static item => Term.Keyed(item.Key, new ItemSpec(item)))
+                .ToArray(),
+            props.Removals);
+}
+
 public readonly record struct ItemSpec(KeyedValue Item)
     : ISpec<ItemSpec, int, EntityTerm<ItemList, UnitTerm>>
 {
@@ -204,6 +268,23 @@ public readonly record struct ItemSpec(KeyedValue Item)
         in int state,
         in ExpandContext context)
         => Term.Entity(HList.From(props.Item));
+}
+
+public sealed class RefProbe
+{
+    public List<object> Values { get; } = [];
+}
+
+public readonly record struct RefProps(RefProbe Probe, int Version);
+
+[ReactiveComponent]
+public static partial class RefComponent
+{
+    public static ReactiveNode Render(in RefProps props, ref Hooks hooks)
+    {
+        props.Probe.Values.Add(hooks.UseRef(static () => new object()).Value);
+        return global::Sia.Reactive.Reactive.None;
+    }
 }
 
 public sealed class ScopeProbe
