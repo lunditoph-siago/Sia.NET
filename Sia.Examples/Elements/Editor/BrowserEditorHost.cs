@@ -28,6 +28,7 @@ public sealed class BrowserEditorHost : IDisposable
     private bool _completionPending;
     private bool _completionQueryRunning;
     private bool _disposed;
+    private string _highlightedSource;
 
     public BrowserEditorHost(
         World world,
@@ -41,6 +42,7 @@ public sealed class BrowserEditorHost : IDisposable
         _world = world;
         _view = new(cellId, container);
         _completionProvider = new(references);
+        _highlightedSource = source;
         var initialState = EditorState.Create(
             source,
             EditorDecorations.FromHighlights(highlights));
@@ -75,6 +77,7 @@ public sealed class BrowserEditorHost : IDisposable
                 Decorations = decorations,
             });
         }
+        _highlightedSource = source;
         Commit(next);
     }
 
@@ -494,6 +497,12 @@ public sealed class BrowserEditorHost : IDisposable
     {
         if (state == State.Value) {
             return;
+        }
+        var source = state.Doc.SliceDoc();
+        if (source != _highlightedSource) {
+            state = state.WithDecorations(
+                EditorDecorations.FromHighlights(CSharpHighlighter.Classify(source)));
+            _highlightedSource = source;
         }
         State.Set(state);
         _world.FlushReactive();
