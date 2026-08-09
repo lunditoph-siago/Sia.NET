@@ -2,22 +2,18 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0-browser</TargetFramework>
+    <TargetFramework>net11.0-browser</TargetFramework>
     <RuntimeIdentifier>browser-wasm</RuntimeIdentifier>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <IsPackable>false</IsPackable>
-    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
     <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
     <WasmEnableSIMD>true</WasmEnableSIMD>
     <WasmEnableWebcil>false</WasmEnableWebcil>
     <PublishTrimmed>false</PublishTrimmed>
+    <WasmEnableThreads>true</WasmEnableThreads>
   </PropertyGroup>
-
-  <ItemGroup>
-    <StaticWebAssetFingerprintPattern Include="JS" Pattern="*.js" Expression="#[.{fingerprint}]!" />
-  </ItemGroup>
 
   <ItemGroup>
     <Compile Remove="obj_desktop\**" />
@@ -26,10 +22,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <StaticWebAssetFingerprintPattern Include="JS" Pattern="*.js" Expression="#[.{fingerprint}]!" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Sia\Sia.csproj" />
     <ProjectReference Include="..\Sia.CodeGenerators\Sia.CodeGenerators.csproj" OutputItemType="Analyzer" />
     <ProjectReference Include="..\Sia.Prelude\Sia.Prelude.csproj" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.3.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.3.0" />
   </ItemGroup>
 
   <ItemGroup>

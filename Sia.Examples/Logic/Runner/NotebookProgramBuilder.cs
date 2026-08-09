@@ -4,57 +4,27 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Sia_Examples.Notebook;
 
-public readonly record struct CellRange(
-    string CellId,
-    int StatementsStartLine,
-    int? TypesStartLine,
-    string StartToken,
-    string EndToken);
-
-public sealed record NotebookProgram(
-    string Source,
-    bool NeedsWrapperUsing,
-    IReadOnlyList<CellRange> CellRanges)
-{
-    public string? ResolveCellId(int line)
-    {
-        string? owner = null;
-        var bestStart = -1;
-        foreach (var range in CellRanges) {
-            if (range.StatementsStartLine <= line && range.StatementsStartLine > bestStart) {
-                owner = range.CellId;
-                bestStart = range.StatementsStartLine;
-            }
-            if (range.TypesStartLine is { } typesStart && typesStart <= line && typesStart > bestStart) {
-                owner = range.CellId;
-                bestStart = typesStart;
-            }
-        }
-        return owner;
-    }
-}
-
 public static class NotebookProgramBuilder
 {
     public const string WrapperNamespace = "NotebookCell";
 
-    private const char Marker = '\uE000';
+    private const char _marker = '\uE000';
 
-    private static string StartToken(int index) => $"{Marker}S{index}{Marker}";
-    private static string EndToken(int index) => $"{Marker}E{index}{Marker}";
+    private static string StartToken(int index) => $"{_marker}S{index}{_marker}";
+    private static string EndToken(int index) => $"{_marker}E{index}{_marker}";
 
     public static NotebookProgram Build(IReadOnlyList<(string Id, string Source)> cells)
     {
-        var sb = new StringBuilder();
+        var builder = new StringBuilder();
         var ranges = new List<CellRange>(cells.Count);
         var typeParts = new List<(string Id, string Text)>(cells.Count);
         var line = 0;
 
         void Emit(string text)
         {
-            sb.Append(text);
-            foreach (var c in text) {
-                if (c == '\n') {
+            builder.Append(text);
+            foreach (var character in text) {
+                if (character == '\n') {
                     line++;
                 }
             }
@@ -71,15 +41,15 @@ public static class NotebookProgramBuilder
         Emit("global::Sia.Context<global::Sia.World>.Current = world;\n");
         Emit("try {\n");
 
-        for (var i = 0; i < splits.Count; i++) {
-            var (id, parts) = splits[i];
+        for (var index = 0; index < splits.Count; index++) {
+            var (id, parts) = splits[index];
             var (_, statements, types) = parts;
-            var startTok = StartToken(i);
-            var endTok = EndToken(i);
+            var startToken = StartToken(index);
+            var endToken = EndToken(index);
 
             Emit("{\n");
-            Emit($"global::System.Console.Out.Write(\"{startTok}\");\n");
-            Emit($"global::System.Console.Error.Write(\"{startTok}\");\n");
+            Emit($"global::System.Console.Out.Write(\"{startToken}\");\n");
+            Emit($"global::System.Console.Error.Write(\"{startToken}\");\n");
             Emit("try {\n");
             var statementsStartLine = line;
             Emit(EnsureTrailingNewline(statements));
@@ -88,13 +58,13 @@ public static class NotebookProgramBuilder
             Emit("global::System.Console.Error.WriteLine(__sia_cell_ex.ToString());\n");
             Emit("}\n");
             Emit("finally {\n");
-            Emit($"global::System.Console.Out.Write(\"{endTok}\");\n");
-            Emit($"global::System.Console.Error.Write(\"{endTok}\");\n");
+            Emit($"global::System.Console.Out.Write(\"{endToken}\");\n");
+            Emit($"global::System.Console.Error.Write(\"{endToken}\");\n");
             Emit("}\n");
             Emit("}\n");
 
             typeParts.Add((id, types));
-            ranges.Add(new CellRange(id, statementsStartLine, null, startTok, endTok));
+            ranges.Add(new(id, statementsStartLine, null, startToken, endToken));
         }
 
         Emit("}\n");
@@ -106,19 +76,19 @@ public static class NotebookProgramBuilder
         var hasTypes = typeParts.Exists(t => t.Text.Length > 0);
         if (hasTypes) {
             Emit($"\nnamespace {WrapperNamespace} {{\n");
-            for (var i = 0; i < typeParts.Count; i++) {
-                var (id, text) = typeParts[i];
+            for (var index = 0; index < typeParts.Count; index++) {
+                var (id, text) = typeParts[index];
                 if (text.Length == 0) {
                     continue;
                 }
                 var typesStartLine = line;
                 Emit(EnsureTrailingNewline(text));
-                ranges[i] = ranges[i] with { TypesStartLine = typesStartLine };
+                ranges[index] = ranges[index] with { TypesStartLine = typesStartLine };
             }
             Emit("}\n");
         }
 
-        return new NotebookProgram(sb.ToString(), hasTypes, ranges);
+        return new NotebookProgram(builder.ToString(), hasTypes, ranges);
     }
 
     public static IReadOnlyDictionary<string, string> SliceOutput(string captured, NotebookProgram program)

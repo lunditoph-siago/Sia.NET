@@ -1,6 +1,6 @@
-namespace Sia.Reactive;
-
 using System.Runtime.CompilerServices;
+
+namespace Sia.Reactive;
 
 public sealed class StateCell<T>
     where T : struct
@@ -47,6 +47,25 @@ public sealed class StateCells
             Array.Resize(ref _cells, _cells.Length * 2);
         }
         var cell = new StateCell<T> { Value = initial };
+        _cells[_count++] = cell;
+        return cell;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal HookRef<T> NextRef<T>(Func<T> factory)
+    {
+        var index = _cursor++;
+        if (index < _count) {
+            return _cells[index] as HookRef<T>
+                ?? throw HookTypeChanged(index);
+        }
+        if (_initialized) {
+            throw HookCountChanged();
+        }
+        if (_count == _cells.Length) {
+            Array.Resize(ref _cells, _cells.Length * 2);
+        }
+        var cell = new HookRef<T>(factory());
         _cells[_count++] = cell;
         return cell;
     }

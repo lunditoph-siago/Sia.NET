@@ -7,7 +7,7 @@ namespace Sia_Examples.Notebook;
 
 internal static class GeneratorPipeline
 {
-    private static readonly Lazy<ImmutableArray<ISourceGenerator>> Generators = new(Discover);
+    private static readonly Lazy<ImmutableArray<ISourceGenerator>> _generators = new(Discover);
 
     public static Compilation Run(
         CSharpCompilation compilation,
@@ -15,7 +15,7 @@ internal static class GeneratorPipeline
         out ImmutableArray<Diagnostic> diagnostics)
     {
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
-            Generators.Value,
+            _generators.Value,
             parseOptions: parseOptions);
         driver.RunGeneratorsAndUpdateCompilation(
             compilation, out var updated, out diagnostics);

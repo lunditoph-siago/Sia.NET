@@ -6,12 +6,12 @@ public readonly record struct Keyed<TKey, TSpec>(TKey Key, TSpec Props)
 
 public interface IForEachCleanup
 {
-    void CollectChildren(List<Entity> destination);
+    public void CollectChildren(List<Entity> destination);
 }
 
 internal interface IRecyclableForEachCleanup : IForEachCleanup
 {
-    void Reset();
+    public void Reset();
 }
 
 public readonly record struct EachNode(IForEachCleanup Cleanup);
@@ -44,6 +44,38 @@ public sealed class EachIndex<TKey> : IRecyclableForEachCleanup
         }
         finally {
             _seenKeys.Clear();
+        }
+    }
+
+    internal int Upsert<TSpec>(
+        ReadOnlySpan<Keyed<TKey, TSpec>> items,
+        int slotIndex,
+        ref GraphContext context)
+        where TSpec : struct, ISpec, IEquatable<TSpec>
+    {
+        ValidateKeys(items);
+        var stamp = ++Stamp;
+        foreach (ref readonly var item in items) {
+            UpsertItem(item, stamp, slotIndex, ref context);
+        }
+        return stamp;
+    }
+
+    internal void Patch<TSpec>(
+        ReadOnlySpan<Keyed<TKey, TSpec>> upserts,
+        ReadOnlySpan<TKey> removals,
+        int slotIndex,
+        ref GraphContext context)
+        where TSpec : struct, ISpec, IEquatable<TSpec>
+    {
+        ValidateKeys(upserts);
+        foreach (ref readonly var key in removals) {
+            if (ByKey.Remove(key, out var entry) && entry.Cell.IsValid) {
+                context.Reconciler.DestroySlot(entry.Cell);
+            }
+        }
+        foreach (ref readonly var item in upserts) {
+            UpsertItem(item, Stamp, slotIndex, ref context);
         }
     }
 
@@ -92,6 +124,40 @@ public sealed class EachIndex<TKey> : IRecyclableForEachCleanup
         _seenKeys.Clear();
         Stamp = 0;
     }
+
+    private void UpsertItem<TSpec>(
+        in Keyed<TKey, TSpec> item,
+        int stamp,
+        int slotIndex,
+        ref GraphContext context)
+        where TSpec : struct, ISpec, IEquatable<TSpec>
+    {
+        if (ByKey.TryGetValue(item.Key, out var entry)
+            && entry.Cell is { IsValid: true } cell) {
+            if (cell.GetUnchecked<Cell>().Expanded) {
+                if (!cell.GetUnchecked<TSpec>().Equals(item.Props)) {
+                    cell.GetUnchecked<TSpec>() = item.Props;
+                    context.Reconciler.EnqueueDirty(cell);
+                }
+                entry.Stamp = stamp;
+                ByKey[item.Key] = entry;
+                return;
+            }
+            context.Reconciler.DestroySlot(cell);
+        }
+
+        var created = context.Reconciler.MountSub(
+            item.Props,
+            context.Cell,
+            context.Depth + 1,
+            slotIndex,
+            context.Schedule,
+            context.Scope,
+            context.Output);
+        entry.Cell = created;
+        entry.Stamp = stamp;
+        ByKey[item.Key] = entry;
+    }
 }
 
 public readonly record struct ForEachTerm<TKey, TSpec>(ReadOnlyMemory<Keyed<TKey, TSpec>> Items)
@@ -106,7 +172,7 @@ public readonly record struct ForEachTerm<TKey, TSpec>(ReadOnlyMemory<Keyed<TKey
         var slotIndex = ctx.NextSlotIndex;
         var index = ctx.Reconciler.RentEachIndex<TKey>();
         ctx.SetSlot(ctx.Reconciler.CreateNode(new EachNode(index)));
-        Upsert(index, self.Items.Span, slotIndex, ref ctx);
+        index.Upsert(self.Items.Span, slotIndex, ref ctx);
     }
 
     public static void Reconcile(
@@ -121,45 +187,8 @@ public readonly record struct ForEachTerm<TKey, TSpec>(ReadOnlyMemory<Keyed<TKey
 
         var slotIndex = ctx.NextSlotIndex;
         var index = (EachIndex<TKey>)eachNode.GetUnchecked<EachNode>().Cleanup;
-        var stamp = Upsert(index, next.Items.Span, slotIndex, ref ctx);
+        var stamp = index.Upsert(next.Items.Span, slotIndex, ref ctx);
         index.RemoveStale(ctx.Reconciler, stamp);
         ctx.Advance();
-    }
-
-    private static int Upsert(
-        EachIndex<TKey> index, ReadOnlySpan<Keyed<TKey, TSpec>> items, int slotIndex,
-        ref GraphContext ctx)
-    {
-        index.ValidateKeys(items);
-        var stamp = ++index.Stamp;
-        var byKey = index.ByKey;
-        foreach (ref readonly var item in items) {
-            if (byKey.TryGetValue(item.Key, out var entry)
-                && entry.Cell is { IsValid: true } cell) {
-                if (cell.GetUnchecked<Cell>().Expanded) {
-                    if (!cell.GetUnchecked<TSpec>().Equals(item.Props)) {
-                        cell.GetUnchecked<TSpec>() = item.Props;
-                        ctx.Reconciler.EnqueueDirty(cell);
-                    }
-                    entry.Stamp = stamp;
-                    byKey[item.Key] = entry;
-                    continue;
-                }
-                ctx.Reconciler.DestroySlot(cell);
-            }
-
-            var created = ctx.Reconciler.MountSub(
-                item.Props,
-                ctx.Cell,
-                ctx.Depth + 1,
-                slotIndex,
-                ctx.Schedule,
-                ctx.Scope,
-                ctx.Output);
-            entry.Cell = created;
-            entry.Stamp = stamp;
-            byKey[item.Key] = entry;
-        }
-        return stamp;
     }
 }

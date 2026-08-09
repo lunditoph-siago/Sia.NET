@@ -3,97 +3,79 @@ using System.Reflection;
 using System.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Emit;
 using Microsoft.CodeAnalysis.Text;
 
 namespace Sia_Examples.Notebook;
 
-public enum NotebookDiagnosticSeverity { Info, Warning, Error }
-
-public readonly record struct NotebookDiagnostic(
-    string Id,
-    string Message,
-    NotebookDiagnosticSeverity Severity,
-    int Line,
-    int Column,
-    bool InUserCode);
-
-public sealed record NotebookCompileResult(
-    bool Success,
-    byte[]? AssemblyImage,
-    IReadOnlyList<NotebookDiagnostic> Diagnostics);
-
-public sealed record NotebookExecuteResult(bool Success, string StdOut, string StdErr);
-
-public sealed class NotebookCompiler : IDisposable
+public sealed class NotebookCompiler
 {
     private static int _programCounter;
 
-    private const string BaseGlobalUsings = """
-        global using System;
-        global using System.Collections.Generic;
-        global using System.IO;
-        global using System.Linq;
-        global using System.Threading;
-        global using System.Threading.Tasks;
-        global using Sia;
-        """;
-
-    private readonly AdhocWorkspace _workspace;
-    private readonly ProjectId _projectId;
-    private readonly DocumentId _documentId;
-    private readonly DocumentId _globalUsingsId;
-    private readonly IMetadataReferenceProvider _referenceProvider;
+    private readonly string _assemblyName;
+    private readonly ICompilationReferenceResolver _referenceResolver;
     private readonly CSharpParseOptions _parseOptions = CSharpParseOptions.Default;
-
-    public NotebookCompiler(NotebookProgram program, IMetadataReferenceProvider referenceProvider)
-    {
-        _referenceProvider = referenceProvider;
-        _workspace = new AdhocWorkspace();
-
-        _projectId = ProjectId.CreateNewId();
-        var assemblyName = $"NotebookProgram_{Interlocked.Increment(ref _programCounter)}";
-        _documentId = DocumentId.CreateNewId(_projectId, "Cell.cs");
-        _globalUsingsId = DocumentId.CreateNewId(_projectId, "GlobalUsings.g.cs");
-
-        var compilationOptions = new CSharpCompilationOptions(OutputKind.ConsoleApplication)
+    private readonly CSharpCompilationOptions _compilationOptions =
+        new CSharpCompilationOptions(OutputKind.ConsoleApplication)
             .WithConcurrentBuild(false)
             .WithNullableContextOptions(NullableContextOptions.Enable);
 
-        var solution = _workspace.CurrentSolution
-            .AddProject(_projectId, assemblyName, assemblyName, LanguageNames.CSharp)
-            .WithProjectCompilationOptions(_projectId, compilationOptions)
-            .WithProjectParseOptions(_projectId, _parseOptions)
-            .AddDocument(_documentId, "Cell.cs", SourceText.From(program.Source))
-            .AddDocument(_globalUsingsId, "GlobalUsings.g.cs", SourceText.From(GlobalUsings(program.NeedsWrapperUsing)));
+    private NotebookProgram _program;
 
-        _workspace.TryApplyChanges(solution);
-    }
-
-    public Document CurrentDocument => _workspace.CurrentSolution.GetDocument(_documentId)!;
-
-    public void UpdateProgram(NotebookProgram program)
+    public NotebookCompiler(
+        NotebookProgram program,
+        ICompilationReferenceResolver referenceResolver)
     {
-        var solution = _workspace.CurrentSolution
-            .WithDocumentText(_documentId, SourceText.From(program.Source))
-            .WithDocumentText(_globalUsingsId, SourceText.From(GlobalUsings(program.NeedsWrapperUsing)));
-        _workspace.TryApplyChanges(solution);
+        _referenceResolver = referenceResolver;
+        _assemblyName = $"NotebookProgram_{Interlocked.Increment(ref _programCounter)}";
+        _program = program;
     }
 
-    private static string GlobalUsings(bool needsWrapperUsing)
-        => needsWrapperUsing
-            ? $"{BaseGlobalUsings}\nglobal using {NotebookProgramBuilder.WrapperNamespace};"
-            : BaseGlobalUsings;
+    public void UpdateProgram(NotebookProgram program) => _program = program;
 
     public async Task<NotebookCompileResult> CompileAsync(CancellationToken cancellationToken = default)
     {
-        var document = CurrentDocument;
-        var references = await _referenceProvider.GetReferencesAsync().ConfigureAwait(false);
-        var solution = document.Project.Solution.WithProjectMetadataReferences(document.Project.Id, references);
-        document = solution.GetDocument(document.Id)!;
+        var globalUsings = NotebookLanguageContext.GetGlobalUsings(
+            _program.NeedsWrapperUsing);
+        var references = await _referenceResolver.GetReferencesAsync(
+            $"{globalUsings}\n{_program.Source}",
+            cancellationToken);
+        var (emitResult, diagnostics, image) = Emit(
+            globalUsings,
+            references,
+            cancellationToken);
 
-        var compilation = (CSharpCompilation)(await document.Project.GetCompilationAsync(cancellationToken)
-            .ConfigureAwait(false))!;
-        var userTree = compilation.SyntaxTrees.First();
+        if (!emitResult.Success && HasMissingReferenceDiagnostics(emitResult.Diagnostics)) {
+            var allReferences = await _referenceResolver.GetAllReferencesAsync(cancellationToken);
+            (emitResult, diagnostics, image) = Emit(
+                globalUsings,
+                allReferences,
+                cancellationToken);
+        }
+
+        return emitResult.Success ? new(true, image, diagnostics) : new(false, null, diagnostics);
+    }
+
+    private (EmitResult EmitResult, IReadOnlyList<NotebookDiagnostic> Diagnostics, byte[] Image) Emit(
+        string globalUsings,
+        IReadOnlyList<MetadataReference> references,
+        CancellationToken cancellationToken)
+    {
+        var userTree = CSharpSyntaxTree.ParseText(
+            SourceText.From(_program.Source),
+            _parseOptions,
+            "Cell.cs",
+            cancellationToken);
+        var globalUsingsTree = CSharpSyntaxTree.ParseText(
+            SourceText.From(globalUsings),
+            _parseOptions,
+            "GlobalUsings.g.cs",
+            cancellationToken);
+        var compilation = CSharpCompilation.Create(
+            _assemblyName,
+            [userTree, globalUsingsTree],
+            references,
+            _compilationOptions);
 
         var expanded = GeneratorPipeline.Run(compilation, _parseOptions, out var generatorDiagnostics);
 
@@ -101,12 +83,12 @@ public sealed class NotebookCompiler : IDisposable
         var emitResult = expanded.Emit(stream, cancellationToken: cancellationToken);
         var diagnostics = BuildDiagnostics(emitResult.Diagnostics.Concat(generatorDiagnostics), userTree);
 
-        if (!emitResult.Success) {
-            return new(false, null, diagnostics);
-        }
-
-        return new(true, stream.ToArray(), diagnostics);
+        return (emitResult, diagnostics, emitResult.Success ? stream.ToArray() : []);
     }
+
+    private static bool HasMissingReferenceDiagnostics(IEnumerable<Diagnostic> diagnostics)
+        => diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error
+            && d.Id is "CS0246" or "CS0234" or "CS0012");
 
     [UnconditionalSuppressMessage("Trimming", "IL2026",
         Justification = "Loads a freshly emitted in-memory assembly, not application code trimming can affect.")]
@@ -124,7 +106,7 @@ public sealed class NotebookCompiler : IDisposable
                 ?? throw new InvalidOperationException("No entry point found in the compiled program.");
             var result = entryPoint.Invoke(null, [Array.Empty<string>()]);
             if (result is Task task) {
-                await task.ConfigureAwait(false);
+                await task;
             }
             return new(true, stdOut.ToString(), stdErr.ToString());
         }
@@ -132,8 +114,7 @@ public sealed class NotebookCompiler : IDisposable
             var inner = e is TargetInvocationException { InnerException: { } captured } ? captured : e;
             stdErr.WriteLine(inner.ToString());
             return new(false, stdOut.ToString(), stdErr.ToString());
-        }
-        finally {
+        } finally {
             Console.SetOut(originalOut);
             Console.SetError(originalErr);
         }
@@ -164,5 +145,4 @@ public sealed class NotebookCompiler : IDisposable
         return results;
     }
 
-    public void Dispose() => _workspace.Dispose();
 }

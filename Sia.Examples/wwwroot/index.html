@@ -21,7 +21,17 @@
                         <line class="bar bar-bot" x1="3" y1="18" x2="21" y2="18" />
                     </svg>
                 </button>
+                <div id="header-packages" class="header-packages">
+                    <button id="packages-toggle" class="packages-toggle" aria-label="Packages">
+                        Packages<span id="packages-badge" class="packages-badge"></span>
+                        <svg class="packages-caret" viewBox="0 0 24 24" width="14" height="14">
+                            <polyline points="6 9 12 15 18 9" />
+                        </svg>
+                    </button>
+                    <div id="packages-popover" class="packages-popover"></div>
+                </div>
             </div>
+            <datalist id="framework-assemblies"></datalist>
             <div id="notebook"><span class="placeholder">← Choose a notebook to open it</span></div>
         </main>
     </div>

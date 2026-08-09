@@ -1,6 +1,6 @@
-namespace Sia.Reactive;
-
 using System.Runtime.CompilerServices;
+
+namespace Sia.Reactive;
 
 [AttributeUsage(AttributeTargets.Parameter, Inherited = false, AllowMultiple = false)]
 internal sealed class NestedCallbackAttribute : Attribute;
@@ -131,6 +131,25 @@ public static partial class Reactive
                 new ReactiveItemSpec<TItem, TTerm>(items[index].Value, render));
         }
         return new(Term.ForEach<TKey, ReactiveItemSpec<TItem, TTerm>>(keyed));
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ReactiveNode<PatchForEachTerm<
+        TKey, ReactiveItemSpec<TItem, TTerm>>> PatchForEach<TKey, TItem, TTerm>(
+            ReactiveItemRenderer<TItem, TTerm> render,
+            ReadOnlySpan<(TKey Key, TItem Value)> upserts,
+            ReadOnlySpan<TKey> removals)
+        where TKey : notnull
+        where TTerm : struct, ITerm<TTerm>
+    {
+        ArgumentNullException.ThrowIfNull(render);
+        var keyed = new Keyed<TKey, ReactiveItemSpec<TItem, TTerm>>[upserts.Length];
+        for (var index = 0; index < upserts.Length; index++) {
+            keyed[index] = Term.Keyed(
+                upserts[index].Key,
+                new ReactiveItemSpec<TItem, TTerm>(upserts[index].Value, render));
+        }
+        return new(new(keyed, removals.ToArray()));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

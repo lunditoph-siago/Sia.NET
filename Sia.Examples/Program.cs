@@ -1,9 +1,11 @@
+using Sia_Examples;
 #if !BROWSER
-using Sia_Examples;
+using Sia_Examples.Console;
+using Sia_Examples.Notebook;
+#endif
 
-ExampleViewer.Run(args);
+#if BROWSER
+await ExampleViewer.RunAsync();
 #else
-using Sia_Examples;
-
-await ExampleViewer.Run();
+await ConsoleApplication.RunAsync(args, new NotebookLibrary());
 #endif

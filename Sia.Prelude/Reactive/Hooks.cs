@@ -1,6 +1,6 @@
-namespace Sia.Reactive;
-
 using System.Runtime.CompilerServices;
+
+namespace Sia.Reactive;
 
 public ref struct Hooks
 {
@@ -22,6 +22,16 @@ public ref struct Hooks
         var states = _states ??= cellData.States ??=
             new StateCells(_cell.GetUnchecked<PrevTree<OpaqueTerm>>().Mounted);
         return new State<T>(states.NextState(initial), _reconciler, _cell, cellData.Identity);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public HookRef<T> UseRef<T>(Func<T> factory)
+    {
+        ArgumentNullException.ThrowIfNull(factory);
+        ref var cellData = ref _cell.GetUnchecked<Cell>();
+        var states = _states ??= cellData.States ??=
+            new StateCells(_cell.GetUnchecked<PrevTree<OpaqueTerm>>().Mounted);
+        return states.NextRef(factory);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
