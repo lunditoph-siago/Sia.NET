@@ -9,6 +9,8 @@ namespace Sia_Examples.Editor;
 public sealed class CSharpCompletionProvider(
     ICompilationReferenceResolver references)
 {
+    private const string _memberAccessSentinel = "__SiaCompletionSentinel";
+
     private readonly ICompilationReferenceResolver _references = references;
     private readonly CSharpCompilationOptions _compilationOptions =
         new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)
@@ -22,8 +24,9 @@ public sealed class CSharpCompletionProvider(
         position = Math.Clamp(position, 0, source.Length);
         var replacementStart = CompletionIdentifier.FindStart(source, position);
         var prefix = source[replacementStart..position];
+        var querySource = BuildQuerySource(source, replacementStart, position);
         var syntaxTree = CSharpSyntaxTree.ParseText(
-            SourceText.From(source),
+            SourceText.From(querySource),
             path: "Completion.cs",
             cancellationToken: cancellationToken);
         var globalUsingsTree = CSharpSyntaxTree.ParseText(
@@ -61,6 +64,14 @@ public sealed class CSharpCompletionProvider(
             .ToArray();
         return candidates.Length == 0 ? CompletionResult.Empty : new(candidates);
     }
+
+    private static string BuildQuerySource(
+        string source,
+        int replacementStart,
+        int position)
+        => replacementStart > 0 && source[replacementStart - 1] == '.'
+            ? source.Insert(position, $"{_memberAccessSentinel};")
+            : source;
 
     private static IEnumerable<ISymbol> GetCandidates(
         string source,

@@ -193,6 +193,7 @@ function attachEditorSurface(cellId, surface) {
   }
 
   let pendingMutation;
+  let handledInputPending = false;
   let knownSelection;
   let composing = false;
   let compositionEnding = false;
@@ -475,64 +476,72 @@ function attachEditorSurface(cellId, surface) {
     'text',
     commandSelection(),
     encodeURIComponent(text));
+  const emitInputCommand = (event, command) => {
+    event.preventDefault();
+    pendingMutation = undefined;
+    handledInputPending = true;
+    command();
+  };
+  const consumeHandledInput = () => {
+    const handled = handledInputPending;
+    handledInputPending = false;
+    return handled;
+  };
 
   const handlers = {
     beforeinput(event) {
       selectionSyncPending.delete(surface);
+      handledInputPending = false;
       if (!composing
           && !compositionEnding
           && event.inputType === 'insertText'
           && event.data !== null) {
-        event.preventDefault();
-        pendingMutation = undefined;
-        emitTextCommand(event.data);
+        emitInputCommand(event, () => emitTextCommand(event.data));
         return;
       }
       if (!composing
           && !compositionEnding
           && (event.inputType === 'insertParagraph'
             || event.inputType === 'insertLineBreak')) {
-        event.preventDefault();
-        pendingMutation = undefined;
-        emitKeyCommand('Enter', false, false, false);
+        emitInputCommand(
+          event,
+          () => emitKeyCommand('Enter', false, false, false));
         return;
       }
       if (!composing
           && !compositionEnding
           && event.inputType === 'deleteContentBackward') {
-        event.preventDefault();
-        pendingMutation = undefined;
-        emitKeyCommand('Backspace', false, false, false);
+        emitInputCommand(
+          event,
+          () => emitKeyCommand('Backspace', false, false, false));
         return;
       }
       if (!composing
           && !compositionEnding
           && event.inputType === 'deleteWordBackward') {
-        event.preventDefault();
-        pendingMutation = undefined;
-        emitKeyCommand('Backspace', true, false, false);
+        emitInputCommand(
+          event,
+          () => emitKeyCommand('Backspace', true, false, false));
         return;
       }
       if (!composing
           && !compositionEnding
           && event.inputType === 'deleteContentForward') {
-        event.preventDefault();
-        pendingMutation = undefined;
-        emitKeyCommand('Delete', false, false, false);
+        emitInputCommand(
+          event,
+          () => emitKeyCommand('Delete', false, false, false));
         return;
       }
       if (!composing
           && !compositionEnding
           && event.inputType === 'deleteWordForward') {
-        event.preventDefault();
-        pendingMutation = undefined;
-        emitKeyCommand('Delete', true, false, false);
+        emitInputCommand(
+          event,
+          () => emitKeyCommand('Delete', true, false, false));
         return;
       }
       if (!composing && !compositionEnding && event.inputType === 'deleteByCut') {
-        event.preventDefault();
-        pendingMutation = undefined;
-        emitTextCommand('');
+        emitInputCommand(event, () => emitTextCommand(''));
         return;
       }
       if (!composing
@@ -541,9 +550,10 @@ function attachEditorSurface(cellId, surface) {
             || event.inputType === 'insertFromDrop')) {
         const text = event.data ?? event.dataTransfer?.getData('text/plain');
         if (text !== undefined && text !== null) {
-          event.preventDefault();
-          pendingMutation = undefined;
-          emitTextCommand(text.replaceAll('\r\n', '\n').replaceAll('\r', '\n'));
+          emitInputCommand(
+            event,
+            () => emitTextCommand(
+              text.replaceAll('\r\n', '\n').replaceAll('\r', '\n')));
           return;
         }
       }
@@ -583,6 +593,9 @@ function attachEditorSurface(cellId, surface) {
     },
     input(event) {
       if (event.isComposing || composing) {
+        return;
+      }
+      if (consumeHandledInput()) {
         return;
       }
       pendingMutation ??= {
