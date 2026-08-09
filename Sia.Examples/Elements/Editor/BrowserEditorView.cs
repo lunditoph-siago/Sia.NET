@@ -53,22 +53,23 @@ public sealed class BrowserEditorView : IEditorView
     public void RestoreDocumentStructure()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        _lines.Text(string.Empty);
         foreach (var node in _lineNodes.Values.OrderBy(static node => node.Index)) {
             _lines.Append(node.Content);
         }
     }
 
-    public void MountOverlay(DomElement overlay)
+    public void MountOverlay(DomElement overlay, int lineIndex, int column)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         _container.Append(overlay);
-        PlaceOverlay(overlay);
+        PlaceOverlay(overlay, lineIndex, column);
     }
 
-    public void PlaceOverlay(DomElement overlay)
+    public void PlaceOverlay(DomElement overlay, int lineIndex, int column)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        DomRuntime.PlaceOverlay(_container, _lines, overlay);
+        DomRuntime.PlaceOverlay(_container, _lines, overlay, lineIndex, column);
     }
 
     void IRenderHost<EditorLineView>.Upsert(in EditorLineView view)

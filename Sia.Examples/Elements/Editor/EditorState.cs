@@ -5,6 +5,7 @@ public readonly record struct EditorState(
     EditorSelection Selection,
     RangeSet<Decoration> Decorations,
     EditorLineIdentities LineIdentities,
+    EditorLineUpdate? LineUpdate,
     int Version) : IEquatable<EditorState>
 {
     public const int TabSize = 4;
@@ -29,6 +30,7 @@ public readonly record struct EditorState(
             update.Selection ?? Selection.Map(changes),
             update.Decorations ?? Decorations.Map(changes),
             LineIdentities.Map(changes, Doc, document),
+            changes.IsEmpty ? LineUpdate : new(Doc, changes),
             Version + 1);
     }
 
@@ -45,6 +47,7 @@ public readonly record struct EditorState(
             EditorSelection.Single(0),
             decorations,
             EditorLineIdentities.Create(document.Lines),
+            null,
             1);
     }
 }

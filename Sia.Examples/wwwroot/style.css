@@ -534,11 +534,12 @@ body {
                 }
 
                 .completion-popup {
+                    box-sizing: border-box;
                     position: absolute;
                     top: 0;
                     left: 42px;
                     z-index: 20;
-                    min-width: 10rem;
+                    width: 22rem;
                     max-width: 22rem;
                     max-height: 12rem;
                     overflow-y: auto;

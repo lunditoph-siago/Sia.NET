@@ -20,7 +20,7 @@ public sealed class CSharpCompletionProvider(
         CancellationToken cancellationToken = default)
     {
         position = Math.Clamp(position, 0, source.Length);
-        var replacementStart = FindIdentifierStart(source, position);
+        var replacementStart = CompletionIdentifier.FindStart(source, position);
         var prefix = source[replacementStart..position];
         var syntaxTree = CSharpSyntaxTree.ParseText(
             SourceText.From(source),
@@ -53,7 +53,6 @@ public sealed class CSharpCompletionProvider(
             .Where(name => name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal)
-            .Take(20)
             .Select(name => new CompletionCandidate(
                 name,
                 name,
@@ -117,14 +116,4 @@ public sealed class CSharpCompletionProvider(
         return members;
     }
 
-    private static int FindIdentifierStart(string source, int position)
-    {
-        while (position > 0 && IsIdentifierCharacter(source[position - 1])) {
-            position--;
-        }
-        return position;
-    }
-
-    private static bool IsIdentifierCharacter(char character)
-        => char.IsLetterOrDigit(character) || character == '_';
 }

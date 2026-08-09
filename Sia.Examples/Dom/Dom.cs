@@ -57,9 +57,19 @@ internal static class DomRuntime
 
     public static void PlaceOverlay(
         DomElement container,
-        DomElement anchor,
-        DomElement overlay)
-        => Backend.PlaceOverlay(container.Node, anchor.Node, overlay.Node);
+        DomElement surface,
+        DomElement overlay,
+        int lineIndex,
+        int column)
+        => Backend.PlaceOverlay(
+            container.Node,
+            surface.Node,
+            overlay.Node,
+            lineIndex,
+            column);
+
+    public static void ClearOverlayPlacement(DomElement overlay)
+        => Backend.ClearOverlayPlacement(overlay.Node);
 
     public static void EnsureVisible(DomElement container, DomElement element)
         => Backend.EnsureVisible(container.Node, element.Node);

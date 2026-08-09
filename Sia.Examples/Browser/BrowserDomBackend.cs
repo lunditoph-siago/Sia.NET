@@ -150,10 +150,26 @@ internal sealed class BrowserDomBackend(BrowserMainThread mainThread) : IDomBack
         BrowserInterop.SyncGutterScroll(Handle(scroll), Handle(gutter));
     }
 
-    public void PlaceOverlay(IDomNode container, IDomNode anchor, IDomNode overlay)
+    public void PlaceOverlay(
+        IDomNode container,
+        IDomNode surface,
+        IDomNode overlay,
+        int lineIndex,
+        int column)
     {
         VerifyAccess();
-        BrowserInterop.PlaceOverlay(Handle(container), Handle(anchor), Handle(overlay));
+        BrowserInterop.PlaceOverlay(
+            Handle(container),
+            Handle(surface),
+            Handle(overlay),
+            lineIndex,
+            column);
+    }
+
+    public void ClearOverlayPlacement(IDomNode overlay)
+    {
+        VerifyAccess();
+        BrowserInterop.ClearOverlayPlacement(Handle(overlay));
     }
 
     public void EnsureVisible(IDomNode container, IDomNode element)
@@ -267,8 +283,13 @@ internal static partial class BrowserInterop
     [JSImport("placeOverlay", "main.js")]
     public static partial void PlaceOverlay(
         JSObject container,
-        JSObject anchor,
-        JSObject overlay);
+        JSObject surface,
+        JSObject overlay,
+        int lineIndex,
+        int column);
+
+    [JSImport("clearOverlayPlacement", "main.js")]
+    public static partial void ClearOverlayPlacement(JSObject overlay);
 
     [JSImport("ensureVisible", "main.js")]
     public static partial void EnsureVisible(JSObject container, JSObject element);

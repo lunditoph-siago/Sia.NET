@@ -15,6 +15,8 @@ public sealed partial class AssemblyLoader
     private readonly Dictionary<string, string> _urls;
     private readonly Dictionary<string, MetadataReference> _references =
         new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Task<MetadataReference>> _loads =
+        new(StringComparer.OrdinalIgnoreCase);
 
     [JSExport]
     public static Task InitializeAsync(
@@ -68,6 +70,7 @@ public sealed partial class AssemblyLoader
         CancellationToken cancellationToken = default)
     {
         _mainThread.VerifyAccess();
+        cancellationToken.ThrowIfCancellationRequested();
         if (_references.TryGetValue(name, out var cached)) {
             return cached;
         }
@@ -75,12 +78,28 @@ public sealed partial class AssemblyLoader
             throw new KeyNotFoundException($"Framework assembly '{name}' is not available.");
         }
 
-        var image = await _resources.FetchBytesAsync(url, cancellationToken);
-        _mainThread.VerifyAccess();
+        if (!_loads.TryGetValue(name, out var load)) {
+            load = LoadCoreAsync(name, url);
+            _loads.Add(name, load);
+            if (load.IsCompleted) {
+                _loads.Remove(name);
+            }
+        }
+        return await load.WaitAsync(cancellationToken);
+    }
 
-        var reference = MetadataReference.CreateFromImage(image, filePath: name);
-        _references.Add(name, reference);
-        return reference;
+    private async Task<MetadataReference> LoadCoreAsync(string name, string url)
+    {
+        try {
+            var image = await _resources.FetchBytesAsync(url);
+            _mainThread.VerifyAccess();
+
+            var reference = MetadataReference.CreateFromImage(image, filePath: name);
+            _references.Add(name, reference);
+            return reference;
+        } finally {
+            _loads.Remove(name);
+        }
     }
 
     private readonly record struct AssemblyAsset(string Name, string Url);

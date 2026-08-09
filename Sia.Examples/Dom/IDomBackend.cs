@@ -49,7 +49,14 @@ internal interface IDomBackend : IDisposable
 
     public void SyncGutterScroll(IDomNode scroll, IDomNode gutter);
 
-    public void PlaceOverlay(IDomNode container, IDomNode anchor, IDomNode overlay);
+    public void PlaceOverlay(
+        IDomNode container,
+        IDomNode surface,
+        IDomNode overlay,
+        int lineIndex,
+        int column);
+
+    public void ClearOverlayPlacement(IDomNode overlay);
 
     public void EnsureVisible(IDomNode container, IDomNode element);
 

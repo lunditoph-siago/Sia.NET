@@ -23,6 +23,8 @@ const resourceRequests = new Map();
 const scheduledEvents = new Map();
 const selectionSyncPending = new WeakSet();
 const editorSelectionUpdates = new WeakMap();
+const editorSurfaceHandlers = new WeakMap();
+const overlayPlacements = new WeakMap();
 const caretMarkerText = '\u200b';
 const caretMarkerSelector = '[data-editor-caret-marker]';
 
@@ -190,8 +192,12 @@ function attachEditorSurface(cellId, surface) {
     throw new Error(`Editor '${cellId}' is already attached.`);
   }
 
-  let pendingMutationLine;
-  let pendingTextInput;
+  let pendingMutation;
+  let knownSelection;
+  let composing = false;
+  let compositionEnding = false;
+  let compositionGeneration = 0;
+  let compositionCommitTimer;
   let commandSequence = 0;
   let acknowledgedCommandSequence = 0;
 
@@ -221,166 +227,406 @@ function attachEditorSurface(cellId, surface) {
     'Delete',
   ]);
   const hasPendingCommand = () => acknowledgedCommandSequence < commandSequence;
-  const emitCommand = (eventType, payload) => {
+  const emitCommand = (eventType, selection, payload) => {
     commandSequence++;
-    emit(`${eventType}:${cellId}:${commandSequence}:${payload}`);
+    emit(
+      `${eventType}:${cellId}:${commandSequence}:`
+      + `${selectionArguments(selection)}:${payload}`);
   };
   const readSelection = () => {
     const selection = window.getSelection();
+    if (!selection?.rangeCount || !surface.contains(selection.anchorNode)) {
+      return null;
+    }
+    const anchorLine = lineOf(surface, selection.anchorNode);
+    const headLine = lineOf(surface, selection.focusNode);
+    if (!anchorLine || !headLine
+        || anchorLine.parentNode !== surface
+        || headLine.parentNode !== surface) {
+      return null;
+    }
     return {
-      selection,
-      anchorLine: selection?.anchorNode
-        ? lineOf(surface, selection.anchorNode)
-        : null,
-      headLine: selection?.focusNode
-        ? lineOf(surface, selection.focusNode)
-        : null,
+      anchorLine,
+      anchorLineIndex: Number(anchorLine.dataset.ln),
+      anchorColumn: columnInLine(
+        anchorLine,
+        selection.anchorNode,
+        selection.anchorOffset),
+      headLine,
+      headLineIndex: Number(headLine.dataset.ln),
+      headColumn: columnInLine(
+        headLine,
+        selection.focusNode,
+        selection.focusOffset),
     };
+  };
+  const readSelectionByDomOrder = () => {
+    const selection = window.getSelection();
+    if (!selection?.rangeCount || !surface.contains(selection.anchorNode)) {
+      return null;
+    }
+    const normalizeText = value => value
+      .replaceAll(caretMarkerText, '')
+      .replaceAll('\r\n', '\n')
+      .replaceAll('\r', '\n');
+    const topLevelPoint = (node, offset) => {
+      let top = node;
+      if (top === surface) {
+        if (offset === 0) {
+          return { line: null, lineIndex: 0, column: 0 };
+        }
+        top = surface.childNodes[Math.min(offset, surface.childNodes.length) - 1];
+        node = top;
+        offset = top.nodeType === Node.TEXT_NODE
+          ? top.nodeValue.length
+          : top.childNodes.length;
+      } else {
+        while (top?.parentNode && top.parentNode !== surface) {
+          top = top.parentNode;
+        }
+      }
+      if (!top || top.parentNode !== surface) {
+        return null;
+      }
+
+      let lineIndex = 0;
+      for (const sibling of surface.childNodes) {
+        if (sibling === top) {
+          break;
+        }
+        const text = normalizeText(
+          sibling.nodeType === Node.TEXT_NODE
+            ? sibling.nodeValue
+            : sibling.innerText ?? sibling.textContent ?? '');
+        lineIndex += text.split('\n').length;
+      }
+      const range = document.createRange();
+      range.setStart(top, 0);
+      range.setEnd(node, offset);
+      const lines = normalizeText(range.toString()).split('\n');
+      return {
+        line: top.nodeType === Node.ELEMENT_NODE ? top : null,
+        lineIndex: lineIndex + lines.length - 1,
+        column: lines.at(-1).length,
+      };
+    };
+    const anchor = topLevelPoint(selection.anchorNode, selection.anchorOffset);
+    const head = topLevelPoint(selection.focusNode, selection.focusOffset);
+    if (!anchor || !head) {
+      return null;
+    }
+    return {
+      anchorLine: anchor.line,
+      anchorLineIndex: anchor.lineIndex,
+      anchorColumn: anchor.column,
+      headLine: head.line,
+      headLineIndex: head.lineIndex,
+      headColumn: head.column,
+    };
+  };
+  const selectionCoordinates = selection => selection
+    ? {
+        anchorLineIndex: selection.anchorLineIndex,
+        anchorColumn: selection.anchorColumn,
+        headLineIndex: selection.headLineIndex,
+        headColumn: selection.headColumn,
+      }
+    : null;
+  const selectionArguments = selection => selection
+    ? `${selection.anchorLineIndex}:${selection.anchorColumn}:`
+      + `${selection.headLineIndex}:${selection.headColumn}`
+    : '-1:-1:-1:-1';
+  const sameSelection = (left, right) => left === right
+    || left && right
+      && left.anchorLineIndex === right.anchorLineIndex
+      && left.anchorColumn === right.anchorColumn
+      && left.headLineIndex === right.headLineIndex
+      && left.headColumn === right.headColumn;
+  const rememberSelection = selection => {
+    knownSelection = selectionCoordinates(selection);
   };
 
   const emitSelection = () => {
-    const { selection, anchorLine, headLine } = readSelection();
-    if (!selection?.rangeCount || !surface.contains(selection.anchorNode)) {
+    const selection = readSelection();
+    if (!selection || sameSelection(selection, knownSelection)) {
       return;
     }
-    if (!anchorLine || !headLine) {
-      return;
-    }
-    emit(
-      `sel:${cellId}:${anchorLine.dataset.ln}:`
-      + `${columnInLine(anchorLine, selection.anchorNode, selection.anchorOffset)}:`
-      + `${headLine.dataset.ln}:`
-      + `${columnInLine(headLine, selection.focusNode, selection.focusOffset)}`);
+    rememberSelection(selection);
+    emit(`sel:${cellId}:${selectionArguments(selection)}`);
   };
 
   const reportSelection = () => {
-    if (!selectionSyncPending.has(surface)) {
-      emitSelection();
-    }
-  };
-
-  const captureMutation = event => {
-    const { selection, anchorLine, headLine } = readSelection();
-    if (event.inputType === 'insertText'
-        && event.data !== null
-        && !event.data.includes('\n')
-        && !event.data.includes('\r')
-        && selection?.rangeCount
-        && anchorLine === headLine
-        && anchorLine?.parentNode === surface) {
-      const anchorColumn = columnInLine(
-        anchorLine,
-        selection.anchorNode,
-        selection.anchorOffset);
-      const headColumn = columnInLine(
-        headLine,
-        selection.focusNode,
-        selection.focusOffset);
-      pendingTextInput = {
-        line: anchorLine,
-        from: Math.min(anchorColumn, headColumn),
-        to: Math.max(anchorColumn, headColumn),
-        text: event.data,
-      };
-    }
-    if (pendingMutationLine !== undefined) {
+    if (selectionSyncPending.has(surface)
+        || pendingMutation
+        || composing
+        || compositionEnding) {
       return;
     }
-    const changesStructure = event.inputType === 'insertParagraph'
-      || event.inputType === 'insertLineBreak'
-      || event.inputType === 'insertFromPaste'
-      || event.inputType === 'insertFromDrop'
+    emitSelection();
+  };
+
+  const beginMutation = event => {
+    const selection = readSelection();
+    const inputType = event.inputType || 'insertText';
+    if ((composing || compositionEnding) && pendingMutation) {
+      pendingMutation.inputType = inputType;
+      pendingMutation.exactText = null;
+      if (event.data?.includes('\n') || event.data?.includes('\r')) {
+        pendingMutation.line = null;
+      }
+      return;
+    }
+    const changesStructure = inputType === 'insertParagraph'
+      || inputType === 'insertLineBreak'
+      || inputType === 'insertFromPaste'
+      || inputType === 'insertFromDrop'
       || event.data?.includes('\n')
       || event.data?.includes('\r');
-    pendingMutationLine = !changesStructure
-      && anchorLine === headLine
-      && anchorLine?.parentNode === surface
-      ? anchorLine
+    const line = !changesStructure
+      && selection?.anchorLine === selection?.headLine
+      ? selection.anchorLine
       : null;
+    const exactText = inputType === 'insertText'
+      && typeof event.data === 'string'
+      && !event.data.includes('\n')
+      && !event.data.includes('\r')
+      && line
+      ? event.data
+      : null;
+    pendingMutation = {
+      before: selectionCoordinates(selection) ?? knownSelection,
+      line,
+      structure: [...surface.children],
+      inputType,
+      exactText,
+    };
   };
 
   const reportMutation = () => {
     clearCaretMarkers(surface, true);
-    const textInput = pendingTextInput;
-    pendingTextInput = undefined;
-    const selection = window.getSelection();
-    const line = pendingMutationLine === undefined
-      ? selection?.anchorNode
-        ? lineOf(surface, selection.anchorNode)
-        : null
-      : pendingMutationLine;
-    pendingMutationLine = undefined;
-    if (textInput?.line.parentNode === surface) {
-      emit(
-        `muttext:${cellId}:${textInput.line.dataset.ln}:`
-        + `${textInput.from}:${textInput.to}:`
-        + encodeURIComponent(textInput.text));
-    } else if (line?.parentNode === surface) {
-      emit(`mutline:${cellId}:${line.dataset.ln}\0${line.textContent}`);
+    const mutation = pendingMutation;
+    pendingMutation = undefined;
+    const structureMatches = mutation
+      && mutation.structure?.length === surface.children.length
+      && mutation.structure.every((line, index) => line === surface.children[index]);
+    const after = structureMatches === false
+      ? readSelectionByDomOrder()
+      : readSelection();
+    rememberSelection(after);
+    if (!mutation) {
+      return;
+    }
+
+    let scope;
+    let lineIndex;
+    let replacement;
+    if (structureMatches
+        && mutation.exactText !== null
+        && mutation.line?.parentNode === surface) {
+      scope = 't';
+      lineIndex = Number(mutation.line.dataset.ln);
+      replacement = mutation.exactText;
+    } else if (structureMatches && mutation.line?.parentNode === surface) {
+      scope = 'l';
+      lineIndex = Number(mutation.line.dataset.ln);
+      replacement = mutation.line.textContent.replaceAll(caretMarkerText, '');
     } else {
-      selectionSyncPending.add(surface);
-      emit(`mutall:${cellId}:\0${surface.innerText}`);
+      scope = 'd';
+      lineIndex = -1;
+      replacement = surface.innerText
+        .replaceAll(caretMarkerText, '')
+        .replaceAll('\r\n', '\n')
+        .replaceAll('\r', '\n');
+    }
+    emit(
+      `mut:${cellId}:${scope}:${lineIndex}:`
+      + `${selectionArguments(mutation.before)}:`
+      + `${selectionArguments(after)}:`
+      + `${encodeURIComponent(mutation.inputType)}:`
+      + encodeURIComponent(replacement));
+  };
+
+  const cancelCompositionCommit = () => {
+    if (compositionCommitTimer !== undefined) {
+      clearTimeout(compositionCommitTimer);
+      compositionCommitTimer = undefined;
     }
   };
+
+  const scheduleCompositionCommit = () => {
+    cancelCompositionCommit();
+    const generation = ++compositionGeneration;
+    compositionCommitTimer = setTimeout(() => {
+      compositionCommitTimer = undefined;
+      if (composing || generation !== compositionGeneration) {
+        return;
+      }
+      compositionEnding = false;
+      reportMutation();
+    }, 20);
+  };
+
+  const commandSelection = () => hasPendingCommand() ? null : readSelection();
+  const emitKeyCommand = (key, control, shift, alt) => emitCommand(
+    'key',
+    commandSelection(),
+    `${key}:${control}:${shift}:${alt}`);
+  const emitTextCommand = text => emitCommand(
+    'text',
+    commandSelection(),
+    encodeURIComponent(text));
 
   const handlers = {
     beforeinput(event) {
       selectionSyncPending.delete(surface);
-      pendingTextInput = undefined;
-      const { anchorLine, headLine } = readSelection();
-      if (event.inputType === 'insertText'
+      const selection = readSelection();
+      if (!composing
+          && !compositionEnding
+          && event.inputType === 'insertText'
           && event.data !== null
-          && anchorLine
-          && headLine
-          && (hasPendingCommand() || anchorLine !== headLine)) {
+          && selection
+          && (hasPendingCommand()
+            || selection.anchorLine !== selection.headLine)) {
         event.preventDefault();
-        pendingMutationLine = undefined;
-        emitCommand('text', encodeURIComponent(event.data));
+        pendingMutation = undefined;
+        emitTextCommand(event.data);
         return;
       }
-      captureMutation(event);
+      if (!composing
+          && !compositionEnding
+          && (event.inputType === 'insertParagraph'
+            || event.inputType === 'insertLineBreak')) {
+        event.preventDefault();
+        pendingMutation = undefined;
+        emitKeyCommand('Enter', false, false, false);
+        return;
+      }
+      if (!composing
+          && !compositionEnding
+          && event.inputType === 'deleteContentBackward') {
+        event.preventDefault();
+        pendingMutation = undefined;
+        emitKeyCommand('Backspace', false, false, false);
+        return;
+      }
+      if (!composing
+          && !compositionEnding
+          && event.inputType === 'deleteWordBackward') {
+        event.preventDefault();
+        pendingMutation = undefined;
+        emitKeyCommand('Backspace', true, false, false);
+        return;
+      }
+      if (!composing
+          && !compositionEnding
+          && event.inputType === 'deleteContentForward') {
+        event.preventDefault();
+        pendingMutation = undefined;
+        emitKeyCommand('Delete', false, false, false);
+        return;
+      }
+      if (!composing
+          && !compositionEnding
+          && event.inputType === 'deleteWordForward') {
+        event.preventDefault();
+        pendingMutation = undefined;
+        emitKeyCommand('Delete', true, false, false);
+        return;
+      }
+      if (!composing && !compositionEnding && event.inputType === 'deleteByCut') {
+        event.preventDefault();
+        pendingMutation = undefined;
+        emitTextCommand('');
+        return;
+      }
+      if (!composing
+          && !compositionEnding
+          && (event.inputType === 'insertFromPaste'
+            || event.inputType === 'insertFromDrop')) {
+        const text = event.data ?? event.dataTransfer?.getData('text/plain');
+        if (text !== undefined && text !== null) {
+          event.preventDefault();
+          pendingMutation = undefined;
+          emitTextCommand(text.replaceAll('\r\n', '\n').replaceAll('\r', '\n'));
+          return;
+        }
+      }
+      beginMutation(event);
     },
     pointerdown() {
       selectionSyncPending.delete(surface);
     },
     pointerup: reportSelection,
+    selectionchange() {
+      if (selectionSyncPending.has(surface)) {
+        selectionSyncPending.delete(surface);
+        return;
+      }
+      reportSelection();
+    },
     keydown(event) {
       selectionSyncPending.delete(surface);
-      if (event.isComposing) {
+      if (event.isComposing || composing || compositionEnding) {
         return;
       }
       const control = (event.ctrlKey || event.metaKey) && !event.altKey;
       const key = control && event.key.length === 1
         ? event.key.toLowerCase()
         : event.key;
-      if (!control
-          && !event.altKey
-          && event.key.length === 1
-          && !hasPendingCommand()) {
-        captureMutation(event);
-      }
       const handlesKey = control
         ? controlKeys.has(key)
         : specialKeys.has(key);
       if (handlesKey) {
         event.preventDefault();
-        emitCommand(
-          'key',
-          `${key}:${event.ctrlKey || event.metaKey}:`
-          + `${event.shiftKey}:${event.altKey}`);
+        emitKeyCommand(
+          key,
+          event.ctrlKey || event.metaKey,
+          event.shiftKey,
+          event.altKey);
       }
     },
     input(event) {
-      if (!event.isComposing) {
-        reportMutation();
+      if (event.isComposing || composing) {
+        return;
       }
+      pendingMutation ??= {
+        before: knownSelection,
+        line: null,
+        structure: null,
+        inputType: event.inputType || 'insertText',
+        exactText: null,
+      };
+      if (compositionEnding) {
+        scheduleCompositionCommit();
+        return;
+      }
+      queueMicrotask(() => {
+        if (!composing && !compositionEnding) {
+          reportMutation();
+        }
+      });
+    },
+    compositionstart(event) {
+      selectionSyncPending.delete(surface);
+      cancelCompositionCommit();
+      composing = true;
+      compositionEnding = false;
+      compositionGeneration++;
+      beginMutation(event);
     },
     compositionend() {
-      reportMutation();
+      composing = false;
+      compositionEnding = true;
+      scheduleCompositionCommit();
+    },
+    dispose() {
+      compositionGeneration++;
+      cancelCompositionCommit();
     },
     acknowledge(sequence) {
       acknowledgedCommandSequence = Math.max(acknowledgedCommandSequence, sequence);
     },
+    rememberSelection,
   };
 
   surface.addEventListener('beforeinput', handlers.beforeinput);
@@ -388,8 +634,11 @@ function attachEditorSurface(cellId, surface) {
   surface.addEventListener('pointerup', handlers.pointerup);
   surface.addEventListener('keydown', handlers.keydown);
   surface.addEventListener('input', handlers.input);
+  surface.addEventListener('compositionstart', handlers.compositionstart);
   surface.addEventListener('compositionend', handlers.compositionend);
+  document.addEventListener('selectionchange', handlers.selectionchange);
   editorHandlers.set(cellId, handlers);
+  editorSurfaceHandlers.set(surface, handlers);
 }
 
 function detachEditorSurface(cellId, surface) {
@@ -403,13 +652,17 @@ function detachEditorSurface(cellId, surface) {
     editorSelectionUpdates.delete(surface);
   }
   selectionSyncPending.delete(surface);
+  handlers.dispose();
   surface.removeEventListener('beforeinput', handlers.beforeinput);
   surface.removeEventListener('pointerdown', handlers.pointerdown);
   surface.removeEventListener('pointerup', handlers.pointerup);
   surface.removeEventListener('keydown', handlers.keydown);
   surface.removeEventListener('input', handlers.input);
+  surface.removeEventListener('compositionstart', handlers.compositionstart);
   surface.removeEventListener('compositionend', handlers.compositionend);
+  document.removeEventListener('selectionchange', handlers.selectionchange);
   editorHandlers.delete(cellId);
+  editorSurfaceHandlers.delete(surface);
 }
 
 function acknowledgeEditorCommand(cellId, sequence) {
@@ -510,40 +763,205 @@ function applyEditorSelection(surface, update) {
   }
   const selection = window.getSelection();
   selectionSyncPending.add(surface);
+  editorSurfaceHandlers.get(surface)?.rememberSelection(update);
   selection.setBaseAndExtent(anchor.node, anchor.offset, head.node, head.offset);
   headLine.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   return true;
 }
 
-function placeOverlay(container, anchor, overlay) {
-  const containerRect = container.getBoundingClientRect();
-  const selection = window.getSelection();
-  let anchorRect = anchor.getBoundingClientRect();
-  if (selection?.rangeCount && anchor.contains(selection.focusNode)) {
-    const range = selection.getRangeAt(0).cloneRange();
-    range.collapse(false);
-    const selectionRect = range.getBoundingClientRect();
-    if (selectionRect.width || selectionRect.height) {
-      anchorRect = selectionRect;
+function editorPositionRect(surface, lineIndex, column) {
+  const line = surface.querySelector(`[data-ln="${lineIndex}"]`);
+  if (!line || column < 0) {
+    return null;
+  }
+
+  let remaining = column;
+  let point = null;
+  let lastText = null;
+  const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (node.parentElement?.closest?.(caretMarkerSelector)) {
+      continue;
+    }
+    const length = node.nodeValue.length;
+    if (remaining <= length) {
+      point = { node, offset: remaining };
+      break;
+    }
+    remaining -= length;
+    lastText = node;
+  }
+  if (!point && remaining === 0 && lastText) {
+    point = { node: lastText, offset: lastText.nodeValue.length };
+  }
+  if (!point && column !== 0) {
+    return null;
+  }
+  point ??= { node: line, offset: 0 };
+
+  const range = document.createRange();
+  range.setStart(point.node, point.offset);
+  range.collapse(true);
+  let rect = range.getBoundingClientRect();
+  if (rect.height) {
+    return rect;
+  }
+
+  if (point.node.nodeType === Node.TEXT_NODE && point.node.nodeValue.length) {
+    if (point.offset < point.node.nodeValue.length) {
+      range.setEnd(point.node, point.offset + 1);
+      rect = range.getBoundingClientRect();
+      if (rect.height) {
+        return {
+          left: rect.left,
+          right: rect.left,
+          top: rect.top,
+          bottom: rect.bottom,
+          width: 0,
+          height: rect.height,
+        };
+      }
+    } else if (point.offset > 0) {
+      range.setStart(point.node, point.offset - 1);
+      rect = range.getBoundingClientRect();
+      if (rect.height) {
+        return {
+          left: rect.right,
+          right: rect.right,
+          top: rect.top,
+          bottom: rect.bottom,
+          width: 0,
+          height: rect.height,
+        };
+      }
     }
   }
 
-  overlay.style.visibility = 'hidden';
+  const lineRect = line.getBoundingClientRect();
+  return {
+    left: lineRect.left,
+    right: lineRect.left,
+    top: lineRect.top,
+    bottom: lineRect.bottom,
+    width: 0,
+    height: lineRect.height,
+  };
+}
+
+function positionOverlay(placement) {
+  const { container, surface, overlay, viewport, lineIndex, column } = placement;
+  if (!overlay.isConnected) {
+    clearOverlayPlacement(overlay);
+    return;
+  }
+
+  const anchorRect = editorPositionRect(surface, lineIndex, column);
+  const viewportRect = viewport.getBoundingClientRect();
+  if (!anchorRect
+      || anchorRect.bottom < viewportRect.top
+      || anchorRect.top > viewportRect.bottom
+      || anchorRect.right < viewportRect.left
+      || anchorRect.left > viewportRect.right) {
+    overlay.style.visibility = 'hidden';
+    return;
+  }
+
   const margin = 4;
-  const overlayWidth = overlay.offsetWidth;
-  const overlayHeight = overlay.offsetHeight;
-  const preferredTop = anchorRect.bottom - containerRect.top + margin;
-  const top = preferredTop + overlayHeight <= container.clientHeight
-    ? preferredTop
-    : Math.max(margin, anchorRect.top - containerRect.top - overlayHeight - margin);
+  const rootFontSize = Number.parseFloat(
+    getComputedStyle(document.documentElement).fontSize) || 16;
+  const availableWidth = Math.max(0, viewportRect.width - margin * 2);
+  if (!availableWidth) {
+    overlay.style.visibility = 'hidden';
+    return;
+  }
+
+  overlay.style.visibility = 'hidden';
+  overlay.style.width = `${Math.min(rootFontSize * 22, availableWidth)}px`;
+  overlay.style.height = '';
+  overlay.style.maxHeight = '12rem';
+
+  const spaceAbove = Math.max(0, anchorRect.top - viewportRect.top - margin);
+  const spaceBelow = Math.max(0, viewportRect.bottom - anchorRect.bottom - margin);
+  const naturalHeight = overlay.offsetHeight;
+  let side = overlay.dataset.overlaySide || 'below';
+  const sideSpace = side === 'above' ? spaceAbove : spaceBelow;
+  const otherSpace = side === 'above' ? spaceBelow : spaceAbove;
+  if (sideSpace < naturalHeight && otherSpace > sideSpace) {
+    side = side === 'above' ? 'below' : 'above';
+  }
+  overlay.dataset.overlaySide = side;
+
+  const availableHeight = side === 'above' ? spaceAbove : spaceBelow;
+  overlay.style.maxHeight = `${Math.min(rootFontSize * 12, availableHeight)}px`;
+  const overlayRect = overlay.getBoundingClientRect();
+  const containerRect = container.getBoundingClientRect();
   const left = Math.max(
-    42,
+    viewportRect.left + margin,
     Math.min(
-      anchorRect.left - containerRect.left,
-      container.clientWidth - overlayWidth - margin));
-  overlay.style.top = `${top}px`;
-  overlay.style.left = `${left}px`;
+      anchorRect.left,
+      viewportRect.right - overlayRect.width - margin));
+  const top = side === 'above'
+    ? anchorRect.top - overlayRect.height - margin
+    : anchorRect.bottom + margin;
+  overlay.style.left = `${left - containerRect.left}px`;
+  overlay.style.top = `${top - containerRect.top}px`;
   overlay.style.visibility = '';
+}
+
+function placeOverlay(container, surface, overlay, lineIndex, column) {
+  let placement = overlayPlacements.get(overlay);
+  const viewport = surface.parentElement || container;
+  if (placement
+      && (placement.container !== container
+        || placement.surface !== surface
+        || placement.viewport !== viewport)) {
+    clearOverlayPlacement(overlay);
+    placement = null;
+  }
+  if (!placement) {
+    const controller = new AbortController();
+    placement = {
+      container,
+      surface,
+      overlay,
+      viewport,
+      lineIndex,
+      column,
+      controller,
+      frame: 0,
+      schedule: null,
+    };
+    placement.schedule = () => {
+      cancelAnimationFrame(placement.frame);
+      placement.frame = requestAnimationFrame(() => positionOverlay(placement));
+    };
+    viewport.addEventListener('scroll', placement.schedule, {
+      passive: true,
+      signal: controller.signal,
+    });
+    window.addEventListener('resize', placement.schedule, {
+      passive: true,
+      signal: controller.signal,
+    });
+    overlayPlacements.set(overlay, placement);
+  }
+
+  placement.lineIndex = lineIndex;
+  placement.column = column;
+  cancelAnimationFrame(placement.frame);
+  placement.frame = 0;
+  positionOverlay(placement);
+}
+
+function clearOverlayPlacement(overlay) {
+  const placement = overlayPlacements.get(overlay);
+  if (!placement) {
+    return;
+  }
+  cancelAnimationFrame(placement.frame);
+  placement.controller.abort();
+  overlayPlacements.delete(overlay);
+  delete overlay.dataset.overlaySide;
 }
 
 function ensureVisible(container, element) {
@@ -582,6 +1000,7 @@ setModuleImports('main.js', {
   acknowledgeEditorCommand,
   setEditorSelection,
   placeOverlay,
+  clearOverlayPlacement,
   ensureVisible,
   syncGutterScroll(scroll, gutter) {
     scroll.addEventListener('scroll', () => { gutter.scrollTop = scroll.scrollTop; });

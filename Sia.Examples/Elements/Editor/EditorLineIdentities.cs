@@ -16,6 +16,9 @@ public readonly record struct EditorLineIdentities(int[] Values, int NextValue)
         if (changes.IsEmpty) {
             return this;
         }
+        if (PreservesLineStructure(changes, oldDocument, newDocument)) {
+            return this;
+        }
 
         var mapping = LineReuseMap.Compute(changes, oldDocument, newDocument);
         var values = new int[newDocument.Lines];
@@ -36,5 +39,24 @@ public readonly record struct EditorLineIdentities(int[] Values, int NextValue)
             }
         }
         return new(values, nextValue);
+    }
+
+    private static bool PreservesLineStructure(
+        ChangeSet changes,
+        Text oldDocument,
+        Text newDocument)
+    {
+        var preserves = true;
+        changes.IterateChangedRanges((fromA, toA, fromB, toB) => {
+            if (!preserves) {
+                return;
+            }
+            var oldStart = oldDocument.LineAt(fromA).Number;
+            var newStart = newDocument.LineAt(fromB).Number;
+            var oldLineCount = oldDocument.LineAt(toA).Number - oldStart;
+            var newLineCount = newDocument.LineAt(toB).Number - newStart;
+            preserves = oldStart == newStart && oldLineCount == newLineCount;
+        }, individual: true);
+        return preserves;
     }
 }

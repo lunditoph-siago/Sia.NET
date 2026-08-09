@@ -19,7 +19,8 @@ public static partial class EditorViewComponent
                     props.View,
                     state.Value.Doc,
                     state.Value.Decorations,
-                    state.Value.LineIdentities)),
+                    state.Value.LineIdentities,
+                    state.Value.LineUpdate)),
             RenderActiveLine(new(
                 props.View,
                 new(state.Value.LineIdentities.Values[headLine.Number - 1]))),

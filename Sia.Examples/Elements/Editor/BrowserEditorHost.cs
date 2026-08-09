@@ -8,6 +8,7 @@ namespace Sia_Examples.Editor;
 public sealed class BrowserEditorHost : IDisposable
 {
     private const int _completionDelayMilliseconds = 80;
+    private const int _maximumRenderedCompletions = 20;
 
     private readonly string _cellId;
     private readonly World _world;
@@ -18,11 +19,14 @@ public sealed class BrowserEditorHost : IDisposable
 
     private State<EditorState>? _state;
     private CompletionResult? _completion;
+    private CompletionResult? _completionSource;
     private DomElement? _completionPopup;
     private CancellationTokenSource? _completionCancellation;
     private int _completionIndex;
     private int _completionGeneration;
+    private int _completionQueryAnchor = -1;
     private bool _completionPending;
+    private bool _completionQueryRunning;
     private bool _disposed;
 
     public BrowserEditorHost(
@@ -49,9 +53,7 @@ public sealed class BrowserEditorHost : IDisposable
         => eventType switch {
             "key" => HandleKey(arguments),
             "text" => HandleTextInput(arguments),
-            "muttext" => HandleTextMutation(arguments),
-            "mutline" => HandleLineMutation(arguments),
-            "mutall" => HandleDocumentMutation(arguments),
+            "mut" => HandleDomMutation(arguments),
             "sel" => HandleSelection(arguments),
             "complete" => HandleCompletionRequest(arguments),
             _ => false,
@@ -91,15 +93,21 @@ public sealed class BrowserEditorHost : IDisposable
 
     private bool HandleTextInput(string arguments)
     {
-        if (!TryReadCommand(arguments, out var sequence, out var encodedText)) {
+        if (!TryReadCommand(arguments, out var sequence, out var commandArguments)) {
             return false;
         }
 
         try {
             var before = State.Value;
-            var after = before;
-            var text = Uri.UnescapeDataString(encodedText);
-            TextCommands.Insert(new(before, state => after = state), text);
+            if (!TryReadTextCommand(
+                commandArguments,
+                out var nativeSelection,
+                out var text)) {
+                return false;
+            }
+
+            var after = ApplyNativeSelection(before, nativeSelection);
+            TextCommands.Insert(new(after, state => after = state), text);
             Commit(after);
             ScheduleCompletion(before, after);
             return true;
@@ -108,87 +116,259 @@ public sealed class BrowserEditorHost : IDisposable
         }
     }
 
-    private bool HandleLineMutation(string arguments)
+    private bool HandleDomMutation(string arguments)
     {
-        var separator = arguments.IndexOf('\0');
-        if (separator < 0
-            || !int.TryParse(arguments[..separator], out var lineIndex)) {
+        if (!TryReadDomMutation(arguments, out var mutation)) {
             return false;
         }
 
         var before = State.Value;
-        if (lineIndex < 0 || lineIndex >= before.Doc.Lines) {
+        var beforeSelection = TryResolveSelection(
+            before.Doc,
+            mutation.Before,
+            out var resolvedBeforeSelection)
+            ? resolvedBeforeSelection
+            : before.Selection;
+        if (!TryCreateDomChange(
+            before,
+            beforeSelection,
+            mutation,
+            out var change,
+            out var preservedLineIdentity)) {
             return false;
         }
-        var line = before.Doc.Line(lineIndex + 1);
-        var replacement = arguments[(separator + 1)..];
-        if (TextDiff.Minimal(line.Text, replacement) is not { } difference) {
+
+        var changes = change is { } edit
+            ? ChangeSet.Of([edit], before.Doc.Length)
+            : ChangeSet.Empty(before.Doc.Length);
+        var document = changes.Apply(before.Doc);
+        var hasNativeSelection = TryResolveSelection(
+            document,
+            mutation.After,
+            out var nativeSelection);
+        var selection = hasNativeSelection
+            ? nativeSelection
+            : beforeSelection.Map(changes);
+        if (change is null && selection.Eq(before.Selection, true)) {
             return true;
         }
 
-        var (from, to, insert) = difference;
-        var documentFrom = line.From + from;
-        var change = new ChangeSpec(documentFrom, line.From + to, insert);
         var after = before.Apply(new() {
-            Changes = [change],
-            Selection = EditorSelection.Single(documentFrom + insert.Length),
+            Changes = change is { } documentChange ? [documentChange] : null,
+            Selection = selection,
         });
-        _view.SuppressNextSelectionUpdate();
-        _view.PreserveNativeEdit(before.LineIdentities.Values[lineIndex]);
+        if (mutation.Scope == DomMutationScope.Document) {
+            _view.RestoreDocumentStructure();
+        } else {
+            if (hasNativeSelection) {
+                _view.SuppressNextSelectionUpdate();
+            }
+            if (preservedLineIdentity is { } lineIdentity) {
+                _view.PreserveNativeEdit(lineIdentity);
+            }
+        }
         Commit(after);
         ScheduleCompletion(before, after);
         return true;
     }
 
-    private bool HandleTextMutation(string arguments)
+    private static bool TryCreateDomChange(
+        EditorState state,
+        EditorSelection beforeSelection,
+        DomMutation mutation,
+        out ChangeSpec? change,
+        out int? preservedLineIdentity)
     {
-        var parts = arguments.Split(':', 4);
-        if (parts.Length < 4
-            || !int.TryParse(parts[0], out var lineIndex)
-            || !int.TryParse(parts[1], out var from)
-            || !int.TryParse(parts[2], out var to)) {
-            return false;
+        TextDifference? difference;
+        var offset = 0;
+        preservedLineIdentity = null;
+        switch (mutation.Scope) {
+            case DomMutationScope.Text:
+                if (!TryGetMutationLine(state, mutation.LineIndex, out var textLine)) {
+                    change = null;
+                    return false;
+                }
+                var selection = beforeSelection.Main;
+                if (selection.From < textLine.From || selection.To > textLine.To) {
+                    change = null;
+                    return false;
+                }
+                difference = new(
+                    selection.From - textLine.From,
+                    selection.To - textLine.From,
+                    mutation.Replacement);
+                offset = textLine.From;
+                preservedLineIdentity = state.LineIdentities.Values[mutation.LineIndex];
+                break;
+
+            case DomMutationScope.Line:
+                if (!TryGetMutationLine(state, mutation.LineIndex, out var line)) {
+                    change = null;
+                    return false;
+                }
+                var localFrom = Math.Clamp(
+                    beforeSelection.Main.From - line.From,
+                    0,
+                    line.Length);
+                var localTo = Math.Clamp(
+                    beforeSelection.Main.To - line.From,
+                    localFrom,
+                    line.Length);
+                difference = TextDiff.FindForSelection(
+                    line.Text,
+                    mutation.Replacement,
+                    localFrom,
+                    localTo,
+                    MutationPreference(mutation.InputType));
+                offset = line.From;
+                preservedLineIdentity = state.LineIdentities.Values[mutation.LineIndex];
+                break;
+
+            case DomMutationScope.Document:
+                difference = TextDiff.FindForSelection(
+                    state.Doc.SliceDoc(),
+                    mutation.Replacement,
+                    beforeSelection.Main.From,
+                    beforeSelection.Main.To,
+                    MutationPreference(mutation.InputType));
+                break;
+
+            default:
+                change = null;
+                return false;
         }
 
-        var before = State.Value;
-        if (lineIndex < 0 || lineIndex >= before.Doc.Lines) {
-            return false;
-        }
-        var line = before.Doc.Line(lineIndex + 1);
-        if (from < 0 || from > to || to > line.Length) {
-            return false;
-        }
-
-        var after = before.Apply(new() {
-            Selection = EditorSelection.Single(line.From + from, line.From + to),
-        });
-        var text = Uri.UnescapeDataString(parts[3]);
-        TextCommands.Insert(new(after, state => after = state), text);
-        _view.SuppressNextSelectionUpdate();
-        _view.PreserveNativeEdit(before.LineIdentities.Values[lineIndex]);
-        Commit(after);
-        ScheduleCompletion(before, after);
+        change = difference is { } edit
+            ? new(offset + edit.From, offset + edit.To, edit.Insert)
+            : null;
         return true;
     }
 
-    private bool HandleDocumentMutation(string arguments)
+    private static TextDiff.Preference MutationPreference(string inputType)
+        => inputType.Contains("Backward", StringComparison.Ordinal)
+            ? TextDiff.Preference.End
+            : TextDiff.Preference.None;
+
+    private static bool TryGetMutationLine(
+        EditorState state,
+        int lineIndex,
+        out Line line)
     {
-        var separator = arguments.IndexOf('\0');
-        var replacement = separator < 0 ? arguments : arguments[(separator + 1)..];
-        var before = State.Value;
-        if (TextDiff.Minimal(before.Doc.SliceDoc(), replacement) is not { } difference) {
-            return true;
+        if (lineIndex < 0 || lineIndex >= state.Doc.Lines) {
+            line = default;
+            return false;
+        }
+        line = state.Doc.Line(lineIndex + 1);
+        return true;
+    }
+
+    private static bool TryReadDomMutation(string arguments, out DomMutation mutation)
+    {
+        var parts = arguments.Split(':', 12);
+        if (parts.Length < 12
+            || !TryReadMutationScope(parts[0], out var scope)
+            || !int.TryParse(parts[1], out var lineIndex)
+            || !TryReadSelection(parts, 2, out var before)
+            || !TryReadSelection(parts, 6, out var after)) {
+            mutation = default;
+            return false;
         }
 
-        var (from, to, insert) = difference;
-        var after = before.Apply(new() {
-            Changes = [new(from, to, insert)],
-            Selection = EditorSelection.Single(from + insert.Length),
-        });
-        _view.RestoreDocumentStructure();
-        Commit(after);
-        ScheduleCompletion(before, after);
+        mutation = new(
+            scope,
+            lineIndex,
+            before,
+            after,
+            Uri.UnescapeDataString(parts[10]),
+            Uri.UnescapeDataString(parts[11]));
         return true;
+    }
+
+    private static bool TryReadMutationScope(string value, out DomMutationScope scope)
+    {
+        scope = value switch {
+            "t" => DomMutationScope.Text,
+            "l" => DomMutationScope.Line,
+            "d" => DomMutationScope.Document,
+            _ => DomMutationScope.Invalid,
+        };
+        return scope != DomMutationScope.Invalid;
+    }
+
+    private static bool TryReadTextCommand(
+        string arguments,
+        out BrowserSelection selection,
+        out string text)
+    {
+        var parts = arguments.Split(':', 5);
+        selection = default;
+        if (parts.Length < 5 || !TryReadSelection(parts, 0, out selection)) {
+            text = string.Empty;
+            return false;
+        }
+        text = Uri.UnescapeDataString(parts[4]);
+        return true;
+    }
+
+    private static bool TryReadSelection(
+        string[] parts,
+        int offset,
+        out BrowserSelection selection)
+    {
+        if (parts.Length < offset + 4
+            || !int.TryParse(parts[offset], out var anchorLineIndex)
+            || !int.TryParse(parts[offset + 1], out var anchorColumn)
+            || !int.TryParse(parts[offset + 2], out var headLineIndex)
+            || !int.TryParse(parts[offset + 3], out var headColumn)) {
+            selection = default;
+            return false;
+        }
+        selection = new(
+            anchorLineIndex,
+            anchorColumn,
+            headLineIndex,
+            headColumn);
+        return true;
+    }
+
+    private static bool TryResolveSelection(
+        Text document,
+        BrowserSelection native,
+        out EditorSelection selection)
+    {
+        if (native.AnchorLineIndex < 0
+            || native.AnchorLineIndex >= document.Lines
+            || native.HeadLineIndex < 0
+            || native.HeadLineIndex >= document.Lines
+            || native.AnchorColumn < 0
+            || native.HeadColumn < 0) {
+            selection = null!;
+            return false;
+        }
+
+        var anchorLine = document.Line(native.AnchorLineIndex + 1);
+        var headLine = document.Line(native.HeadLineIndex + 1);
+        selection = EditorSelection.Single(
+            Math.Clamp(
+                anchorLine.From + native.AnchorColumn,
+                anchorLine.From,
+                anchorLine.To),
+            Math.Clamp(
+                headLine.From + native.HeadColumn,
+                headLine.From,
+                headLine.To));
+        return true;
+    }
+
+    private static EditorState ApplyNativeSelection(
+        EditorState state,
+        BrowserSelection native)
+    {
+        if (!TryResolveSelection(state.Doc, native, out var selection)
+            || selection.Eq(state.Selection, true)) {
+            return state;
+        }
+        return state.Apply(new() { Selection = selection });
     }
 
     private bool HandleSelection(string arguments)
@@ -240,24 +420,42 @@ public sealed class BrowserEditorHost : IDisposable
 
     private bool HandleKeyCommand(string arguments)
     {
-        var parts = arguments.Split(':');
-        if (parts.Length < 4
-            || !bool.TryParse(parts[1], out var control)
-            || !bool.TryParse(parts[2], out var shift)) {
+        var parts = arguments.Split(':', 8);
+        if (parts.Length < 8
+            || !TryReadSelection(parts, 0, out var nativeSelection)
+            || !bool.TryParse(parts[5], out var control)
+            || !bool.TryParse(parts[6], out var shift)) {
             return false;
         }
-        var key = parts[0];
+        var key = parts[4];
+        if (key == "Tab" && shift && (_completionPending || _completion is not null)) {
+            CancelCompletion();
+        }
+
+        if (_completion is not null
+            && key is "ArrowUp" or "ArrowDown" or "Enter" or "Tab" or "Escape") {
+            HandleCompletionKey(key);
+            return true;
+        }
+
         if (_completionPending
             && key is "ArrowUp" or "ArrowDown" or "Enter" or "Tab" or "Escape") {
+            if (key == "Tab"
+                && !control
+                && !shift
+                && HandleManualCompletion(nativeSelection)) {
+                return true;
+            }
             CancelCompletion();
             if (key == "Escape") {
                 return true;
             }
         }
 
-        if (_completion is not null
-            && key is "ArrowUp" or "ArrowDown" or "Enter" or "Tab" or "Escape") {
-            HandleCompletionKey(key);
+        if (key == "Tab"
+            && !control
+            && !shift
+            && HandleManualCompletion(nativeSelection)) {
             return true;
         }
 
@@ -267,8 +465,8 @@ public sealed class BrowserEditorHost : IDisposable
         }
 
         var before = State.Value;
-        var after = before;
-        if (!command(new(before, state => after = state))) {
+        var after = ApplyNativeSelection(before, nativeSelection);
+        if (!command(new(after, state => after = state))) {
             return false;
         }
         Commit(after);
@@ -303,38 +501,73 @@ public sealed class BrowserEditorHost : IDisposable
 
     private void ScheduleCompletion(EditorState before, EditorState after)
     {
-        if (!after.Selection.Main.Empty) {
+        var isActive = _completionPending || _completionSource is not null;
+        if (!CompletionTrigger.ShouldActivate(before, after, isActive)) {
             CancelCompletion();
             return;
         }
 
-        var position = after.Selection.Main.Head;
-        var shouldQuery = false;
-        if (after.Doc.Length > before.Doc.Length
-            && position > 0
-            && position <= after.Doc.Length) {
-            var insertedCharacter = after.SliceDoc(position - 1, position)[0];
-            shouldQuery = insertedCharacter is '.' or '_'
-                || char.IsLetterOrDigit(insertedCharacter);
-        } else if (after.Doc.Length < before.Doc.Length) {
-            shouldQuery = true;
-        }
+        StartCompletion(after, _completionDelayMilliseconds);
+    }
 
-        if (!shouldQuery) {
-            CancelCompletion();
+    private bool HandleManualCompletion(BrowserSelection nativeSelection)
+    {
+        var before = State.Value;
+        var state = ApplyNativeSelection(before, nativeSelection);
+        if (!state.Selection.Main.Empty) {
+            return false;
+        }
+        if (state != before) {
+            _view.SuppressNextSelectionUpdate();
+            Commit(state);
+        }
+        StartCompletion(state, delayMilliseconds: 0);
+        return true;
+    }
+
+    private void StartCompletion(EditorState state, int delayMilliseconds)
+    {
+        var position = state.Selection.Main.Head;
+        var queryAnchor = CompletionIdentifier.FindStart(state.Doc, position);
+        if (_completionPending && queryAnchor == _completionQueryAnchor) {
+            if (!_completionQueryRunning) {
+                DomRuntime.ScheduleEvent(
+                    CompletionScheduleKey,
+                    $"complete:{_cellId}:{_completionGeneration}",
+                    delayMilliseconds);
+            }
             return;
         }
 
         CancelCompletionQuery();
+        if (_completionSource is { } source
+            && source.TryFilter(
+                state.Doc,
+                position,
+                _maximumRenderedCompletions,
+                out var filtered)) {
+            _completionPending = false;
+            _completionIndex = 0;
+            _completion = filtered;
+            if (filtered.HasItems) {
+                RenderCompletionPopup();
+            } else {
+                HideCompletionPopup();
+            }
+            return;
+        }
+
         _completionPending = true;
         _completion = null;
+        _completionSource = null;
+        _completionQueryAnchor = queryAnchor;
         var cancellation = new CancellationTokenSource();
         _completionCancellation = cancellation;
         var generation = _completionGeneration;
         DomRuntime.ScheduleEvent(
             CompletionScheduleKey,
             $"complete:{_cellId}:{generation}",
-            _completionDelayMilliseconds);
+            delayMilliseconds);
     }
 
     private bool HandleCompletionRequest(string arguments)
@@ -345,7 +578,11 @@ public sealed class BrowserEditorHost : IDisposable
             || cancellation.IsCancellationRequested) {
             return false;
         }
+        if (_completionQueryRunning) {
+            return true;
+        }
 
+        _completionQueryRunning = true;
         _ = QueryCompletionAsync(State.Value, cancellation, generation);
         return true;
     }
@@ -366,6 +603,14 @@ public sealed class BrowserEditorHost : IDisposable
                 return;
             }
 
+            var current = State.Value;
+            var currentPosition = current.Selection.Main.Head;
+            if (CompletionIdentifier.FindStart(current.Doc, currentPosition)
+                != _completionQueryAnchor) {
+                CancelCompletion();
+                return;
+            }
+
             _completionPending = false;
             _completionIndex = 0;
             if (!result.HasItems) {
@@ -373,7 +618,16 @@ public sealed class BrowserEditorHost : IDisposable
                 return;
             }
 
-            _completion = result;
+            _completionSource = result;
+            if (!result.TryFilter(
+                current.Doc,
+                currentPosition,
+                _maximumRenderedCompletions,
+                out var filtered)) {
+                CloseCompletionPopup();
+                return;
+            }
+            _completion = filtered;
             RenderCompletionPopup();
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) {
@@ -387,8 +641,9 @@ public sealed class BrowserEditorHost : IDisposable
         } finally {
             if (ReferenceEquals(_completionCancellation, cancellation)) {
                 _completionCancellation = null;
-                cancellation.Dispose();
+                _completionQueryRunning = false;
             }
+            cancellation.Dispose();
         }
     }
 
@@ -462,10 +717,14 @@ public sealed class BrowserEditorHost : IDisposable
             item.Dispose();
             _completionItems.RemoveAt(_completionItems.Count - 1);
         }
+        var anchorPosition = completion.Items.Min(static item => item.ReplaceStart);
+        var anchorLine = State.Value.Doc.LineAt(anchorPosition);
+        var anchorLineIndex = anchorLine.Number - 1;
+        var anchorColumn = anchorPosition - anchorLine.From;
         if (isNew) {
-            _view.MountOverlay(popup);
+            _view.MountOverlay(popup, anchorLineIndex, anchorColumn);
         } else {
-            _view.PlaceOverlay(popup);
+            _view.PlaceOverlay(popup, anchorLineIndex, anchorColumn);
         }
         DomRuntime.EnsureVisible(popup, _completionItems[_completionIndex].Element);
     }
@@ -501,14 +760,29 @@ public sealed class BrowserEditorHost : IDisposable
     {
         _completionGeneration++;
         DomRuntime.CancelScheduledEvent(CompletionScheduleKey);
-        _completionCancellation?.Cancel();
-        _completionCancellation?.Dispose();
+        var cancellation = _completionCancellation;
+        var queryWasRunning = _completionQueryRunning;
         _completionCancellation = null;
+        _completionQueryAnchor = -1;
+        _completionQueryRunning = false;
+        cancellation?.Cancel();
+        if (!queryWasRunning) {
+            cancellation?.Dispose();
+        }
     }
 
     private void CloseCompletionPopup()
     {
+        _completionSource = null;
+        HideCompletionPopup();
+    }
+
+    private void HideCompletionPopup()
+    {
         ClearCompletionItems();
+        if (_completionPopup is { } popup) {
+            DomRuntime.ClearOverlayPlacement(popup);
+        }
         _completionPopup?.Remove();
         _completionPopup?.Dispose();
         _completionPopup = null;
@@ -553,6 +827,28 @@ public sealed class BrowserEditorHost : IDisposable
             ("Escape", false, _) => SelectionCommands.SimplifySelection,
             _ => null,
         };
+
+    private enum DomMutationScope
+    {
+        Invalid,
+        Text,
+        Line,
+        Document,
+    }
+
+    private readonly record struct BrowserSelection(
+        int AnchorLineIndex,
+        int AnchorColumn,
+        int HeadLineIndex,
+        int HeadColumn);
+
+    private readonly record struct DomMutation(
+        DomMutationScope Scope,
+        int LineIndex,
+        BrowserSelection Before,
+        BrowserSelection After,
+        string InputType,
+        string Replacement);
 
     private State<EditorState> State
         => _state ??= _mount.GetState<EditorState>();
