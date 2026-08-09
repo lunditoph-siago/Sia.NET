@@ -8,6 +8,7 @@ namespace Sia_Examples.Editor;
 public sealed class BrowserEditorHost : IDisposable
 {
     private const int _completionDelayMilliseconds = 80;
+    private const int _highlightDelayMilliseconds = 150;
     private const int _maximumRenderedCompletions = 20;
 
     private readonly string _cellId;
@@ -29,6 +30,7 @@ public sealed class BrowserEditorHost : IDisposable
     private bool _completionQueryRunning;
     private bool _disposed;
     private string _highlightedSource;
+    private int _highlightGeneration;
 
     public BrowserEditorHost(
         World world,
@@ -58,6 +60,7 @@ public sealed class BrowserEditorHost : IDisposable
             "mut" => HandleDomMutation(arguments),
             "sel" => HandleSelection(arguments),
             "complete" => HandleCompletionRequest(arguments),
+            "highlight" => HandleHighlightRequest(arguments),
             _ => false,
         };
 
@@ -88,6 +91,7 @@ public sealed class BrowserEditorHost : IDisposable
         }
         _disposed = true;
         CancelCompletion();
+        DomRuntime.CancelScheduledEvent(HighlightScheduleKey);
         if (_mount.IsMounted) {
             _mount.Unmount();
         }
@@ -498,14 +502,35 @@ public sealed class BrowserEditorHost : IDisposable
         if (state == State.Value) {
             return;
         }
-        var source = state.Doc.SliceDoc();
-        if (source != _highlightedSource) {
-            state = state.WithDecorations(
-                EditorDecorations.FromHighlights(CSharpHighlighter.Classify(source)));
-            _highlightedSource = source;
+        if (state.Doc.SliceDoc() != _highlightedSource) {
+            ScheduleHighlight();
         }
         State.Set(state);
         _world.FlushReactive();
+    }
+
+    private void ScheduleHighlight()
+        => DomRuntime.ScheduleEvent(
+            HighlightScheduleKey,
+            $"highlight:{_cellId}:{++_highlightGeneration}",
+            _highlightDelayMilliseconds);
+
+    private bool HandleHighlightRequest(string arguments)
+    {
+        if (!int.TryParse(arguments, out var generation) || generation != _highlightGeneration) {
+            return false;
+        }
+
+        var source = State.Value.Doc.SliceDoc();
+        if (source == _highlightedSource) {
+            return true;
+        }
+
+        _highlightedSource = source;
+        var decorations = EditorDecorations.FromHighlights(CSharpHighlighter.Classify(source));
+        State.Set(State.Value.WithDecorations(decorations));
+        _world.FlushReactive();
+        return true;
     }
 
     private void ScheduleCompletion(EditorState before, EditorState after)
@@ -863,4 +888,6 @@ public sealed class BrowserEditorHost : IDisposable
         => _state ??= _mount.GetState<EditorState>();
 
     private string CompletionScheduleKey => $"completion:{_cellId}";
+
+    private string HighlightScheduleKey => $"highlight:{_cellId}";
 }
