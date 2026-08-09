@@ -193,29 +193,33 @@ const observeOptions = {
   subtree: true,
   characterDataOldValue: true,
 };
-const domWriteObservers = new Map();
-let domWriteDepth = 0;
-let domWriteReconnectScheduled = false;
+const surfaceObservers = new Map();
 
-function ignoreOwnWrites(write) {
-  if (domWriteDepth === 0) {
-    for (const observer of domWriteObservers.keys()) {
-      observer.disconnect();
-    }
+function resolveSurface(node) {
+  const element = node?.nodeType === Node.ELEMENT_NODE ? node : node?.parentElement;
+  return element?.closest?.('.editor-lines') ?? null;
+}
+
+function ignoreOwnWrites(write, scopeNode) {
+  const surface = resolveSurface(scopeNode);
+  const state = surface && surfaceObservers.get(surface);
+  if (!state) {
+    return write();
   }
-  domWriteDepth++;
+  if (state.depth === 0) {
+    state.observer.disconnect();
+  }
+  state.depth++;
   try {
     return write();
   } finally {
-    domWriteDepth--;
-    if (domWriteDepth === 0 && !domWriteReconnectScheduled) {
-      domWriteReconnectScheduled = true;
+    state.depth--;
+    if (state.depth === 0 && !state.reconnectScheduled) {
+      state.reconnectScheduled = true;
       queueMicrotask(() => {
-        domWriteReconnectScheduled = false;
-        if (domWriteDepth === 0) {
-          for (const [observer, target] of domWriteObservers) {
-            observer.observe(target, observeOptions);
-          }
+        state.reconnectScheduled = false;
+        if (state.depth === 0) {
+          state.observer.observe(surface, observeOptions);
         }
       });
     }
@@ -669,7 +673,7 @@ function attachEditorSurface(cellId, surface) {
       compositionGeneration++;
       cancelCompositionCommit();
       observer.disconnect();
-      domWriteObservers.delete(observer);
+      surfaceObservers.delete(surface);
     },
     acknowledge(sequence) {
       acknowledgedCommandSequence = Math.max(acknowledgedCommandSequence, sequence);
@@ -684,7 +688,7 @@ function attachEditorSurface(cellId, surface) {
   surface.addEventListener('compositionstart', handlers.compositionstart);
   surface.addEventListener('compositionend', handlers.compositionend);
   document.addEventListener('selectionchange', handlers.selectionchange);
-  domWriteObservers.set(observer, surface);
+  surfaceObservers.set(surface, { observer, depth: 0, reconnectScheduled: false });
   observer.observe(surface, observeOptions);
   editorHandlers.set(cellId, handlers);
   editorSurfaceHandlers.set(surface, handlers);
@@ -750,7 +754,7 @@ function scheduleEditorSelection(surface, update) {
 
 function applyEditorSelection(surface, update) {
   const { anchorLineIndex, anchorColumn, headLineIndex, headColumn } = update;
-  ignoreOwnWrites(() => clearCaretMarkers(surface, false));
+  ignoreOwnWrites(() => clearCaretMarkers(surface, false), surface);
   const findLine = index => surface.querySelector(`[data-ln="${index}"]`);
   const pointIn = (line, column) => {
     const lineLength = line.textContent.replaceAll(caretMarkerText, '').length;
@@ -771,7 +775,7 @@ function applyEditorSelection(surface, update) {
           } else {
             line.append(marker);
           }
-        });
+        }, line);
       }
       return {
         node: marker.firstChild,
@@ -1029,21 +1033,22 @@ const { setModuleImports, runMain, getConfig, getAssemblyExports } = await dotne
 setModuleImports('main.js', {
   find: id => document.getElementById(id),
   tryFind: id => document.getElementById(id),
-  create: tagName => ignoreOwnWrites(() => document.createElement(tagName)),
-  createText: value => ignoreOwnWrites(() => document.createTextNode(value)),
-  setText: (element, value) => ignoreOwnWrites(() => { element.textContent = value; }),
+  create: tagName => document.createElement(tagName),
+  createText: value => document.createTextNode(value),
+  setText: (element, value) => ignoreOwnWrites(() => { element.textContent = value; }, element),
   getText: element => element.textContent ?? '',
   getValue: element => element.value ?? '',
-  setId: (element, id) => ignoreOwnWrites(() => { element.id = id; }),
-  setAttr: (element, name, value) => ignoreOwnWrites(() => element.setAttribute(name, value)),
+  setId: (element, id) => ignoreOwnWrites(() => { element.id = id; }, element),
+  setAttr: (element, name, value) =>
+    ignoreOwnWrites(() => element.setAttribute(name, value), element),
   toggleClass: (element, name, enabled) =>
-    ignoreOwnWrites(() => element.classList.toggle(name, enabled)),
+    ignoreOwnWrites(() => element.classList.toggle(name, enabled), element),
   listen: (element, eventName, payload) => {
     element.addEventListener(eventName, () => emit(payload));
   },
   insertBefore: (parent, child, before) =>
-    ignoreOwnWrites(() => parent.insertBefore(child, before)),
-  remove: element => ignoreOwnWrites(() => element.remove()),
+    ignoreOwnWrites(() => parent.insertBefore(child, before), parent),
+  remove: element => ignoreOwnWrites(() => element.remove(), element),
   waitForEvent,
   scheduleEvent,
   cancelScheduledEvent,
