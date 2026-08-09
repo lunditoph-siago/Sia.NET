@@ -1,0 +1,149 @@
+<Project>
+
+  <ItemGroup>
+    <Compile Include="..\Sia.Examples\Elements\Editor\*.cs"
+             Exclude="..\Sia.Examples\Elements\Editor\Browser*.cs"
+             Link="Production\Editor\%(Filename)%(Extension)" />
+
+    <Compile Include="..\Sia.Examples\Elements\ExampleApp.cs"
+             Link="Production\Reactive\ExampleApp.cs" />
+    <Compile Include="..\Sia.Examples\Elements\ExampleAppProps.cs"
+             Link="Production\Reactive\ExampleAppProps.cs" />
+    <Compile Include="..\Sia.Examples\Elements\ExampleAppState.cs"
+             Link="Production\Reactive\ExampleAppState.cs" />
+    <Compile Include="..\Sia.Examples\Elements\ExampleItemView.cs"
+             Link="Production\Reactive\ExampleItemView.cs" />
+    <Compile Include="..\Sia.Examples\Elements\INotebookView.cs"
+             Link="Production\Reactive\INotebookView.cs" />
+    <Compile Include="..\Sia.Examples\Elements\IRenderHost.cs"
+             Link="Production\Reactive\IRenderHost.cs" />
+    <Compile Include="..\Sia.Examples\Elements\NotebookViewComponent.cs"
+             Link="Production\Reactive\NotebookViewComponent.cs" />
+    <Compile Include="..\Sia.Examples\Elements\NotebookCellsComponent.cs"
+             Link="Production\Reactive\NotebookCellsComponent.cs" />
+    <Compile Include="..\Sia.Examples\Elements\NotebookCellsProps.cs"
+             Link="Production\Reactive\NotebookCellsProps.cs" />
+    <Compile Include="..\Sia.Examples\Elements\NotebookPackagesComponent.cs"
+             Link="Production\Reactive\NotebookPackagesComponent.cs" />
+    <Compile Include="..\Sia.Examples\Elements\NotebookPackagesProps.cs"
+             Link="Production\Reactive\NotebookPackagesProps.cs" />
+    <Compile Include="..\Sia.Examples\Elements\NotebookViewProps.cs"
+             Link="Production\Reactive\NotebookViewProps.cs" />
+    <Compile Include="..\Sia.Examples\Elements\PackageCountView.cs"
+             Link="Production\Reactive\PackageCountView.cs" />
+    <Compile Include="..\Sia.Examples\Elements\PackageView.cs"
+             Link="Production\Reactive\PackageView.cs" />
+    <Compile Include="..\Sia.Examples\Elements\RenderEffect.cs"
+             Link="Production\Reactive\RenderEffect.cs" />
+
+    <Compile Include="..\Sia.Examples\Logic\*.cs"
+             Link="Production\Notebook\%(Filename)%(Extension)" />
+    <Compile Include="..\Sia.Examples\Logic\Highlighter\*.cs"
+             Link="Production\Notebook\Highlighter\%(Filename)%(Extension)" />
+
+    <Compile Include="..\Sia.Examples\Logic\Provider\AssemblyReferenceResolver.cs"
+             Link="Production\Provider\AssemblyReferenceResolver.cs" />
+    <Compile Include="..\Sia.Examples\Logic\Provider\FetchedAssembly.cs"
+             Link="Production\Provider\FetchedAssembly.cs" />
+    <Compile Include="..\Sia.Examples\Logic\Provider\ICompilationReferenceResolver.cs"
+             Link="Production\Provider\ICompilationReferenceResolver.cs" />
+    <Compile Include="..\Sia.Examples\Logic\Provider\IResourceLoader.cs"
+             Link="Production\Provider\IResourceLoader.cs" />
+    <Compile Include="..\Sia.Examples\Logic\Provider\NuGetAssemblyExtractor.cs"
+             Link="Production\Provider\NuGetAssemblyExtractor.cs" />
+    <Compile Include="..\Sia.Examples\Logic\Provider\PackageLoadState.cs"
+             Link="Production\Provider\PackageLoadState.cs" />
+    <Compile Include="..\Sia.Examples\Logic\Provider\PackageRef.cs"
+             Link="Production\Provider\PackageRef.cs" />
+    <Compile Include="..\Sia.Examples\Logic\Provider\PackageReferenceLoader.cs"
+             Link="Production\Provider\PackageReferenceLoader.cs" />
+    <Compile Include="..\Sia.Examples\Logic\Provider\PackageSource.cs"
+             Link="Production\Provider\PackageSource.cs" />
+    <Compile Include="..\Sia.Examples\Logic\Provider\PackageStatus.cs"
+             Link="Production\Provider\PackageStatus.cs" />
+
+    <Compile Include="..\Sia.Examples\Logic\Runner\CellPhase.cs"
+             Link="Production\Runner\CellPhase.cs" />
+    <Compile Include="..\Sia.Examples\Logic\Runner\CellRange.cs"
+             Link="Production\Runner\CellRange.cs" />
+    <Compile Include="..\Sia.Examples\Logic\Runner\CellState.cs"
+             Link="Production\Runner\CellState.cs" />
+    <Compile Include="..\Sia.Examples\Logic\Runner\GeneratorPipeline.cs"
+             Link="Production\Runner\GeneratorPipeline.cs" />
+    <Compile Include="..\Sia.Examples\Logic\Runner\NotebookCellSnapshot.cs"
+             Link="Production\Runner\NotebookCellSnapshot.cs" />
+    <Compile Include="..\Sia.Examples\Logic\Runner\NotebookCompiler.cs"
+             Link="Production\Runner\NotebookCompiler.cs" />
+    <Compile Include="..\Sia.Examples\Logic\Runner\NotebookCompileResult.cs"
+             Link="Production\Runner\NotebookCompileResult.cs" />
+    <Compile Include="..\Sia.Examples\Logic\Runner\NotebookDiagnostic.cs"
+             Link="Production\Runner\NotebookDiagnostic.cs" />
+    <Compile Include="..\Sia.Examples\Logic\Runner\NotebookDiagnosticSeverity.cs"
+             Link="Production\Runner\NotebookDiagnosticSeverity.cs" />
+    <Compile Include="..\Sia.Examples\Logic\Runner\NotebookExecuteResult.cs"
+             Link="Production\Runner\NotebookExecuteResult.cs" />
+    <Compile Include="..\Sia.Examples\Logic\Runner\NotebookInfo.cs"
+             Link="Production\Runner\NotebookInfo.cs" />
+    <Compile Include="..\Sia.Examples\Logic\Runner\NotebookLanguageContext.cs"
+             Link="Production\Runner\NotebookLanguageContext.cs" />
+    <Compile Include="..\Sia.Examples\Logic\Runner\NotebookLibrary.cs"
+             Link="Production\Runner\NotebookLibrary.cs" />
+    <Compile Include="..\Sia.Examples\Logic\Runner\NotebookProgram.cs"
+             Link="Production\Runner\NotebookProgram.cs" />
+    <Compile Include="..\Sia.Examples\Logic\Runner\NotebookProgramBuilder.cs"
+             Link="Production\Runner\NotebookProgramBuilder.cs" />
+    <Compile Include="..\Sia.Examples\Logic\Runner\NotebookSessionSnapshot.cs"
+             Link="Production\Runner\NotebookSessionSnapshot.cs" />
+    <Compile Include="..\Sia.Examples\Logic\Runner\PackageRegistry.cs"
+             Link="Production\Runner\PackageRegistry.cs" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net11.0'">
+    <Compile Include="..\Sia.Examples\Dom\IDomBackend.cs"
+             Link="Production\Console\IDomBackend.cs" />
+    <Compile Include="..\Sia.Examples\Dom\IDomNode.cs"
+             Link="Production\Console\IDomNode.cs" />
+    <Compile Include="..\Sia.Examples\Dom\Dom.cs"
+             Link="Production\Console\Dom.cs" />
+    <Compile Include="..\Sia.Examples\Dom\DomElement.cs"
+             Link="Production\Console\DomElement.cs" />
+    <Compile Include="..\Sia.Examples\Elements\Editor\Browser*.cs"
+             Link="Production\Editor\%(Filename)%(Extension)" />
+    <Compile Include="..\Sia.Examples\Console\ConsoleDomBackend*.cs"
+             Link="Production\Console\%(Filename)%(Extension)" />
+    <Compile Include="..\Sia.Examples\Console\ConsoleDomNode.cs"
+             Link="Production\Console\ConsoleDomNode.cs" />
+    <Compile Include="..\Sia.Examples\Console\ConsoleDomRenderer.cs"
+             Link="Production\Console\ConsoleDomRenderer.cs" />
+    <Compile Include="..\Sia.Examples\Console\EditMode.cs"
+             Link="Production\Console\EditMode.cs" />
+    <Compile Include="..\Sia.Examples\Console\EditCursor.cs"
+             Link="Production\Console\EditCursor.cs" />
+    <Compile Include="..\Sia.Examples\Console\ConsoleLine.cs"
+             Link="Production\Console\ConsoleLine.cs" />
+    <Compile Include="..\Sia.Examples\Console\ConsoleRenderRequest.cs"
+             Link="Production\Console\ConsoleRenderRequest.cs" />
+    <Compile Include="..\Sia.Examples\Console\ConsoleStyle.cs"
+             Link="Production\Console\ConsoleStyle.cs" />
+    <Compile Include="..\Sia.Examples\Console\IConsoleTerminal.cs"
+             Link="Production\Console\IConsoleTerminal.cs" />
+    <Compile Include="..\Sia.Examples\Console\Layout\*.cs"
+             Link="Production\Console\Layout\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net11.0-browser'">
+    <Compile Include="..\Sia.Examples\Browser\BrowserMainThread.cs"
+             Link="Production\Browser\BrowserMainThread.cs" />
+    <Compile Include="..\Sia.Examples\Browser\BrowserResourceLoader.cs"
+             Link="Production\Browser\BrowserResourceLoader.cs" />
+    <Compile Include="..\Sia.Examples\Logic\Provider\AssemblyLoader.Browser.cs"
+             Link="Production\Browser\AssemblyLoader.Browser.cs" />
+    <Compile Include="..\Sia.Examples\Logic\Provider\DynamicAssemblyRegistry.cs"
+             Link="Production\Browser\DynamicAssemblyRegistry.cs" />
+    <Compile Include="..\Sia.Examples\Logic\Provider\MetadataReferenceProvider.cs"
+             Link="Production\Browser\MetadataReferenceProvider.cs" />
+    <Compile Include="..\Sia.Examples\Logic\Runner\NotebookSession.cs"
+             Link="Production\Browser\NotebookSession.cs" />
+  </ItemGroup>
+
+</Project>

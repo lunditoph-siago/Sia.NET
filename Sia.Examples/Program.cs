@@ -7,5 +7,5 @@ using Sia_Examples.Notebook;
 #if BROWSER
 await ExampleViewer.RunAsync();
 #else
-await ConsoleApplication.RunAsync(args, new NotebookLibrary());
+await ConsoleApplication.RunAsync(new NotebookLibrary());
 #endif

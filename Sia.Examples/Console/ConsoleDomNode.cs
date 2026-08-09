@@ -3,9 +3,11 @@ using Sia_Examples.Dom;
 
 namespace Sia_Examples.Console;
 
-internal sealed class ConsoleDomNode(string tagName, Action changed) : IDomNode
+internal sealed class ConsoleDomNode(
+    object owner,
+    string tagName) : IDomNode
 {
-    private readonly Action _changed = changed;
+    public object Owner { get; } = owner;
 
     public string TagName { get; } = tagName;
 
@@ -62,8 +64,6 @@ internal sealed class ConsoleDomNode(string tagName, Action changed) : IDomNode
         }
         return false;
     }
-
-    public void Changed() => _changed();
 
     public void Dispose()
     {

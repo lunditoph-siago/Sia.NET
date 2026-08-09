@@ -29,9 +29,12 @@ internal sealed class SystemConsoleTerminal : IConsoleTerminal
     public int Height => Math.Max(System.Console.WindowHeight, 12);
 
     public async ValueTask<ConsoleKeyInfo> ReadKeyAsync(CancellationToken cancellationToken)
-        => await Task.Run(
-            () => System.Console.ReadKey(intercept: true),
-            cancellationToken);
+    {
+        while (!System.Console.KeyAvailable) {
+            await Task.Delay(25, cancellationToken);
+        }
+        return System.Console.ReadKey(intercept: true);
+    }
 
     public void Draw(IReadOnlyList<string> rows)
     {

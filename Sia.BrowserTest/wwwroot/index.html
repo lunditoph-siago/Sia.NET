@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sia.Examples staged acceptance</title>
+  <link rel="preload" id="webassembly" />
+  <script type="importmap"></script>
+  <script src="threads#[.{fingerprint}].js"></script>
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      margin: 0;
+      padding: 24px;
+      font: 14px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace;
+      background: #11131a;
+      color: #d7dce8;
+    }
+    main { max-width: 1000px; margin: 0 auto; }
+    h1 { margin: 0 0 8px; font: 600 20px/1.3 system-ui, sans-serif; }
+    #status { margin-bottom: 16px; color: #98a2b8; }
+    #log {
+      min-height: 320px;
+      max-height: 70vh;
+      overflow: auto;
+      padding: 16px;
+      border: 1px solid #2a3040;
+      border-radius: 8px;
+      background: #0c0e13;
+      white-space: pre-wrap;
+    }
+    .info { color: #cbd5e8; }
+    .warn { color: #f0b866; }
+    .fail { color: #ef7785; }
+    .banner { margin-top: 16px; padding: 12px 16px; border-radius: 8px; }
+    .banner.ok { background: #153522; color: #8ce0a6; }
+    .banner.err { background: #431d25; color: #ff9eaa; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Sia.Examples staged acceptance</h1>
+    <div id="status">Preparing browser isolation…</div>
+    <div id="log"></div>
+    <div id="banner" class="banner" hidden></div>
+  </main>
+</body>
+</html>

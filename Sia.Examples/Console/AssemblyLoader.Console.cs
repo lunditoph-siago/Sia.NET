@@ -39,7 +39,7 @@ public sealed partial class AssemblyLoader
             throw new KeyNotFoundException($"Framework assembly '{name}' is not available.");
         }
 
-        var reference = MetadataReference.CreateFromFile(path);
+        MetadataReference reference = MetadataReference.CreateFromFile(path);
         _references.Add(name, reference);
         return ValueTask.FromResult(reference);
     }
