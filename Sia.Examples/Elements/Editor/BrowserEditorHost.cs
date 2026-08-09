@@ -190,24 +190,6 @@ public sealed class BrowserEditorHost : IDisposable
         var offset = 0;
         preservedLineIdentity = null;
         switch (mutation.Scope) {
-            case DomMutationScope.Text:
-                if (!TryGetMutationLine(state, mutation.LineIndex, out var textLine)) {
-                    change = null;
-                    return false;
-                }
-                var selection = beforeSelection.Main;
-                if (selection.From < textLine.From || selection.To > textLine.To) {
-                    change = null;
-                    return false;
-                }
-                difference = new(
-                    selection.From - textLine.From,
-                    selection.To - textLine.From,
-                    mutation.Replacement);
-                offset = textLine.From;
-                preservedLineIdentity = state.LineIdentities.Values[mutation.LineIndex];
-                break;
-
             case DomMutationScope.Line:
                 if (!TryGetMutationLine(state, mutation.LineIndex, out var line)) {
                     change = null;
@@ -294,7 +276,6 @@ public sealed class BrowserEditorHost : IDisposable
     private static bool TryReadMutationScope(string value, out DomMutationScope scope)
     {
         scope = value switch {
-            "t" => DomMutationScope.Text,
             "l" => DomMutationScope.Line,
             "d" => DomMutationScope.Document,
             _ => DomMutationScope.Invalid,
@@ -865,7 +846,6 @@ public sealed class BrowserEditorHost : IDisposable
     private enum DomMutationScope
     {
         Invalid,
-        Text,
         Line,
         Document,
     }
