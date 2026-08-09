@@ -8,6 +8,7 @@ namespace Sia_Examples.Editor;
 public sealed class BrowserEditorHost : IDisposable
 {
     private const int _completionDelayMilliseconds = 80;
+    private const int _highlightDelayMilliseconds = 150;
     private const int _maximumRenderedCompletions = 20;
 
     private readonly string _cellId;
@@ -28,6 +29,8 @@ public sealed class BrowserEditorHost : IDisposable
     private bool _completionPending;
     private bool _completionQueryRunning;
     private bool _disposed;
+    private string _highlightedSource;
+    private int _highlightGeneration;
 
     public BrowserEditorHost(
         World world,
@@ -41,6 +44,7 @@ public sealed class BrowserEditorHost : IDisposable
         _world = world;
         _view = new(cellId, container);
         _completionProvider = new(references);
+        _highlightedSource = source;
         var initialState = EditorState.Create(
             source,
             EditorDecorations.FromHighlights(highlights));
@@ -56,6 +60,7 @@ public sealed class BrowserEditorHost : IDisposable
             "mut" => HandleDomMutation(arguments),
             "sel" => HandleSelection(arguments),
             "complete" => HandleCompletionRequest(arguments),
+            "highlight" => HandleHighlightRequest(arguments),
             _ => false,
         };
 
@@ -75,6 +80,7 @@ public sealed class BrowserEditorHost : IDisposable
                 Decorations = decorations,
             });
         }
+        _highlightedSource = source;
         Commit(next);
     }
 
@@ -85,6 +91,7 @@ public sealed class BrowserEditorHost : IDisposable
         }
         _disposed = true;
         CancelCompletion();
+        DomRuntime.CancelScheduledEvent(HighlightScheduleKey);
         if (_mount.IsMounted) {
             _mount.Unmount();
         }
@@ -183,24 +190,6 @@ public sealed class BrowserEditorHost : IDisposable
         var offset = 0;
         preservedLineIdentity = null;
         switch (mutation.Scope) {
-            case DomMutationScope.Text:
-                if (!TryGetMutationLine(state, mutation.LineIndex, out var textLine)) {
-                    change = null;
-                    return false;
-                }
-                var selection = beforeSelection.Main;
-                if (selection.From < textLine.From || selection.To > textLine.To) {
-                    change = null;
-                    return false;
-                }
-                difference = new(
-                    selection.From - textLine.From,
-                    selection.To - textLine.From,
-                    mutation.Replacement);
-                offset = textLine.From;
-                preservedLineIdentity = state.LineIdentities.Values[mutation.LineIndex];
-                break;
-
             case DomMutationScope.Line:
                 if (!TryGetMutationLine(state, mutation.LineIndex, out var line)) {
                     change = null;
@@ -287,7 +276,6 @@ public sealed class BrowserEditorHost : IDisposable
     private static bool TryReadMutationScope(string value, out DomMutationScope scope)
     {
         scope = value switch {
-            "t" => DomMutationScope.Text,
             "l" => DomMutationScope.Line,
             "d" => DomMutationScope.Document,
             _ => DomMutationScope.Invalid,
@@ -495,8 +483,35 @@ public sealed class BrowserEditorHost : IDisposable
         if (state == State.Value) {
             return;
         }
+        if (state.Doc.SliceDoc() != _highlightedSource) {
+            ScheduleHighlight();
+        }
         State.Set(state);
         _world.FlushReactive();
+    }
+
+    private void ScheduleHighlight()
+        => DomRuntime.ScheduleEvent(
+            HighlightScheduleKey,
+            $"highlight:{_cellId}:{++_highlightGeneration}",
+            _highlightDelayMilliseconds);
+
+    private bool HandleHighlightRequest(string arguments)
+    {
+        if (!int.TryParse(arguments, out var generation) || generation != _highlightGeneration) {
+            return false;
+        }
+
+        var source = State.Value.Doc.SliceDoc();
+        if (source == _highlightedSource) {
+            return true;
+        }
+
+        _highlightedSource = source;
+        var decorations = EditorDecorations.FromHighlights(CSharpHighlighter.Classify(source));
+        State.Set(State.Value.WithDecorations(decorations));
+        _world.FlushReactive();
+        return true;
     }
 
     private void ScheduleCompletion(EditorState before, EditorState after)
@@ -831,7 +846,6 @@ public sealed class BrowserEditorHost : IDisposable
     private enum DomMutationScope
     {
         Invalid,
-        Text,
         Line,
         Document,
     }
@@ -854,4 +868,6 @@ public sealed class BrowserEditorHost : IDisposable
         => _state ??= _mount.GetState<EditorState>();
 
     private string CompletionScheduleKey => $"completion:{_cellId}";
+
+    private string HighlightScheduleKey => $"highlight:{_cellId}";
 }
