@@ -1,12 +1,14 @@
+using Sia_Examples.Dom;
+
 namespace Sia_Examples;
 
 public sealed class BrowserApplicationView :
     IRenderHost<ExampleItemView>,
     IDisposable
 {
-    private readonly BrowserElement _sidebar = BrowserElement.Find("sidebar");
-    private readonly BrowserElement _frameworkAssemblies =
-        BrowserElement.Find("framework-assemblies");
+    private readonly DomElement _sidebar = DomElement.Find("sidebar");
+    private readonly DomElement _frameworkAssemblies =
+        DomElement.Find("framework-assemblies");
     private readonly SortedDictionary<int, ExampleNode> _examples = [];
 
     public void SetFrameworkAssemblyNames(IEnumerable<string> names)
@@ -14,7 +16,7 @@ public sealed class BrowserApplicationView :
         foreach (var name in names.OrderBy(
             static name => name,
             StringComparer.OrdinalIgnoreCase)) {
-            using var option = BrowserElement.Create("option").Attr("value", name);
+            using var option = DomElement.Create("option").Attr("value", name);
             _frameworkAssemblies.Append(option);
         }
     }
@@ -57,19 +59,19 @@ public sealed class BrowserApplicationView :
     }
 
     private sealed class ExampleNode(
-        BrowserElement root,
-        BrowserElement name,
-        BrowserElement description) : IDisposable
+        DomElement root,
+        DomElement name,
+        DomElement description) : IDisposable
     {
-        public BrowserElement Root { get; } = root;
+        public DomElement Root { get; } = root;
 
         public static ExampleNode Create(int index)
         {
-            var root = BrowserElement.Create("button")
+            var root = DomElement.Create("button")
                 .Class("example-btn")
                 .On("click", $"select:{index}");
-            var name = BrowserElement.Create("span").Class("name");
-            var description = BrowserElement.Create("span").Class("desc");
+            var name = DomElement.Create("span").Class("name");
+            var description = DomElement.Create("span").Class("desc");
             root.Append(name).Append(description);
             return new(root, name, description);
         }

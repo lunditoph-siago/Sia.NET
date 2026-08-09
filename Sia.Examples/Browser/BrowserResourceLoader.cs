@@ -1,3 +1,4 @@
+#if BROWSER
 using System.Runtime.InteropServices.JavaScript;
 using Sia_Examples.Notebook;
 
@@ -48,3 +49,4 @@ public sealed partial class BrowserResourceLoader : IResourceLoader
     [return: JSMarshalAs<JSType.Promise<JSType.String>>]
     private static partial Task<string> FetchTextCoreAsync(string url);
 }
+#endif

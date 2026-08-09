@@ -471,6 +471,7 @@ body {
 
                 .editor-container {
                     display: grid;
+                    position: relative;
                     grid-template-columns: auto 1fr;
                     grid-template-rows: 1fr auto;
                     border: 1px solid rgba(127, 127, 127, 0.3);
@@ -527,20 +528,23 @@ body {
                     &::selection { background: rgba(100, 150, 255, 0.3); }
                 }
 
-                .cm-line {
+                .editor-line {
                     display: block;
                     min-height: 1.5em;
                 }
 
                 .completion-popup {
                     position: absolute;
-                    top: 100%;
-                    left: 0;
+                    top: 0;
+                    left: 42px;
                     z-index: 20;
                     min-width: 10rem;
                     max-width: 22rem;
                     max-height: 12rem;
                     overflow-y: auto;
+                    overscroll-behavior: contain;
+                    scrollbar-gutter: stable;
+                    contain: layout paint;
                     background: var(--color-bg);
                     border: 1px solid rgba(127, 127, 127, 0.4);
                     border-radius: 4px;

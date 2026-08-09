@@ -1,6 +1,8 @@
+#if BROWSER
 using Sia;
 using Sia.Reactive;
 using Sia_Examples.Browser;
+using Sia_Examples.Dom;
 using Sia_Examples.Notebook;
 
 namespace Sia_Examples;
@@ -11,7 +13,7 @@ public static class BrowserApplication
     {
         ArgumentNullException.ThrowIfNull(library);
         var mainThread = BrowserMainThread.Capture();
-        BrowserDom.Initialize(mainThread);
+        DomRuntime.Initialize(new BrowserDomBackend(mainThread));
 
         using var world = new World();
         using var view = new BrowserApplicationView();
@@ -25,7 +27,7 @@ public static class BrowserApplication
         NotebookWorkspace? workspace = null;
         try {
             while (true) {
-                var payload = await BrowserDom.WaitForEventAsync();
+                var payload = await DomRuntime.WaitForEventAsync();
                 var (eventName, argument) = Split(payload);
                 switch (eventName) {
                     case "select":
@@ -83,6 +85,7 @@ public static class BrowserApplication
             if (app.IsMounted) {
                 app.Unmount();
             }
+            DomRuntime.Dispose();
         }
     }
 
@@ -94,3 +97,4 @@ public static class BrowserApplication
             : (payload[..separator], payload[(separator + 1)..]);
     }
 }
+#endif

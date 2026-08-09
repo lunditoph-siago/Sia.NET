@@ -12,16 +12,6 @@ public sealed class NotebookCompiler
 {
     private static int _programCounter;
 
-    private const string _baseGlobalUsings = """
-        global using System;
-        global using System.Collections.Generic;
-        global using System.IO;
-        global using System.Linq;
-        global using System.Threading;
-        global using System.Threading.Tasks;
-        global using Sia;
-        """;
-
     private readonly string _assemblyName;
     private readonly ICompilationReferenceResolver _referenceResolver;
     private readonly CSharpParseOptions _parseOptions = CSharpParseOptions.Default;
@@ -43,14 +33,10 @@ public sealed class NotebookCompiler
 
     public void UpdateProgram(NotebookProgram program) => _program = program;
 
-    private static string GlobalUsings(bool needsWrapperUsing)
-        => needsWrapperUsing
-            ? $"{_baseGlobalUsings}\nglobal using {NotebookProgramBuilder.WrapperNamespace};"
-            : _baseGlobalUsings;
-
     public async Task<NotebookCompileResult> CompileAsync(CancellationToken cancellationToken = default)
     {
-        var globalUsings = GlobalUsings(_program.NeedsWrapperUsing);
+        var globalUsings = NotebookLanguageContext.GetGlobalUsings(
+            _program.NeedsWrapperUsing);
         var references = await _referenceResolver.GetReferencesAsync(
             $"{globalUsings}\n{_program.Source}",
             cancellationToken);

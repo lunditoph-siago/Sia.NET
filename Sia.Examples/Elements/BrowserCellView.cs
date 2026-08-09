@@ -1,4 +1,5 @@
 using Sia_Examples.Editor;
+using Sia_Examples.Dom;
 
 namespace Sia_Examples.Notebook;
 
@@ -6,10 +7,10 @@ public sealed class BrowserCellView : IDisposable
 {
     private readonly CodeCellBlock _cell;
     private readonly BrowserEditorRegistry _editors;
-    private readonly BrowserElement _phase;
-    private readonly BrowserElement _code;
-    private readonly BrowserElement _diagnostics;
-    private readonly BrowserElement _output;
+    private readonly DomElement _phase;
+    private readonly DomElement _code;
+    private readonly DomElement _diagnostics;
+    private readonly DomElement _output;
     private BrowserEditorHost? _editor;
     private CellState? _current;
 
@@ -20,16 +21,16 @@ public sealed class BrowserCellView : IDisposable
     {
         _cell = cell;
         _editors = editors;
-        Root = BrowserElement.Create("div").Class("cell");
+        Root = DomElement.Create("div").Class("cell");
 
-        using var header = BrowserElement.Create("div").Class("cell-header");
-        using var label = BrowserElement.Create("span")
+        using var header = DomElement.Create("div").Class("cell-header");
+        using var label = DomElement.Create("span")
             .Class("cell-label")
             .Text($"[{number}] {cell.Id}");
-        _phase = BrowserElement.Create("span").Class("phase");
+        _phase = DomElement.Create("span").Class("phase");
         header.Append(label).Append(_phase);
 
-        using var controls = BrowserElement.Create("div").Class("cell-controls");
+        using var controls = DomElement.Create("div").Class("cell-controls");
         AppendButton(controls, "Compile", $"compile:{cell.Id}");
         AppendButton(controls, "Run", $"run:{cell.Id}");
         AppendButton(controls, "Stop", $"stop:{cell.Id}");
@@ -39,18 +40,18 @@ public sealed class BrowserCellView : IDisposable
         header.Append(controls);
         Root.Append(header);
 
-        _code = BrowserElement.Create(cell.Editable ? "div" : "pre").Class("code");
+        _code = DomElement.Create(cell.Editable ? "div" : "pre").Class("code");
         if (cell.Editable) {
             _code.Class("code-edit").Id(NotebookElementIds.Editor(cell.Id));
         }
         Root.Append(_code);
 
-        _diagnostics = BrowserElement.Create("div").Class("diagnostics").Class("hidden");
-        _output = BrowserElement.Create("pre").Class("output").Class("hidden");
+        _diagnostics = DomElement.Create("div").Class("diagnostics").Class("hidden");
+        _output = DomElement.Create("pre").Class("output").Class("hidden");
         Root.Append(_diagnostics).Append(_output);
     }
 
-    public BrowserElement Root { get; }
+    public DomElement Root { get; }
 
     public void Update(CellState state)
     {
@@ -106,7 +107,7 @@ public sealed class BrowserCellView : IDisposable
     {
         _diagnostics.Text(string.Empty).ToggleClass("hidden", diagnostics.Count == 0);
         foreach (var diagnostic in diagnostics) {
-            using var line = BrowserElement.Create("div")
+            using var line = DomElement.Create("div")
                 .Class(diagnostic.Severity == NotebookDiagnosticSeverity.Error
                     ? "diagnostic-error"
                     : "diagnostic-warning")
@@ -126,7 +127,7 @@ public sealed class BrowserCellView : IDisposable
     }
 
     private static void RenderHighlightedCode(
-        BrowserElement element,
+        DomElement element,
         string source,
         IReadOnlyList<HighlightRun> highlights)
     {
@@ -134,24 +135,24 @@ public sealed class BrowserCellView : IDisposable
         var position = 0;
         foreach (var highlight in highlights) {
             if (highlight.Start > position) {
-                using var text = BrowserElement.CreateText(source[position..highlight.Start]);
+                using var text = DomElement.CreateText(source[position..highlight.Start]);
                 element.Append(text);
             }
-            using var span = BrowserElement.Create("span")
+            using var span = DomElement.Create("span")
                 .Class(CSharpHighlighter.CssClass(highlight.Classification))
                 .Text(source.Substring(highlight.Start, highlight.Length));
             element.Append(span);
             position = highlight.Start + highlight.Length;
         }
         if (position < source.Length) {
-            using var text = BrowserElement.CreateText(source[position..]);
+            using var text = DomElement.CreateText(source[position..]);
             element.Append(text);
         }
     }
 
-    private static void AppendButton(BrowserElement controls, string text, string payload)
+    private static void AppendButton(DomElement controls, string text, string payload)
     {
-        using var button = BrowserElement.Create("button")
+        using var button = DomElement.Create("button")
             .Class("btn")
             .On("click", payload)
             .Text(text);

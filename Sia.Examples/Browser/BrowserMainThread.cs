@@ -1,6 +1,7 @@
+#if BROWSER
 namespace Sia_Examples.Browser;
 
-public sealed class BrowserMainThread
+public sealed class BrowserMainThread : IUiThread
 {
     private readonly int _managedThreadId;
 
@@ -19,3 +20,4 @@ public sealed class BrowserMainThread
         }
     }
 }
+#endif

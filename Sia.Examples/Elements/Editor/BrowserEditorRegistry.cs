@@ -1,4 +1,5 @@
 using Sia;
+using Sia_Examples.Dom;
 using Sia_Examples.Notebook;
 
 namespace Sia_Examples.Editor;
@@ -12,7 +13,7 @@ public sealed class BrowserEditorRegistry(
     private readonly Dictionary<string, BrowserEditorHost> _editors = [];
 
     public BrowserEditorHost Add(
-        BrowserElement container,
+        DomElement container,
         string cellId,
         string source,
         IReadOnlyList<HighlightRun> highlights)

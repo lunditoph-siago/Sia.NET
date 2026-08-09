@@ -1,3 +1,4 @@
+#if BROWSER
 using System.Collections.Immutable;
 using System.Runtime.InteropServices.JavaScript;
 using Microsoft.CodeAnalysis;
@@ -84,3 +85,4 @@ public sealed partial class AssemblyLoader
 
     private readonly record struct AssemblyAsset(string Name, string Url);
 }
+#endif

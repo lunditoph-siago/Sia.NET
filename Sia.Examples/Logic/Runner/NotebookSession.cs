@@ -1,11 +1,10 @@
 using System.Collections.Immutable;
-using Sia_Examples.Browser;
 
 namespace Sia_Examples.Notebook;
 
 public sealed class NotebookSession : IDisposable
 {
-    private readonly BrowserMainThread _mainThread;
+    private readonly IUiThread _mainThread;
     private readonly List<CodeCellBlock> _cells;
     private readonly Dictionary<string, string> _scopeKeys;
     private readonly Dictionary<string, int> _scopeIndices;
@@ -22,7 +21,7 @@ public sealed class NotebookSession : IDisposable
     private bool _disposed;
 
     public NotebookSession(
-        BrowserMainThread mainThread,
+        IUiThread mainThread,
         NotebookDocument document,
         MetadataReferenceProvider references)
     {

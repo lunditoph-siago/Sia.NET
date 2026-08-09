@@ -1,4 +1,5 @@
 using Sia;
+using Sia_Examples.Dom;
 using Sia_Examples.Editor;
 
 namespace Sia_Examples.Notebook;
@@ -7,8 +8,8 @@ public sealed class BrowserNotebookView :
     INotebookView,
     IDisposable
 {
-    private readonly BrowserElement _container;
-    private readonly BrowserElement _root;
+    private readonly DomElement _container;
+    private readonly DomElement _root;
     private readonly BrowserEditorRegistry _editors;
     private readonly BrowserPackagePanel _packages;
     private readonly Dictionary<string, BrowserCellView> _cells = [];
@@ -20,12 +21,12 @@ public sealed class BrowserNotebookView :
         NotebookSessionSnapshot snapshot,
         ICompilationReferenceResolver references)
     {
-        _container = BrowserElement.Find("notebook");
-        _root = BrowserElement.Create("div");
+        _container = DomElement.Find("notebook");
+        _root = DomElement.Create("div");
         _editors = new(world, references);
         _packages = new();
 
-        using var title = BrowserElement.Create("h2").Class("title").Text(document.Title);
+        using var title = DomElement.Create("h2").Class("title").Text(document.Title);
         _root.Append(title);
 
         var cellNumbers = snapshot.Cells
@@ -80,8 +81,8 @@ public sealed class BrowserNotebookView :
         NotebookSection section,
         IReadOnlyDictionary<string, int> cellNumbers)
     {
-        using var sectionElement = BrowserElement.Create("section").Class("section");
-        using var heading = BrowserElement.Create("h3")
+        using var sectionElement = DomElement.Create("section").Class("section");
+        using var heading = DomElement.Create("h3")
             .Class("section-title")
             .Text(section.Title);
         sectionElement.Append(heading);
@@ -89,15 +90,15 @@ public sealed class BrowserNotebookView :
         foreach (var block in section.Blocks) {
             switch (block) {
                 case ParagraphBlock paragraph:
-                    using (var element = BrowserElement.Create("p").Class("paragraph")) {
+                    using (var element = DomElement.Create("p").Class("paragraph")) {
                         AppendInlines(element, paragraph.Inlines);
                         sectionElement.Append(element);
                     }
                     break;
                 case ListBlock list:
-                    using (var element = BrowserElement.Create("ul").Class("list")) {
+                    using (var element = DomElement.Create("ul").Class("list")) {
                         foreach (var item in list.Items) {
-                            using var listItem = BrowserElement.Create("li");
+                            using var listItem = DomElement.Create("li");
                             AppendInlines(listItem, item);
                             element.Append(listItem);
                         }
@@ -118,13 +119,13 @@ public sealed class BrowserNotebookView :
     }
 
     private static void AppendInlines(
-        BrowserElement parent,
+        DomElement parent,
         IReadOnlyList<Inline> inlines)
     {
         foreach (var inline in inlines) {
             using var child = inline switch {
-                TextInline text => BrowserElement.CreateText(text.Text),
-                CodeInline code => BrowserElement.Create("code").Text(code.Text),
+                TextInline text => DomElement.CreateText(text.Text),
+                CodeInline code => DomElement.Create("code").Text(code.Text),
                 _ => throw new InvalidOperationException(
                     $"Unsupported inline type '{inline.GetType().Name}'."),
             };

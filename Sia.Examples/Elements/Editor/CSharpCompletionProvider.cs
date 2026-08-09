@@ -24,13 +24,18 @@ public sealed class CSharpCompletionProvider(
         var prefix = source[replacementStart..position];
         var syntaxTree = CSharpSyntaxTree.ParseText(
             SourceText.From(source),
+            path: "Completion.cs",
+            cancellationToken: cancellationToken);
+        var globalUsingsTree = CSharpSyntaxTree.ParseText(
+            SourceText.From(NotebookLanguageContext.GlobalUsings),
+            path: "GlobalUsings.g.cs",
             cancellationToken: cancellationToken);
         var metadataReferences = await _references.GetReferencesAsync(
-            source,
+            $"{NotebookLanguageContext.GlobalUsings}\n{source}",
             cancellationToken);
         var compilation = CSharpCompilation.Create(
             "Completion",
-            [syntaxTree],
+            [syntaxTree, globalUsingsTree],
             metadataReferences,
             _compilationOptions);
         var root = await syntaxTree.GetRootAsync(cancellationToken);

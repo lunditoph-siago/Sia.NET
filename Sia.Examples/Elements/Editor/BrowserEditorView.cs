@@ -1,3 +1,4 @@
+using Sia_Examples.Dom;
 using Sia_Examples.Notebook;
 
 namespace Sia_Examples.Editor;
@@ -5,66 +6,92 @@ namespace Sia_Examples.Editor;
 public sealed class BrowserEditorView : IEditorView
 {
     private readonly string _cellId;
-    private readonly BrowserElement _container;
-    private readonly BrowserElement _gutter;
-    private readonly BrowserElement _scroll;
-    private readonly BrowserElement _lines;
-    private readonly BrowserElement _status;
-    private readonly BrowserElement _documentSize;
-    private readonly BrowserElement _cursorPosition;
+    private readonly DomElement _container;
+    private readonly DomElement _gutter;
+    private readonly DomElement _scroll;
+    private readonly DomElement _lines;
+    private readonly DomElement _status;
+    private readonly DomElement _documentSize;
+    private readonly DomElement _cursorPosition;
     private readonly Dictionary<int, LineNode> _lineNodes = [];
 
+    private EditorSelectionView? _selection;
     private int? _activeLineIdentity;
     private int? _preservedNativeEdit;
     private bool _suppressSelectionUpdate;
     private bool _disposed;
 
-    public BrowserEditorView(string cellId, BrowserElement container)
+    public BrowserEditorView(string cellId, DomElement container)
     {
         _cellId = cellId;
         _container = container;
         _container.Class("editor-container");
 
-        _gutter = BrowserElement.Create("div").Class("editor-gutter");
-        _scroll = BrowserElement.Create("div").Class("editor-scroll");
-        _lines = BrowserElement.Create("div")
+        _gutter = DomElement.Create("div").Class("editor-gutter");
+        _scroll = DomElement.Create("div").Class("editor-scroll");
+        _lines = DomElement.Create("div")
             .Class("editor-lines")
             .Attr("contenteditable", "true")
             .Attr("spellcheck", "false")
             .Attr("autocorrect", "off")
             .Attr("autocapitalize", "off");
-        _status = BrowserElement.Create("div").Class("editor-status");
-        _documentSize = BrowserElement.Create("span");
-        _cursorPosition = BrowserElement.Create("span");
+        _status = DomElement.Create("div").Class("editor-status");
+        _documentSize = DomElement.Create("span");
+        _cursorPosition = DomElement.Create("span");
 
         _scroll.Append(_lines);
         _status.Append(_documentSize).Append(_cursorPosition);
         _container.Append(_gutter).Append(_scroll).Append(_status);
-        BrowserDom.SyncGutterScroll(_scroll.Handle, _gutter.Handle);
-        BrowserDom.AttachEditorSurface(_cellId, _lines.Handle);
+        DomRuntime.SyncGutterScroll(_scroll, _gutter);
+        DomRuntime.AttachEditorSurface(_cellId, _lines);
     }
 
     public void SuppressNextSelectionUpdate() => _suppressSelectionUpdate = true;
 
     public void PreserveNativeEdit(int lineIdentity) => _preservedNativeEdit = lineIdentity;
 
+    public void RestoreDocumentStructure()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        foreach (var node in _lineNodes.Values.OrderBy(static node => node.Index)) {
+            _lines.Append(node.Content);
+        }
+    }
+
+    public void MountOverlay(DomElement overlay)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        _container.Append(overlay);
+        PlaceOverlay(overlay);
+    }
+
+    public void PlaceOverlay(DomElement overlay)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        DomRuntime.PlaceOverlay(_container, _lines, overlay);
+    }
+
     void IRenderHost<EditorLineView>.Upsert(in EditorLineView view)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        var requiresPlacement = false;
         if (!_lineNodes.TryGetValue(view.Identity, out var node)) {
             node = LineNode.Create();
             _lineNodes.Add(view.Identity, node);
+            requiresPlacement = true;
         }
 
-        var next = FindNext(view.Index, view.Identity);
-        _lines.InsertBefore(node.Content, next?.Content);
-        _gutter.InsertBefore(node.Gutter, next?.Gutter);
+        if (requiresPlacement || node.Index != view.Index) {
+            var next = FindNext(view.Index, view.Identity);
+            _lines.InsertBefore(node.Content, next?.Content);
+            _gutter.InsertBefore(node.Gutter, next?.Gutter);
+        }
 
         node.Content.Attr("data-ln", view.Index.ToString());
         node.Gutter.Text((view.Index + 1).ToString());
         node.Content.Attr(
             "class",
-            view.ClassName is null ? "cm-line" : $"cm-line {view.ClassName}");
+            view.ClassName is null ? "editor-line" : $"editor-line {view.ClassName}");
 
         var preserveNativeEdit = _preservedNativeEdit == view.Identity
             && node.Content.TextContent() == view.Text;
@@ -73,6 +100,7 @@ public sealed class BrowserEditorView : IEditorView
         }
         if (!preserveNativeEdit) {
             RenderContent(node.Content, view.Text, view.StyledRuns);
+            RestoreSelectionAfterRender(view.Index);
         }
         node.Index = view.Index;
     }
@@ -114,12 +142,13 @@ public sealed class BrowserEditorView : IEditorView
     void IRenderHost<EditorSelectionView>.Upsert(in EditorSelectionView view)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        _selection = view;
         if (_suppressSelectionUpdate) {
             _suppressSelectionUpdate = false;
             return;
         }
-        BrowserDom.SetEditorSelection(
-            _lines.Handle,
+        DomRuntime.SetEditorSelection(
+            _lines,
             view.AnchorLineIndex,
             view.AnchorColumn,
             view.HeadLineIndex,
@@ -128,6 +157,7 @@ public sealed class BrowserEditorView : IEditorView
 
     void IRenderHost<EditorSelectionView>.Remove(in EditorSelectionView view)
     {
+        _selection = null;
     }
 
     void IRenderHost<EditorStatusView>.Upsert(in EditorStatusView view)
@@ -147,11 +177,12 @@ public sealed class BrowserEditorView : IEditorView
             return;
         }
         _disposed = true;
-        BrowserDom.DetachEditorSurface(_cellId, _lines.Handle);
+        DomRuntime.DetachEditorSurface(_cellId, _lines);
         foreach (var node in _lineNodes.Values) {
             node.Dispose();
         }
         _lineNodes.Clear();
+        _selection = null;
         _activeLineIdentity = null;
         _status.Dispose();
         _cursorPosition.Dispose();
@@ -176,8 +207,23 @@ public sealed class BrowserEditorView : IEditorView
         return result;
     }
 
+    private void RestoreSelectionAfterRender(int lineIndex)
+    {
+        if (_selection is not { } selection
+            || selection.AnchorLineIndex != lineIndex
+                && selection.HeadLineIndex != lineIndex) {
+            return;
+        }
+        DomRuntime.SetEditorSelection(
+            _lines,
+            selection.AnchorLineIndex,
+            selection.AnchorColumn,
+            selection.HeadLineIndex,
+            selection.HeadColumn);
+    }
+
     private static void RenderContent(
-        BrowserElement line,
+        DomElement line,
         string text,
         IReadOnlyList<StyledRun>? styledRuns)
     {
@@ -189,30 +235,30 @@ public sealed class BrowserEditorView : IEditorView
         line.Text(string.Empty);
         foreach (var run in styledRuns) {
             if (run.Class is null) {
-                using var textNode = BrowserElement.CreateText(run.Text);
+                using var textNode = DomElement.CreateText(run.Text);
                 line.Append(textNode);
                 continue;
             }
 
-            using var span = BrowserElement.Create("span")
+            using var span = DomElement.Create("span")
                 .Class(CSharpHighlighter.CssClass(run.Class))
                 .Text(run.Text);
             line.Append(span);
         }
     }
 
-    private sealed class LineNode(BrowserElement content, BrowserElement gutter) : IDisposable
+    private sealed class LineNode(DomElement content, DomElement gutter) : IDisposable
     {
-        public BrowserElement Content { get; } = content;
+        public DomElement Content { get; } = content;
 
-        public BrowserElement Gutter { get; } = gutter;
+        public DomElement Gutter { get; } = gutter;
 
         public int Index { get; set; } = int.MaxValue;
 
         public static LineNode Create()
             => new(
-                BrowserElement.Create("div").Class("cm-line"),
-                BrowserElement.Create("div").Class("editor-gutter-line"));
+                DomElement.Create("div").Class("editor-line"),
+                DomElement.Create("div").Class("editor-gutter-line"));
 
         public void Dispose()
         {

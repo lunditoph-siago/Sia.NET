@@ -8,6 +8,18 @@ public static class DeleteCommands
     public static bool CharForward(CommandTarget target)
         => DeleteBy(target, range => FindCharacterBoundary(target.State, range, true));
 
+    public static bool GroupBackward(CommandTarget target)
+        => DeleteBy(target, range => GroupMovement.FindDeleteBoundary(
+            target.State,
+            range,
+            false));
+
+    public static bool GroupForward(CommandTarget target)
+        => DeleteBy(target, range => GroupMovement.FindDeleteBoundary(
+            target.State,
+            range,
+            true));
+
     public static bool ToLineEnd(CommandTarget target)
         => DeleteBy(target, range => {
             var line = target.State.Doc.LineAt(range.Head);

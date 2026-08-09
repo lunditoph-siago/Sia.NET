@@ -1,34 +1,36 @@
+using Sia_Examples.Dom;
+
 namespace Sia_Examples.Notebook;
 
 public sealed class BrowserPackagePanel : IDisposable
 {
-    private readonly BrowserElement _container = BrowserElement.Find("packages-popover");
-    private readonly BrowserElement _badge = BrowserElement.Find("packages-badge");
-    private readonly BrowserElement _body = BrowserElement.Create("div").Class("packages-body");
-    private readonly BrowserElement _empty = BrowserElement.Create("div")
+    private readonly DomElement _container = DomElement.Find("packages-popover");
+    private readonly DomElement _badge = DomElement.Find("packages-badge");
+    private readonly DomElement _body = DomElement.Create("div").Class("packages-body");
+    private readonly DomElement _empty = DomElement.Create("div")
         .Class("packages-empty")
         .Text("No packages declared or added yet.");
-    private readonly BrowserElement _list = BrowserElement.Create("div");
+    private readonly DomElement _list = DomElement.Create("div");
     private readonly Dictionary<PackageIdentity, PackageNode> _nodes = [];
 
     public BrowserPackagePanel()
     {
         _body.Append(_empty).Append(_list);
-        using var addRow = BrowserElement.Create("div").Class("package-add");
-        using var id = BrowserElement.Create("input")
+        using var addRow = DomElement.Create("div").Class("package-add");
+        using var id = DomElement.Create("input")
             .Class("package-add-input")
             .Id("package-add-id")
             .Attr("placeholder", "Package Id")
             .Attr("list", "framework-assemblies");
-        using var version = BrowserElement.Create("input")
+        using var version = DomElement.Create("input")
             .Class("package-add-input")
             .Id("package-add-version")
             .Attr("placeholder", "Version (optional)");
-        using var addNuGet = BrowserElement.Create("button")
+        using var addNuGet = DomElement.Create("button")
             .Class("btn")
             .On("click", "add-package:NuGet")
             .Text("+ NuGet");
-        using var addFramework = BrowserElement.Create("button")
+        using var addFramework = DomElement.Create("button")
             .Class("btn")
             .On("click", "add-package:Framework")
             .Text("+ Framework");
@@ -91,25 +93,25 @@ public sealed class BrowserPackagePanel : IDisposable
     }
 
     private sealed class PackageNode(
-        BrowserElement root,
-        BrowserElement row,
-        BrowserElement source,
-        BrowserElement id,
-        BrowserElement state,
-        BrowserElement error) : IDisposable
+        DomElement root,
+        DomElement row,
+        DomElement source,
+        DomElement id,
+        DomElement state,
+        DomElement error) : IDisposable
     {
-        public BrowserElement Root { get; } = root;
+        public DomElement Root { get; } = root;
 
         public int Index { get; private set; } = int.MaxValue;
 
         public static PackageNode Create()
         {
-            var root = BrowserElement.Create("div");
-            var row = BrowserElement.Create("div").Class("package");
-            var source = BrowserElement.Create("span").Class("package-source");
-            var id = BrowserElement.Create("span").Class("package-id");
-            var state = BrowserElement.Create("span").Class("package-state");
-            var error = BrowserElement.Create("div").Class("package-error").Class("hidden");
+            var root = DomElement.Create("div");
+            var row = DomElement.Create("div").Class("package");
+            var source = DomElement.Create("span").Class("package-source");
+            var id = DomElement.Create("span").Class("package-id");
+            var state = DomElement.Create("span").Class("package-state");
+            var error = DomElement.Create("div").Class("package-error").Class("hidden");
             row.Append(source).Append(id).Append(state);
             root.Append(row).Append(error);
             return new(root, row, source, id, state, error);

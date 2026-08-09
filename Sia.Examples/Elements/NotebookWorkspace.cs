@@ -1,6 +1,6 @@
 using Sia;
 using Sia.Reactive;
-using Sia_Examples.Browser;
+using Sia_Examples.Dom;
 
 namespace Sia_Examples.Notebook;
 
@@ -16,7 +16,7 @@ public sealed class NotebookWorkspace : IAsyncDisposable
 
     public NotebookWorkspace(
         World world,
-        BrowserMainThread mainThread,
+        IUiThread mainThread,
         NotebookDocument document,
         MetadataReferenceProvider references)
     {
@@ -71,12 +71,12 @@ public sealed class NotebookWorkspace : IAsyncDisposable
         if (!Enum.TryParse<PackageSource>(sourceName, ignoreCase: true, out var source)) {
             return;
         }
-        using var idInput = BrowserElement.TryFind("package-add-id");
+        using var idInput = DomElement.TryFind("package-add-id");
         var id = idInput?.Value().Trim();
         if (string.IsNullOrEmpty(id)) {
             return;
         }
-        using var versionInput = BrowserElement.TryFind("package-add-version");
+        using var versionInput = DomElement.TryFind("package-add-version");
         var version = versionInput?.Value().Trim();
         await _session.AddPackageAsync(
             new(source, id, string.IsNullOrEmpty(version) ? null : version),
@@ -141,7 +141,7 @@ public sealed class NotebookWorkspace : IAsyncDisposable
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) {
         }
         catch (Exception error) {
-            BrowserDom.ReportError(error.ToString());
+            DomRuntime.ReportError(error.ToString());
         }
     }
 
@@ -158,6 +158,7 @@ public sealed class NotebookWorkspace : IAsyncDisposable
         }
         _mount.Update(new(_view, snapshot));
         _world.FlushReactive();
+        DomRuntime.Flush();
     }
 
     private void ThrowIfDisposed()

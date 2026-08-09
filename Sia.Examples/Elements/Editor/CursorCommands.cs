@@ -12,11 +12,33 @@ public static class CursorCommands
             ? ByCharacter(target.State, range, true)
             : Collapse(range, true));
 
+    public static bool SelectCharLeft(CommandTarget target)
+        => Extend(target, range => ByCharacter(target.State, range, false));
+
+    public static bool SelectCharRight(CommandTarget target)
+        => Extend(target, range => ByCharacter(target.State, range, true));
+
     public static bool GroupLeft(CommandTarget target)
-        => Move(target, range => ByGroup(target.State, range, false));
+        => Move(target, range => range.Empty
+            ? GroupMovement.Move(target.State, range, false)
+            : Collapse(range, false));
 
     public static bool GroupRight(CommandTarget target)
-        => Move(target, range => ByGroup(target.State, range, true));
+        => Move(target, range => range.Empty
+            ? GroupMovement.Move(target.State, range, true)
+            : Collapse(range, true));
+
+    public static bool SelectGroupLeft(CommandTarget target)
+        => Extend(target, range => GroupMovement.Move(
+            target.State,
+            EditorSelection.Cursor(range.Head),
+            false));
+
+    public static bool SelectGroupRight(CommandTarget target)
+        => Extend(target, range => GroupMovement.Move(
+            target.State,
+            EditorSelection.Cursor(range.Head),
+            true));
 
     public static bool LineUp(CommandTarget target)
         => Move(target, range => range.Empty
@@ -28,6 +50,12 @@ public static class CursorCommands
             ? Vertically(target.State, range, true)
             : Collapse(range, true));
 
+    public static bool SelectLineUp(CommandTarget target)
+        => Extend(target, range => Vertically(target.State, range, false));
+
+    public static bool SelectLineDown(CommandTarget target)
+        => Extend(target, range => Vertically(target.State, range, true));
+
     public static bool LineStart(CommandTarget target)
         => Move(target, range => EditorSelection.Cursor(
             target.State.Doc.LineAt(range.Head).From,
@@ -38,17 +66,39 @@ public static class CursorCommands
             target.State.Doc.LineAt(range.Head).To,
             -1));
 
+    public static bool SelectLineStart(CommandTarget target)
+        => Extend(target, range => EditorSelection.Cursor(
+            target.State.Doc.LineAt(range.Head).From,
+            1));
+
+    public static bool SelectLineEnd(CommandTarget target)
+        => Extend(target, range => EditorSelection.Cursor(
+            target.State.Doc.LineAt(range.Head).To,
+            -1));
+
     public static bool DocumentStart(CommandTarget target)
         => SetSelection(target, EditorSelection.Single(0));
 
     public static bool DocumentEnd(CommandTarget target)
         => SetSelection(target, EditorSelection.Single(target.State.Doc.Length));
 
+    public static bool SelectDocumentStart(CommandTarget target)
+        => Extend(target, static _ => EditorSelection.Cursor(0));
+
+    public static bool SelectDocumentEnd(CommandTarget target)
+        => Extend(target, _ => EditorSelection.Cursor(target.State.Doc.Length));
+
     public static bool PageUp(CommandTarget target)
         => MovePage(target, -20);
 
     public static bool PageDown(CommandTarget target)
         => MovePage(target, 20);
+
+    public static bool SelectPageUp(CommandTarget target)
+        => Extend(target, range => ByPage(target.State, range, -20));
+
+    public static bool SelectPageDown(CommandTarget target)
+        => Extend(target, range => ByPage(target.State, range, 20));
 
     private static bool Move(
         CommandTarget target,
@@ -62,23 +112,37 @@ public static class CursorCommands
             : SetSelection(target, selection);
     }
 
+    private static bool Extend(
+        CommandTarget target,
+        Func<SelectionRange, SelectionRange> moveHead)
+        => Move(target, range => {
+            var head = moveHead(range);
+            return EditorSelection.Range(range.Anchor, head.Head, head.GoalColumn);
+        });
+
     private static bool MovePage(CommandTarget target, int lineOffset)
         => Move(target, range => {
             if (!range.Empty) {
                 return Collapse(range, lineOffset > 0);
             }
-
-            var document = target.State.Doc;
-            var currentLine = document.LineAt(range.Head);
-            var targetLine = document.Line(Math.Clamp(
-                currentLine.Number + lineOffset,
-                1,
-                document.Lines));
-            var column = Math.Min(
-                range.GoalColumn ?? (range.Head - currentLine.From),
-                targetLine.Length);
-            return EditorSelection.Cursor(targetLine.From + column, 0, null, column);
+            return ByPage(target.State, range, lineOffset);
         });
+
+    private static SelectionRange ByPage(
+        EditorState state,
+        SelectionRange range,
+        int lineOffset)
+    {
+        var currentLine = state.Doc.LineAt(range.Head);
+        var targetLine = state.Doc.Line(Math.Clamp(
+            currentLine.Number + lineOffset,
+            1,
+            state.Doc.Lines));
+        var column = Math.Min(
+            range.GoalColumn ?? (range.Head - currentLine.From),
+            targetLine.Length);
+        return EditorSelection.Cursor(targetLine.From + column, 0, null, column);
+    }
 
     private static bool SetSelection(CommandTarget target, EditorSelection selection)
     {
@@ -127,35 +191,4 @@ public static class CursorCommands
         return EditorSelection.Cursor(targetLine.From + column, 0, null, column);
     }
 
-    private static SelectionRange ByGroup(
-        EditorState state,
-        SelectionRange range,
-        bool forward)
-    {
-        if (!range.Empty) {
-            return Collapse(range, forward);
-        }
-
-        var position = range.Head;
-        var line = state.Doc.LineAt(position);
-        while (true) {
-            var next = line.From + CharUtil.FindClusterBreak(
-                line.Text,
-                position - line.From,
-                forward);
-            if (next == position || next <= line.From || next >= line.To) {
-                break;
-            }
-            position = next;
-            if (forward && CharUtil.IsWordChar(line.Text[position - line.From])) {
-                break;
-            }
-            if (!forward
-                && position > line.From
-                && CharUtil.IsWordChar(line.Text[position - line.From - 1])) {
-                break;
-            }
-        }
-        return EditorSelection.Cursor(position, forward ? -1 : 1);
-    }
 }
