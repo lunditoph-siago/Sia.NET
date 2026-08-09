@@ -412,7 +412,6 @@ function attachEditorSurface(cellId, surface) {
     const selection = readSelection();
     if ((composing || compositionEnding) && nativeEditSnapshot) {
       nativeEditSnapshot.inputType = inputType;
-      nativeEditSnapshot.exactText = null;
       if (event?.data?.includes('\n') || event?.data?.includes('\r')) {
         nativeEditSnapshot.line = null;
       }
@@ -428,17 +427,9 @@ function attachEditorSurface(cellId, surface) {
       && selection?.anchorLine === selection?.headLine
       ? selection.anchorLine
       : null;
-    const exactText = inputType === 'insertText'
-      && typeof event?.data === 'string'
-      && !event.data.includes('\n')
-      && !event.data.includes('\r')
-      && line
-      ? event.data
-      : null;
     nativeEditSnapshot = {
       before: selectionCoordinates(selection) ?? knownSelection,
       line,
-      exactText,
       inputType,
     };
   };
@@ -481,9 +472,7 @@ function attachEditorSurface(cellId, surface) {
       replacement = readDocumentText();
     } else {
       lineIndex = Number(line.dataset.ln);
-      replacement = scope === 't'
-        ? snapshot.exactText
-        : line.textContent.replaceAll(caretMarkerText, '');
+      replacement = line.textContent.replaceAll(caretMarkerText, '');
     }
     emit(
       `mut:${cellId}:${scope}:${lineIndex}:`
@@ -510,13 +499,7 @@ function attachEditorSurface(cellId, surface) {
       return;
     }
     const line = touchedLine(records);
-    if (line === undefined) {
-      reconcileNativeEdit('d', null);
-    } else if (nativeEditSnapshot.exactText !== null && line === nativeEditSnapshot.line) {
-      reconcileNativeEdit('t', line);
-    } else {
-      reconcileNativeEdit('l', line);
-    }
+    reconcileNativeEdit(line === undefined ? 'd' : 'l', line);
   });
 
   const cancelCompositionCommit = () => {
