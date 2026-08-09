@@ -479,14 +479,10 @@ function attachEditorSurface(cellId, surface) {
   const handlers = {
     beforeinput(event) {
       selectionSyncPending.delete(surface);
-      const selection = readSelection();
       if (!composing
           && !compositionEnding
           && event.inputType === 'insertText'
-          && event.data !== null
-          && selection
-          && (hasPendingCommand()
-            || selection.anchorLine !== selection.headLine)) {
+          && event.data !== null) {
         event.preventDefault();
         pendingMutation = undefined;
         emitTextCommand(event.data);
