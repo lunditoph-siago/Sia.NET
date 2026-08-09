@@ -187,13 +187,47 @@ function clearCaretMarkers(surface, preserveSelection) {
   }
 }
 
+const observeOptions = {
+  childList: true,
+  characterData: true,
+  subtree: true,
+  characterDataOldValue: true,
+};
+const domWriteObservers = new Map();
+let domWriteDepth = 0;
+let domWriteReconnectScheduled = false;
+
+function ignoreOwnWrites(write) {
+  if (domWriteDepth === 0) {
+    for (const observer of domWriteObservers.keys()) {
+      observer.disconnect();
+    }
+  }
+  domWriteDepth++;
+  try {
+    return write();
+  } finally {
+    domWriteDepth--;
+    if (domWriteDepth === 0 && !domWriteReconnectScheduled) {
+      domWriteReconnectScheduled = true;
+      queueMicrotask(() => {
+        domWriteReconnectScheduled = false;
+        if (domWriteDepth === 0) {
+          for (const [observer, target] of domWriteObservers) {
+            observer.observe(target, observeOptions);
+          }
+        }
+      });
+    }
+  }
+}
+
 function attachEditorSurface(cellId, surface) {
   if (editorHandlers.has(cellId)) {
     throw new Error(`Editor '${cellId}' is already attached.`);
   }
 
-  let pendingMutation;
-  let handledInputPending = false;
+  let nativeEditSnapshot = null;
   let knownSelection;
   let composing = false;
   let compositionEnding = false;
@@ -358,7 +392,7 @@ function attachEditorSurface(cellId, surface) {
 
   const reportSelection = () => {
     if (selectionSyncPending.has(surface)
-        || pendingMutation
+        || nativeEditSnapshot
         || composing
         || compositionEnding) {
       return;
@@ -366,14 +400,17 @@ function attachEditorSurface(cellId, surface) {
     emitSelection();
   };
 
-  const beginMutation = event => {
+  const readDocumentText = () => [...surface.children]
+    .map(line => line.textContent.replaceAll(caretMarkerText, ''))
+    .join('\n');
+
+  const armNativeEditSnapshot = (inputType, event) => {
     const selection = readSelection();
-    const inputType = event.inputType || 'insertText';
-    if ((composing || compositionEnding) && pendingMutation) {
-      pendingMutation.inputType = inputType;
-      pendingMutation.exactText = null;
-      if (event.data?.includes('\n') || event.data?.includes('\r')) {
-        pendingMutation.line = null;
+    if ((composing || compositionEnding) && nativeEditSnapshot) {
+      nativeEditSnapshot.inputType = inputType;
+      nativeEditSnapshot.exactText = null;
+      if (event?.data?.includes('\n') || event?.data?.includes('\r')) {
+        nativeEditSnapshot.line = null;
       }
       return;
     }
@@ -381,71 +418,102 @@ function attachEditorSurface(cellId, surface) {
       || inputType === 'insertLineBreak'
       || inputType === 'insertFromPaste'
       || inputType === 'insertFromDrop'
-      || event.data?.includes('\n')
-      || event.data?.includes('\r');
+      || event?.data?.includes('\n')
+      || event?.data?.includes('\r');
     const line = !changesStructure
       && selection?.anchorLine === selection?.headLine
       ? selection.anchorLine
       : null;
     const exactText = inputType === 'insertText'
-      && typeof event.data === 'string'
+      && typeof event?.data === 'string'
       && !event.data.includes('\n')
       && !event.data.includes('\r')
       && line
       ? event.data
       : null;
-    pendingMutation = {
+    nativeEditSnapshot = {
       before: selectionCoordinates(selection) ?? knownSelection,
       line,
-      structure: [...surface.children],
-      inputType,
       exactText,
+      inputType,
     };
   };
 
-  const reportMutation = () => {
+  const touchedLine = records => {
+    let line;
+    for (const record of records) {
+      if (record.target === surface) {
+        return undefined;
+      }
+      const recordLine = lineOf(surface, record.target);
+      if (!recordLine || recordLine.parentNode !== surface) {
+        return undefined;
+      }
+      if (line === undefined) {
+        line = recordLine;
+      } else if (line !== recordLine) {
+        return undefined;
+      }
+    }
+    return line;
+  };
+
+  const reconcileNativeEdit = (scope, line) => {
     clearCaretMarkers(surface, true);
-    const mutation = pendingMutation;
-    pendingMutation = undefined;
-    const structureMatches = mutation
-      && mutation.structure?.length === surface.children.length
-      && mutation.structure.every((line, index) => line === surface.children[index]);
-    const after = structureMatches === false
-      ? readSelectionByDomOrder()
+    const snapshot = nativeEditSnapshot;
+    nativeEditSnapshot = null;
+    const after = scope === 'd'
+      ? (readSelectionByDomOrder() ?? readSelection())
       : readSelection();
     rememberSelection(after);
-    if (!mutation) {
+    if (!snapshot) {
       return;
     }
 
-    let scope;
     let lineIndex;
     let replacement;
-    if (structureMatches
-        && mutation.exactText !== null
-        && mutation.line?.parentNode === surface) {
-      scope = 't';
-      lineIndex = Number(mutation.line.dataset.ln);
-      replacement = mutation.exactText;
-    } else if (structureMatches && mutation.line?.parentNode === surface) {
-      scope = 'l';
-      lineIndex = Number(mutation.line.dataset.ln);
-      replacement = mutation.line.textContent.replaceAll(caretMarkerText, '');
-    } else {
-      scope = 'd';
+    if (scope === 'd') {
       lineIndex = -1;
-      replacement = surface.innerText
-        .replaceAll(caretMarkerText, '')
-        .replaceAll('\r\n', '\n')
-        .replaceAll('\r', '\n');
+      replacement = readDocumentText();
+    } else {
+      lineIndex = Number(line.dataset.ln);
+      replacement = scope === 't'
+        ? snapshot.exactText
+        : line.textContent.replaceAll(caretMarkerText, '');
     }
     emit(
       `mut:${cellId}:${scope}:${lineIndex}:`
-      + `${selectionArguments(mutation.before)}:`
+      + `${selectionArguments(snapshot.before)}:`
       + `${selectionArguments(after)}:`
-      + `${encodeURIComponent(mutation.inputType)}:`
+      + `${encodeURIComponent(snapshot.inputType)}:`
       + encodeURIComponent(replacement));
   };
+
+  const commitComposition = () => {
+    if (!nativeEditSnapshot) {
+      return;
+    }
+    const { line } = nativeEditSnapshot;
+    reconcileNativeEdit(line?.parentNode === surface ? 'l' : 'd', line);
+  };
+
+  const observer = new MutationObserver(records => {
+    if (composing || !nativeEditSnapshot) {
+      return;
+    }
+    if (compositionEnding) {
+      scheduleCompositionCommit();
+      return;
+    }
+    const line = touchedLine(records);
+    if (line === undefined) {
+      reconcileNativeEdit('d', null);
+    } else if (nativeEditSnapshot.exactText !== null && line === nativeEditSnapshot.line) {
+      reconcileNativeEdit('t', line);
+    } else {
+      reconcileNativeEdit('l', line);
+    }
+  });
 
   const cancelCompositionCommit = () => {
     if (compositionCommitTimer !== undefined) {
@@ -463,7 +531,7 @@ function attachEditorSurface(cellId, surface) {
         return;
       }
       compositionEnding = false;
-      reportMutation();
+      commitComposition();
     }, 20);
   };
 
@@ -478,20 +546,13 @@ function attachEditorSurface(cellId, surface) {
     encodeURIComponent(text));
   const emitInputCommand = (event, command) => {
     event.preventDefault();
-    pendingMutation = undefined;
-    handledInputPending = true;
+    nativeEditSnapshot = null;
     command();
-  };
-  const consumeHandledInput = () => {
-    const handled = handledInputPending;
-    handledInputPending = false;
-    return handled;
   };
 
   const handlers = {
     beforeinput(event) {
       selectionSyncPending.delete(surface);
-      handledInputPending = false;
       if (!composing
           && !compositionEnding
           && event.inputType === 'insertText'
@@ -557,7 +618,7 @@ function attachEditorSurface(cellId, surface) {
           return;
         }
       }
-      beginMutation(event);
+      armNativeEditSnapshot(event.inputType || 'insertText', event);
     },
     pointerdown() {
       selectionSyncPending.delete(surface);
@@ -591,37 +652,13 @@ function attachEditorSurface(cellId, surface) {
           event.altKey);
       }
     },
-    input(event) {
-      if (event.isComposing || composing) {
-        return;
-      }
-      if (consumeHandledInput()) {
-        return;
-      }
-      pendingMutation ??= {
-        before: knownSelection,
-        line: null,
-        structure: null,
-        inputType: event.inputType || 'insertText',
-        exactText: null,
-      };
-      if (compositionEnding) {
-        scheduleCompositionCommit();
-        return;
-      }
-      queueMicrotask(() => {
-        if (!composing && !compositionEnding) {
-          reportMutation();
-        }
-      });
-    },
     compositionstart(event) {
       selectionSyncPending.delete(surface);
       cancelCompositionCommit();
       composing = true;
       compositionEnding = false;
       compositionGeneration++;
-      beginMutation(event);
+      armNativeEditSnapshot('insertCompositionText', event);
     },
     compositionend() {
       composing = false;
@@ -631,6 +668,8 @@ function attachEditorSurface(cellId, surface) {
     dispose() {
       compositionGeneration++;
       cancelCompositionCommit();
+      observer.disconnect();
+      domWriteObservers.delete(observer);
     },
     acknowledge(sequence) {
       acknowledgedCommandSequence = Math.max(acknowledgedCommandSequence, sequence);
@@ -642,10 +681,11 @@ function attachEditorSurface(cellId, surface) {
   surface.addEventListener('pointerdown', handlers.pointerdown);
   surface.addEventListener('pointerup', handlers.pointerup);
   surface.addEventListener('keydown', handlers.keydown);
-  surface.addEventListener('input', handlers.input);
   surface.addEventListener('compositionstart', handlers.compositionstart);
   surface.addEventListener('compositionend', handlers.compositionend);
   document.addEventListener('selectionchange', handlers.selectionchange);
+  domWriteObservers.set(observer, surface);
+  observer.observe(surface, observeOptions);
   editorHandlers.set(cellId, handlers);
   editorSurfaceHandlers.set(surface, handlers);
 }
@@ -666,7 +706,6 @@ function detachEditorSurface(cellId, surface) {
   surface.removeEventListener('pointerdown', handlers.pointerdown);
   surface.removeEventListener('pointerup', handlers.pointerup);
   surface.removeEventListener('keydown', handlers.keydown);
-  surface.removeEventListener('input', handlers.input);
   surface.removeEventListener('compositionstart', handlers.compositionstart);
   surface.removeEventListener('compositionend', handlers.compositionend);
   document.removeEventListener('selectionchange', handlers.selectionchange);
@@ -711,7 +750,7 @@ function scheduleEditorSelection(surface, update) {
 
 function applyEditorSelection(surface, update) {
   const { anchorLineIndex, anchorColumn, headLineIndex, headColumn } = update;
-  clearCaretMarkers(surface, false);
+  ignoreOwnWrites(() => clearCaretMarkers(surface, false));
   const findLine = index => surface.querySelector(`[data-ln="${index}"]`);
   const pointIn = (line, column) => {
     const lineLength = line.textContent.replaceAll(caretMarkerText, '').length;
@@ -723,14 +762,16 @@ function applyEditorSelection(surface, update) {
       let marker = line.querySelector(
         `[data-editor-caret-marker="${position}"]`);
       if (!marker) {
-        marker = document.createElement('span');
-        marker.dataset.editorCaretMarker = position;
-        marker.textContent = caretMarkerText;
-        if (position === 'start') {
-          line.prepend(marker);
-        } else {
-          line.append(marker);
-        }
+        ignoreOwnWrites(() => {
+          marker = document.createElement('span');
+          marker.dataset.editorCaretMarker = position;
+          marker.textContent = caretMarkerText;
+          if (position === 'start') {
+            line.prepend(marker);
+          } else {
+            line.append(marker);
+          }
+        });
       }
       return {
         node: marker.firstChild,
@@ -988,19 +1029,21 @@ const { setModuleImports, runMain, getConfig, getAssemblyExports } = await dotne
 setModuleImports('main.js', {
   find: id => document.getElementById(id),
   tryFind: id => document.getElementById(id),
-  create: tagName => document.createElement(tagName),
-  createText: value => document.createTextNode(value),
-  setText: (element, value) => { element.textContent = value; },
+  create: tagName => ignoreOwnWrites(() => document.createElement(tagName)),
+  createText: value => ignoreOwnWrites(() => document.createTextNode(value)),
+  setText: (element, value) => ignoreOwnWrites(() => { element.textContent = value; }),
   getText: element => element.textContent ?? '',
   getValue: element => element.value ?? '',
-  setId: (element, id) => { element.id = id; },
-  setAttr: (element, name, value) => element.setAttribute(name, value),
-  toggleClass: (element, name, enabled) => element.classList.toggle(name, enabled),
+  setId: (element, id) => ignoreOwnWrites(() => { element.id = id; }),
+  setAttr: (element, name, value) => ignoreOwnWrites(() => element.setAttribute(name, value)),
+  toggleClass: (element, name, enabled) =>
+    ignoreOwnWrites(() => element.classList.toggle(name, enabled)),
   listen: (element, eventName, payload) => {
     element.addEventListener(eventName, () => emit(payload));
   },
-  insertBefore: (parent, child, before) => parent.insertBefore(child, before),
-  remove: element => element.remove(),
+  insertBefore: (parent, child, before) =>
+    ignoreOwnWrites(() => parent.insertBefore(child, before)),
+  remove: element => ignoreOwnWrites(() => element.remove()),
   waitForEvent,
   scheduleEvent,
   cancelScheduledEvent,
