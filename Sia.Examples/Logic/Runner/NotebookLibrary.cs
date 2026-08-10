@@ -44,7 +44,7 @@ public sealed class NotebookLibrary(INotebookStorage storage)
         Notebooks = [.. BuiltIn, .. user];
     }
 
-    public async ValueTask<(NotebookDocument Document, int? Version)> LoadAsync(
+    public async ValueTask<(NotebookDocument Document, string? Version)> LoadAsync(
         NotebookInfo info, CancellationToken cancellationToken = default)
     {
         if (info.Origin == NotebookOrigin.BuiltIn) {

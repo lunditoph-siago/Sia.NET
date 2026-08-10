@@ -18,7 +18,7 @@ public sealed class NotebookWorkspace : IAsyncDisposable
 
     private NotebookInfo _info;
 
-    private int? _version;
+    private string? _version;
 
     public NotebookWorkspace(
         World world,
@@ -26,7 +26,7 @@ public sealed class NotebookWorkspace : IAsyncDisposable
         NotebookDocument document,
         MetadataReferenceProvider references,
         NotebookInfo info,
-        int? version,
+        string? version,
         INotebookStorage storage,
         NotebookLibrary library)
     {
@@ -97,7 +97,6 @@ public sealed class NotebookWorkspace : IAsyncDisposable
         var (key, version) = await _storage.SaveAsync(
             isUserOwned ? _info.Key : null,
             isUserOwned ? _version : null,
-            document.Title,
             xml,
             cancellationToken);
 

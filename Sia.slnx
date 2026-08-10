@@ -2,6 +2,7 @@
   <Project Path="Sia.CodeGenerators/Sia.CodeGenerators.csproj" />
   <Project Path="Sia.Benchmarks/Sia.Benchmarks.csproj" />
   <Project Path="Sia.Examples/Sia.Examples.csproj" />
+  <Project Path="Sia.Examples.Tests/Sia.Examples.Tests.csproj" />
   <Project Path="Sia.Prelude/Sia.Prelude.csproj" />
   <Project Path="Sia.Tests/Sia.Tests.csproj" />
   <Project Path="Sia/Sia.csproj" />
