@@ -7,12 +7,13 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PublishTrimmed>false</PublishTrimmed>
     <IsPackable>false</IsPackable>
     <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
     <WasmEnableSIMD>true</WasmEnableSIMD>
     <WasmEnableWebcil>false</WasmEnableWebcil>
-    <PublishTrimmed>false</PublishTrimmed>
     <WasmEnableThreads>true</WasmEnableThreads>
+    <EmccExtraLDFlags>-sALLOW_MEMORY_GROWTH -sWASMFS=1</EmccExtraLDFlags>
   </PropertyGroup>
 
   <ItemGroup>
@@ -38,4 +39,9 @@
     </EmbeddedResource>
   </ItemGroup>
 
+  <Target Name="AddBrowserNativeModules" BeforeTargets="_GenerateManagedToNative" DependsOnTargets="PrepareForWasmBuildNative">
+    <ItemGroup>
+      <_WasmPInvokeModules Include="__Internal_emscripten" />
+    </ItemGroup>
+  </Target>
 </Project>

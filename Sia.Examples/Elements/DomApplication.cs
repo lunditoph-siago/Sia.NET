@@ -12,13 +12,15 @@ internal static class DomApplication
         IUiThread uiThread,
         IDomBackend backend,
         AssemblyLoader frameworkAssemblies,
-        PackageReferenceLoader packages)
+        PackageReferenceLoader packages,
+        INotebookStorage storage)
     {
         ArgumentNullException.ThrowIfNull(library);
         ArgumentNullException.ThrowIfNull(uiThread);
         ArgumentNullException.ThrowIfNull(backend);
         ArgumentNullException.ThrowIfNull(frameworkAssemblies);
         ArgumentNullException.ThrowIfNull(packages);
+        ArgumentNullException.ThrowIfNull(storage);
 
         DomRuntime.Initialize(backend);
         try {
@@ -47,7 +49,8 @@ internal static class DomApplication
                             if (workspace is not null) {
                                 await workspace.DisposeAsync();
                             }
-                            var document = library.Load(library.Notebooks[index]);
+                            var info = library.Notebooks[index];
+                            var (document, version) = await library.LoadAsync(info);
                             var references = new MetadataReferenceProvider(
                                 frameworkAssemblies,
                                 packages);
@@ -55,7 +58,11 @@ internal static class DomApplication
                                 world,
                                 uiThread,
                                 document,
-                                references);
+                                references,
+                                info,
+                                version,
+                                storage,
+                                library);
                             app.GetState<ExampleAppState>().Set(new(index));
                             world.FlushReactive();
                             await workspace.InitializeAsync();
@@ -75,6 +82,10 @@ internal static class DomApplication
 
                         case "save" when workspace is not null:
                             workspace.Save(argument);
+                            break;
+
+                        case "save-notebook" when workspace is not null:
+                            workspace.StartSave();
                             break;
 
                         case "add-package" when workspace is not null:

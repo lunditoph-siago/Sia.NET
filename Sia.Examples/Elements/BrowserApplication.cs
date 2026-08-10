@@ -6,19 +6,28 @@ namespace Sia_Examples;
 
 public static class BrowserApplication
 {
-    public static Task RunAsync(NotebookLibrary library)
+    public static async Task RunAsync()
     {
-        ArgumentNullException.ThrowIfNull(library);
+        const string NotebooksPath = "/notebooks";
+
+        await OpfsMount.MountAsync(NotebooksPath);
+
         var mainThread = BrowserMainThread.Capture();
         var resources = new BrowserResourceLoader(mainThread);
         var frameworkAssemblies = new AssemblyLoader(mainThread, resources);
         var packages = new PackageReferenceLoader(resources);
-        return DomApplication.RunAsync(
+
+        var storage = new FileSystemNotebookStorage(NotebooksPath);
+        var library = new NotebookLibrary(storage);
+        await library.RefreshAsync();
+
+        await DomApplication.RunAsync(
             library,
             mainThread,
             new BrowserDomBackend(mainThread),
             frameworkAssemblies,
-            packages);
+            packages,
+            storage);
     }
 }
 #endif

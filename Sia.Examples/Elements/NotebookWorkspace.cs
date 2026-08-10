@@ -10,17 +10,31 @@ public sealed class NotebookWorkspace : IAsyncDisposable
     private readonly BrowserNotebookView _view;
     private readonly ReactiveMount<NotebookViewProps> _mount;
     private readonly World _world;
+    private readonly INotebookStorage _storage;
+    private readonly NotebookLibrary _library;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly HashSet<Task> _operations = [];
     private bool _disposed;
+
+    private NotebookInfo _info;
+
+    private int? _version;
 
     public NotebookWorkspace(
         World world,
         IUiThread mainThread,
         NotebookDocument document,
-        MetadataReferenceProvider references)
+        MetadataReferenceProvider references,
+        NotebookInfo info,
+        int? version,
+        INotebookStorage storage,
+        NotebookLibrary library)
     {
         _world = world;
+        _storage = storage;
+        _library = library;
+        _info = info;
+        _version = version;
         _session = new(mainThread, document, references);
         _view = new(world, document, _session.Snapshot, references);
         _mount = world.Mount(
@@ -29,6 +43,8 @@ public sealed class NotebookWorkspace : IAsyncDisposable
         world.FlushReactive();
         _session.Changed += UpdateView;
     }
+
+    public NotebookInfo Info => _info;
 
     public async Task InitializeAsync()
     {
@@ -63,6 +79,32 @@ public sealed class NotebookWorkspace : IAsyncDisposable
             cellId,
             _view.Editors.GetSource(cellId),
             _lifetime.Token);
+    }
+
+    public void StartSave()
+    {
+        ThrowIfDisposed();
+        Track(SaveToStorageAsync(_lifetime.Token));
+    }
+
+    private async Task SaveToStorageAsync(CancellationToken cancellationToken)
+    {
+        SynchronizeEditors();
+        var document = _session.ToDocument();
+        var xml = NotebookDocumentSerializer.Write(document);
+
+        var isUserOwned = _info.Origin == NotebookOrigin.User;
+        var (key, version) = await _storage.SaveAsync(
+            isUserOwned ? _info.Key : null,
+            isUserOwned ? _version : null,
+            document.Title,
+            xml,
+            cancellationToken);
+
+        var title = document.Title.Length > 0 ? document.Title : "(untitled)";
+        _info = new NotebookInfo(title, "", key, NotebookOrigin.User);
+        _version = version;
+        await _library.RefreshAsync(cancellationToken);
     }
 
     public async Task AddPackageAsync(string sourceName)
