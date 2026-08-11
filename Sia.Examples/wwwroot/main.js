@@ -4,6 +4,76 @@ document.getElementById('sidebar-toggle')?.addEventListener('click', () => {
   document.getElementById('app')?.classList.toggle('sidebar-open');
 });
 
+document.getElementById('sidebar')?.addEventListener('click', event => {
+  if (event.target.closest?.('.example-btn')
+      && matchMedia('(max-width: 899px)').matches) {
+    document.getElementById('app')?.classList.remove('sidebar-open');
+  }
+});
+
+document.getElementById('sidebar')?.addEventListener('click', event => {
+  const toggle = event.target.closest?.('[data-library-toggle]');
+  if (!toggle) {
+    return;
+  }
+  const items = document.getElementById(toggle.dataset.libraryToggle);
+  const expanded = toggle.getAttribute('aria-expanded') !== 'false';
+  toggle.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+  items?.classList.toggle('hidden', expanded);
+});
+
+const inlineEditScope = '.notebook-titlebar, .section-heading-editor, .paragraph-editor';
+
+document.addEventListener('focusin', event => {
+  const input = event.target.closest?.('[data-inline-input]');
+  input?.closest(inlineEditScope)
+    ?.classList.add('is-editing');
+});
+
+document.addEventListener('focusout', event => {
+  const input = event.target.closest?.('[data-inline-input]');
+  if (!input || input.value !== (input.dataset.savedValue ?? '')) {
+    return;
+  }
+  input.closest(inlineEditScope)
+    ?.classList.remove('is-editing', 'is-dirty');
+});
+
+document.addEventListener('input', event => {
+  const input = event.target.closest?.('[data-inline-input]');
+  if (!input) {
+    return;
+  }
+  input.closest(inlineEditScope)
+    ?.classList.toggle('is-dirty', input.value !== input.dataset.savedValue);
+});
+
+document.addEventListener('click', event => {
+  const save = event.target.closest?.('[data-inline-save]');
+  if (save) {
+    const input = document.getElementById(save.dataset.inlineSave);
+    if (input && (input.value.trim() || input.dataset.allowEmpty)) {
+      input.dataset.savedValue = input.dataset.allowEmpty ? input.value : input.value.trim();
+      input.closest(inlineEditScope)
+        ?.classList.remove('is-editing', 'is-dirty');
+      input.blur();
+    }
+  }
+  const discard = event.target.closest?.('[data-inline-discard]');
+  if (discard) {
+    const input = document.getElementById(discard.dataset.inlineDiscard);
+    if (input) {
+      input.value = input.dataset.savedValue ?? '';
+      input.closest(inlineEditScope)
+        ?.classList.remove('is-editing', 'is-dirty');
+      input.blur();
+    }
+  }
+  event.target.closest?.('.cell-menu-item')
+    ?.closest('details')
+    ?.removeAttribute('open');
+});
+
 document.getElementById('packages-toggle')?.addEventListener('click', event => {
   event.stopPropagation();
   document.getElementById('header-packages')?.classList.toggle('open');
@@ -36,6 +106,254 @@ function emit(payload) {
     events.push(payload);
   }
 }
+
+const dockDragThreshold = 6;
+let dockDrag = null;
+let dockPreview = null;
+let suppressDockClick = false;
+
+function dockTabsIn(list) {
+  return [...list.querySelectorAll(
+    ':scope > .dock-tab-entry > [data-dock-tab]')];
+}
+
+function dockInsertionIndex(list, pointerX) {
+  const tabs = dockTabsIn(list);
+  for (let index = 0; index < tabs.length; index++) {
+    const rect = tabs[index].getBoundingClientRect();
+    if (pointerX < rect.left + rect.width / 2) {
+      return index;
+    }
+  }
+  return tabs.length;
+}
+
+function dockPositionIn(group, pointerX, pointerY) {
+  const tabs = group.querySelector(':scope > .dock-tabs');
+  const tabList = tabs?.querySelector(':scope > .dock-tab-list');
+  if (tabs && tabList && pointerY <= tabs.getBoundingClientRect().bottom) {
+    const index = dockInsertionIndex(tabList, pointerX);
+    const tabItems = dockTabsIn(tabList);
+    const groupRect = group.getBoundingClientRect();
+    const insertionX = index < tabItems.length
+      ? tabItems[index].getBoundingClientRect().left - groupRect.left
+      : tabItems.length > 0
+        ? tabItems[tabItems.length - 1].getBoundingClientRect().right - groupRect.left
+        : tabList.getBoundingClientRect().left - groupRect.left;
+    return {
+      position: 'center',
+      index,
+      insertionX,
+    };
+  }
+
+  const rect = group.getBoundingClientRect();
+  const horizontal = Math.max(rect.width, 1);
+  const vertical = Math.max(rect.height, 1);
+  const distances = [
+    ['left', (pointerX - rect.left) / horizontal],
+    ['right', (rect.right - pointerX) / horizontal],
+    ['top', (pointerY - rect.top) / vertical],
+    ['bottom', (rect.bottom - pointerY) / vertical],
+  ];
+  distances.sort((first, second) => first[1] - second[1]);
+  return distances[0][1] < 0.28
+    ? { position: distances[0][0], index: 2147483647 }
+    : { position: 'center', index: 2147483647 };
+}
+
+function findDockTarget(pointerX, pointerY) {
+  for (const element of document.elementsFromPoint(pointerX, pointerY)) {
+    const group = element.closest?.('[data-dock-group]');
+    if (group) {
+      const placement = dockPositionIn(group, pointerX, pointerY);
+      return {
+        id: group.dataset.dockGroup,
+        preview: group.querySelector(':scope > .dock-drop-preview'),
+        ...placement,
+      };
+    }
+    const region = element.closest?.('.dock-region-empty[data-dock-region]');
+    if (region) {
+      return {
+        id: region.dataset.dockRegion,
+        position: 'center',
+        index: 2147483647,
+        preview: region.querySelector(':scope > .dock-drop-preview'),
+      };
+    }
+  }
+  return null;
+}
+
+function clearDockPreview() {
+  if (!dockPreview) {
+    return;
+  }
+  dockPreview.classList.remove(
+    'visible',
+    'dock-drop-center',
+    'dock-drop-left',
+    'dock-drop-right',
+    'dock-drop-top',
+    'dock-drop-bottom',
+    'dock-drop-tabs');
+  dockPreview.style.removeProperty('--dock-insertion-x');
+  dockPreview = null;
+}
+
+function showDockPreview(target) {
+  if (dockPreview !== target?.preview) {
+    clearDockPreview();
+  }
+  if (!target?.preview) {
+    return;
+  }
+  dockPreview = target.preview;
+  dockPreview.classList.remove(
+    'dock-drop-center',
+    'dock-drop-left',
+    'dock-drop-right',
+    'dock-drop-top',
+    'dock-drop-bottom',
+    'dock-drop-tabs');
+  dockPreview.style.removeProperty('--dock-insertion-x');
+  if (target.insertionX !== undefined) {
+    dockPreview.style.setProperty('--dock-insertion-x', `${target.insertionX}px`);
+    dockPreview.classList.add('visible', 'dock-drop-tabs');
+    return;
+  }
+  dockPreview.classList.add('visible', `dock-drop-${target.position}`);
+}
+
+function beginDockDrag(event) {
+  dockDrag.started = true;
+  dockDrag.source.classList.add('dock-tab-drag-source');
+  document.body.classList.add('dock-drag-active');
+  const ghost = document.createElement('div');
+  ghost.className = 'dock-drag-ghost';
+  ghost.textContent = dockDrag.source.dataset.dockLabel || dockDrag.source.textContent;
+  document.body.append(ghost);
+  dockDrag.ghost = ghost;
+  moveDockGhost(event.clientX, event.clientY);
+}
+
+function moveDockGhost(pointerX, pointerY) {
+  if (!dockDrag?.ghost) {
+    return;
+  }
+  dockDrag.ghost.style.transform = `translate3d(${pointerX + 12}px, ${pointerY + 12}px, 0)`;
+}
+
+function finishDockDrag() {
+  clearDockPreview();
+  if (!dockDrag) {
+    return;
+  }
+  dockDrag.source.classList.remove('dock-tab-drag-source');
+  dockDrag.ghost?.remove();
+  document.body.classList.remove('dock-drag-active');
+  try {
+    dockDrag.source.releasePointerCapture(dockDrag.pointerId);
+  } catch {
+  }
+  dockDrag = null;
+}
+
+document.addEventListener('pointerdown', event => {
+  const source = event.target.closest?.('[data-dock-tab]');
+  if (!source || (event.pointerType === 'mouse' && event.button !== 0)) {
+    return;
+  }
+  dockDrag = {
+    source,
+    tabId: source.dataset.dockTab,
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    started: false,
+    ghost: null,
+  };
+  source.setPointerCapture(event.pointerId);
+});
+
+document.addEventListener('pointermove', event => {
+  if (!dockDrag || event.pointerId !== dockDrag.pointerId) {
+    return;
+  }
+  if (!dockDrag.started) {
+    const distance = Math.hypot(
+      event.clientX - dockDrag.startX,
+      event.clientY - dockDrag.startY);
+    if (distance < dockDragThreshold) {
+      return;
+    }
+    beginDockDrag(event);
+  }
+  event.preventDefault();
+  moveDockGhost(event.clientX, event.clientY);
+  showDockPreview(findDockTarget(event.clientX, event.clientY));
+}, { passive: false });
+
+document.addEventListener('pointerup', event => {
+  if (!dockDrag || event.pointerId !== dockDrag.pointerId) {
+    return;
+  }
+  const { started, tabId } = dockDrag;
+  if (!started) {
+    finishDockDrag();
+    return;
+  }
+
+  event.preventDefault();
+  const target = findDockTarget(event.clientX, event.clientY);
+  suppressDockClick = true;
+  finishDockDrag();
+  if (target) {
+    emit(`dock:${tabId}:${target.id}:${target.position}:${target.index}`);
+  } else {
+    emit(`dock-detach:${tabId}:${Math.round(event.clientX)}:${Math.round(event.clientY)}`);
+  }
+  setTimeout(() => { suppressDockClick = false; }, 0);
+});
+
+document.addEventListener('pointercancel', event => {
+  if (dockDrag?.pointerId === event.pointerId) {
+    finishDockDrag();
+  }
+});
+
+document.addEventListener('click', event => {
+  if (suppressDockClick && event.target.closest?.('[data-dock-tab]')) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }
+}, true);
+
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && dockDrag?.started) {
+    event.preventDefault();
+    finishDockDrag();
+    return;
+  }
+  const current = event.target.closest?.('[data-dock-tab]');
+  const list = current?.closest?.('.dock-tab-list');
+  if (!current || !list
+      || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+    return;
+  }
+  const tabs = dockTabsIn(list);
+  const currentIndex = tabs.indexOf(current);
+  const targetIndex = event.key === 'Home'
+    ? 0
+    : event.key === 'End'
+      ? tabs.length - 1
+      : (currentIndex + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length)
+        % tabs.length;
+  event.preventDefault();
+  tabs[targetIndex].focus();
+  tabs[targetIndex].click();
+});
 
 function waitForEvent() {
   const event = events.shift();
@@ -538,6 +856,9 @@ function attachEditorSurface(cellId, surface) {
   };
 
   const handlers = {
+    focus() {
+      emit(`editor-focus:${cellId}`);
+    },
     beforeinput(event) {
       selectionSyncPending.delete(surface);
       if (!composing
@@ -665,6 +986,7 @@ function attachEditorSurface(cellId, surface) {
   };
 
   surface.addEventListener('beforeinput', handlers.beforeinput);
+  surface.addEventListener('focus', handlers.focus);
   surface.addEventListener('pointerdown', handlers.pointerdown);
   surface.addEventListener('pointerup', handlers.pointerup);
   surface.addEventListener('keydown', handlers.keydown);
@@ -690,6 +1012,7 @@ function detachEditorSurface(cellId, surface) {
   selectionSyncPending.delete(surface);
   handlers.dispose();
   surface.removeEventListener('beforeinput', handlers.beforeinput);
+  surface.removeEventListener('focus', handlers.focus);
   surface.removeEventListener('pointerdown', handlers.pointerdown);
   surface.removeEventListener('pointerup', handlers.pointerup);
   surface.removeEventListener('keydown', handlers.keydown);

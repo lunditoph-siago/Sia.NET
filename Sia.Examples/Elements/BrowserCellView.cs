@@ -1,5 +1,5 @@
-using Sia_Examples.Editor;
 using Sia_Examples.Dom;
+using Sia_Examples.Editor;
 
 namespace Sia_Examples.Notebook;
 
@@ -7,51 +7,124 @@ public sealed class BrowserCellView : IDisposable
 {
     private readonly CodeCellBlock _cell;
     private readonly BrowserEditorRegistry _editors;
+    private readonly DomElement _script;
     private readonly DomElement _phase;
+    private readonly DomElement _runStop;
+    private readonly DomElement _editActions;
     private readonly DomElement _code;
     private readonly DomElement _diagnostics;
     private readonly DomElement _output;
+    private readonly DomElement _render;
     private BrowserEditorHost? _editor;
     private CellState? _current;
 
     public BrowserCellView(
-        int number,
         CodeCellBlock cell,
-        BrowserEditorRegistry editors)
+        BrowserEditorRegistry editors,
+        DockWindow scriptWindow,
+        DockWindow outputWindow,
+        DockWindow renderWindow)
     {
         _cell = cell;
         _editors = editors;
-        Root = DomElement.Create("div").Class("cell");
 
-        using var header = DomElement.Create("div").Class("cell-header");
-        using var label = DomElement.Create("span")
-            .Class("cell-label")
-            .Text($"[{number}] {cell.Id}");
+        var toolbar = DomElement.Create("div").Class("dock-window-toolbar");
         _phase = DomElement.Create("span").Class("phase");
-        header.Append(label).Append(_phase);
-
-        using var controls = DomElement.Create("div").Class("cell-controls");
-        AppendButton(controls, "Compile", $"compile:{cell.Id}");
-        AppendButton(controls, "Run", $"run:{cell.Id}");
-        AppendButton(controls, "Stop", $"stop:{cell.Id}");
-        if (cell.Editable) {
-            AppendButton(controls, "Save", $"save:{cell.Id}");
+        using (var controls = DomElement.Create("div").Class("cell-controls")) {
+            _editActions = DomElement.Create("div")
+                .Class("cell-edit-actions")
+                .Class("hidden");
+            using (var save = CreateIconButton("▣", "Save changes", $"save:{cell.Id}")) {
+                _editActions.Append(save);
+            }
+            using (var discard = CreateIconButton(
+                "↶",
+                "Discard changes",
+                $"discard:{cell.Id}")) {
+                _editActions.Append(discard);
+            }
+            _runStop = CreateIconButton("▶", "Run cell", $"toggle-run:{cell.Id}");
+            using var more = DomElement.Create("details").Class("cell-more");
+            using var summary = DomElement.Create("summary")
+                .Class("icon-btn")
+                .Attr("aria-label", "More cell actions")
+                .Attr("title", "More cell actions")
+                .Text("⋯");
+            using var menu = DomElement.Create("div").Class("cell-more-menu");
+            AppendMenuButton(menu, "⌁", "Compile", $"compile:{cell.Id}");
+            AppendMenuButton(menu, "›_", "Open console", $"open-window:{outputWindow.Id}");
+            AppendMenuButton(menu, "◇", "Open render", $"open-window:{renderWindow.Id}");
+            AppendMenuButton(menu, "⌁", "New code cell below", $"insert-cell:{cell.Id}");
+            AppendMenuButton(menu, "¶", "New text below", $"insert-paragraph:{cell.Id}");
+            AppendMenuButton(menu, "↑", "Move cell up", $"move-cell-up:{cell.Id}");
+            AppendMenuButton(menu, "↓", "Move cell down", $"move-cell-down:{cell.Id}");
+            AppendMenuButton(menu, "×", "Delete cell", $"remove-cell:{cell.Id}");
+            more.Append(summary).Append(menu);
+            controls.Append(_editActions);
+            controls.Append(_runStop);
+            controls.Append(more);
+            toolbar.Append(_phase).Append(controls);
         }
-        header.Append(controls);
-        Root.Append(header);
 
+        _script = DomElement.Create("div").Class("dock-window-script");
         _code = DomElement.Create(cell.Editable ? "div" : "pre").Class("code");
         if (cell.Editable) {
             _code.Class("code-edit").Id(NotebookElementIds.Editor(cell.Id));
         }
-        Root.Append(_code);
+        _script.Append(_code);
+        Script = new(scriptWindow, _script, toolbar);
 
+        var output = DomElement.Create("div").Class("dock-window-output");
         _diagnostics = DomElement.Create("div").Class("diagnostics").Class("hidden");
         _output = DomElement.Create("pre").Class("output").Class("hidden");
-        Root.Append(_diagnostics).Append(_output);
+        output.Append(_diagnostics).Append(_output);
+        Output = new(outputWindow, output);
+
+        _render = DomElement.Create("div")
+            .Class("dock-window-render")
+            .Attr("data-render-surface", cell.Id)
+            .Attr("aria-live", "polite")
+            .Text("Render surface · ready");
+        Render = new(renderWindow, _render);
     }
 
-    public DomElement Root { get; }
+    public BrowserDockWindowView Script { get; }
+
+    public BrowserDockWindowView Output { get; }
+
+    public BrowserDockWindowView Render { get; }
+
+    public void BeginEditing()
+    {
+        if (!_cell.Editable) {
+            return;
+        }
+        _script.ToggleClass("is-editing", true);
+        _editActions.ToggleClass("hidden", false);
+        UpdateDirtyState();
+    }
+
+    public void EndEditing()
+    {
+        _script.ToggleClass("is-editing", false).ToggleClass("is-dirty", false);
+        _editActions.ToggleClass("hidden", true);
+    }
+
+    public void UpdateDirtyState()
+    {
+        if (!_cell.Editable || _editor is null || _current is null) {
+            return;
+        }
+        _script.ToggleClass("is-dirty", _editor.Source != _current.Value.Source);
+    }
+
+    public void DiscardChanges()
+    {
+        if (_editor is not null && _current is { } current) {
+            _editor.Update(current.Source, current.Highlights);
+        }
+        EndEditing();
+    }
 
     public void Update(CellState state)
     {
@@ -63,6 +136,21 @@ public sealed class BrowserCellView : IDisposable
             _phase
                 .ToggleClass(GetPhaseClass(state.Phase), true)
                 .Text(GetPhaseLabel(state.Phase));
+            var active = state.Phase is CellPhase.Compiling or CellPhase.Running;
+            _runStop
+                .Text(active ? "■" : "▶")
+                .Attr("aria-label", active ? "Stop cell" : "Run cell");
+        }
+        if (previous is null
+            || previous.Value.Phase != state.Phase
+            || previous.Value.RenderRequested != state.RenderRequested
+            || previous.Value.RenderOutput != state.RenderOutput) {
+            _render
+                .ToggleClass("render-active", state.RenderRequested)
+                .Attr("aria-busy", state.Phase == CellPhase.Running ? "true" : "false")
+                .Text(state.RenderOutput.Length > 0
+                    ? state.RenderOutput
+                    : GetRenderLabel(state.Phase, state.RenderRequested));
         }
 
         if (previous is null
@@ -95,12 +183,15 @@ public sealed class BrowserCellView : IDisposable
 
     public void Dispose()
     {
-        Root.Remove();
-        _output.Dispose();
-        _diagnostics.Dispose();
-        _code.Dispose();
+        _runStop.Dispose();
+        _editActions.Dispose();
         _phase.Dispose();
-        Root.Dispose();
+        _code.Dispose();
+        _diagnostics.Dispose();
+        _output.Dispose();
+        Render.Dispose();
+        Output.Dispose();
+        Script.Dispose();
     }
 
     private void RenderDiagnostics(IReadOnlyList<NotebookDiagnostic> diagnostics)
@@ -150,13 +241,35 @@ public sealed class BrowserCellView : IDisposable
         }
     }
 
-    private static void AppendButton(DomElement controls, string text, string payload)
+    private static DomElement CreateIconButton(
+        string icon,
+        string label,
+        string payload)
+        => DomElement.Create("button")
+            .Class("icon-btn")
+            .Attr("type", "button")
+            .Attr("aria-label", label)
+            .Attr("title", label)
+            .On("click", payload)
+            .Text(icon);
+
+    private static void AppendMenuButton(
+        DomElement menu,
+        string icon,
+        string label,
+        string payload)
     {
         using var button = DomElement.Create("button")
-            .Class("btn")
-            .On("click", payload)
-            .Text(text);
-        controls.Append(button);
+            .Class("cell-menu-item")
+            .Attr("type", "button")
+            .On("click", payload);
+        using var glyph = DomElement.Create("span")
+            .Class("cell-menu-icon")
+            .Attr("aria-hidden", "true")
+            .Text(icon);
+        using var text = DomElement.Create("span").Text(label);
+        button.Append(glyph).Append(text);
+        menu.Append(button);
     }
 
     private static string GetPhaseClass(CellPhase phase)
@@ -174,4 +287,11 @@ public sealed class BrowserCellView : IDisposable
             CellPhase.Interrupted => "interrupted",
             _ => phase.ToString(),
         };
+
+    private static string GetRenderLabel(CellPhase phase, bool requested)
+        => requested
+            ? "Render surface · active"
+            : phase == CellPhase.Running
+                ? "Render surface · waiting for Notebook.Render(…)"
+                : "Render surface · ready";
 }

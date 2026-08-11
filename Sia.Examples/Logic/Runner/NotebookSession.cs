@@ -39,7 +39,7 @@ public sealed class NotebookSession : IDisposable
         Snapshot = CreateSnapshot();
     }
 
-    public event Action<NotebookSessionSnapshot>? Changed;
+    public event Action<NotebookSessionSnapshot, bool>? Changed;
 
     public IReadOnlyList<CodeCellBlock> Cells => _cells;
 
@@ -112,16 +112,36 @@ public sealed class NotebookSession : IDisposable
         Publish();
     }
 
-    /// <summary>Inserts a new, empty code cell after <paramref name="afterCellId"/> (or at the end
-    /// of the last section if null). Returns the new cell's id.</summary>
-    public string InsertCell(string? afterCellId, string? scope = null)
+    public string InsertCell(string? afterBlockId, string? scope = null)
     {
         VerifyAccess();
         var newCell = new CodeCellBlock(Guid.NewGuid().ToString("N"), "", Editable: true, scope);
-        _document = _document with { Sections = InsertBlockAfter(_document.Sections, afterCellId, newCell) };
+        _document = _document with { Sections = InsertBlockAfter(_document.Sections, afterBlockId, newCell) };
         Rebuild();
-        Publish();
+        Publish(structural: true);
         return newCell.Id;
+    }
+
+    public string InsertParagraph(string? afterBlockId)
+    {
+        VerifyAccess();
+        var newParagraph = new ParagraphBlock(Guid.NewGuid().ToString("N"), [new TextInline("")], Editable: true);
+        _document = _document with { Sections = InsertBlockAfter(_document.Sections, afterBlockId, newParagraph) };
+        Rebuild();
+        Publish(structural: true);
+        return newParagraph.Id;
+    }
+
+    public void SetParagraphText(string blockId, string text)
+    {
+        VerifyAccess();
+        _document = _document with {
+            Sections = UpdateBlock(_document.Sections, blockId, block =>
+                block is ParagraphBlock { Editable: true } paragraph
+                    ? paragraph with { Inlines = [new TextInline(text)] }
+                    : block),
+        };
+        Publish();
     }
 
     public void RemoveCell(string cellId)
@@ -129,11 +149,9 @@ public sealed class NotebookSession : IDisposable
         VerifyAccess();
         _document = _document with { Sections = RemoveBlock(_document.Sections, cellId) };
         Rebuild();
-        Publish();
+        Publish(structural: true);
     }
 
-    /// <summary>Swaps a cell with its immediate sibling. <paramref name="offset"/> must be -1 (up)
-    /// or +1 (down). A no-op if the cell is already at that edge of its section.</summary>
     public void MoveCell(string cellId, int offset)
     {
         VerifyAccess();
@@ -142,22 +160,23 @@ public sealed class NotebookSession : IDisposable
         }
         _document = _document with { Sections = MoveBlock(_document.Sections, cellId, offset) };
         Rebuild();
-        Publish();
+        Publish(structural: true);
     }
 
-    /// <summary>Inserts a new section (with one empty starter cell) after section
-    /// <paramref name="afterIndex"/> (or at the end if null). Returns the starter cell's id.</summary>
-    public string InsertSection(int? afterIndex, string title)
+    public string InsertSection(
+        int? afterIndex, string title, NotebookBlockKind starterKind = NotebookBlockKind.Code)
     {
         VerifyAccess();
-        var starterCell = new CodeCellBlock(Guid.NewGuid().ToString("N"), "", Editable: true, null);
+        NotebookBlock starterBlock = starterKind == NotebookBlockKind.Text
+            ? new ParagraphBlock(Guid.NewGuid().ToString("N"), [new TextInline("")], Editable: true)
+            : new CodeCellBlock(Guid.NewGuid().ToString("N"), "", Editable: true, null);
         var sections = _document.Sections.ToList();
         var insertAt = afterIndex is { } index ? Math.Clamp(index + 1, 0, sections.Count) : sections.Count;
-        sections.Insert(insertAt, new NotebookSection(title, [starterCell]));
+        sections.Insert(insertAt, new NotebookSection(title, [starterBlock]));
         _document = _document with { Sections = sections };
         Rebuild();
-        Publish();
-        return starterCell.Id;
+        Publish(structural: true);
+        return GetBlockId(starterBlock)!;
     }
 
     public void RemoveSection(int sectionIndex)
@@ -170,7 +189,7 @@ public sealed class NotebookSession : IDisposable
         sections.RemoveAt(sectionIndex);
         _document = _document with { Sections = sections };
         Rebuild();
-        Publish();
+        Publish(structural: true);
     }
 
     public void RenameSection(int sectionIndex, string title)
@@ -182,8 +201,6 @@ public sealed class NotebookSession : IDisposable
         }
         sections[sectionIndex] = sections[sectionIndex] with { Title = title };
         _document = _document with { Sections = sections };
-        // Section titles aren't part of NotebookCellSnapshot / _cells, so no Rebuild() needed —
-        // just bump the snapshot version so listeners notice something changed.
         Publish();
     }
 
@@ -194,9 +211,6 @@ public sealed class NotebookSession : IDisposable
         Publish();
     }
 
-    /// <summary>Snapshots the current structure plus every cell's latest edited
-    /// <see cref="CellState.Source"/> as a fresh <see cref="NotebookDocument"/>, ready for
-    /// <see cref="NotebookDocumentSerializer.Write"/>.</summary>
     public NotebookDocument ToDocument()
     {
         VerifyAccess();
@@ -370,11 +384,14 @@ public sealed class NotebookSession : IDisposable
                 continue;
             }
             var error = standardError.GetValueOrDefault(id, string.Empty);
+            var rendered = NotebookProgramBuilder.SplitRenderOutput(output);
             var failed = error.Length > 0 || (!result.Success && index == lastStartedIndex);
             SetState(id, state => state with {
                 Phase = failed ? CellPhase.RanError : CellPhase.RanSuccess,
-                StandardOutput = output,
+                StandardOutput = rendered.StandardOutput,
                 StandardError = error,
+                RenderRequested = rendered.RenderRequested,
+                RenderOutput = rendered.RenderOutput,
             });
         }
     }
@@ -408,19 +425,13 @@ public sealed class NotebookSession : IDisposable
                 Diagnostics = [],
                 StandardOutput = string.Empty,
                 StandardError = string.Empty,
+                RenderRequested = false,
+                RenderOutput = string.Empty,
             });
         }
         scope.InvalidateFrom(startIndex);
     }
 
-    /// <summary>Recomputes <c>_cells</c>/<c>_scopeKeys</c>/<c>_scopeIndices</c>/<c>_scopes</c>/
-    /// <c>_states</c> from <c>_document</c>. Called by the constructor and after every structural
-    /// edit. Preserves each surviving cell's <see cref="CellState.Source"/> (an edit elsewhere in
-    /// the notebook shouldn't discard what you were typing) but resets its compile/run phase and
-    /// output — a structural edit invalidates the whole notebook's compiled state, not just the
-    /// scope that changed, since a fresh <see cref="ScopeState"/> is built either way. That's
-    /// simpler than working out exactly which scopes are actually affected, at the cost of a few
-    /// extra recompiles the next time each scope runs.</summary>
     private void Rebuild()
     {
         var cells = _document.Sections
@@ -450,6 +461,8 @@ public sealed class NotebookSession : IDisposable
                     Diagnostics = [],
                     StandardOutput = "",
                     StandardError = "",
+                    RenderRequested = false,
+                    RenderOutput = "",
                 }
                 : CellState.Create(cell.InitialSource) with {
                     Highlights = CSharpHighlighter.Classify(cell.InitialSource).ToImmutableArray(),
@@ -482,7 +495,7 @@ public sealed class NotebookSession : IDisposable
         }
 
         for (var sectionIndex = 0; sectionIndex < sections.Count; sectionIndex++) {
-            var blockIndex = FindCellIndex(sections[sectionIndex].Blocks, afterCellId);
+            var blockIndex = FindBlockIndex(sections[sectionIndex].Blocks, afterCellId);
             if (blockIndex < 0) {
                 continue;
             }
@@ -493,14 +506,14 @@ public sealed class NotebookSession : IDisposable
             return updated;
         }
 
-        throw new ArgumentException($"No cell with id '{afterCellId}' found.", nameof(afterCellId));
+        throw new ArgumentException($"No block with id '{afterCellId}' found.", nameof(afterCellId));
     }
 
     private static IReadOnlyList<NotebookSection> RemoveBlock(
         IReadOnlyList<NotebookSection> sections, string cellId)
     {
         for (var sectionIndex = 0; sectionIndex < sections.Count; sectionIndex++) {
-            var blockIndex = FindCellIndex(sections[sectionIndex].Blocks, cellId);
+            var blockIndex = FindBlockIndex(sections[sectionIndex].Blocks, cellId);
             if (blockIndex < 0) {
                 continue;
             }
@@ -510,7 +523,7 @@ public sealed class NotebookSession : IDisposable
             updated[sectionIndex] = sections[sectionIndex] with { Blocks = updatedBlocks };
             return updated;
         }
-        throw new ArgumentException($"No cell with id '{cellId}' found.", nameof(cellId));
+        throw new ArgumentException($"No block with id '{cellId}' found.", nameof(cellId));
     }
 
     private static IReadOnlyList<NotebookSection> MoveBlock(
@@ -518,13 +531,13 @@ public sealed class NotebookSession : IDisposable
     {
         for (var sectionIndex = 0; sectionIndex < sections.Count; sectionIndex++) {
             var blocks = sections[sectionIndex].Blocks;
-            var blockIndex = FindCellIndex(blocks, cellId);
+            var blockIndex = FindBlockIndex(blocks, cellId);
             if (blockIndex < 0) {
                 continue;
             }
             var targetIndex = blockIndex + offset;
             if (targetIndex < 0 || targetIndex >= blocks.Count) {
-                return sections; // already at that edge — no-op
+                return sections;
             }
             var updatedBlocks = blocks.ToList();
             (updatedBlocks[blockIndex], updatedBlocks[targetIndex]) =
@@ -533,18 +546,44 @@ public sealed class NotebookSession : IDisposable
             updated[sectionIndex] = sections[sectionIndex] with { Blocks = updatedBlocks };
             return updated;
         }
-        throw new ArgumentException($"No cell with id '{cellId}' found.", nameof(cellId));
+        throw new ArgumentException($"No block with id '{cellId}' found.", nameof(cellId));
     }
 
-    private static int FindCellIndex(IReadOnlyList<NotebookBlock> blocks, string cellId)
+    private static IReadOnlyList<NotebookSection> UpdateBlock(
+        IReadOnlyList<NotebookSection> sections,
+        string blockId,
+        Func<NotebookBlock, NotebookBlock> transform)
+    {
+        for (var sectionIndex = 0; sectionIndex < sections.Count; sectionIndex++) {
+            var blockIndex = FindBlockIndex(sections[sectionIndex].Blocks, blockId);
+            if (blockIndex < 0) {
+                continue;
+            }
+            var updatedBlocks = sections[sectionIndex].Blocks.ToList();
+            updatedBlocks[blockIndex] = transform(updatedBlocks[blockIndex]);
+            var updated = sections.ToList();
+            updated[sectionIndex] = sections[sectionIndex] with { Blocks = updatedBlocks };
+            return updated;
+        }
+        return sections;
+    }
+
+    private static int FindBlockIndex(IReadOnlyList<NotebookBlock> blocks, string blockId)
     {
         for (var index = 0; index < blocks.Count; index++) {
-            if (blocks[index] is CodeCellBlock cell && cell.Id == cellId) {
+            if (GetBlockId(blocks[index]) == blockId) {
                 return index;
             }
         }
         return -1;
     }
+
+    private static string? GetBlockId(NotebookBlock block)
+        => block switch {
+            CodeCellBlock cell => cell.Id,
+            ParagraphBlock paragraph => paragraph.Id,
+            _ => null,
+        };
 
     private bool TryGetTarget(
         string cellId,
@@ -597,11 +636,11 @@ public sealed class NotebookSession : IDisposable
         }
     }
 
-    private void Publish()
+    private void Publish(bool structural = false)
     {
         VerifyAccess();
         Snapshot = CreateSnapshot();
-        Changed?.Invoke(Snapshot);
+        Changed?.Invoke(Snapshot, structural);
     }
 
     private NotebookSessionSnapshot CreateSnapshot()

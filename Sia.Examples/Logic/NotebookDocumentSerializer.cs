@@ -62,13 +62,24 @@ public static class NotebookDocumentSerializer
 
     private static XElement WriteBlock(NotebookBlock block)
         => block switch {
-            ParagraphBlock paragraph => new XElement("Paragraph", WriteInlines(paragraph.Inlines)),
+            ParagraphBlock paragraph => WriteParagraph(paragraph),
             ListBlock list => new XElement("List",
                 Laid(list.Items.Select(item => new XElement("Item", WriteInlines(item))), indent: 6)),
             CodeCellBlock cell => WriteCodeCell(cell),
             var unknown => throw new NotSupportedException(
                 $"Don't know how to serialize block type '{unknown.GetType().Name}'."),
         };
+
+    private static XElement WriteParagraph(ParagraphBlock paragraph)
+    {
+        var element = new XElement("Paragraph");
+        if (paragraph.Editable) {
+            element.SetAttributeValue("Id", paragraph.Id);
+            element.SetAttributeValue("Editable", "true");
+        }
+        element.Add(WriteInlines(paragraph.Inlines));
+        return element;
+    }
 
     private static IEnumerable<XNode> WriteInlines(IReadOnlyList<Inline> inlines)
         => inlines.Select(static inline => inline switch {

@@ -9,6 +9,8 @@ public static class NotebookProgramBuilder
     public const string WrapperNamespace = "NotebookCell";
 
     private const char _marker = '\uE000';
+    private const string _renderStartToken = "\uE001R\uE001";
+    private const string _renderEndToken = "\uE001E\uE001";
 
     private static string StartToken(int index) => $"{_marker}S{index}{_marker}";
     private static string EndToken(int index) => $"{_marker}E{index}{_marker}";
@@ -73,22 +75,25 @@ public static class NotebookProgramBuilder
         Emit("world.Dispose();\n");
         Emit("}\n");
 
-        var hasTypes = typeParts.Exists(t => t.Text.Length > 0);
-        if (hasTypes) {
-            Emit($"\nnamespace {WrapperNamespace} {{\n");
-            for (var index = 0; index < typeParts.Count; index++) {
-                var (id, text) = typeParts[index];
-                if (text.Length == 0) {
-                    continue;
-                }
-                var typesStartLine = line;
-                Emit(EnsureTrailingNewline(text));
-                ranges[index] = ranges[index] with { TypesStartLine = typesStartLine };
+        Emit($"\nnamespace {WrapperNamespace} {{\n");
+        Emit("public static class Notebook {\n");
+        Emit("public static void Render(object? value = null) {\n");
+        Emit($"global::System.Console.Out.Write(\"{_renderStartToken}\");\n");
+        Emit("if (value is not null) global::System.Console.Out.Write(value);\n");
+        Emit($"global::System.Console.Out.Write(\"{_renderEndToken}\");\n");
+        Emit("}\n}\n");
+        for (var index = 0; index < typeParts.Count; index++) {
+            var (id, text) = typeParts[index];
+            if (text.Length == 0) {
+                continue;
             }
-            Emit("}\n");
+            var typesStartLine = line;
+            Emit(EnsureTrailingNewline(text));
+            ranges[index] = ranges[index] with { TypesStartLine = typesStartLine };
         }
+        Emit("}\n");
 
-        return new NotebookProgram(builder.ToString(), hasTypes, ranges);
+        return new NotebookProgram(builder.ToString(), true, ranges);
     }
 
     public static IReadOnlyDictionary<string, string> SliceOutput(string captured, NotebookProgram program)
@@ -106,6 +111,36 @@ public static class NotebookProgramBuilder
                 : captured[startIndex..];
         }
         return result;
+    }
+
+    public static (string StandardOutput, string RenderOutput, bool RenderRequested)
+        SplitRenderOutput(string output)
+    {
+        var standard = new StringBuilder(output.Length);
+        var render = new StringBuilder();
+        var position = 0;
+        var requested = false;
+        while (position < output.Length) {
+            var start = output.IndexOf(_renderStartToken, position, StringComparison.Ordinal);
+            if (start < 0) {
+                standard.Append(output, position, output.Length - position);
+                break;
+            }
+            standard.Append(output, position, start - position);
+            var contentStart = start + _renderStartToken.Length;
+            var end = output.IndexOf(_renderEndToken, contentStart, StringComparison.Ordinal);
+            if (end < 0) {
+                standard.Append(output, start, output.Length - start);
+                break;
+            }
+            if (render.Length > 0) {
+                render.AppendLine();
+            }
+            render.Append(output, contentStart, end - contentStart);
+            requested = true;
+            position = end + _renderEndToken.Length;
+        }
+        return (standard.ToString(), render.ToString(), requested);
     }
 
     private static string EnsureTrailingNewline(string text)

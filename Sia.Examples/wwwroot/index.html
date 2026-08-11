@@ -11,7 +11,32 @@
 </head>
 <body>
     <div id="app">
-        <aside id="sidebar"></aside>
+        <aside id="sidebar" aria-label="Notebook explorer">
+            <div class="sidebar-heading">
+                <span>EXPLORER</span>
+                <span id="sidebar-actions" class="sidebar-actions"></span>
+            </div>
+            <section class="library-folder">
+                <button class="library-folder-toggle" type="button"
+                        data-library-toggle="built-in-notebooks" aria-expanded="true">
+                    <svg class="folder-caret" viewBox="0 0 24 24" width="12" height="12">
+                        <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                    <span>Built-in</span>
+                </button>
+                <div id="built-in-notebooks" class="library-items"></div>
+            </section>
+            <section class="library-folder">
+                <button class="library-folder-toggle" type="button"
+                        data-library-toggle="user-notebooks" aria-expanded="true">
+                    <svg class="folder-caret" viewBox="0 0 24 24" width="12" height="12">
+                        <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                    <span>User notebooks</span>
+                </button>
+                <div id="user-notebooks" class="library-items"></div>
+            </section>
+        </aside>
         <main id="content">
             <div id="content-header">
                 <button id="sidebar-toggle" class="sidebar-toggle" aria-label="Toggle sidebar">
@@ -21,6 +46,7 @@
                         <line class="bar bar-bot" x1="3" y1="18" x2="21" y2="18" />
                     </svg>
                 </button>
+                <div id="notebook-actions"></div>
                 <div id="header-packages" class="header-packages">
                     <button id="packages-toggle" class="packages-toggle" aria-label="Packages">
                         Packages<span id="packages-badge" class="packages-badge"></span>

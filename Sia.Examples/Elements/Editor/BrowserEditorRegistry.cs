@@ -51,6 +51,16 @@ public sealed class BrowserEditorRegistry(
             ? editor.Source
             : throw new KeyNotFoundException($"Editor '{cellId}' is not mounted.");
 
+    public bool TryGetSource(string cellId, out string source)
+    {
+        if (_editors.TryGetValue(cellId, out var editor)) {
+            source = editor.Source;
+            return true;
+        }
+        source = string.Empty;
+        return false;
+    }
+
     public void Dispose()
     {
         foreach (var editor in _editors.Values) {

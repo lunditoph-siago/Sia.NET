@@ -48,7 +48,10 @@ public static class NotebookDocumentParser
         List<NotebookBlock> blocks = [];
         foreach (var child in element.Elements()) {
             blocks.Add(child.Name.LocalName switch {
-                "Paragraph" => new ParagraphBlock(ParseInlines(child)),
+                "Paragraph" => new ParagraphBlock(
+                    (string?)child.Attribute("Id") ?? Guid.NewGuid().ToString("N"),
+                    ParseInlines(child),
+                    (bool?)child.Attribute("Editable") ?? false),
                 "List" => new ListBlock(
                     child.Elements("Item").Select(ParseInlines).ToList()),
                 "CodeCell" => new CodeCellBlock(
