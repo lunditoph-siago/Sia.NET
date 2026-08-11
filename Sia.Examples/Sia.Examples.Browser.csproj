@@ -10,6 +10,7 @@
     <PublishTrimmed>false</PublishTrimmed>
     <IsPackable>false</IsPackable>
     <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
+    <WasmBuildNative>true</WasmBuildNative>
     <WasmEnableSIMD>true</WasmEnableSIMD>
     <WasmEnableWebcil>false</WasmEnableWebcil>
     <WasmEnableThreads>true</WasmEnableThreads>
