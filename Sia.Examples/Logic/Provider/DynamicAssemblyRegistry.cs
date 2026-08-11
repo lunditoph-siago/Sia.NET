@@ -13,7 +13,7 @@ internal static class DynamicAssemblyRegistry
 
     public static void Register(string name, byte[] image)
     {
-        _images[name] = image;
+        _images.TryAdd(name, image);
         EnsureHooked();
     }
 

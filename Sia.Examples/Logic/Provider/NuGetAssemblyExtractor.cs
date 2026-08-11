@@ -4,11 +4,20 @@ namespace Sia_Examples.Notebook;
 
 public static class NuGetAssemblyExtractor
 {
+#if BROWSER
+    private static readonly string[] _preferredTfms =
+    [
+        "net11.0-browser1.0", "net11.0-browser",
+        "net11.0", "net10.0", "net9.0", "net8.0", "net7.0", "net6.0", "net5.0",
+        "netstandard2.1", "netstandard2.0", "netstandard1.6", "netstandard1.3",
+    ];
+#else
     private static readonly string[] _preferredTfms =
     [
         "net11.0", "net10.0", "net9.0", "net8.0", "net7.0", "net6.0", "net5.0",
         "netstandard2.1", "netstandard2.0", "netstandard1.6", "netstandard1.3",
     ];
+#endif
 
     public static IReadOnlyList<FetchedAssembly> Extract(
         ZipArchive zip, string packageId, string version)

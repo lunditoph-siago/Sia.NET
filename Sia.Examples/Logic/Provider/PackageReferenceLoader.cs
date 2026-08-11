@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.IO.Compression;
 using System.Text.Json;
 
@@ -8,26 +9,35 @@ public sealed class PackageReferenceLoader
     private const string _baseUrl = "https://api.nuget.org/v3-flatcontainer";
 
     private readonly IResourceLoader _resources;
-    private readonly Dictionary<string, IReadOnlyList<FetchedAssembly>> _cache = [];
+    private readonly ConcurrentDictionary<string, Lazy<Task<IReadOnlyList<FetchedAssembly>>>> _cache = new();
 
     public PackageReferenceLoader(IResourceLoader resources)
     {
         _resources = resources;
     }
 
-    public async ValueTask<IReadOnlyList<FetchedAssembly>> LoadReferencesAsync(
+    public ValueTask<IReadOnlyList<FetchedAssembly>> LoadReferencesAsync(
         string packageId,
         string? version,
         CancellationToken cancellationToken = default)
     {
         var key = $"{packageId.ToLowerInvariant()}@{version ?? "latest"}";
-        if (_cache.TryGetValue(key, out var cached)) {
-            return cached;
-        }
+        var entry = _cache.GetOrAdd(key, _ => new(() => FetchAndCacheAsync(key, packageId, version)));
+        return new(entry.Value.WaitAsync(cancellationToken));
+    }
 
-        var references = await FetchAsync(packageId, version, cancellationToken);
-        _cache.Add(key, references);
-        return references;
+    private async Task<IReadOnlyList<FetchedAssembly>> FetchAndCacheAsync(
+        string key,
+        string packageId,
+        string? version)
+    {
+        try {
+            return await FetchAsync(packageId, version, CancellationToken.None);
+        }
+        catch {
+            _cache.TryRemove(key, out _);
+            throw;
+        }
     }
 
     private async ValueTask<IReadOnlyList<FetchedAssembly>> FetchAsync(

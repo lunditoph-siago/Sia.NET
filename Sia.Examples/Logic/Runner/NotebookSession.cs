@@ -56,10 +56,13 @@ public sealed class NotebookSession : IDisposable
             .Where(static status => status.State == PackageLoadState.Loading)
             .Select(static status => status.Package)
             .ToArray();
-
-        foreach (var package in pending) {
-            await LoadPackageAsync(package, cancellationToken);
+        if (pending.Length == 0) {
+            return;
         }
+
+        var statuses = await _references.EnsurePackagesAsync(pending, cancellationToken);
+        VerifyAccess();
+        ApplyStatuses(statuses);
     }
 
     public async Task<PackageStatus> AddPackageAsync(
@@ -70,7 +73,21 @@ public sealed class NotebookSession : IDisposable
         if (_packages.Declare(package)) {
             Publish();
         }
-        return await LoadPackageAsync(package, cancellationToken);
+        var statuses = await _references.EnsurePackagesAsync([package], cancellationToken);
+        VerifyAccess();
+        ApplyStatuses(statuses);
+        return statuses[0];
+    }
+
+    private void ApplyStatuses(IReadOnlyList<PackageStatus> statuses)
+    {
+        var changed = false;
+        foreach (var status in statuses) {
+            changed |= _packages.Resolve(status);
+        }
+        if (changed) {
+            Publish();
+        }
     }
 
     public void UpdateCellSource(
@@ -289,30 +306,6 @@ public sealed class NotebookSession : IDisposable
         _operationCancellation = null;
         _activeRun = null;
         Changed = null;
-    }
-
-    private async Task<PackageStatus> LoadPackageAsync(
-        PackageRef package,
-        CancellationToken cancellationToken)
-    {
-        PackageStatus status;
-        try {
-            await _references.EnsurePackagesAsync([package], cancellationToken);
-            VerifyAccess();
-            status = new(package, PackageLoadState.Loaded, null);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
-            throw;
-        }
-        catch (Exception error) {
-            VerifyAccess();
-            status = new(package, PackageLoadState.Failed, error.Message);
-        }
-
-        if (_packages.Resolve(status)) {
-            Publish();
-        }
-        return status;
     }
 
     private async Task<bool> CompileCoreAsync(
