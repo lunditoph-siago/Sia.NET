@@ -10,7 +10,15 @@ public static class BrowserApplication
     {
         const string NotebooksPath = "/notebooks";
 
-        await OpfsMount.MountAsync(NotebooksPath);
+        await Task.Delay(16);
+        try {
+            if (!await OpfsMount.MountAsync(NotebooksPath)) {
+                Console.Error.WriteLine("OPFS unavailable; notebooks won't persist this session.");
+            }
+        }
+        catch (Exception error) {
+            Console.Error.WriteLine($"OPFS mount failed: {error.Message}");
+        }
 
         var mainThread = BrowserMainThread.Capture();
         var resources = new BrowserResourceLoader(mainThread);
