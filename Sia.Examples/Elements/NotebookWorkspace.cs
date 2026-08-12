@@ -156,6 +156,18 @@ public sealed class NotebookWorkspace : IAsyncDisposable
         _view.DiscardEditor(cellId);
     }
 
+    public void SetCellScope(string cellId)
+    {
+        ThrowIfDisposed();
+        using var input = DomElement.TryFind(NotebookElementIds.ScopeInput(cellId));
+        var value = input?.Value().Trim() ?? string.Empty;
+        SynchronizeEditors();
+        _session.SetCellScope(cellId, value);
+        if (input is not null) {
+            input.Attr("data-saved-value", value);
+        }
+    }
+
     public void BeginEditorEdit(string cellId)
     {
         ThrowIfDisposed();
@@ -278,12 +290,9 @@ public sealed class NotebookWorkspace : IAsyncDisposable
         return true;
     }
 
-    public async Task AddPackageAsync(string sourceName)
+    public async Task AddPackageAsync()
     {
         ThrowIfDisposed();
-        if (!Enum.TryParse<PackageSource>(sourceName, ignoreCase: true, out var source)) {
-            return;
-        }
         using var idInput = DomElement.TryFind("package-add-id");
         var id = idInput?.Value().Trim();
         if (string.IsNullOrEmpty(id)) {
@@ -292,7 +301,7 @@ public sealed class NotebookWorkspace : IAsyncDisposable
         using var versionInput = DomElement.TryFind("package-add-version");
         var version = versionInput?.Value().Trim();
         await _session.AddPackageAsync(
-            new(source, id, string.IsNullOrEmpty(version) ? null : version),
+            new(id, string.IsNullOrEmpty(version) ? null : version),
             _lifetime.Token);
     }
 

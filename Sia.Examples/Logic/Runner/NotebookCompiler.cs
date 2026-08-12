@@ -12,9 +12,14 @@ public sealed class NotebookCompiler
 {
     private static int _programCounter;
 
+    private static readonly IEnumerable<string> _frameworkSymbols =
+        ["NET", "NET7_0_OR_GREATER", "NET8_0_OR_GREATER", "NET9_0_OR_GREATER",
+            "NET10_0_OR_GREATER", "NET11_0_OR_GREATER"];
+
     private readonly string _assemblyName;
     private readonly ICompilationReferenceResolver _referenceResolver;
-    private readonly CSharpParseOptions _parseOptions = CSharpParseOptions.Default;
+    private readonly CSharpParseOptions _parseOptions = CSharpParseOptions.Default
+        .WithPreprocessorSymbols(_frameworkSymbols);
     private readonly CSharpCompilationOptions _compilationOptions =
         new CSharpCompilationOptions(OutputKind.ConsoleApplication)
             .WithConcurrentBuild(false)
@@ -102,6 +107,7 @@ public sealed class NotebookCompiler
         global::System.Console.SetError(stdErr);
         try {
             var assembly = Assembly.Load(assemblyImage);
+            DynamicAssemblyRegistry.Register(assembly.GetName().Name!, assembly);
             var entryPoint = assembly.EntryPoint
                 ?? throw new InvalidOperationException("No entry point found in the compiled program.");
             var result = entryPoint.Invoke(null, [Array.Empty<string>()]);

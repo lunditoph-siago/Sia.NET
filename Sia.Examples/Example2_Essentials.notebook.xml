@@ -3,9 +3,11 @@
     <Paragraph>
       Sia is an entity-component-system framework. A <Code>World</Code> owns lightweight
       <Code>Entity</Code> handles; components describe data; queries select component shapes;
-      systems process those selections. Every cell below shares <Code>Scope="sia-essentials"</Code>,
-      so running a later lesson recompiles and replays the earlier ones first — their types and
-      world state come along for free.
+      systems process those selections. Every cell in this notebook is an independent program:
+      press <Code>Run</Code> on any lesson and only that lesson compiles and runs — jump around,
+      break one on purpose, and the others won't notice. Lessons that build on the same
+      component types each declare their own copies. The alternative — cells sharing a scope,
+      where one run replays the earlier cells first — is what Example 1 demonstrates.
     </Paragraph>
     <Paragraph>
       The notebook host already provides a fresh variable named <Code>world</Code>. Keep the data
@@ -23,7 +25,7 @@
       <Code>View</Code> plus change events such as <Code>Position.SetX</Code>. The View is the
       default mutation API when observers must react.
     </Paragraph>
-    <CodeCell Id="core-components" Editable="true" Scope="sia-essentials"><![CDATA[
+    <CodeCell Id="core-components" Editable="true"><![CDATA[
       var player = world.Create(HList.From(
           new Name("Ari"),
           new Position(2, 3),
@@ -62,7 +64,7 @@
       matcher combinators build richer selections. A <Code>SystemBase</Code> owns a query, while
       a stage gives one or more systems an explicit lifetime and tick order.
     </Paragraph>
-    <CodeCell Id="core-query-system" Editable="true" Scope="sia-essentials"><![CDATA[
+    <CodeCell Id="core-query-system" Editable="true"><![CDATA[
       world.Create(HList.From(
           new Name("drone-a"), new Position(0, 0), new Velocity(2, 1)));
       world.Create(HList.From(
@@ -79,6 +81,11 @@
           .Add<MovementSystem>()
           .CreateStage(world);
       stage.Tick();
+
+      public readonly record struct Name(string Value);
+      public partial record struct Position([Sia] float X, [Sia] float Y);
+      public readonly record struct Velocity(float X, float Y);
+      public readonly record struct Disabled;
 
       public sealed class MovementSystem() : SystemBase(
           Matchers.Of<Position, Velocity>().And(Matchers.Exclude<Disabled>()))
@@ -118,7 +125,7 @@
       <Code>Position.View</Code> changes the data first, then dispatches the event that wakes the
       system on its next tick.
     </Paragraph>
-    <CodeCell Id="core-events" Editable="true" Scope="sia-essentials"><![CDATA[
+    <CodeCell Id="core-events" Editable="true"><![CDATA[
       using var stage = SystemChain.Empty
           .Add<PositionChangedSystem>()
           .CreateStage(world);
@@ -127,6 +134,9 @@
           new Name("beacon"), new Position(0, 0)));
       new Position.View(beacon, world) { X = 8, Y = 13 };
       stage.Tick();
+
+      public readonly record struct Name(string Value);
+      public partial record struct Position([Sia] float X, [Sia] float Y);
 
       public sealed class PositionChangedSystem() : SystemBase(
           Matchers.Of<Name, Position>(),
@@ -155,7 +165,7 @@
       executable behavior and an event: it updates through the World, and event-driven systems
       can observe the same intent without coupling to the caller.
     </Paragraph>
-    <CodeCell Id="core-bundles-commands" Editable="true" Scope="sia-essentials"><![CDATA[
+    <CodeCell Id="core-bundles-commands" Editable="true"><![CDATA[
       var enemy = world.Create().AddBundle(new ActorBundle(
           new Name("slime"),
           new Position(4, 4),
@@ -172,6 +182,11 @@
       var after = enemy.Get<Health>().Value;
       Console.WriteLine($"health after command: {after}");
       Notebook.Render($"{enemy.Get<Name>().Value}: {before} HP -> {after} HP");
+
+      public readonly record struct Name(string Value);
+      public partial record struct Position([Sia] float X, [Sia] float Y);
+      public readonly record struct Velocity(float X, float Y);
+      public partial record struct Health([Sia] int Value);
 
       [SiaBundle]
       public partial record struct ActorBundle(
@@ -210,7 +225,7 @@
       the existing instance or constructs and initializes one; <Code>RemoveAddon</Code> runs its
       cleanup hook. This keeps service ownership explicit without a global container.
     </Paragraph>
-    <CodeCell Id="core-addons" Editable="true" Scope="sia-essentials"><![CDATA[
+    <CodeCell Id="core-addons" Editable="true"><![CDATA[
       var clock = world.AcquireAddon<TutorialClock>();
       clock.Advance(0.016f);
       clock.Advance(0.016f);
@@ -256,7 +271,7 @@
       can appear more than once in one chain: pass a factory to <Code>Add&lt;T&gt;</Code> and each
       instance gets its own constructor arguments and its own private state.
     </Paragraph>
-    <CodeCell Id="core-system-chains" Editable="true" Scope="sia-essentials"><![CDATA[
+    <CodeCell Id="core-system-chains" Editable="true"><![CDATA[
       using var stage = SystemChain.Empty
           .Add<SpawnWaveSystem>(() => new("slime", 2))
           .Add<SpawnWaveSystem>(() => new("goblin", 1))
@@ -265,7 +280,7 @@
       stage.Tick();
       stage.Tick();
 
-      Console.WriteLine($"world now holds {world.Count} entities across every lesson so far.");
+      Console.WriteLine($"world now holds {world.Count} entities, all spawned by this cell.");
 
       var census = new Dictionary<string, int>();
       foreach (var entity in world.Query(Matchers.Of<Name>())) {
@@ -276,6 +291,15 @@
           .OrderByDescending(pair => pair.Value)
           .Select(pair => $"  {pair.Key,-8} {new string('#', pair.Value)} {pair.Value}");
       Notebook.Render($"world census ({world.Count} total):\n" + string.Join('\n', lines));
+
+      public readonly record struct Name(string Value);
+      public partial record struct Position([Sia] float X, [Sia] float Y);
+      public readonly record struct Velocity(float X, float Y);
+      public partial record struct Health([Sia] int Value);
+
+      [SiaBundle]
+      public partial record struct ActorBundle(
+          Name Name, Position Position, Velocity Velocity, Health Health);
 
       public sealed class SpawnWaveSystem(string kind, int count) : SystemBase(Matchers.Any)
       {

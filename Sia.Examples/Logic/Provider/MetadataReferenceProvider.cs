@@ -65,15 +65,6 @@ public sealed class MetadataReferenceProvider : ICompilationReferenceResolver
         CancellationToken cancellationToken)
     {
         try {
-            if (package.Source == PackageSource.Framework) {
-                if (!_assemblies.KnownAssemblyNames.Contains(package.Id)) {
-                    throw new InvalidOperationException(
-                        $"Framework assembly '{package.Id}' is not available.");
-                }
-                await _assemblies.LoadAsync(package.Id, cancellationToken);
-                return new(package, [], null);
-            }
-
             var fetchedAssemblies = await _packages.LoadReferencesAsync(
                 package.Id,
                 package.Version,
@@ -93,16 +84,16 @@ public sealed class MetadataReferenceProvider : ICompilationReferenceResolver
         if (fetch.Error is { } error) {
             return new(fetch.Package, PackageLoadState.Failed, error.Message);
         }
-        if (fetch.Package.Source == PackageSource.Framework) {
-            _declaredAssemblyNames.Add(fetch.Package.Id);
-        } else {
-            foreach (var assembly in fetch.Assemblies) {
-                _packageReferences[assembly.Name] = MetadataReference.CreateFromImage(
-                    assembly.Image,
-                    filePath: assembly.Name);
-                DynamicAssemblyRegistry.Register(assembly.Name, assembly.Image);
-                _declaredAssemblyNames.Add(assembly.Name);
+        foreach (var assembly in fetch.Assemblies) {
+            if (fetch.Package.Analyzer) {
+                DynamicAssemblyRegistry.RegisterAnalyzer(assembly.Name, assembly.Image);
+                continue;
             }
+            _packageReferences[assembly.Name] = MetadataReference.CreateFromImage(
+                assembly.Image,
+                filePath: assembly.Name);
+            DynamicAssemblyRegistry.Register(assembly.Name, assembly.Image);
+            _declaredAssemblyNames.Add(assembly.Name);
         }
         return new(fetch.Package, PackageLoadState.Loaded, null);
     }

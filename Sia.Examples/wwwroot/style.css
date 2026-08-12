@@ -456,13 +456,6 @@ body {
                     gap: 0.5rem;
                     padding: 0.15rem 0;
 
-                    .package-source {
-                        font-size: 0.7rem;
-                        text-transform: uppercase;
-                        opacity: 0.55;
-                        min-width: 4.5em;
-                    }
-
                     .package-id {
                         font-family: var(--font-mono);
                     }

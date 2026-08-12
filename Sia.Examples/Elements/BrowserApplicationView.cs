@@ -9,8 +9,6 @@ public sealed class BrowserApplicationView :
 {
     private readonly DomElement _builtInNotebooks = DomElement.Find("built-in-notebooks");
     private readonly DomElement _userNotebooks = DomElement.Find("user-notebooks");
-    private readonly DomElement _frameworkAssemblies =
-        DomElement.Find("framework-assemblies");
     private readonly SortedDictionary<int, ExampleNode> _examples = [];
     private readonly DomElement _newButton;
     private readonly DomElement _notebookBar;
@@ -59,16 +57,6 @@ public sealed class BrowserApplicationView :
             .Text("Discard mine, reload theirs");
         _conflictBanner.Append(_conflictMessage).Append(overwrite).Append(reload);
         content.InsertBefore(_conflictBanner, notebook);
-    }
-
-    public void SetFrameworkAssemblyNames(IEnumerable<string> names)
-    {
-        foreach (var name in names.OrderBy(
-            static name => name,
-            StringComparer.OrdinalIgnoreCase)) {
-            using var option = DomElement.Create("option").Attr("value", name);
-            _frameworkAssemblies.Append(option);
-        }
     }
 
     public void ShowNotebookBar(NotebookInfo info, string? version)
@@ -134,7 +122,6 @@ public sealed class BrowserApplicationView :
         _status.Dispose();
         _notebookBar.Dispose();
         _newButton.Dispose();
-        _frameworkAssemblies.Dispose();
         _userNotebooks.Dispose();
         _builtInNotebooks.Dispose();
     }

@@ -22,7 +22,7 @@ document.getElementById('sidebar')?.addEventListener('click', event => {
   items?.classList.toggle('hidden', expanded);
 });
 
-const inlineEditScope = '.notebook-titlebar, .section-heading-editor, .paragraph-editor';
+const inlineEditScope = '.notebook-titlebar, .section-heading-editor, .paragraph-editor, .scope-editor';
 
 document.addEventListener('focusin', event => {
   const input = event.target.closest?.('[data-inline-input]');

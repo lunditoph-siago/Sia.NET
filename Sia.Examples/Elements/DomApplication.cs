@@ -28,7 +28,6 @@ internal static class DomApplication
             using var view = new BrowserApplicationView();
             var app = world.Mount(ExampleApp.Definition, new(library, view));
             world.FlushReactive();
-            view.SetFrameworkAssemblyNames(frameworkAssemblies.KnownAssemblyNames);
             DomRuntime.Flush();
 
             NotebookWorkspace? workspace = null;
@@ -135,6 +134,10 @@ internal static class DomApplication
                             workspace.Discard(argument);
                             break;
 
+                        case "set-scope" when workspace is not null:
+                            workspace.SetCellScope(argument);
+                            break;
+
                         case "editor-focus" when workspace is not null:
                             workspace.BeginEditorEdit(argument);
                             break;
@@ -223,7 +226,7 @@ internal static class DomApplication
                             break;
 
                         case "add-package" when workspace is not null:
-                            await workspace.AddPackageAsync(argument);
+                            await workspace.AddPackageAsync();
                             break;
 
                         case "activate-tab" when workspace is not null:

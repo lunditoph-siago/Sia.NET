@@ -3,13 +3,13 @@
     <Paragraph>
       This page is a live .NET workspace. Choose a notebook in the left sidebar, read from top
       to bottom, and press <Code>Run</Code> on a code cell whenever you want to see its output.
-      The first run may take longer while the browser prepares the compiler; later runs reuse
-      that setup.
+      The first run takes a little longer while the browser warms up the compiler; runs after
+      that start quickly.
     </Paragraph>
     <List>
-      <Item><Code>Run</Code> compiles and executes the cell's scope.</Item>
+      <Item><Code>Run</Code> compiles and executes the cell, together with any cells that share its scope.</Item>
       <Item><Code>Compile</Code> checks the same code without executing it.</Item>
-      <Item><Code>Stop</Code> requests cancellation from work that cooperates with cancellation.</Item>
+      <Item><Code>Stop</Code> cancels a run or compile that is still in progress.</Item>
       <Item><Code>Save</Code> stores your edited notebook; editing a built-in creates your own copy.</Item>
     </List>
     <Paragraph>
@@ -54,15 +54,45 @@
       Console.WriteLine($"Found {found} message entity.");
       Notebook.Render(new string('*', 12));
     ]]></CodeCell>
+    <CodeCell Id="browser-scope-replay" Editable="true" Scope="browser-tour"><![CDATA[
+      var carried = world.Count;
+      Console.WriteLine($"Replay start: {carried} {(carried == 1 ? "entity" : "entities")} carried over from the cells above.");
+      foreach (var entity in world.Query(Matchers.Of<TourMessage>())) {
+          Console.WriteLine($"  still here: {entity.Get<TourMessage>().Text}");
+      }
+      Notebook.Render("One run, three cells: the scope replays from the top.");
+    ]]></CodeCell>
     <Paragraph>
-      These two cells share <Code>Scope="browser-tour"</Code>. Running the second cell recompiles
-      and replays the first one before it, so its type declarations and world changes are
-      available. Local variables do not leak between cells. A cell with no Scope is an isolated
-      program instead.
+      These three cells share <Code>Scope="browser-tour"</Code>. Run any one of them and the
+      earlier cells in the scope compile and run again first, so their types and world changes
+      are there to use. The console above proves it — the marker entity created in the very
+      first cell is still around when this cell replays it. Local variables never cross between
+      cells. The scope name lives in the small field on the right of each cell's tab strip: give
+      two cells the same name and they run together, leave it blank and the cell runs alone.
     </Paragraph>
   </Section>
 
-  <Section Title="3. Arrange the workspace">
+  <Section Title="3. A cell without a scope is an island">
+    <Paragraph>
+      This cell has no scope at all. Press <Code>Run</Code> and it starts from an empty world of
+      its own — no <Code>TourMessage</Code> entities here, even though the shared scope above
+      just created one. It declares its own copy of the type, exactly like the scoped cells do.
+    </Paragraph>
+    <CodeCell Id="browser-isolated" Editable="true"><![CDATA[
+      var found = 0;
+      foreach (var entity in world.Query(Matchers.Of<TourMessage>())) {
+          found++;
+      }
+      Console.WriteLine($"Found {found} TourMessage entities — this cell's world starts empty.");
+      Notebook.Render(found == 0
+          ? "Isolated: this cell's world starts empty."
+          : "Unexpected — scope isolation failed.");
+
+      public readonly record struct TourMessage(string Text);
+    ]]></CodeCell>
+  </Section>
+
+  <Section Title="4. Arrange the workspace">
     <List>
       <Item>Drag a tab by its label to move Output, Render, or editor surfaces between dock regions.</Item>
       <Item>When a tab label has keyboard focus, use the arrow keys to move between neighboring tabs.</Item>

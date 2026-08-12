@@ -30,6 +30,38 @@ public sealed class BrowserCellView : IDisposable
 
         var toolbar = DomElement.Create("div").Class("toolbar");
         _phase = DomElement.Create("span").Class("phase");
+
+        var scopeEditor = DomElement.Create("div").Class("scope-editor");
+        var scopeInput = DomElement.Create("input")
+            .Class("scope-input")
+            .Id(NotebookElementIds.ScopeInput(cell.Id))
+            .Attr("type", "text")
+            .Attr("aria-label", "Cell scope")
+            .Attr("title", "Cells sharing a scope run together, running one replays the scope in order. Empty means an isolated cell.")
+            .Attr("value", cell.Scope ?? string.Empty)
+            .Attr("placeholder", "scope")
+            .Attr("data-inline-input", "true")
+            .Attr("data-allow-empty", "true")
+            .Attr("data-saved-value", cell.Scope ?? string.Empty);
+        var scopeActions = DomElement.Create("div").Class("inline-edit-actions");
+        using (var saveScope = CreateIconButton(
+            "▣",
+            "Save scope",
+            $"set-scope:{cell.Id}")) {
+            saveScope.Attr("data-inline-save", NotebookElementIds.ScopeInput(cell.Id));
+            scopeActions.Append(saveScope);
+        }
+        using (var discardScope = DomElement.Create("button")
+            .Class("icon-btn")
+            .Attr("type", "button")
+            .Attr("aria-label", "Discard scope changes")
+            .Attr("title", "Discard scope changes")
+            .Attr("data-inline-discard", NotebookElementIds.ScopeInput(cell.Id))
+            .Text("↶")) {
+            scopeActions.Append(discardScope);
+        }
+        scopeEditor.Append(scopeInput).Append(scopeActions);
+
         using (var controls = DomElement.Create("div").Class("cell-controls")) {
             _editActions = DomElement.Create("div")
                 .Class("cell-edit-actions")
@@ -63,7 +95,7 @@ public sealed class BrowserCellView : IDisposable
             controls.Append(_editActions);
             controls.Append(_runStop);
             controls.Append(more);
-            toolbar.Append(_phase).Append(controls);
+            toolbar.Append(_phase).Append(scopeEditor).Append(controls);
         }
 
         _script = DomElement.Create("div").Class("script-window");

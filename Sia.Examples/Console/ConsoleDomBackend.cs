@@ -160,7 +160,6 @@ internal sealed partial class ConsoleDomBackend : IDomBackend
         var packagesText = NewText("Packages");
         var packagesBadge = NewNode("span", "packages-badge");
         var packagesPopover = NewNode("div", "packages-popover");
-        var frameworkAssemblies = NewNode("datalist", "framework-assemblies");
         var notebook = NewNode("div", "notebook");
         var placeholder = NewNode("span");
         placeholder.Classes.Add("placeholder");
@@ -175,7 +174,7 @@ internal sealed partial class ConsoleDomBackend : IDomBackend
         AppendRaw(packagesToggle, packagesText);
         AppendRaw(packagesToggle, packagesBadge);
         AppendRaw(packages, packagesPopover);
-        AppendRaw(content, frameworkAssemblies);
+
         AppendRaw(content, notebook);
         AppendRaw(notebook, placeholder);
         AppendRaw(placeholder, placeholderText);

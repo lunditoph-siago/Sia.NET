@@ -45,7 +45,7 @@ public sealed class NotebookLibrary(INotebookStorage storage)
 
         var loaded = await _storage.LoadAsync(info.Key, cancellationToken)
             ?? throw new InvalidOperationException(
-                $"'{info.Name}' no longer exists in storage — it may have been deleted elsewhere.");
+                $"'{info.Name}' no longer exists in storage. It may have been deleted elsewhere.");
         return (NotebookDocumentParser.Parse(loaded.Xml), loaded.Version);
     }
 

@@ -42,10 +42,12 @@ public static class NotebookDocumentSerializer
     private static XElement WritePackageRef(PackageRef package)
     {
         var element = new XElement("Package",
-            new XAttribute("Source", package.Source.ToString()),
             new XAttribute("Id", package.Id));
         if (package.Version is { Length: > 0 } version) {
             element.SetAttributeValue("Version", version);
+        }
+        if (package.Analyzer) {
+            element.SetAttributeValue("Analyzer", "true");
         }
         return element;
     }

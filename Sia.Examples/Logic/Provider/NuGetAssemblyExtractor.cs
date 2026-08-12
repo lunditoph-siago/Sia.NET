@@ -26,24 +26,28 @@ public static class NuGetAssemblyExtractor
             .Where(e => e.FullName.StartsWith("lib/", StringComparison.OrdinalIgnoreCase)
                 && e.FullName.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
             .ToList();
-        if (libEntries.Count == 0) {
+        var analyzerEntries = zip.Entries
+            .Where(e => e.FullName.StartsWith("analyzers/", StringComparison.OrdinalIgnoreCase)
+                && e.FullName.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        if (libEntries.Count == 0 && analyzerEntries.Count == 0) {
             throw new InvalidOperationException(
-                $"NuGet package '{packageId}' {version} has no lib/*.dll assemblies.");
+                $"NuGet package '{packageId}' {version} has no assemblies. "
+                + "Its libraries may live in a dependency package.");
         }
+
+        List<FetchedAssembly> result = [];
 
         var folder = PickBestTfm(libEntries);
         var chosen = folder is null
             ? libEntries.Where(e => e.FullName.Count(c => c == '/') == 1)
             : libEntries.Where(e => TfmOf(e.FullName) == folder);
-
-        List<FetchedAssembly> result = [];
         foreach (var entry in chosen) {
-            using var stream = entry.Open();
-            using var buffer = new MemoryStream();
-            stream.CopyTo(buffer);
-            result.Add(new FetchedAssembly(
-                Path.GetFileNameWithoutExtension(entry.Name),
-                buffer.ToArray()));
+            AddEntry(result, entry);
+        }
+
+        foreach (var entry in analyzerEntries) {
+            AddEntry(result, entry);
         }
 
         if (result.Count == 0) {
@@ -51,6 +55,16 @@ public static class NuGetAssemblyExtractor
                 $"NuGet package '{packageId}' {version} matched no assemblies after TFM selection.");
         }
         return result;
+    }
+
+    private static void AddEntry(List<FetchedAssembly> result, ZipArchiveEntry entry)
+    {
+        using var stream = entry.Open();
+        using var buffer = new MemoryStream();
+        stream.CopyTo(buffer);
+        result.Add(new FetchedAssembly(
+            Path.GetFileNameWithoutExtension(entry.Name),
+            buffer.ToArray()));
     }
 
     private static string TfmOf(string fullName) => fullName["lib/".Length..].Split('/')[0];

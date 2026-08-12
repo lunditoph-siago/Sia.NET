@@ -29,17 +29,11 @@ public static class NotebookDocumentParser
 
     private static PackageRef ParsePackageRef(XElement element)
     {
-        var sourceText = (string?)element.Attribute("Source")
-            ?? nameof(PackageSource.Framework);
-        if (!Enum.TryParse<PackageSource>(sourceText, ignoreCase: true, out var source)) {
-            throw new FormatException(
-                $"Unknown <Package Source=\"{sourceText}\"> — expected \"Framework\" or \"NuGet\".");
-        }
-
         var id = (string?)element.Attribute("Id")
             ?? throw new FormatException("<Package> requires an Id attribute.");
         var version = (string?)element.Attribute("Version");
-        return new(source, id, version);
+        var analyzer = (bool?)element.Attribute("Analyzer");
+        return new(id, version, analyzer ?? false);
     }
 
     private static NotebookSection ParseSection(XElement element)

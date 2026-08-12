@@ -148,7 +148,35 @@
         .toolbar {
             display: contents;
 
-            .phase, .cell-controls { flex: 0 0 auto; }
+            .phase, .scope-editor, .cell-controls { flex: 0 0 auto; }
+
+            .scope-editor {
+                display: flex;
+                align-items: center;
+                gap: 0.15rem;
+
+                .scope-input {
+                    width: 7rem;
+                    min-width: 3rem;
+                    padding: 0.05rem 0.3rem;
+                    border: 1px solid transparent;
+                    border-radius: 3px;
+                    background: transparent;
+                    color: inherit;
+                    font: inherit;
+                    font-size: 0.72rem;
+                    text-overflow: ellipsis;
+
+                    &:focus { outline: none; }
+                }
+
+                &.is-editing > .scope-input { border-color: var(--color-muted); }
+
+                &.is-dirty > .scope-input {
+                    border-color: var(--color-accent);
+                    box-shadow: 0 0 0 1px var(--color-accent);
+                }
+            }
 
             @container (max-width: 34rem) {
                 .phase { margin-left: 0.35rem; order: 1; }

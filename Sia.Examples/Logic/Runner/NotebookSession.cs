@@ -132,6 +132,23 @@ public sealed class NotebookSession : IDisposable
         return newParagraph.Id;
     }
 
+    public void SetCellScope(string cellId, string? scope)
+    {
+        VerifyAccess();
+        var normalized = string.IsNullOrWhiteSpace(scope) ? null : scope.Trim();
+        var current = _cells.FirstOrDefault(cell => cell.Id == cellId)?.Scope;
+        if (current == normalized) {
+            return;
+        }
+
+        _document = _document with {
+            Sections = UpdateBlock(_document.Sections, cellId, block =>
+                block is CodeCellBlock cell ? cell with { Scope = normalized } : block),
+        };
+        Rebuild();
+        Publish(structural: true);
+    }
+
     public void SetParagraphText(string blockId, string text)
     {
         VerifyAccess();
