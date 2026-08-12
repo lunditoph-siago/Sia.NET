@@ -142,12 +142,27 @@ public class ParallelRunner : IRunner
         DegreeOfParallelism = degreeOfParallelism;
         _groupActionJobArrPool = new(new JobArrayPolicy<GroupActionJob>(this));
 
+#if !BROWSER
         for (var i = 0; i != DegreeOfParallelism; ++i) {
+            var workerId = i;
             Task.Factory.StartNew(
-                () => RunWorkerThread(i, _jobs),
+                () => RunWorkerThread(workerId, _jobs),
                 CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
         }
+#endif
     }
+
+#if BROWSER
+    private int _drainerIds;
+
+    private void SpawnDrainers(int count)
+    {
+        for (var i = 0; i != count; ++i) {
+            var workerId = Interlocked.Increment(ref _drainerIds) - 1;
+            Task.Run(() => RunWorkerThread(workerId, _jobs));
+        }
+    }
+#endif
 
     ~ParallelRunner()
     {
@@ -185,6 +200,9 @@ public class ParallelRunner : IRunner
         }
 
         _jobs.Enqueue(job);
+#if BROWSER
+        SpawnDrainers(1);
+#endif
     }
 
     public void Run<TData>(in TData data, InAction<TData> action, RunnerBarrier? barrier = null)
@@ -206,6 +224,9 @@ public class ParallelRunner : IRunner
         }
 
         _jobs.Enqueue(job);
+#if BROWSER
+        SpawnDrainers(1);
+#endif
     }
 
     public void Run(int taskCount, GroupAction action, RunnerBarrier? barrier = null)
@@ -245,6 +266,9 @@ public class ParallelRunner : IRunner
                 _jobs.Enqueue(job);
             }
         }
+#if BROWSER
+        SpawnDrainers(degreeOfParallelism);
+#endif
     }
 
     public void Run<TData>(
@@ -297,6 +321,9 @@ public class ParallelRunner : IRunner
                 _jobs.Enqueue(job);
             }
         }
+#if BROWSER
+        SpawnDrainers(degreeOfParallelism);
+#endif
     }
 
     public void Dispose()
