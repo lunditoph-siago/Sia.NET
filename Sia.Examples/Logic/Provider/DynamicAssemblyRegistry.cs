@@ -6,14 +6,40 @@ namespace Sia_Examples.Notebook;
 
 internal static class DynamicAssemblyRegistry
 {
+    private static readonly ConcurrentDictionary<string, Assembly> _loaded =
+        new(StringComparer.OrdinalIgnoreCase);
+
     private static readonly ConcurrentDictionary<string, byte[]> _images =
         new(StringComparer.OrdinalIgnoreCase);
 
+    private static readonly ConcurrentDictionary<string, byte[]> _analyzers =
+        new(StringComparer.OrdinalIgnoreCase);
+
     private static int _hooked;
+    private static int _version;
+
+    public static int Version => Volatile.Read(ref _version);
+
+    public static IEnumerable<string> AnalyzerNames => _analyzers.Keys;
+
+    public static void Register(string name, Assembly assembly)
+    {
+        _loaded.TryAdd(name, assembly);
+        Interlocked.Increment(ref _version);
+        EnsureHooked();
+    }
 
     public static void Register(string name, byte[] image)
     {
-        _images[name] = image;
+        _images.TryAdd(name, image);
+        Interlocked.Increment(ref _version);
+        EnsureHooked();
+    }
+
+    public static void RegisterAnalyzer(string name, byte[] image)
+    {
+        _analyzers.TryAdd(name, image);
+        Interlocked.Increment(ref _version);
         EnsureHooked();
     }
 
@@ -22,9 +48,18 @@ internal static class DynamicAssemblyRegistry
         if (Interlocked.Exchange(ref _hooked, 1) != 0) {
             return;
         }
-        AssemblyLoadContext.Default.Resolving += (_, assemblyName) =>
-            assemblyName.Name is { } name && _images.TryGetValue(name, out var image)
-                ? Assembly.Load(image)
-                : null;
+        AssemblyLoadContext.Default.Resolving += (_, assemblyName) => {
+            if (assemblyName.Name is not { } name) {
+                return null;
+            }
+            if (_loaded.TryGetValue(name, out var loaded)) {
+                return loaded;
+            }
+            if (_images.TryGetValue(name, out var image)
+                || _analyzers.TryGetValue(name, out image)) {
+                return Assembly.Load(image);
+            }
+            return null;
+        };
     }
 }

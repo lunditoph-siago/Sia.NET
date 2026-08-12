@@ -20,8 +20,7 @@ public sealed class BrowserPackagePanel : IDisposable
         using var id = DomElement.Create("input")
             .Class("package-add-input")
             .Id("package-add-id")
-            .Attr("placeholder", "Package Id")
-            .Attr("list", "framework-assemblies");
+            .Attr("placeholder", "Package Id");
         using var version = DomElement.Create("input")
             .Class("package-add-input")
             .Id("package-add-version")
@@ -30,11 +29,7 @@ public sealed class BrowserPackagePanel : IDisposable
             .Class("btn")
             .On("click", "add-package:NuGet")
             .Text("+ NuGet");
-        using var addFramework = DomElement.Create("button")
-            .Class("btn")
-            .On("click", "add-package:Framework")
-            .Text("+ Framework");
-        addRow.Append(id).Append(version).Append(addNuGet).Append(addFramework);
+        addRow.Append(id).Append(version).Append(addNuGet);
         _body.Append(addRow);
         _container.Text(string.Empty).Append(_body);
     }
@@ -84,18 +79,16 @@ public sealed class BrowserPackagePanel : IDisposable
     }
 
     private readonly record struct PackageIdentity(
-        PackageSource Source,
         string Id,
         string? Version)
     {
         public static PackageIdentity From(PackageRef package)
-            => new(package.Source, package.Id, package.Version);
+            => new(package.Id, package.Version);
     }
 
     private sealed class PackageNode(
         DomElement root,
         DomElement row,
-        DomElement source,
         DomElement id,
         DomElement state,
         DomElement error) : IDisposable
@@ -108,20 +101,18 @@ public sealed class BrowserPackagePanel : IDisposable
         {
             var root = DomElement.Create("div");
             var row = DomElement.Create("div").Class("package");
-            var source = DomElement.Create("span").Class("package-source");
             var id = DomElement.Create("span").Class("package-id");
             var state = DomElement.Create("span").Class("package-state");
             var error = DomElement.Create("div").Class("package-error").Class("hidden");
-            row.Append(source).Append(id).Append(state);
+            row.Append(id).Append(state);
             root.Append(row).Append(error);
-            return new(root, row, source, id, state, error);
+            return new(root, row, id, state, error);
         }
 
         public void Update(PackageView view)
         {
             var status = view.Status;
             Index = view.Index;
-            source.Text(status.Package.Source == PackageSource.NuGet ? "NuGet" : "Framework");
             id.Text(status.Package.Id
                 + (status.Package.Version is { } version ? $" ({version})" : string.Empty));
             state.Text(status.State switch {
@@ -144,7 +135,6 @@ public sealed class BrowserPackagePanel : IDisposable
             error.Dispose();
             state.Dispose();
             id.Dispose();
-            source.Dispose();
             row.Dispose();
             Root.Dispose();
         }

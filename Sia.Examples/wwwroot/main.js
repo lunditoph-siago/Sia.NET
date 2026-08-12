@@ -4,6 +4,76 @@ document.getElementById('sidebar-toggle')?.addEventListener('click', () => {
   document.getElementById('app')?.classList.toggle('sidebar-open');
 });
 
+document.getElementById('sidebar')?.addEventListener('click', event => {
+  if (event.target.closest?.('.example-btn')
+      && matchMedia('(max-width: 899px)').matches) {
+    document.getElementById('app')?.classList.remove('sidebar-open');
+  }
+});
+
+document.getElementById('sidebar')?.addEventListener('click', event => {
+  const toggle = event.target.closest?.('[data-library-toggle]');
+  if (!toggle) {
+    return;
+  }
+  const items = document.getElementById(toggle.dataset.libraryToggle);
+  const expanded = toggle.getAttribute('aria-expanded') !== 'false';
+  toggle.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+  items?.classList.toggle('hidden', expanded);
+});
+
+const inlineEditScope = '.notebook-titlebar, .section-heading-editor, .paragraph-editor, .scope-editor';
+
+document.addEventListener('focusin', event => {
+  const input = event.target.closest?.('[data-inline-input]');
+  input?.closest(inlineEditScope)
+    ?.classList.add('is-editing');
+});
+
+document.addEventListener('focusout', event => {
+  const input = event.target.closest?.('[data-inline-input]');
+  if (!input || input.value !== (input.dataset.savedValue ?? '')) {
+    return;
+  }
+  input.closest(inlineEditScope)
+    ?.classList.remove('is-editing', 'is-dirty');
+});
+
+document.addEventListener('input', event => {
+  const input = event.target.closest?.('[data-inline-input]');
+  if (!input) {
+    return;
+  }
+  input.closest(inlineEditScope)
+    ?.classList.toggle('is-dirty', input.value !== input.dataset.savedValue);
+});
+
+document.addEventListener('click', event => {
+  const save = event.target.closest?.('[data-inline-save]');
+  if (save) {
+    const input = document.getElementById(save.dataset.inlineSave);
+    if (input && (input.value.trim() || input.dataset.allowEmpty)) {
+      input.dataset.savedValue = input.dataset.allowEmpty ? input.value : input.value.trim();
+      input.closest(inlineEditScope)
+        ?.classList.remove('is-editing', 'is-dirty');
+      input.blur();
+    }
+  }
+  const discard = event.target.closest?.('[data-inline-discard]');
+  if (discard) {
+    const input = document.getElementById(discard.dataset.inlineDiscard);
+    if (input) {
+      input.value = input.dataset.savedValue ?? '';
+      input.closest(inlineEditScope)
+        ?.classList.remove('is-editing', 'is-dirty');
+      input.blur();
+    }
+  }
+  event.target.closest?.('.menu-item')
+    ?.closest('details')
+    ?.removeAttribute('open');
+});
+
 document.getElementById('packages-toggle')?.addEventListener('click', event => {
   event.stopPropagation();
   document.getElementById('header-packages')?.classList.toggle('open');
@@ -36,6 +106,254 @@ function emit(payload) {
     events.push(payload);
   }
 }
+
+const cellDragThreshold = 6;
+let cellDrag = null;
+let cellPreview = null;
+let suppressCellClick = false;
+
+function cellTabsIn(list) {
+  return [...list.querySelectorAll(
+    ':scope > .tab-entry > [data-cell-tab]')];
+}
+
+function cellInsertionIndex(list, pointerX) {
+  const tabs = cellTabsIn(list);
+  for (let index = 0; index < tabs.length; index++) {
+    const rect = tabs[index].getBoundingClientRect();
+    if (pointerX < rect.left + rect.width / 2) {
+      return index;
+    }
+  }
+  return tabs.length;
+}
+
+function cellPositionIn(group, pointerX, pointerY) {
+  const tabs = group.querySelector(':scope > .cell-tabs');
+  const tabList = tabs?.querySelector(':scope > .tab-list');
+  if (tabs && tabList && pointerY <= tabs.getBoundingClientRect().bottom) {
+    const index = cellInsertionIndex(tabList, pointerX);
+    const tabItems = cellTabsIn(tabList);
+    const groupRect = group.getBoundingClientRect();
+    const insertionX = index < tabItems.length
+      ? tabItems[index].getBoundingClientRect().left - groupRect.left
+      : tabItems.length > 0
+        ? tabItems[tabItems.length - 1].getBoundingClientRect().right - groupRect.left
+        : tabList.getBoundingClientRect().left - groupRect.left;
+    return {
+      position: 'center',
+      index,
+      insertionX,
+    };
+  }
+
+  const rect = group.getBoundingClientRect();
+  const horizontal = Math.max(rect.width, 1);
+  const vertical = Math.max(rect.height, 1);
+  const distances = [
+    ['left', (pointerX - rect.left) / horizontal],
+    ['right', (rect.right - pointerX) / horizontal],
+    ['top', (pointerY - rect.top) / vertical],
+    ['bottom', (rect.bottom - pointerY) / vertical],
+  ];
+  distances.sort((first, second) => first[1] - second[1]);
+  return distances[0][1] < 0.28
+    ? { position: distances[0][0], index: 2147483647 }
+    : { position: 'center', index: 2147483647 };
+}
+
+function findCellTarget(pointerX, pointerY) {
+  for (const element of document.elementsFromPoint(pointerX, pointerY)) {
+    const group = element.closest?.('[data-cell-group]');
+    if (group) {
+      const placement = cellPositionIn(group, pointerX, pointerY);
+      return {
+        id: group.dataset.cellGroup,
+        preview: group.querySelector(':scope > .drop-preview'),
+        ...placement,
+      };
+    }
+    const region = element.closest?.('.is-empty[data-cell-region]');
+    if (region) {
+      return {
+        id: region.dataset.cellRegion,
+        position: 'center',
+        index: 2147483647,
+        preview: region.querySelector(':scope > .drop-preview'),
+      };
+    }
+  }
+  return null;
+}
+
+function clearCellPreview() {
+  if (!cellPreview) {
+    return;
+  }
+  cellPreview.classList.remove(
+    'visible',
+    'center',
+    'left',
+    'right',
+    'top',
+    'bottom',
+    'tab-insert');
+  cellPreview.style.removeProperty('--cell-insertion-x');
+  cellPreview = null;
+}
+
+function showCellPreview(target) {
+  if (cellPreview !== target?.preview) {
+    clearCellPreview();
+  }
+  if (!target?.preview) {
+    return;
+  }
+  cellPreview = target.preview;
+  cellPreview.classList.remove(
+    'center',
+    'left',
+    'right',
+    'top',
+    'bottom',
+    'tab-insert');
+  cellPreview.style.removeProperty('--cell-insertion-x');
+  if (target.insertionX !== undefined) {
+    cellPreview.style.setProperty('--cell-insertion-x', `${target.insertionX}px`);
+    cellPreview.classList.add('visible', 'tab-insert');
+    return;
+  }
+  cellPreview.classList.add('visible', target.position);
+}
+
+function beginCellDrag(event) {
+  cellDrag.started = true;
+  cellDrag.source.classList.add('dragging');
+  document.body.classList.add('drag-active');
+  const ghost = document.createElement('div');
+  ghost.className = 'drag-ghost';
+  ghost.textContent = cellDrag.source.dataset.cellLabel || cellDrag.source.textContent;
+  document.body.append(ghost);
+  cellDrag.ghost = ghost;
+  moveCellGhost(event.clientX, event.clientY);
+}
+
+function moveCellGhost(pointerX, pointerY) {
+  if (!cellDrag?.ghost) {
+    return;
+  }
+  cellDrag.ghost.style.transform = `translate3d(${pointerX + 12}px, ${pointerY + 12}px, 0)`;
+}
+
+function finishCellDrag() {
+  clearCellPreview();
+  if (!cellDrag) {
+    return;
+  }
+  cellDrag.source.classList.remove('dragging');
+  cellDrag.ghost?.remove();
+  document.body.classList.remove('drag-active');
+  try {
+    cellDrag.source.releasePointerCapture(cellDrag.pointerId);
+  } catch {
+  }
+  cellDrag = null;
+}
+
+document.addEventListener('pointerdown', event => {
+  const source = event.target.closest?.('[data-cell-tab]');
+  if (!source || (event.pointerType === 'mouse' && event.button !== 0)) {
+    return;
+  }
+  cellDrag = {
+    source,
+    tabId: source.dataset.cellTab,
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    started: false,
+    ghost: null,
+  };
+  source.setPointerCapture(event.pointerId);
+});
+
+document.addEventListener('pointermove', event => {
+  if (!cellDrag || event.pointerId !== cellDrag.pointerId) {
+    return;
+  }
+  if (!cellDrag.started) {
+    const distance = Math.hypot(
+      event.clientX - cellDrag.startX,
+      event.clientY - cellDrag.startY);
+    if (distance < cellDragThreshold) {
+      return;
+    }
+    beginCellDrag(event);
+  }
+  event.preventDefault();
+  moveCellGhost(event.clientX, event.clientY);
+  showCellPreview(findCellTarget(event.clientX, event.clientY));
+}, { passive: false });
+
+document.addEventListener('pointerup', event => {
+  if (!cellDrag || event.pointerId !== cellDrag.pointerId) {
+    return;
+  }
+  const { started, tabId } = cellDrag;
+  if (!started) {
+    finishCellDrag();
+    return;
+  }
+
+  event.preventDefault();
+  const target = findCellTarget(event.clientX, event.clientY);
+  suppressCellClick = true;
+  finishCellDrag();
+  if (target) {
+    emit(`cell:${tabId}:${target.id}:${target.position}:${target.index}`);
+  } else {
+    emit(`cell-detach:${tabId}:${Math.round(event.clientX)}:${Math.round(event.clientY)}`);
+  }
+  setTimeout(() => { suppressCellClick = false; }, 0);
+});
+
+document.addEventListener('pointercancel', event => {
+  if (cellDrag?.pointerId === event.pointerId) {
+    finishCellDrag();
+  }
+});
+
+document.addEventListener('click', event => {
+  if (suppressCellClick && event.target.closest?.('[data-cell-tab]')) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }
+}, true);
+
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && cellDrag?.started) {
+    event.preventDefault();
+    finishCellDrag();
+    return;
+  }
+  const current = event.target.closest?.('[data-cell-tab]');
+  const list = current?.closest?.('.tab-list');
+  if (!current || !list
+      || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+    return;
+  }
+  const tabs = cellTabsIn(list);
+  const currentIndex = tabs.indexOf(current);
+  const targetIndex = event.key === 'Home'
+    ? 0
+    : event.key === 'End'
+      ? tabs.length - 1
+      : (currentIndex + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length)
+        % tabs.length;
+  event.preventDefault();
+  tabs[targetIndex].focus();
+  tabs[targetIndex].click();
+});
 
 function waitForEvent() {
   const event = events.shift();
@@ -538,6 +856,9 @@ function attachEditorSurface(cellId, surface) {
   };
 
   const handlers = {
+    focus() {
+      emit(`editor-focus:${cellId}`);
+    },
     beforeinput(event) {
       selectionSyncPending.delete(surface);
       if (!composing
@@ -665,6 +986,7 @@ function attachEditorSurface(cellId, surface) {
   };
 
   surface.addEventListener('beforeinput', handlers.beforeinput);
+  surface.addEventListener('focus', handlers.focus);
   surface.addEventListener('pointerdown', handlers.pointerdown);
   surface.addEventListener('pointerup', handlers.pointerup);
   surface.addEventListener('keydown', handlers.keydown);
@@ -690,6 +1012,7 @@ function detachEditorSurface(cellId, surface) {
   selectionSyncPending.delete(surface);
   handlers.dispose();
   surface.removeEventListener('beforeinput', handlers.beforeinput);
+  surface.removeEventListener('focus', handlers.focus);
   surface.removeEventListener('pointerdown', handlers.pointerdown);
   surface.removeEventListener('pointerup', handlers.pointerup);
   surface.removeEventListener('keydown', handlers.keydown);

@@ -15,7 +15,7 @@ public static partial class NotebookPackagesComponent
         for (var index = 0; index < props.Packages.Length; index++) {
             var status = props.Packages[index];
             items[index] = (
-                new(status.Package.Source, status.Package.Id, status.Package.Version),
+                new(status.Package.Id, status.Package.Version),
                 new(props.View, new(index, status)));
         }
         return items;
@@ -30,7 +30,6 @@ public static partial class NotebookPackagesComponent
         PackageView Value);
 
     private readonly record struct PackageKey(
-        PackageSource Source,
         string Id,
         string? Version);
 }

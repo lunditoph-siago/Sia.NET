@@ -1,40 +1,67 @@
 namespace Sia_Examples.Notebook;
 
-public sealed class NotebookLibrary
+public sealed class NotebookLibrary(INotebookStorage storage)
 {
-    private readonly Dictionary<string, NotebookDocument> _cache = [];
-
-    public IReadOnlyList<NotebookInfo> Notebooks { get; } = [
-        new("OOM Killer",
-            "Memory leak, GC, and the OOM killer",
-            "Example1_OomKiller.notebook.xml"),
-        new("Fork",
-            "Process tree, cgroups, and PID reuse",
-            "Example2_Fork.notebook.xml"),
-        new("Htop",
-            "Live monitoring from another thread",
-            "Example3_Htop.notebook.xml"),
-        new("Load Test",
-            "Five ways to sum a million requests",
-            "Example4_LoadTest.notebook.xml"),
-        new("Git",
-            "Commit log, diff, and reflog",
-            "Example5_Git.notebook.xml"),
+    private static readonly IReadOnlyList<NotebookInfo> BuiltIn = [
+        new("1. Browser Guide",
+            "Run, edit, inspect, arrange, and save a live notebook",
+            "Example1_Guide.notebook.xml",
+            NotebookOrigin.BuiltIn),
+        new("2. Essential Features",
+            "Worlds, entities, components, queries, systems, events, and addons",
+            "Example2_Essentials.notebook.xml",
+            NotebookOrigin.BuiltIn),
+        new("3. Prelude Features",
+            "Reactors, reactive reconciliation, higher-order events, concurrency, and serialization",
+            "Example3_Prelude.notebook.xml",
+            NotebookOrigin.BuiltIn),
     ];
 
-    public NotebookDocument Load(NotebookInfo info)
+    private readonly INotebookStorage _storage = storage;
+    private readonly Dictionary<string, NotebookDocument> _builtInCache = [];
+
+    public IReadOnlyList<NotebookInfo> Notebooks { get; private set; } = BuiltIn;
+
+    public async Task RefreshAsync(CancellationToken cancellationToken = default)
     {
-        if (_cache.TryGetValue(info.ResourceName, out var cached)) {
+        var entries = await _storage.ListAsync(cancellationToken);
+        var user = entries
+            .OrderByDescending(static entry => entry.SavedAt)
+            .Select(static entry => new NotebookInfo(
+                entry.Title.Length > 0 ? entry.Title : "(untitled)",
+                "",
+                entry.Key,
+                NotebookOrigin.User))
+            .ToList();
+        Notebooks = [.. BuiltIn, .. user];
+    }
+
+    public async ValueTask<(NotebookDocument Document, string? Version)> LoadAsync(
+        NotebookInfo info, CancellationToken cancellationToken = default)
+    {
+        if (info.Origin == NotebookOrigin.BuiltIn) {
+            return (LoadBuiltIn(info), null);
+        }
+
+        var loaded = await _storage.LoadAsync(info.Key, cancellationToken)
+            ?? throw new InvalidOperationException(
+                $"'{info.Name}' no longer exists in storage. It may have been deleted elsewhere.");
+        return (NotebookDocumentParser.Parse(loaded.Xml), loaded.Version);
+    }
+
+    private NotebookDocument LoadBuiltIn(NotebookInfo info)
+    {
+        if (_builtInCache.TryGetValue(info.Key, out var cached)) {
             return cached;
         }
 
         var assembly = typeof(NotebookLibrary).Assembly;
-        using var stream = assembly.GetManifestResourceStream(info.ResourceName)
+        using var stream = assembly.GetManifestResourceStream(info.Key)
             ?? throw new InvalidOperationException(
-                $"Embedded resource '{info.ResourceName}' not found.");
+                $"Embedded resource '{info.Key}' not found.");
         using var reader = new StreamReader(stream);
         var document = NotebookDocumentParser.Parse(reader.ReadToEnd());
-        _cache[info.ResourceName] = document;
+        _builtInCache[info.Key] = document;
         return document;
     }
 }

@@ -5,13 +5,15 @@ namespace Sia_Examples.Notebook;
 public sealed class NotebookSession : IDisposable
 {
     private readonly IUiThread _mainThread;
-    private readonly List<CodeCellBlock> _cells;
-    private readonly Dictionary<string, string> _scopeKeys;
-    private readonly Dictionary<string, int> _scopeIndices;
-    private readonly Dictionary<string, ScopeState> _scopes;
-    private readonly Dictionary<string, CellState> _states = [];
     private readonly MetadataReferenceProvider _references;
     private readonly PackageRegistry _packages = new();
+
+    private NotebookDocument _document;
+    private List<CodeCellBlock> _cells = [];
+    private Dictionary<string, string> _scopeKeys = [];
+    private Dictionary<string, int> _scopeIndices = [];
+    private Dictionary<string, ScopeState> _scopes = [];
+    private Dictionary<string, CellState> _states = [];
 
     private ImmutableArray<NotebookCellSnapshot> _cellSnapshot = [];
     private CancellationTokenSource? _operationCancellation;
@@ -27,41 +29,17 @@ public sealed class NotebookSession : IDisposable
     {
         _mainThread = mainThread;
         _references = references;
-        _cells = document.Sections
-            .SelectMany(static section => section.Blocks)
-            .OfType<CodeCellBlock>()
-            .ToList();
-        _scopeKeys = [];
-        _scopeIndices = [];
+        _document = document;
 
         foreach (var package in document.Packages) {
             _packages.Declare(package);
         }
 
-        var groupedCells = new Dictionary<string, List<CodeCellBlock>>();
-        foreach (var cell in _cells) {
-            var scopeKey = cell.Scope ?? $"$cell:{cell.Id}";
-            _scopeKeys.Add(cell.Id, scopeKey);
-            if (!groupedCells.TryGetValue(scopeKey, out var scopeCells)) {
-                scopeCells = [];
-                groupedCells.Add(scopeKey, scopeCells);
-            }
-            _scopeIndices.Add(cell.Id, scopeCells.Count);
-            scopeCells.Add(cell);
-            _states.Add(cell.Id, CellState.Create(cell.InitialSource) with {
-                Highlights = CSharpHighlighter
-                    .Classify(cell.InitialSource)
-                    .ToImmutableArray(),
-            });
-        }
-
-        _scopes = groupedCells.ToDictionary(
-            static pair => pair.Key,
-            static pair => new ScopeState(pair.Value));
+        Rebuild();
         Snapshot = CreateSnapshot();
     }
 
-    public event Action<NotebookSessionSnapshot>? Changed;
+    public event Action<NotebookSessionSnapshot, bool>? Changed;
 
     public IReadOnlyList<CodeCellBlock> Cells => _cells;
 
@@ -78,10 +56,13 @@ public sealed class NotebookSession : IDisposable
             .Where(static status => status.State == PackageLoadState.Loading)
             .Select(static status => status.Package)
             .ToArray();
-
-        foreach (var package in pending) {
-            await LoadPackageAsync(package, cancellationToken);
+        if (pending.Length == 0) {
+            return;
         }
+
+        var statuses = await _references.EnsurePackagesAsync(pending, cancellationToken);
+        VerifyAccess();
+        ApplyStatuses(statuses);
     }
 
     public async Task<PackageStatus> AddPackageAsync(
@@ -92,7 +73,21 @@ public sealed class NotebookSession : IDisposable
         if (_packages.Declare(package)) {
             Publish();
         }
-        return await LoadPackageAsync(package, cancellationToken);
+        var statuses = await _references.EnsurePackagesAsync([package], cancellationToken);
+        VerifyAccess();
+        ApplyStatuses(statuses);
+        return statuses[0];
+    }
+
+    private void ApplyStatuses(IReadOnlyList<PackageStatus> statuses)
+    {
+        var changed = false;
+        foreach (var status in statuses) {
+            changed |= _packages.Resolve(status);
+        }
+        if (changed) {
+            Publish();
+        }
     }
 
     public void UpdateCellSource(
@@ -115,6 +110,136 @@ public sealed class NotebookSession : IDisposable
         });
         InvalidateFrom(_scopes[scopeKey], _scopeIndices[cellId]);
         Publish();
+    }
+
+    public string InsertCell(string? afterBlockId, string? scope = null)
+    {
+        VerifyAccess();
+        var newCell = new CodeCellBlock(Guid.NewGuid().ToString("N"), "", Editable: true, scope);
+        _document = _document with { Sections = InsertBlockAfter(_document.Sections, afterBlockId, newCell) };
+        Rebuild();
+        Publish(structural: true);
+        return newCell.Id;
+    }
+
+    public string InsertParagraph(string? afterBlockId)
+    {
+        VerifyAccess();
+        var newParagraph = new ParagraphBlock(Guid.NewGuid().ToString("N"), [new TextInline("")], Editable: true);
+        _document = _document with { Sections = InsertBlockAfter(_document.Sections, afterBlockId, newParagraph) };
+        Rebuild();
+        Publish(structural: true);
+        return newParagraph.Id;
+    }
+
+    public void SetCellScope(string cellId, string? scope)
+    {
+        VerifyAccess();
+        var normalized = string.IsNullOrWhiteSpace(scope) ? null : scope.Trim();
+        var current = _cells.FirstOrDefault(cell => cell.Id == cellId)?.Scope;
+        if (current == normalized) {
+            return;
+        }
+
+        _document = _document with {
+            Sections = UpdateBlock(_document.Sections, cellId, block =>
+                block is CodeCellBlock cell ? cell with { Scope = normalized } : block),
+        };
+        Rebuild();
+        Publish(structural: true);
+    }
+
+    public void SetParagraphText(string blockId, string text)
+    {
+        VerifyAccess();
+        _document = _document with {
+            Sections = UpdateBlock(_document.Sections, blockId, block =>
+                block is ParagraphBlock { Editable: true } paragraph
+                    ? paragraph with { Inlines = [new TextInline(text)] }
+                    : block),
+        };
+        Publish();
+    }
+
+    public void RemoveCell(string cellId)
+    {
+        VerifyAccess();
+        _document = _document with { Sections = RemoveBlock(_document.Sections, cellId) };
+        Rebuild();
+        Publish(structural: true);
+    }
+
+    public void MoveCell(string cellId, int offset)
+    {
+        VerifyAccess();
+        if (offset is not (-1 or 1)) {
+            throw new ArgumentOutOfRangeException(nameof(offset), offset, "MoveCell only supports -1 (up) or +1 (down).");
+        }
+        _document = _document with { Sections = MoveBlock(_document.Sections, cellId, offset) };
+        Rebuild();
+        Publish(structural: true);
+    }
+
+    public string InsertSection(
+        int? afterIndex, string title, NotebookBlockKind starterKind = NotebookBlockKind.Code)
+    {
+        VerifyAccess();
+        NotebookBlock starterBlock = starterKind == NotebookBlockKind.Text
+            ? new ParagraphBlock(Guid.NewGuid().ToString("N"), [new TextInline("")], Editable: true)
+            : new CodeCellBlock(Guid.NewGuid().ToString("N"), "", Editable: true, null);
+        var sections = _document.Sections.ToList();
+        var insertAt = afterIndex is { } index ? Math.Clamp(index + 1, 0, sections.Count) : sections.Count;
+        sections.Insert(insertAt, new NotebookSection(Guid.NewGuid().ToString("N"), title, [starterBlock]));
+        _document = _document with { Sections = sections };
+        Rebuild();
+        Publish(structural: true);
+        return GetBlockId(starterBlock)!;
+    }
+
+    public void RemoveSection(string sectionId)
+    {
+        VerifyAccess();
+        var sections = _document.Sections.ToList();
+        var sectionIndex = sections.FindIndex(section => section.Id == sectionId);
+        if (sectionIndex < 0) {
+            return;
+        }
+        sections.RemoveAt(sectionIndex);
+        _document = _document with { Sections = sections };
+        Rebuild();
+        Publish(structural: true);
+    }
+
+    public void RenameSection(string sectionId, string title)
+    {
+        VerifyAccess();
+        var sections = _document.Sections.ToList();
+        var sectionIndex = sections.FindIndex(section => section.Id == sectionId);
+        if (sectionIndex < 0) {
+            return;
+        }
+        sections[sectionIndex] = sections[sectionIndex] with { Title = title };
+        _document = _document with { Sections = sections };
+        Publish();
+    }
+
+    public void SetTitle(string title)
+    {
+        VerifyAccess();
+        _document = _document with { Title = title };
+        Publish();
+    }
+
+    public NotebookDocument ToDocument()
+    {
+        VerifyAccess();
+        var sections = _document.Sections.Select(section => section with {
+            Blocks = section.Blocks.Select(block => block switch {
+                CodeCellBlock cell => cell with { InitialSource = _states[cell.Id].Source },
+                var other => other,
+            }).ToList(),
+        }).ToList();
+        return _document with { Sections = sections };
     }
 
     public async Task CompileThroughAsync(
@@ -216,30 +341,6 @@ public sealed class NotebookSession : IDisposable
         Changed = null;
     }
 
-    private async Task<PackageStatus> LoadPackageAsync(
-        PackageRef package,
-        CancellationToken cancellationToken)
-    {
-        PackageStatus status;
-        try {
-            await _references.EnsurePackagesAsync([package], cancellationToken);
-            VerifyAccess();
-            status = new(package, PackageLoadState.Loaded, null);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
-            throw;
-        }
-        catch (Exception error) {
-            VerifyAccess();
-            status = new(package, PackageLoadState.Failed, error.Message);
-        }
-
-        if (_packages.Resolve(status)) {
-            Publish();
-        }
-        return status;
-    }
-
     private async Task<bool> CompileCoreAsync(
         ScopeState scope,
         int targetIndex,
@@ -302,11 +403,14 @@ public sealed class NotebookSession : IDisposable
                 continue;
             }
             var error = standardError.GetValueOrDefault(id, string.Empty);
+            var rendered = NotebookProgramBuilder.SplitRenderOutput(output);
             var failed = error.Length > 0 || (!result.Success && index == lastStartedIndex);
             SetState(id, state => state with {
                 Phase = failed ? CellPhase.RanError : CellPhase.RanSuccess,
-                StandardOutput = output,
+                StandardOutput = rendered.StandardOutput,
                 StandardError = error,
+                RenderRequested = rendered.RenderRequested,
+                RenderOutput = rendered.RenderOutput,
             });
         }
     }
@@ -340,10 +444,191 @@ public sealed class NotebookSession : IDisposable
                 Diagnostics = [],
                 StandardOutput = string.Empty,
                 StandardError = string.Empty,
+                RenderRequested = false,
+                RenderOutput = string.Empty,
             });
         }
         scope.InvalidateFrom(startIndex);
     }
+
+    private void Rebuild()
+    {
+        var cells = _document.Sections
+            .SelectMany(static section => section.Blocks)
+            .OfType<CodeCellBlock>()
+            .ToList();
+
+        var scopeKeys = new Dictionary<string, string>();
+        var scopeIndices = new Dictionary<string, int>();
+        var groupedCells = new Dictionary<string, List<CodeCellBlock>>();
+        foreach (var cell in cells) {
+            var scopeKey = cell.Scope ?? $"$cell:{cell.Id}";
+            scopeKeys.Add(cell.Id, scopeKey);
+            if (!groupedCells.TryGetValue(scopeKey, out var scopeCells)) {
+                scopeCells = [];
+                groupedCells.Add(scopeKey, scopeCells);
+            }
+            scopeIndices.Add(cell.Id, scopeCells.Count);
+            scopeCells.Add(cell);
+        }
+
+        var changedScopeKeys = new HashSet<string>();
+        var scopes = new Dictionary<string, ScopeState>();
+        foreach (var (scopeKey, scopeCells) in groupedCells) {
+            if (_scopes.TryGetValue(scopeKey, out var previousScope) && SameCellIds(previousScope.Cells, scopeCells)) {
+                scopes[scopeKey] = previousScope;
+            } else {
+                changedScopeKeys.Add(scopeKey);
+                scopes[scopeKey] = new ScopeState(scopeCells);
+            }
+        }
+
+        var states = new Dictionary<string, CellState>();
+        foreach (var cell in cells) {
+            if (!_states.TryGetValue(cell.Id, out var existing)) {
+                states[cell.Id] = CellState.Create(cell.InitialSource) with {
+                    Highlights = CSharpHighlighter.Classify(cell.InitialSource).ToImmutableArray(),
+                };
+            } else if (changedScopeKeys.Contains(scopeKeys[cell.Id])) {
+                states[cell.Id] = existing with {
+                    Phase = CellPhase.Idle,
+                    Diagnostics = [],
+                    StandardOutput = "",
+                    StandardError = "",
+                    RenderRequested = false,
+                    RenderOutput = "",
+                };
+            } else {
+                states[cell.Id] = existing;
+            }
+        }
+
+        _cells = cells;
+        _scopeKeys = scopeKeys;
+        _scopeIndices = scopeIndices;
+        _scopes = scopes;
+        _states = states;
+        _cellsDirty = true;
+    }
+
+    private static bool SameCellIds(IReadOnlyList<CodeCellBlock> a, IReadOnlyList<CodeCellBlock> b)
+    {
+        if (a.Count != b.Count) {
+            return false;
+        }
+        for (var index = 0; index < a.Count; index++) {
+            if (a[index].Id != b[index].Id) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static IReadOnlyList<NotebookSection> InsertBlockAfter(
+        IReadOnlyList<NotebookSection> sections, string? afterCellId, NotebookBlock newBlock)
+    {
+        if (afterCellId is null) {
+            if (sections.Count == 0) {
+                throw new InvalidOperationException("Cannot insert a cell into a notebook with no sections.");
+            }
+            var lastIndex = sections.Count - 1;
+            var updatedLast = sections.ToList();
+            updatedLast[lastIndex] = sections[lastIndex] with {
+                Blocks = [.. sections[lastIndex].Blocks, newBlock],
+            };
+            return updatedLast;
+        }
+
+        for (var sectionIndex = 0; sectionIndex < sections.Count; sectionIndex++) {
+            var blockIndex = FindBlockIndex(sections[sectionIndex].Blocks, afterCellId);
+            if (blockIndex < 0) {
+                continue;
+            }
+            var updatedBlocks = sections[sectionIndex].Blocks.ToList();
+            updatedBlocks.Insert(blockIndex + 1, newBlock);
+            var updated = sections.ToList();
+            updated[sectionIndex] = sections[sectionIndex] with { Blocks = updatedBlocks };
+            return updated;
+        }
+
+        throw new ArgumentException($"No block with id '{afterCellId}' found.", nameof(afterCellId));
+    }
+
+    private static IReadOnlyList<NotebookSection> RemoveBlock(
+        IReadOnlyList<NotebookSection> sections, string cellId)
+    {
+        for (var sectionIndex = 0; sectionIndex < sections.Count; sectionIndex++) {
+            var blockIndex = FindBlockIndex(sections[sectionIndex].Blocks, cellId);
+            if (blockIndex < 0) {
+                continue;
+            }
+            var updatedBlocks = sections[sectionIndex].Blocks.ToList();
+            updatedBlocks.RemoveAt(blockIndex);
+            var updated = sections.ToList();
+            updated[sectionIndex] = sections[sectionIndex] with { Blocks = updatedBlocks };
+            return updated;
+        }
+        throw new ArgumentException($"No block with id '{cellId}' found.", nameof(cellId));
+    }
+
+    private static IReadOnlyList<NotebookSection> MoveBlock(
+        IReadOnlyList<NotebookSection> sections, string cellId, int offset)
+    {
+        for (var sectionIndex = 0; sectionIndex < sections.Count; sectionIndex++) {
+            var blocks = sections[sectionIndex].Blocks;
+            var blockIndex = FindBlockIndex(blocks, cellId);
+            if (blockIndex < 0) {
+                continue;
+            }
+            var targetIndex = blockIndex + offset;
+            if (targetIndex < 0 || targetIndex >= blocks.Count) {
+                return sections;
+            }
+            var updatedBlocks = blocks.ToList();
+            (updatedBlocks[blockIndex], updatedBlocks[targetIndex]) =
+                (updatedBlocks[targetIndex], updatedBlocks[blockIndex]);
+            var updated = sections.ToList();
+            updated[sectionIndex] = sections[sectionIndex] with { Blocks = updatedBlocks };
+            return updated;
+        }
+        throw new ArgumentException($"No block with id '{cellId}' found.", nameof(cellId));
+    }
+
+    private static IReadOnlyList<NotebookSection> UpdateBlock(
+        IReadOnlyList<NotebookSection> sections,
+        string blockId,
+        Func<NotebookBlock, NotebookBlock> transform)
+    {
+        for (var sectionIndex = 0; sectionIndex < sections.Count; sectionIndex++) {
+            var blockIndex = FindBlockIndex(sections[sectionIndex].Blocks, blockId);
+            if (blockIndex < 0) {
+                continue;
+            }
+            var updatedBlocks = sections[sectionIndex].Blocks.ToList();
+            updatedBlocks[blockIndex] = transform(updatedBlocks[blockIndex]);
+            var updated = sections.ToList();
+            updated[sectionIndex] = sections[sectionIndex] with { Blocks = updatedBlocks };
+            return updated;
+        }
+        return sections;
+    }
+
+    private static int FindBlockIndex(IReadOnlyList<NotebookBlock> blocks, string blockId)
+    {
+        for (var index = 0; index < blocks.Count; index++) {
+            if (GetBlockId(blocks[index]) == blockId) {
+                return index;
+            }
+        }
+        return -1;
+    }
+
+    private static string? GetBlockId(NotebookBlock block)
+        => block switch {
+            CodeCellBlock cell => cell.Id,
+            ParagraphBlock paragraph => paragraph.Id,
+            _ => null,
+        };
 
     private bool TryGetTarget(
         string cellId,
@@ -396,11 +681,11 @@ public sealed class NotebookSession : IDisposable
         }
     }
 
-    private void Publish()
+    private void Publish(bool structural = false)
     {
         VerifyAccess();
         Snapshot = CreateSnapshot();
-        Changed?.Invoke(Snapshot);
+        Changed?.Invoke(Snapshot, structural);
     }
 
     private NotebookSessionSnapshot CreateSnapshot()

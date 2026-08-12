@@ -30,6 +30,7 @@ public static partial class ExampleApp
                         index,
                         notebook.Name,
                         notebook.Description,
+                        notebook.Origin,
                         selectedIndex == index)));
         }
         return items;

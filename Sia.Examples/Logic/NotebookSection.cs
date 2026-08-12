@@ -1,3 +1,3 @@
 namespace Sia_Examples.Notebook;
 
-public sealed record NotebookSection(string Title, IReadOnlyList<NotebookBlock> Blocks);
+public sealed record NotebookSection(string Id, string Title, IReadOnlyList<NotebookBlock> Blocks);

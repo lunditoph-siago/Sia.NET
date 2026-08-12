@@ -1,0 +1,587 @@
+<Notebook Title="Advanced Sia and Std: Reactors, Events, Concurrency, and Serialization">
+  <Packages>
+    <Package Id="MemoryPack.Generator" Version="1.21.4" Analyzer="true" />
+  </Packages>
+  <Section Title="What std means in this repository">
+    <Paragraph>
+      Sia's standard-library package is currently named <Code>Sia.Prelude</Code>. It builds on
+      the core ECS with reusable <Code>Sia.Reactors</Code> services and the
+      <Code>Sia.Reactive</Code> reconciliation runtime. This notebook also covers three core
+      boundaries: events can be intercepted without sender and handler coordinating directly,
+      parallel data work is allowed but structural mutations return to one owning thread, and a
+      world can be frozen to bytes and restored.
+    </Paragraph>
+    <Paragraph>
+      Every cell here is an independent scene: run one and only that scene compiles and executes,
+      so the eight of them work in any order. When a scene reuses a component type from another,
+      it declares its own copy.
+    </Paragraph>
+  </Section>
+
+  <Section Title="1. Std Reactors: hierarchy, aggregation, and stable ids">
+    <Paragraph>
+      Reactors are world addons that maintain derived relationships from ordinary components.
+      <Code>Hierarchy&lt;TTag&gt;</Code> maintains parent/child links,
+      <Code>Aggregator&lt;TId&gt;</Code> maintains groups, and <Code>Mapper&lt;TId&gt;</Code> provides an
+      id-to-entity lookup. Your domain data stays small while the addon owns the index.
+    </Paragraph>
+    <CodeCell Id="advanced-reactors" Editable="true"><![CDATA[
+      using Sia.Reactors;
+
+      world.AcquireAddon<Hierarchy<ProcessTree>>();
+      world.AcquireAddon<Aggregator<UserId>>();
+      var processes = world.AcquireAddon<Mapper<ProcessId>>();
+
+      using var stage = SystemChain.Empty
+          .Add<UserProcessCountSystem>()
+          .CreateStage(world);
+
+      var init = ProcessFactory.Create(world, "init", 0, 1);
+      var shell = ProcessFactory.Create(world, "shell", 1000, 20, init);
+      var editor = ProcessFactory.Create(world, "editor", 1000, 21, shell);
+      stage.Tick();
+
+      Console.WriteLine("children of shell:");
+      foreach (var child in shell.Get<Node<ProcessTree>>().Children) {
+          Console.WriteLine("  " + child.Get<ProcessName>().Value);
+      }
+      Console.WriteLine("id 21 resolves to editor: " + (processes[21] == editor));
+
+      new Node<ProcessTree>.View(shell, world) { IsSelfEnabled = false };
+      Console.WriteLine("editor follows disabled parent: "
+          + !editor.Get<Node<ProcessTree>>().IsEnabled);
+
+      Notebook.Render(
+          $"{init.Get<ProcessName>().Value}\n" +
+          $"  └─ {shell.Get<ProcessName>().Value}\n" +
+          $"       └─ {editor.Get<ProcessName>().Value}");
+
+      public readonly record struct ProcessName(string Value);
+      public readonly record struct UserId(int Value)
+      {
+          public static implicit operator UserId(int value) => new(value);
+      }
+      public readonly record struct ProcessId(int Value)
+      {
+          public static implicit operator ProcessId(int value) => new(value);
+      }
+      public sealed class ProcessTree;
+
+      public static class ProcessFactory
+      {
+          public static Entity Create(
+              World world, string name, UserId userId, ProcessId processId,
+              Entity? parent = null)
+              => world.Create(HList.From(
+                  new ProcessName(name),
+                  new Node<ProcessTree>(parent),
+                  Sid.From(userId),
+                  Sid.From(processId)));
+      }
+
+      public sealed class UserProcessCountSystem() : SystemBase(
+          Matchers.Of<Aggregation<UserId>>(),
+          EventUnion.Of<
+              Aggregation<UserId>.EntityAdded,
+              Aggregation<UserId>.EntityRemoved>())
+      {
+          public override void Execute(World world, IEntityQuery query)
+          {
+              foreach (var entity in query) {
+                  ref readonly var group = ref entity.Get<Aggregation<UserId>>();
+                  Console.WriteLine(
+                      $"user {group.Id.Value}: {group.Group.Count} process(es)");
+              }
+          }
+      }
+    ]]></CodeCell>
+    <Paragraph>
+      Disablement propagates downward through every descendant, not just the immediate child —
+      that is why disabling <Code>shell</Code> alone is enough to make <Code>editor</Code> report
+      itself disabled too, with no separate write to <Code>editor</Code> at all.
+    </Paragraph>
+  </Section>
+
+  <Section Title="2. Std Reactive: describe desired state, then reconcile">
+    <Paragraph>
+      A <Code>[ReactiveComponent]</Code> is a pure description of desired structure plus Hooks.
+      <Code>UseState</Code> stores component-local state. A flush expands dirty components and
+      reconciles their terms with the existing ECS graph, preserving identity where the shape is
+      compatible and cleaning it up on unmount.
+    </Paragraph>
+    <CodeCell Id="advanced-reactive" Editable="true"><![CDATA[
+      using Sia.Reactive;
+
+      var mount = world.Mount(
+          CounterComponent.Definition,
+          new CounterProps("downloads", 1));
+      world.FlushReactive();
+
+      var firstEntity = default(Entity);
+      foreach (var entity in world.Query(Matchers.Of<CounterValue>())) {
+          firstEntity = entity;
+          break;
+      }
+      Console.WriteLine(firstEntity.Get<CounterValue>());
+
+      mount.GetState<int>().Update(static value => value + 4);
+      world.FlushReactive();
+
+      var reconciledEntity = default(Entity);
+      foreach (var entity in world.Query(Matchers.Of<CounterValue>())) {
+          reconciledEntity = entity;
+          break;
+      }
+      Console.WriteLine(reconciledEntity.Get<CounterValue>());
+      Console.WriteLine("entity identity preserved: " + (firstEntity == reconciledEntity));
+
+      mount.Unmount();
+      var outputRemains = false;
+      foreach (var entity in world.Query(Matchers.Of<CounterValue>())) {
+          outputRemains = true;
+          break;
+      }
+      Console.WriteLine("reactive output removed: " + !outputRemains);
+
+      public readonly record struct CounterProps(string Label, int Initial);
+      public readonly record struct CounterValue(string Label, int Value);
+
+      [ReactiveComponent]
+      public static partial class CounterComponent
+      {
+          public static ReactiveNode Render(in CounterProps props, ref Hooks hooks)
+          {
+              var count = hooks.UseState(props.Initial);
+              return Reactive.Entity(HList.From(
+                  new CounterValue(props.Label, count.Value)));
+          }
+      }
+    ]]></CodeCell>
+    <Paragraph>
+      A flush settles on whatever the state holds at that moment, not a log of every update made
+      since the last flush — several calls to <Code>Update</Code> between two flushes would still
+      only ever produce one reconciled entity.
+    </Paragraph>
+  </Section>
+
+  <Section Title="3. Higher-order events: cancel, pause, and resume">
+    <Paragraph>
+      An event that implements <Code>ICancellableEvent</Code>, <Code>IPausableEvent</Code>, or
+      <Code>IRevertableEvent</Code> can be intercepted by a second event aimed at the same
+      entity, without the original sender or handler knowing about each other.
+      <Code>HOEvents.Cancel&lt;TEvent&gt;</Code> is the simplest of the three to see end-to-end: a
+      system declares <Code>filter: EventUnion.Of&lt;HOEvents.Cancel&lt;TEvent&gt;&gt;()</Code> and
+      is skipped entirely for any entity a cancel also arrived for that same tick. The same
+      mechanism backs <Code>Pause&lt;TEvent&gt;</Code>/<Code>Resume&lt;TEvent&gt;</Code> (suspend one
+      event type without touching any other system) and <Code>Revert&lt;TEvent&gt;</Code> (hand a
+      handler the event's previous value).
+    </Paragraph>
+    <CodeCell Id="advanced-cancel" Editable="true"><![CDATA[
+      using var stage = SystemChain.Empty.Add<SignalTermSystem>().CreateStage(world);
+
+      var stubborn = world.Create(HList.From(new ProcessName("stubborn-daemon")));
+
+      world.Send(stubborn, SigTerm.Instance);
+      world.Send(stubborn, HOEvents.Cancel<SigTerm>.Instance);
+      stage.Tick();
+      Console.WriteLine(stubborn.IsValid
+          ? "trapped SIGTERM and lives on."
+          : "exited.");
+
+      if (stubborn.IsValid) {
+          stubborn.Destroy();
+      }
+      Console.WriteLine(stubborn.IsValid
+          ? "still alive?!"
+          : "SIGKILL: gone for good -- entity.Destroy() can't be intercepted by anything.");
+
+      public readonly record struct ProcessName(string Value);
+      public sealed class SigTerm : SingletonEvent<SigTerm>, ICancellableEvent;
+
+      public sealed class SignalTermSystem() : SystemBase(
+          Matchers.Any,
+          EventUnion.Of<SigTerm>(),
+          filter: EventUnion.Of<HOEvents.Cancel<SigTerm>>())
+      {
+          public override void Execute(World world, IEntityQuery query)
+          {
+              Console.WriteLine("delivering SIGTERM...");
+              foreach (var entity in query) {
+                  var name = entity.Get<ProcessName>().Value;
+                  entity.Destroy();
+                  Console.WriteLine($"[{name}] terminated gracefully.");
+              }
+          }
+      }
+    ]]></CodeCell>
+    <Paragraph>
+      The filter only ever protects a tick where a matching cancel actually showed up: without
+      that <Code>HOEvents.Cancel&lt;SigTerm&gt;</Code> send above, <Code>SignalTermSystem</Code>
+      would have destroyed <Code>stubborn-daemon</Code> itself, well before the manual
+      <Code>Destroy()</Code> call even runs.
+    </Paragraph>
+  </Section>
+
+  <Section Title="4. EventSystemBase: dispatch by type, and remember what changed">
+    <Paragraph>
+      <Code>SystemBase</Code> reacts to a trigger by re-running its whole query. An
+      <Code>EventSystemBase</Code> instead dispatches per recorded event type through
+      <Code>HandleEvent&lt;TEvent&gt;</Code> — call <Code>RecordEvent&lt;TEvent&gt;()</Code> for one
+      event type or <Code>RecordEvents&lt;TEventUnion&gt;()</Code> for a whole <Code>[SiaEvents]</Code>
+      group in <Code>Initialize</Code>. <Code>ComponentEventSystemBase&lt;TComponent&gt;</Code> goes
+      further: it snapshots the component's value right before each
+      <Code>WorldEvents.Add/Set/Remove&lt;TComponent&gt;</Code>, so a handler can compare against
+      what came before. (It only sees whole-component replacement — <Code>entity.Set(component)</Code>
+      — not a single <Code>[Sia]</Code> field write through a View; <Code>TemplateEventSystemBase</Code>
+      adds that finer granularity at the cost of a <Code>[SiaTemplate]</Code> declaration.)
+    </Paragraph>
+    <CodeCell Id="advanced-event-system" Editable="true"><![CDATA[
+      using var stage = SystemChain.Empty
+          .Add<BootLogSystem>()
+          .Add<RestartHistorySystem>()
+          .CreateStage(world);
+
+      var sshd = world.Create(HList.From(new ProcessName("sshd"), new Uptime(0)));
+      stage.Tick();
+
+      sshd.Set(new Uptime(120));
+      sshd.Set(new Uptime(0));
+      stage.Tick();
+
+      sshd.Remove<Uptime>();
+      stage.Tick();
+
+      public readonly record struct ProcessName(string Value);
+      public partial record struct Uptime([Sia] float Seconds);
+
+      public sealed class BootLogSystem : EventSystemBase
+      {
+          public override void Initialize(World world)
+          {
+              base.Initialize(world);
+              RecordEvent<WorldEvents.Add<Uptime>>();
+              RecordEvent<WorldEvents.Remove<Uptime>>();
+          }
+
+          protected override void HandleEvent<TEvent>(Entity entity, in TEvent @event)
+          {
+              var name = entity.Get<ProcessName>().Value;
+              switch (@event) {
+                  case WorldEvents.Add<Uptime>:
+                      Console.WriteLine($"boot: {name} came online");
+                      break;
+                  case WorldEvents.Remove<Uptime>:
+                      Console.WriteLine($"boot: {name} went offline");
+                      break;
+              }
+          }
+      }
+
+      public sealed class RestartHistorySystem : ComponentEventSystemBase<Uptime>
+      {
+          protected override void HandleEvent<TEvent>(Entity entity, in Uptime before, in TEvent @event)
+          {
+              if (@event is WorldEvents.Set<Uptime>) {
+                  var name = entity.Get<ProcessName>().Value;
+                  Console.WriteLine($"  {name} uptime was {before.Seconds:F0}s before this change");
+              }
+          }
+      }
+    ]]></CodeCell>
+    <Paragraph>
+      The first "uptime was 0s before this change" line is real, not a bug: creating an entity
+      with <Code>Uptime</Code> already attached raises <Code>Add</Code> and <Code>Set</Code>
+      together, so the very first observation reports the initial value as its own "before"
+      snapshot too. <Code>RecordFor</Code>'s Add/Set/Remove triad is a component lifecycle
+      notification, not a diff guarantee by itself — combine it with your own check when that
+      distinction matters.
+    </Paragraph>
+    <Paragraph>
+      <Code>RestartHistorySystem</Code> batches every event that happened since the last tick and
+      remembers each one's own snapshot in order, not just the most recent write — a third
+      <Code>Set</Code> in the same tick would produce a third, correctly-ordered "before" line
+      right along with the two already here.
+    </Paragraph>
+  </Section>
+
+  <Section Title="5. Parallel queries without parallel structural mutation">
+    <Paragraph>
+      <Code>ForEachOnParallel</Code> distributes query work across workers. Treat entity shape as
+      owned mutable structure: gather decisions concurrently, then add/remove components or
+      destroy entities after the parallel callback completes. This keeps the hot computation
+      parallel without racing the World's archetype storage.
+    </Paragraph>
+    <CodeCell Id="advanced-parallel" Editable="true"><![CDATA[
+      using System.Collections.Concurrent;
+
+      for (var index = 0; index < 256; index++) {
+          world.Create(HList.From(new ParallelJob(index)));
+      }
+
+      using var stage = SystemChain.Empty
+          .Add<ParallelCullSystem>()
+          .CreateStage(world);
+      stage.Tick();
+
+      public readonly record struct ParallelJob(int Index);
+
+      public sealed class ParallelCullSystem() : SystemBase(
+          Matchers.Of<ParallelJob>())
+      {
+          private readonly ConcurrentStack<Entity> _completed = [];
+
+          public override void Execute(World world, IEntityQuery query)
+          {
+              query.ForEachOnParallel(this, static (system, entity) => {
+                  if (entity.Get<ParallelJob>().Index % 8 == 0) {
+                      system._completed.Push(entity);
+                  }
+              });
+
+              var count = 0;
+              foreach (var entity in _completed) {
+                  entity.Destroy();
+                  count++;
+              }
+              _completed.Clear();
+              Console.WriteLine($"destroyed {count} completed jobs after the parallel phase.");
+          }
+      }
+    ]]></CodeCell>
+    <Paragraph>
+      The destroyed count itself is deterministic — exactly 32 here, one eighth of the 256 jobs
+      created above. What is not deterministic is the order entities land in
+      <Code>_completed</Code> from run to run, because the parallel workers race each other to
+      push onto that stack; only the single-threaded cleanup phase afterward is safe to rely on
+      for order.
+    </Paragraph>
+  </Section>
+
+  <Section Title="6. SubWorld and extract systems: a read model for another thread">
+    <Paragraph>
+      <Code>SubWorldAddon</Code> hands out a second <Code>World</Code> tagged with a
+      <Code>SubWorldContext</Code> back to the first. An <Code>ExtractSystemBase</Code> running in
+      that second world sees a live, read-only <Code>IEntityQuery</Code> over the parent's data —
+      useful for a system that should react immediately without ever mutating the parent.
+      <Code>SnapshotExtractSystem&lt;T&gt;</Code> instead copies matching entities into a plain
+      <Code>T[]</Code> on demand via <Code>RunExtract()</Code>, so a consumer can read
+      <Code>Data</Code> on its own cadence — the frozen array a real background thread would poll
+      instead of touching the live world at all.
+    </Paragraph>
+    <CodeCell Id="advanced-subworld" Editable="true"><![CDATA[
+      var monitor = world.AcquireAddon<SubWorldAddon>().SubWorld;
+
+      using var kernelStage = SystemChain.Empty.Add<LoadDriftSystem>().CreateStage(world);
+
+      var snapshotSystem = new LoadSnapshotSystem();
+      using var monitorStage = SystemChain.Empty
+          .Add<LoadExtractSystem>()
+          .Add<LoadSnapshotSystem>(() => snapshotSystem)
+          .CreateStage(monitor.World);
+
+      for (var i = 0; i < 3; i++) {
+          world.Create(HList.From(new ProcessName($"worker-{i}"), new Load(0.1f)));
+      }
+
+      for (var frame = 0; frame < 3; frame++) {
+          Console.WriteLine($"kernel frame {frame}");
+          kernelStage.Tick();          // mutate the real world
+          snapshotSystem.RunExtract(); // pull a fresh read-only copy
+          monitor.Tick(monitorStage);  // the "other thread" renders what it can see
+      }
+
+      public readonly record struct ProcessName(string Value);
+      public partial record struct Load([Sia] float Value);
+
+      public sealed class LoadDriftSystem() : SystemBase(Matchers.Of<Load>())
+      {
+          public override void Execute(World world, IEntityQuery query)
+          {
+              foreach (var entity in query) {
+                  ref var load = ref entity.Get<Load>();
+                  load.Value = Math.Clamp(load.Value + (Random.Shared.NextSingle() - 0.4f), 0, 1);
+              }
+          }
+      }
+
+      public sealed class LoadExtractSystem() : ExtractSystemBase(
+          matcher: Matchers.Any, extractMatcher: Matchers.Of<ProcessName, Load>())
+      {
+          public override void Execute(World world, IEntityQuery query, IEntityQuery extract)
+              => Console.WriteLine($"  [live query] sees {extract.Count} process(es) in the real world");
+      }
+
+      public readonly record struct LoadSample(int EntityId, float Value);
+
+      public sealed class LoadSnapshotSystem : SnapshotExtractSystem<LoadSample>
+      {
+          protected override IEntityMatcher ExtractMatcher => Matchers.Of<Load>();
+
+          protected override LoadSample Extract(Entity entity)
+              => new(entity.Id.Value, entity.Get<Load>().Value);
+
+          protected override void Render(ReadOnlySpan<LoadSample> data)
+          {
+              Console.WriteLine($"  [frozen snapshot] {data.Length} sample(s)");
+              var bars = new List<string>();
+              foreach (ref readonly var sample in data) {
+                  Console.WriteLine($"    pid {sample.EntityId,-6} load {sample.Value:P0}");
+                  var filled = (int)(sample.Value * 10);
+                  bars.Add($"pid {sample.EntityId,-6} {new string('#', filled)}{new string('.', 10 - filled)} {sample.Value:P0}");
+              }
+              Notebook.Render(string.Join('\n', bars));
+          }
+      }
+    ]]></CodeCell>
+    <Paragraph>
+      Every <Code>RunExtract()</Code> call replaces the Render pane's bars with that frame's
+      numbers, so watching it across all three ticks is watching three frames of "another thread"
+      catching up to the kernel one snapshot at a time. A real caller would run
+      <Code>monitorStage</Code> on its own background <Code>Thread</Code> instead of ticking it
+      inline like this cell does — nothing here needs that thread to prove the read model works,
+      and the deterministic single-threaded order is easier to read top to bottom.
+    </Paragraph>
+    <Paragraph>
+      The "[live query] sees 3 process(es)" line above always reflects the live world on every
+      frame; the Render pane's bars only move when <Code>RunExtract()</Code> actually runs. Skip a
+      call to it on some frame and the two would visibly drift apart — which is exactly the
+      decoupling this section exists to demonstrate: a consumer that stops polling just sees a
+      stale frame, never a torn or racing one.
+    </Paragraph>
+  </Section>
+
+  <Section Title="7. Context&lt;T&gt;: per-thread state without parameter threading">
+    <Paragraph>
+      <Code>Context&lt;T&gt;.Current</Code> is <Code>[ThreadStatic]</Code>. A
+      <Code>ParallelRunner</Code> subclass can override <Code>RunWorkerThread</Code> to plant a
+      distinct value on each worker once at startup; every job that worker ever runs afterward
+      reaches it through <Code>Context.Get&lt;T&gt;()</Code>, with no parameter threaded through the
+      call. <Code>RunnerBarrier.Get()</Code> plus <Code>WaitAndReturn()</Code> is how you block until
+      a batch of jobs finishes.
+    </Paragraph>
+    <CodeCell Id="advanced-context" Editable="true"><![CDATA[
+      using var pool = new WorkerPoolRunner(4);
+      var barrier = RunnerBarrier.Get();
+
+      for (var i = 0; i < 8; i++) {
+          var jobIndex = i;
+          pool.Run(() => Console.WriteLine(
+              $"job {jobIndex} ran on the worker holding connection {Context.Get<ConnectionSlot>().Id}"),
+              barrier);
+      }
+      barrier.WaitAndReturn();
+
+      public sealed class ConnectionSlot(int id)
+      {
+          public int Id { get; } = id;
+      }
+
+      public sealed class WorkerPoolRunner(int degreeOfParallelism) : ParallelRunner(degreeOfParallelism)
+      {
+          protected override void RunWorkerThread(int id, BlockingQueue<IJob> jobs)
+          {
+              Context<ConnectionSlot>.Current = new ConnectionSlot(id);
+              base.RunWorkerThread(id, jobs);
+          }
+      }
+    ]]></CodeCell>
+    <Paragraph>
+      Which worker picks up which job is scheduler-dependent, so a second run can print the eight
+      lines in a different order — that non-determinism is the point: each worker still finds its
+      own connection waiting, regardless of which jobs it happens to run.
+    </Paragraph>
+    <Paragraph>
+      With a single worker, every job would report the same connection id, since there is only
+      one thread alive to hold state on. Don't read anything into which specific number an id
+      turns out to be, though: this constructor hands each spawned thread a loop variable it reads
+      back whenever the OS gets around to actually starting it, so the id a worker sees is a
+      detail of scheduling timing, not a guaranteed 0-based index.
+    </Paragraph>
+  </Section>
+
+  <Section Title="8. Serialization: freeze a world to bytes, and back">
+    <Paragraph>
+      <Code>BinaryWorldSerializer&lt;THostHeader, TComponentSerializer&gt;</Code> walks every entity
+      host, tags it with a header, and MemoryPack-encodes each component. The plain
+      <Code>BinaryWorldSerializer</Code> alias pairs a reflection-based header with MemoryPack and
+      needs no setup for built-in primitives or plain unmanaged structs — a component holding a
+      reference type like <Code>string</Code> needs <Code>[MemoryPackable]</Code> (or a
+      hand-written <Code>MemoryPackFormatter&lt;T&gt;</Code>, see <Code>Sia.Serialization.Binary</Code>)
+      so MemoryPack knows how to write it. This cell freezes a private <Code>World</Code> it
+      builds itself and shrinks the stream with <Code>GZipStream</Code> — the browser runtime
+      ships no Brotli support, so plain GZip keeps the round-trip portable.
+    </Paragraph>
+    <CodeCell Id="advanced-serialization" Editable="true"><![CDATA[
+      using System.Buffers;
+      using System.IO.Compression;
+      using Sia.Serialization.Binary;
+
+      var save = new World();
+      save.Create(HList.From(new ServiceName("nginx"), new Replicas(3)));
+      save.Create(HList.From(new ServiceName("redis"), new Replicas(1)));
+
+      var buffer = new ArrayBufferWriter<byte>();
+      BinaryWorldSerializer.Serialize(ref buffer, save);
+
+      using var packed = new MemoryStream();
+      using (var gzip = new GZipStream(packed, CompressionLevel.SmallestSize, leaveOpen: true)) {
+          gzip.Write(buffer.WrittenSpan);
+      }
+      Console.WriteLine($"packed {packed.Length} byte(s)");
+
+      using var unpacked = new MemoryStream();
+      using (var gzip = new GZipStream(new MemoryStream(packed.ToArray()), CompressionMode.Decompress)) {
+          gzip.CopyTo(unpacked);
+      }
+
+      var seq = new ReadOnlySequence<byte>(unpacked.ToArray());
+      var restored = new World();
+      BinaryWorldSerializer.Deserialize(ref seq, restored);
+
+      var restoredLines = new List<string>();
+      foreach (var entity in restored) {
+          Console.WriteLine(entity + ": " + entity.Boxed);
+          restoredLines.Add(entity.Boxed.ToString() ?? "");
+      }
+      Notebook.Render("restored world:\n" + string.Join('\n', restoredLines));
+
+      save.Dispose();
+      restored.Dispose();
+
+      [MemoryPack.MemoryPackable]
+      public partial record struct ServiceName(string Value);
+
+      [MemoryPack.MemoryPackable]
+      public partial record struct Replicas(int Count);
+    ]]></CodeCell>
+    <Paragraph>
+      These component types are defined right here in this cell, yet they survive the
+      round-trip: the reflection header serializer resolves them from the already-loaded
+      program assembly at restore time. Drop <Code>[MemoryPackable]</Code> from a struct
+      holding a <Code>string</Code>, though, and nothing throws — MemoryPack silently skips
+      what it doesn't know how to write, so that field would come back an empty string while a
+      sibling component round-trips correctly right next to it. That's exactly why the
+      reflection header alias is meant for prototypes and demos, not the only line of defense
+      in front of data you can't afford to lose quietly.
+    </Paragraph>
+  </Section>
+
+  <Section Title="Where to go next">
+    <List>
+      <Item><Code>Reactive.ForEach</Code> and <Code>PatchForEach</Code> reconcile keyed collections.</Item>
+      <Item><Code>Reactive.On</Code>, <Code>Provide</Code>, and <Code>Use</Code> connect events and scoped context.</Item>
+      <Item>
+        <Code>TemplateEventSystemBase&lt;TComponent, TTemplate&gt;</Code> plus a
+        <Code>[SiaTemplate]</Code> declaration adds per-field diffing (<Code>SetX</Code>-style) on
+        top of section 4's whole-component Add/Set/Remove triad.
+      </Item>
+      <Item><Code>Pause&lt;TEvent&gt;</Code>, <Code>Resume&lt;TEvent&gt;</Code>, and <Code>Revert&lt;TEvent&gt;</Code> round out section 3's higher-order events.</Item>
+    </List>
+    <Paragraph>
+      These are composition tools, not replacements for the core model. Prefer the smallest
+      abstraction that expresses ownership clearly: components for data, systems for scheduled
+      behavior, addons for world-scoped services, reactors for maintained indexes, and Reactive
+      for declarative lifecycles.
+    </Paragraph>
+  </Section>
+</Notebook>

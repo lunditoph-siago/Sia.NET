@@ -45,34 +45,57 @@ public sealed class MetadataReferenceProvider : ICompilationReferenceResolver
         return BuildReferences(wanted);
     }
 
-    public async ValueTask EnsurePackagesAsync(
+    public async ValueTask<IReadOnlyList<PackageStatus>> EnsurePackagesAsync(
         IReadOnlyList<PackageRef> packages,
         CancellationToken cancellationToken = default)
     {
-        foreach (var package in packages) {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (package.Source == PackageSource.Framework) {
-                if (!_assemblies.KnownAssemblyNames.Contains(package.Id)) {
-                    throw new InvalidOperationException(
-                        $"Framework assembly '{package.Id}' is not available.");
-                }
-                _declaredAssemblyNames.Add(package.Id);
-                await _assemblies.LoadAsync(package.Id, cancellationToken);
-                continue;
-            }
+        cancellationToken.ThrowIfCancellationRequested();
+        var fetches = await Task.WhenAll(
+            packages.Select(package => FetchAsync(package, cancellationToken).AsTask()));
 
+        var statuses = new PackageStatus[fetches.Length];
+        for (var index = 0; index < fetches.Length; index++) {
+            statuses[index] = Commit(fetches[index]);
+        }
+        return statuses;
+    }
+
+    private async ValueTask<PackageFetch> FetchAsync(
+        PackageRef package,
+        CancellationToken cancellationToken)
+    {
+        try {
             var fetchedAssemblies = await _packages.LoadReferencesAsync(
                 package.Id,
                 package.Version,
                 cancellationToken);
-            foreach (var assembly in fetchedAssemblies) {
-                _packageReferences[assembly.Name] = MetadataReference.CreateFromImage(
-                    assembly.Image,
-                    filePath: assembly.Name);
-                DynamicAssemblyRegistry.Register(assembly.Name, assembly.Image);
-                _declaredAssemblyNames.Add(assembly.Name);
-            }
+            return new(package, fetchedAssemblies, null);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+            throw;
+        }
+        catch (Exception error) {
+            return new(package, [], error);
+        }
+    }
+
+    private PackageStatus Commit(PackageFetch fetch)
+    {
+        if (fetch.Error is { } error) {
+            return new(fetch.Package, PackageLoadState.Failed, error.Message);
+        }
+        foreach (var assembly in fetch.Assemblies) {
+            if (fetch.Package.Analyzer) {
+                DynamicAssemblyRegistry.RegisterAnalyzer(assembly.Name, assembly.Image);
+                continue;
+            }
+            _packageReferences[assembly.Name] = MetadataReference.CreateFromImage(
+                assembly.Image,
+                filePath: assembly.Name);
+            DynamicAssemblyRegistry.Register(assembly.Name, assembly.Image);
+            _declaredAssemblyNames.Add(assembly.Name);
+        }
+        return new(fetch.Package, PackageLoadState.Loaded, null);
     }
 
     private HashSet<string> ResolveWanted(string source)
@@ -95,12 +118,9 @@ public sealed class MetadataReferenceProvider : ICompilationReferenceResolver
         HashSet<string> wanted,
         CancellationToken cancellationToken)
     {
-        foreach (var name in wanted) {
-            if (!_packageReferences.ContainsKey(name)
-                && !_assemblies.TryGetLoaded(name, out _)) {
-                await _assemblies.LoadAsync(name, cancellationToken);
-            }
-        }
+        var missing = wanted.Where(name =>
+            !_packageReferences.ContainsKey(name) && !_assemblies.TryGetLoaded(name, out _));
+        await Task.WhenAll(missing.Select(name => _assemblies.LoadAsync(name, cancellationToken).AsTask()));
     }
 
     private IReadOnlyList<MetadataReference> BuildReferences(HashSet<string> wanted)
@@ -115,4 +135,9 @@ public sealed class MetadataReferenceProvider : ICompilationReferenceResolver
         }
         return result;
     }
+
+    private readonly record struct PackageFetch(
+        PackageRef Package,
+        IReadOnlyList<FetchedAssembly> Assemblies,
+        Exception? Error);
 }

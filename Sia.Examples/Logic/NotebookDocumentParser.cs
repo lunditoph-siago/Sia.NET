@@ -29,27 +29,26 @@ public static class NotebookDocumentParser
 
     private static PackageRef ParsePackageRef(XElement element)
     {
-        var sourceText = (string?)element.Attribute("Source")
-            ?? nameof(PackageSource.Framework);
-        if (!Enum.TryParse<PackageSource>(sourceText, ignoreCase: true, out var source)) {
-            throw new FormatException(
-                $"Unknown <Package Source=\"{sourceText}\"> — expected \"Framework\" or \"NuGet\".");
-        }
-
         var id = (string?)element.Attribute("Id")
             ?? throw new FormatException("<Package> requires an Id attribute.");
         var version = (string?)element.Attribute("Version");
-        return new(source, id, version);
+        var analyzer = (bool?)element.Attribute("Analyzer");
+        return new(id, version, analyzer ?? false);
     }
 
     private static NotebookSection ParseSection(XElement element)
     {
+        var id = (string?)element.Attribute("Id") ?? Guid.NewGuid().ToString("N");
         var title = (string?)element.Attribute("Title") ?? "";
         List<NotebookBlock> blocks = [];
         foreach (var child in element.Elements()) {
             blocks.Add(child.Name.LocalName switch {
-                "Paragraph" => new ParagraphBlock(ParseInlines(child)),
+                "Paragraph" => new ParagraphBlock(
+                    (string?)child.Attribute("Id") ?? Guid.NewGuid().ToString("N"),
+                    ParseInlines(child),
+                    (bool?)child.Attribute("Editable") ?? false),
                 "List" => new ListBlock(
+                    (string?)child.Attribute("Id") ?? Guid.NewGuid().ToString("N"),
                     child.Elements("Item").Select(ParseInlines).ToList()),
                 "CodeCell" => new CodeCellBlock(
                     (string?)child.Attribute("Id") ?? Guid.NewGuid().ToString("N"),
@@ -60,7 +59,7 @@ public static class NotebookDocumentParser
                     $"Unknown block element <{unknown}> in <Section Title=\"{title}\">."),
             });
         }
-        return new(title, blocks);
+        return new(id, title, blocks);
     }
 
     private static IReadOnlyList<Inline> ParseInlines(XElement element)

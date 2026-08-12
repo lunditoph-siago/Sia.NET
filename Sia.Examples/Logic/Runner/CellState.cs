@@ -8,8 +8,18 @@ public readonly record struct CellState(
     ImmutableArray<HighlightRun> Highlights,
     ImmutableArray<NotebookDiagnostic> Diagnostics,
     string StandardOutput,
-    string StandardError)
+    string StandardError,
+    bool RenderRequested,
+    string RenderOutput)
 {
     public static CellState Create(string source)
-        => new(CellPhase.Idle, source, [], [], string.Empty, string.Empty);
+        => new(
+            CellPhase.Idle,
+            source,
+            [],
+            [],
+            string.Empty,
+            string.Empty,
+            false,
+            string.Empty);
 }
