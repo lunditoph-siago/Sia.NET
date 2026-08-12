@@ -28,6 +28,50 @@ public static partial class NotebookDockLayout
         }
     }
 
+    public static IEnumerable<DockSplit> EnumerateSplits(NotebookDockState state)
+    {
+        foreach (var region in state.Regions) {
+            if (region.Root is not null) {
+                foreach (var split in EnumerateSplits(region.Root)) {
+                    yield return split;
+                }
+            }
+        }
+        foreach (var floating in state.FloatingHosts) {
+            foreach (var split in EnumerateSplits(floating.Root)) {
+                yield return split;
+            }
+        }
+    }
+
+    public static DockSplit? FindSurfaceSplit(NotebookDockState state, string cellId)
+    {
+        var script = FindGroupForCell(state, cellId, DockWindowKind.Script);
+        var surface = FindSurfaceGroupForCell(state, cellId);
+        if (script is null || surface is null || script.Id == surface.Id) {
+            return null;
+        }
+        return EnumerateSplits(state).FirstOrDefault(split =>
+            split.First is DockTabGroup first && split.Second is DockTabGroup second
+                && ((first.Id == script.Id && second.Id == surface.Id)
+                    || (first.Id == surface.Id && second.Id == script.Id)));
+    }
+
+    public static (DockSplit Split, int SurfaceIndex)? FindSurfacePlacement(
+        NotebookDockState state,
+        string cellId)
+    {
+        var split = FindSurfaceSplit(state, cellId);
+        var surface = FindSurfaceGroupForCell(state, cellId);
+        if (split is null || surface is null) {
+            return null;
+        }
+        var surfaceIndex = split.Second is DockTabGroup second && second.Id == surface.Id
+            ? 1
+            : 0;
+        return (split, surfaceIndex);
+    }
+
     public static bool IsValid(NotebookDockState state)
     {
         var nodeIds = new HashSet<string>(StringComparer.Ordinal);
@@ -91,6 +135,21 @@ public static partial class NotebookDockLayout
         }
     }
 
+    private static IEnumerable<DockSplit> EnumerateSplits(DockNode node)
+    {
+        if (node is DockTabGroup) {
+            yield break;
+        }
+        var split = (DockSplit)node;
+        yield return split;
+        foreach (var nested in EnumerateSplits(split.First)) {
+            yield return nested;
+        }
+        foreach (var nested in EnumerateSplits(split.Second)) {
+            yield return nested;
+        }
+    }
+
     private static int FindRegionIndex(
         ImmutableArray<DockRegion> regions,
         string regionId)
@@ -132,7 +191,7 @@ public static partial class NotebookDockLayout
         }
 
         var split = (DockSplit)node;
-        return split.Ratio is > 0 and < 1
+        return split.Ratio is >= 0 and <= 1
             && ValidateNode(split.First, state, nodeIds, placedTabs)
             && ValidateNode(split.Second, state, nodeIds, placedTabs);
     }

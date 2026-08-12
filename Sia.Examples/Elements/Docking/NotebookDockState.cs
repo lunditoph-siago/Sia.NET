@@ -9,6 +9,9 @@ public readonly record struct NotebookDockState(
     ImmutableArray<DockFloatingHost> FloatingHosts,
     int NextNodeId)
 {
+    internal const double CollapsedScriptRatio = 1.0;
+    private const int NodesPerCell = 3;
+
     public static NotebookDockState Create(NotebookDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);
@@ -21,7 +24,8 @@ public readonly record struct NotebookDockState(
 
         foreach (var section in document.Sections) {
             foreach (var cell in section.Blocks.OfType<CodeCellBlock>()) {
-                regions.Add(RegisterCell(windows, tabs, cell.Id, cellIndex, nextNodeId++));
+                regions.Add(RegisterCell(windows, tabs, cell.Id, cellIndex, nextNodeId));
+                nextNodeId += NodesPerCell;
                 cellIndex++;
             }
         }
@@ -49,10 +53,18 @@ public readonly record struct NotebookDockState(
     {
         var regionId = $"region-{cellId}";
         var script = AddWindow(windows, tabs, cellId, regionId, DockWindowKind.Script, $"[{cellIndex + 1}] {cellId}");
-        AddWindow(windows, tabs, cellId, regionId, DockWindowKind.Output, $"Output · {cellId}");
+        var output = AddWindow(windows, tabs, cellId, regionId, DockWindowKind.Output, $"Output · {cellId}");
         AddWindow(windows, tabs, cellId, regionId, DockWindowKind.Render, $"Render · {cellId}");
+
         var scriptGroup = new DockTabGroup($"group-{groupNodeId}", [script.Id], script.Id);
-        return new(regionId, scriptGroup);
+        var surfaceGroup = new DockTabGroup($"group-{groupNodeId}-surface", [output.Id], output.Id);
+        var split = new DockSplit(
+            $"split-{groupNodeId}-surface",
+            DockAxis.Vertical,
+            CollapsedScriptRatio,
+            scriptGroup,
+            surfaceGroup);
+        return new(regionId, split);
     }
 
     private static DockTab AddWindow(

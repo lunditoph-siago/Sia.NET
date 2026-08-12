@@ -159,7 +159,7 @@ body {
         place-items: center;
     }
 
-    > .vertical {
+    > .vertical:not(.surface) {
         height: clamp(320px, 62vh, 620px);
     }
 
@@ -376,18 +376,52 @@ body {
         background: rgba(127, 127, 127, 0.3);
     }
 
+    &.surface {
+        height: auto;
+
+        > .split-child.surface-pane {
+            flex-grow: 0;
+            flex-basis: auto;
+            min-height: 0;
+            transition: min-height 0.25s ease, visibility 0.25s;
+
+            &:not(.collapsed) {
+                min-height: min(40vh, 24rem);
+            }
+        }
+
+        > .split-child:not(.surface-pane) {
+            flex-grow: 0;
+            flex-basis: auto;
+            width: auto;
+
+            .editor-container {
+                height: auto;
+            }
+        }
+    }
+
     .split-child {
         display: flex;
         width: 100%;
         min-width: 0;
         min-height: 0;
-        flex-grow: var(--dock-ratio, 1);
-        flex-shrink: 1;
-        flex-basis: 0;
+        flex: 1 1 0; /* flex-grow is set inline from the split's ratio */
+        overflow: hidden;
+        transition: flex-grow 0.25s ease, visibility 0.25s;
 
-        &:last-child { flex-grow: calc(1 - var(--dock-ratio, 0.5)); }
+        &.collapsed {
+            visibility: hidden;
+            flex-grow: 0;
+            flex-basis: 0;
+            width: 0;
+            min-width: 0;
+            height: 0;
+            min-height: 0;
+        }
 
-        .output-window { min-height: 0; max-height: none; }
+        .output-window,
+        .render-window { min-height: 0; max-height: none; }
 
         @media (max-width: 720px) {
             display: block;
