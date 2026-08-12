@@ -54,6 +54,7 @@ public static class NotebookDocumentParser
                     ParseInlines(child),
                     (bool?)child.Attribute("Editable") ?? false),
                 "List" => new ListBlock(
+                    (string?)child.Attribute("Id") ?? Guid.NewGuid().ToString("N"),
                     child.Elements("Item").Select(ParseInlines).ToList()),
                 "CodeCell" => new CodeCellBlock(
                     (string?)child.Attribute("Id") ?? Guid.NewGuid().ToString("N"),

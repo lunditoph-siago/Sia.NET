@@ -21,34 +21,7 @@ public readonly record struct NotebookDockState(
 
         foreach (var section in document.Sections) {
             foreach (var cell in section.Blocks.OfType<CodeCellBlock>()) {
-                var regionId = $"region-{cell.Id}";
-                var script = AddWindow(
-                    windows,
-                    tabs,
-                    cell.Id,
-                    regionId,
-                    DockWindowKind.Script,
-                    $"[{cellIndex + 1}] {cell.Id}");
-                AddWindow(
-                    windows,
-                    tabs,
-                    cell.Id,
-                    regionId,
-                    DockWindowKind.Output,
-                    $"Output · {cell.Id}");
-                AddWindow(
-                    windows,
-                    tabs,
-                    cell.Id,
-                    regionId,
-                    DockWindowKind.Render,
-                    $"Render · {cell.Id}");
-
-                var scriptGroup = new DockTabGroup(
-                    $"group-{nextNodeId++}",
-                    [script.Id],
-                    script.Id);
-                regions.Add(new(regionId, scriptGroup));
+                regions.Add(RegisterCell(windows, tabs, cell.Id, cellIndex, nextNodeId++));
                 cellIndex++;
             }
         }
@@ -67,7 +40,22 @@ public readonly record struct NotebookDockState(
     public DockTab GetTabForWindow(string windowId)
         => Tabs.Values.Single(tab => tab.WindowId == windowId);
 
-    internal static DockTab AddWindow(
+    internal static DockRegion RegisterCell(
+        IDictionary<string, DockWindow> windows,
+        IDictionary<string, DockTab> tabs,
+        string cellId,
+        int cellIndex,
+        int groupNodeId)
+    {
+        var regionId = $"region-{cellId}";
+        var script = AddWindow(windows, tabs, cellId, regionId, DockWindowKind.Script, $"[{cellIndex + 1}] {cellId}");
+        AddWindow(windows, tabs, cellId, regionId, DockWindowKind.Output, $"Output · {cellId}");
+        AddWindow(windows, tabs, cellId, regionId, DockWindowKind.Render, $"Render · {cellId}");
+        var scriptGroup = new DockTabGroup($"group-{groupNodeId}", [script.Id], script.Id);
+        return new(regionId, scriptGroup);
+    }
+
+    private static DockTab AddWindow(
         IDictionary<string, DockWindow> windows,
         IDictionary<string, DockTab> tabs,
         string cellId,

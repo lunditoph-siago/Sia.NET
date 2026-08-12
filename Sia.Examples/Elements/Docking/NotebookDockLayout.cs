@@ -231,22 +231,12 @@ public static partial class NotebookDockLayout
     {
         var windows = state.Windows.ToBuilder();
         var tabs = state.Tabs.ToBuilder();
-        var regionId = $"region-{cellId}";
-
-        var script = NotebookDockState.AddWindow(
-            windows, tabs, cellId, regionId, DockWindowKind.Script, $"[{cellIndex + 1}] {cellId}");
-        NotebookDockState.AddWindow(
-            windows, tabs, cellId, regionId, DockWindowKind.Output, $"Output · {cellId}");
-        NotebookDockState.AddWindow(
-            windows, tabs, cellId, regionId, DockWindowKind.Render, $"Render · {cellId}");
-
-        var scriptGroup = new DockTabGroup($"group-{state.NextNodeId}", [script.Id], script.Id);
-        var regions = state.Regions.Add(new(regionId, scriptGroup));
+        var region = NotebookDockState.RegisterCell(windows, tabs, cellId, cellIndex, state.NextNodeId);
 
         return state with {
             Windows = windows.ToImmutable(),
             Tabs = tabs.ToImmutable(),
-            Regions = regions,
+            Regions = state.Regions.Add(region),
             NextNodeId = state.NextNodeId + 1,
         };
     }

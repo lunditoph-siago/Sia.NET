@@ -119,11 +119,13 @@ public sealed class BrowserNotebookView :
         var nextSectionIds = new HashSet<string>(
             nextDocument.Sections.Select(static section => section.Id),
             StringComparer.Ordinal);
+        var sectionsChanged = false;
 
         foreach (var (sectionId, section) in previousSections) {
             if (nextSectionIds.Contains(sectionId)) {
                 continue;
             }
+            sectionsChanged = true;
             ReconcileSectionBlocks(sectionId, section.Blocks, [], previousDockState, nextDockState);
             if (_sectionElements.Remove(sectionId, out var sectionElement)) {
                 sectionElement.Remove();
@@ -137,6 +139,7 @@ public sealed class BrowserNotebookView :
         for (var sectionIndex = 0; sectionIndex < nextDocument.Sections.Count; sectionIndex++) {
             var section = nextDocument.Sections[sectionIndex];
             if (!_sectionElements.ContainsKey(section.Id)) {
+                sectionsChanged = true;
                 var sectionElement = CreateSectionShell(section, sectionIndex);
                 _sectionElements.Add(section.Id, sectionElement);
                 InsertSectionElement(sectionElement, sectionIndex, nextDocument);
@@ -145,24 +148,16 @@ public sealed class BrowserNotebookView :
             var previousBlocks = previousSections.TryGetValue(section.Id, out var previousSection)
                 ? previousSection.Blocks
                 : [];
-            if (SameBlockSequence(sectionId: section.Id, previousBlocks, section.Blocks)) {
-                continue;
-            }
             ReconcileSectionBlocks(section.Id, previousBlocks, section.Blocks, previousDockState, nextDockState);
         }
 
-        if (!previousSections.Keys.ToHashSet(StringComparer.Ordinal).SetEquals(nextSectionIds)) {
+        if (sectionsChanged) {
             for (var sectionIndex = 0; sectionIndex < nextDocument.Sections.Count; sectionIndex++) {
                 var sectionId = nextDocument.Sections[sectionIndex].Id;
                 _sectionTitleInputs[sectionId].Attr("aria-label", $"Section {sectionIndex + 1} title");
             }
         }
     }
-
-    private static bool SameBlockSequence(
-        string sectionId, IReadOnlyList<NotebookBlock> previousBlocks, IReadOnlyList<NotebookBlock> nextBlocks)
-        => KeyBlocks(sectionId, previousBlocks).Select(static entry => entry.Key)
-            .SequenceEqual(KeyBlocks(sectionId, nextBlocks).Select(static entry => entry.Key), StringComparer.Ordinal);
 
     public void Dispose()
     {
@@ -272,41 +267,45 @@ public sealed class BrowserNotebookView :
         NotebookDockState previousDockState,
         NotebookDockState nextDockState)
     {
-        var previousKeyed = KeyBlocks(sectionId, previousBlocks);
-        var nextKeyed = KeyBlocks(sectionId, nextBlocks);
+        var previousKeyed = KeyBlocks(previousBlocks);
+        var nextKeyed = KeyBlocks(nextBlocks);
+        var previousOrder = previousKeyed.Select(static entry => entry.Key).ToList();
+        var nextOrder = nextKeyed.Select(static entry => entry.Key).ToList();
 
-        var nextKeys = new HashSet<string>(nextKeyed.Select(static entry => entry.Key), StringComparer.Ordinal);
+        if (previousOrder.SequenceEqual(nextOrder, StringComparer.Ordinal)) {
+            return;
+        }
+
+        var nextKeys = new HashSet<string>(nextOrder, StringComparer.Ordinal);
         foreach (var (key, block) in previousKeyed) {
             if (!nextKeys.Contains(key)) {
                 RemoveBlockElement(key, block, previousDockState);
             }
         }
 
-        var previousKeys = new HashSet<string>(previousKeyed.Select(static entry => entry.Key), StringComparer.Ordinal);
+        var previousKeys = new HashSet<string>(previousOrder, StringComparer.Ordinal);
         foreach (var (key, block) in nextKeyed) {
             if (!previousKeys.Contains(key)) {
                 _blockElements.Add(key, CreateBlockElement(block, nextDockState));
             }
         }
 
-        var nextOrder = nextKeyed.Select(static entry => entry.Key).ToList();
         if (_sectionElements.TryGetValue(sectionId, out var sectionElement)) {
-            var previousOrder = _sectionBlockOrder.TryGetValue(sectionId, out var tracked) ? tracked : [];
-            RepositionBlocks(sectionElement, previousOrder, nextOrder);
+            var trackedOrder = _sectionBlockOrder.TryGetValue(sectionId, out var tracked) ? tracked : [];
+            RepositionBlocks(sectionElement, trackedOrder, nextOrder);
         }
         _sectionBlockOrder[sectionId] = nextOrder;
 
-        if (previousKeyed.Length != nextKeyed.Length
-            || !previousKeyed.Select(static entry => entry.Key).SequenceEqual(nextKeyed.Select(static entry => entry.Key))) {
-            RefreshSectionActions(sectionId, nextBlocks);
-        }
+        RefreshSectionActions(sectionId, nextBlocks);
     }
 
     private void RepositionBlocks(
         DomElement sectionElement, IReadOnlyList<string> previousOrder, IReadOnlyList<string> nextOrder)
     {
-        var previousSurvivors = previousOrder.Where(nextOrder.Contains).ToList();
-        var nextSurvivors = nextOrder.Where(previousOrder.Contains).ToList();
+        var previousSet = new HashSet<string>(previousOrder, StringComparer.Ordinal);
+        var nextSet = new HashSet<string>(nextOrder, StringComparer.Ordinal);
+        var previousSurvivors = previousOrder.Where(nextSet.Contains).ToList();
+        var nextSurvivors = nextOrder.Where(previousSet.Contains).ToList();
         var alreadyPlaced = new HashSet<string>(StringComparer.Ordinal);
         for (var index = 0; index < previousSurvivors.Count && index < nextSurvivors.Count; index++) {
             if (previousSurvivors[index] == nextSurvivors[index]) {
@@ -325,14 +324,18 @@ public sealed class BrowserNotebookView :
         }
     }
 
-    private static (string Key, NotebookBlock Block)[] KeyBlocks(
-        string sectionId, IReadOnlyList<NotebookBlock> blocks)
+    private static (string Key, NotebookBlock Block)[] KeyBlocks(IReadOnlyList<NotebookBlock> blocks)
     {
         var result = new (string Key, NotebookBlock Block)[blocks.Count];
-        var listOrdinal = 0;
         for (var index = 0; index < blocks.Count; index++) {
             var block = blocks[index];
-            var key = GetBlockId(block) ?? $"§list-{sectionId}-{listOrdinal++}";
+            var key = block switch {
+                CodeCellBlock cell => cell.Id,
+                ParagraphBlock paragraph => paragraph.Id,
+                ListBlock list => list.Id,
+                var unknown => throw new InvalidOperationException(
+                    $"Unsupported block type '{unknown.GetType().Name}'."),
+            };
             result[index] = (key, block);
         }
         return result;
@@ -404,14 +407,16 @@ public sealed class BrowserNotebookView :
         if (!_cells.Remove(cell.Id, out var cellView)) {
             return;
         }
-        foreach (var window in new[] { cellView.Script.Window, cellView.Output.Window, cellView.Render.Window }) {
-            var tab = dockState.GetTabForWindow(window.Id);
-            _dock.UnregisterWindow(window.Id, tab.Id);
-        }
+        UnregisterCellWindow(cellView.Script.Window, dockState);
+        UnregisterCellWindow(cellView.Output.Window, dockState);
+        UnregisterCellWindow(cellView.Render.Window, dockState);
         _dock.UnregisterRegion(cellView.Script.Window.HomeRegionId);
         _editors.Remove(cell.Id);
         cellView.Dispose();
     }
+
+    private void UnregisterCellWindow(DockWindow window, NotebookDockState dockState)
+        => _dock.UnregisterWindow(window.Id, dockState.GetTabForWindow(window.Id).Id);
 
     private static DomElement CreateInlineInput(
         string id,

@@ -456,11 +456,13 @@ public sealed class NotebookSession : IDisposable
         }
 
         var changedScopeKeys = new HashSet<string>();
+        var scopes = new Dictionary<string, ScopeState>();
         foreach (var (scopeKey, scopeCells) in groupedCells) {
-            if (!_scopes.TryGetValue(scopeKey, out var previousScope)
-                || !scopeCells.Select(static cell => cell.Id).SequenceEqual(
-                    previousScope.Cells.Select(static cell => cell.Id))) {
+            if (_scopes.TryGetValue(scopeKey, out var previousScope) && SameCellIds(previousScope.Cells, scopeCells)) {
+                scopes[scopeKey] = previousScope;
+            } else {
                 changedScopeKeys.Add(scopeKey);
+                scopes[scopeKey] = new ScopeState(scopeCells);
             }
         }
 
@@ -487,13 +489,22 @@ public sealed class NotebookSession : IDisposable
         _cells = cells;
         _scopeKeys = scopeKeys;
         _scopeIndices = scopeIndices;
-        _scopes = groupedCells.ToDictionary(
-            static pair => pair.Key,
-            pair => !changedScopeKeys.Contains(pair.Key) && _scopes.TryGetValue(pair.Key, out var existingScope)
-                ? existingScope
-                : new ScopeState(pair.Value));
+        _scopes = scopes;
         _states = states;
         _cellsDirty = true;
+    }
+
+    private static bool SameCellIds(IReadOnlyList<CodeCellBlock> a, IReadOnlyList<CodeCellBlock> b)
+    {
+        if (a.Count != b.Count) {
+            return false;
+        }
+        for (var index = 0; index < a.Count; index++) {
+            if (a[index].Id != b[index].Id) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static IReadOnlyList<NotebookSection> InsertBlockAfter(
