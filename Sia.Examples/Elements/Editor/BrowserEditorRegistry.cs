@@ -61,6 +61,13 @@ public sealed class BrowserEditorRegistry(
         return false;
     }
 
+    public void Remove(string cellId)
+    {
+        if (_editors.Remove(cellId, out var editor)) {
+            editor.Dispose();
+        }
+    }
+
     public void Dispose()
     {
         foreach (var editor in _editors.Values) {

@@ -172,19 +172,20 @@ public sealed class NotebookSession : IDisposable
             : new CodeCellBlock(Guid.NewGuid().ToString("N"), "", Editable: true, null);
         var sections = _document.Sections.ToList();
         var insertAt = afterIndex is { } index ? Math.Clamp(index + 1, 0, sections.Count) : sections.Count;
-        sections.Insert(insertAt, new NotebookSection(title, [starterBlock]));
+        sections.Insert(insertAt, new NotebookSection(Guid.NewGuid().ToString("N"), title, [starterBlock]));
         _document = _document with { Sections = sections };
         Rebuild();
         Publish(structural: true);
         return GetBlockId(starterBlock)!;
     }
 
-    public void RemoveSection(int sectionIndex)
+    public void RemoveSection(string sectionId)
     {
         VerifyAccess();
         var sections = _document.Sections.ToList();
-        if (sectionIndex < 0 || sectionIndex >= sections.Count) {
-            throw new ArgumentOutOfRangeException(nameof(sectionIndex));
+        var sectionIndex = sections.FindIndex(section => section.Id == sectionId);
+        if (sectionIndex < 0) {
+            return;
         }
         sections.RemoveAt(sectionIndex);
         _document = _document with { Sections = sections };
@@ -192,12 +193,13 @@ public sealed class NotebookSession : IDisposable
         Publish(structural: true);
     }
 
-    public void RenameSection(int sectionIndex, string title)
+    public void RenameSection(string sectionId, string title)
     {
         VerifyAccess();
         var sections = _document.Sections.ToList();
-        if (sectionIndex < 0 || sectionIndex >= sections.Count) {
-            throw new ArgumentOutOfRangeException(nameof(sectionIndex));
+        var sectionIndex = sections.FindIndex(section => section.Id == sectionId);
+        if (sectionIndex < 0) {
+            return;
         }
         sections[sectionIndex] = sections[sectionIndex] with { Title = title };
         _document = _document with { Sections = sections };
@@ -453,20 +455,33 @@ public sealed class NotebookSession : IDisposable
             scopeCells.Add(cell);
         }
 
+        var changedScopeKeys = new HashSet<string>();
+        foreach (var (scopeKey, scopeCells) in groupedCells) {
+            if (!_scopes.TryGetValue(scopeKey, out var previousScope)
+                || !scopeCells.Select(static cell => cell.Id).SequenceEqual(
+                    previousScope.Cells.Select(static cell => cell.Id))) {
+                changedScopeKeys.Add(scopeKey);
+            }
+        }
+
         var states = new Dictionary<string, CellState>();
         foreach (var cell in cells) {
-            states[cell.Id] = _states.TryGetValue(cell.Id, out var existing)
-                ? existing with {
+            if (!_states.TryGetValue(cell.Id, out var existing)) {
+                states[cell.Id] = CellState.Create(cell.InitialSource) with {
+                    Highlights = CSharpHighlighter.Classify(cell.InitialSource).ToImmutableArray(),
+                };
+            } else if (changedScopeKeys.Contains(scopeKeys[cell.Id])) {
+                states[cell.Id] = existing with {
                     Phase = CellPhase.Idle,
                     Diagnostics = [],
                     StandardOutput = "",
                     StandardError = "",
                     RenderRequested = false,
                     RenderOutput = "",
-                }
-                : CellState.Create(cell.InitialSource) with {
-                    Highlights = CSharpHighlighter.Classify(cell.InitialSource).ToImmutableArray(),
                 };
+            } else {
+                states[cell.Id] = existing;
+            }
         }
 
         _cells = cells;
@@ -474,7 +489,9 @@ public sealed class NotebookSession : IDisposable
         _scopeIndices = scopeIndices;
         _scopes = groupedCells.ToDictionary(
             static pair => pair.Key,
-            static pair => new ScopeState(pair.Value));
+            pair => !changedScopeKeys.Contains(pair.Key) && _scopes.TryGetValue(pair.Key, out var existingScope)
+                ? existingScope
+                : new ScopeState(pair.Value));
         _states = states;
         _cellsDirty = true;
     }

@@ -16,6 +16,7 @@ public sealed class NotebookWorkspace : IAsyncDisposable
     private BrowserNotebookView _view;
     private ReactiveMount<NotebookViewProps> _mount;
     private NotebookSessionSnapshot _previousSnapshot;
+    private NotebookDocument _previousDocument;
     private bool _disposed;
 
     private NotebookInfo _info;
@@ -45,6 +46,7 @@ public sealed class NotebookWorkspace : IAsyncDisposable
             NotebookViewComponent.Definition,
             new(_view, _session.Snapshot, dockState));
         _previousSnapshot = _session.Snapshot;
+        _previousDocument = document;
         world.FlushReactive();
         _session.Changed += HandleSessionChanged;
     }
@@ -208,23 +210,23 @@ public sealed class NotebookWorkspace : IAsyncDisposable
         _session.InsertSection(afterIndex, title, starterKind);
     }
 
-    public void RemoveSection(int sectionIndex)
+    public void RemoveSection(string sectionId)
     {
         ThrowIfDisposed();
         SynchronizeEditors();
-        _session.RemoveSection(sectionIndex);
+        _session.RemoveSection(sectionId);
     }
 
-    public void RenameSection(int sectionIndex)
+    public void RenameSection(string sectionId)
     {
         ThrowIfDisposed();
-        using var input = DomElement.TryFind($"section-title-input-{sectionIndex}");
+        using var input = DomElement.TryFind(NotebookElementIds.SectionTitleInput(sectionId));
         var title = input?.Value().Trim();
         if (string.IsNullOrEmpty(title)) {
             return;
         }
         SynchronizeEditors();
-        _session.RenameSection(sectionIndex, title);
+        _session.RenameSection(sectionId, title);
     }
 
     public void RenameTitle()
@@ -398,15 +400,27 @@ public sealed class NotebookWorkspace : IAsyncDisposable
             return;
         }
         if (structural) {
-            RebuildView(snapshot);
-            DomRuntime.Flush();
-            return;
+            ReconcileDocument();
         }
         SynchronizeSurfaceWindows(snapshot);
         _mount.Update(_mount.Props with { Snapshot = snapshot });
         _previousSnapshot = snapshot;
         _world.FlushReactive();
         DomRuntime.Flush();
+    }
+
+    private void ReconcileDocument()
+    {
+        var document = _session.ToDocument();
+        var dock = _mount.GetState<NotebookDockState>();
+        var nextDock = NotebookDockLayout.ReconcileDocument(dock.Value, _previousDocument, document);
+        if (!NotebookDockLayout.IsValid(nextDock)) {
+            throw new InvalidOperationException(
+                "Document reconciliation produced an invalid dock layout.");
+        }
+        _view.ReconcileDocument(_previousDocument, document, dock.Value, nextDock);
+        dock.Set(nextDock);
+        _previousDocument = document;
     }
 
     private void SynchronizeSurfaceWindows(NotebookSessionSnapshot snapshot)
@@ -451,36 +465,6 @@ public sealed class NotebookWorkspace : IAsyncDisposable
             }
             dock.Set(next);
         }
-    }
-
-    private void RebuildView(NotebookSessionSnapshot snapshot)
-    {
-        var document = _session.ToDocument();
-        var dockState = NotebookDockState.Create(document);
-        foreach (var cell in snapshot.Cells) {
-            if (HasOutput(cell.State)) {
-                dockState = OpenCellWindow(
-                    dockState,
-                    cell.Id,
-                    DockWindowKind.Output);
-            }
-            if (cell.State.RenderRequested) {
-                dockState = OpenCellWindow(
-                    dockState,
-                    cell.Id,
-                    DockWindowKind.Render);
-            }
-        }
-        if (_mount.IsMounted) {
-            _mount.Unmount();
-        }
-        _view.Dispose();
-        _view = new(_world, document, _references, dockState);
-        _mount = _world.Mount(
-            NotebookViewComponent.Definition,
-            new(_view, snapshot, dockState));
-        _previousSnapshot = snapshot;
-        _world.FlushReactive();
     }
 
     private static bool HasOutput(CellState state)

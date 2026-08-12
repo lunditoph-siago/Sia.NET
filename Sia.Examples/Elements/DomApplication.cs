@@ -210,14 +210,12 @@ internal static class DomApplication
                                 argument == "text" ? NotebookBlockKind.Text : NotebookBlockKind.Code);
                             break;
 
-                        case "remove-section" when workspace is not null
-                            && int.TryParse(argument, out var removeIndex):
-                            workspace.RemoveSection(removeIndex);
+                        case "remove-section" when workspace is not null:
+                            workspace.RemoveSection(argument);
                             break;
 
-                        case "rename-section" when workspace is not null
-                            && int.TryParse(argument, out var renameIndex):
-                            workspace.RenameSection(renameIndex);
+                        case "rename-section" when workspace is not null:
+                            workspace.RenameSection(argument);
                             break;
 
                         case "rename-title" when workspace is not null:

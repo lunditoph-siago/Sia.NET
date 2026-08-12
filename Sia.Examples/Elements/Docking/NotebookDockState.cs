@@ -21,11 +21,10 @@ public readonly record struct NotebookDockState(
 
         foreach (var section in document.Sections) {
             foreach (var cell in section.Blocks.OfType<CodeCellBlock>()) {
-                var regionId = $"region-{cellIndex}";
+                var regionId = $"region-{cell.Id}";
                 var script = AddWindow(
                     windows,
                     tabs,
-                    cellIndex,
                     cell.Id,
                     regionId,
                     DockWindowKind.Script,
@@ -33,7 +32,6 @@ public readonly record struct NotebookDockState(
                 AddWindow(
                     windows,
                     tabs,
-                    cellIndex,
                     cell.Id,
                     regionId,
                     DockWindowKind.Output,
@@ -41,7 +39,6 @@ public readonly record struct NotebookDockState(
                 AddWindow(
                     windows,
                     tabs,
-                    cellIndex,
                     cell.Id,
                     regionId,
                     DockWindowKind.Render,
@@ -70,10 +67,9 @@ public readonly record struct NotebookDockState(
     public DockTab GetTabForWindow(string windowId)
         => Tabs.Values.Single(tab => tab.WindowId == windowId);
 
-    private static DockTab AddWindow(
+    internal static DockTab AddWindow(
         IDictionary<string, DockWindow> windows,
         IDictionary<string, DockTab> tabs,
-        int cellIndex,
         string cellId,
         string homeRegionId,
         DockWindowKind kind,
@@ -81,12 +77,12 @@ public readonly record struct NotebookDockState(
     {
         var suffix = kind.ToString().ToLowerInvariant();
         var window = new DockWindow(
-            $"window-{cellIndex}-{suffix}",
+            $"window-{cellId}-{suffix}",
             cellId,
             homeRegionId,
             kind,
             title);
-        var tab = new DockTab($"tab-{cellIndex}-{suffix}", window.Id);
+        var tab = new DockTab($"tab-{cellId}-{suffix}", window.Id);
         windows.Add(window.Id, window);
         tabs.Add(tab.Id, tab);
         return tab;

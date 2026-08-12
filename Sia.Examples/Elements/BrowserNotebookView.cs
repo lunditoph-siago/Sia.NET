@@ -10,10 +10,16 @@ public sealed class BrowserNotebookView :
 {
     private readonly DomElement _container;
     private readonly DomElement _root;
+    private readonly DomElement _floatingLayer;
     private readonly BrowserEditorRegistry _editors;
     private readonly BrowserPackagePanel _packages;
     private readonly BrowserDockWorkspaceView _dock;
     private readonly Dictionary<string, BrowserCellView> _cells = [];
+    private readonly Dictionary<string, DomElement> _sectionElements = [];
+    private readonly Dictionary<string, DomElement> _sectionActionHosts = [];
+    private readonly Dictionary<string, DomElement> _sectionTitleInputs = [];
+    private readonly Dictionary<string, DomElement> _blockElements = [];
+    private readonly Dictionary<string, List<string>> _sectionBlockOrder = [];
     private bool _disposed;
 
     public BrowserNotebookView(
@@ -26,17 +32,21 @@ public sealed class BrowserNotebookView :
         _root = DomElement.Create("div").Class("notebook-document");
         _editors = new(world, references);
         _packages = new();
-        var floatingLayer = DomElement.Create("div")
+        _floatingLayer = DomElement.Create("div")
             .Class("section")
             .Class("dock-floating-layer");
-        _dock = new(floatingLayer);
+        _dock = new(_floatingLayer);
 
         RenderTitleBar(document.Title);
 
         for (var index = 0; index < document.Sections.Count; index++) {
-            RenderSection(document.Sections[index], index, dockState);
+            var section = document.Sections[index];
+            var sectionElement = CreateSectionShell(section, index);
+            _sectionElements.Add(section.Id, sectionElement);
+            _root.Append(sectionElement);
+            ReconcileSectionBlocks(section.Id, [], section.Blocks, dockState, dockState);
         }
-        _root.Append(floatingLayer);
+        _root.Append(_floatingLayer);
 
         _container.Text(string.Empty).Append(_root);
     }
@@ -99,6 +109,61 @@ public sealed class BrowserNotebookView :
     {
     }
 
+    public void ReconcileDocument(
+        NotebookDocument previousDocument,
+        NotebookDocument nextDocument,
+        NotebookDockState previousDockState,
+        NotebookDockState nextDockState)
+    {
+        var previousSections = previousDocument.Sections.ToDictionary(static section => section.Id);
+        var nextSectionIds = new HashSet<string>(
+            nextDocument.Sections.Select(static section => section.Id),
+            StringComparer.Ordinal);
+
+        foreach (var (sectionId, section) in previousSections) {
+            if (nextSectionIds.Contains(sectionId)) {
+                continue;
+            }
+            ReconcileSectionBlocks(sectionId, section.Blocks, [], previousDockState, nextDockState);
+            if (_sectionElements.Remove(sectionId, out var sectionElement)) {
+                sectionElement.Remove();
+                sectionElement.Dispose();
+            }
+            _sectionActionHosts.Remove(sectionId);
+            _sectionTitleInputs.Remove(sectionId);
+            _sectionBlockOrder.Remove(sectionId);
+        }
+
+        for (var sectionIndex = 0; sectionIndex < nextDocument.Sections.Count; sectionIndex++) {
+            var section = nextDocument.Sections[sectionIndex];
+            if (!_sectionElements.ContainsKey(section.Id)) {
+                var sectionElement = CreateSectionShell(section, sectionIndex);
+                _sectionElements.Add(section.Id, sectionElement);
+                InsertSectionElement(sectionElement, sectionIndex, nextDocument);
+            }
+
+            var previousBlocks = previousSections.TryGetValue(section.Id, out var previousSection)
+                ? previousSection.Blocks
+                : [];
+            if (SameBlockSequence(sectionId: section.Id, previousBlocks, section.Blocks)) {
+                continue;
+            }
+            ReconcileSectionBlocks(section.Id, previousBlocks, section.Blocks, previousDockState, nextDockState);
+        }
+
+        if (!previousSections.Keys.ToHashSet(StringComparer.Ordinal).SetEquals(nextSectionIds)) {
+            for (var sectionIndex = 0; sectionIndex < nextDocument.Sections.Count; sectionIndex++) {
+                var sectionId = nextDocument.Sections[sectionIndex].Id;
+                _sectionTitleInputs[sectionId].Attr("aria-label", $"Section {sectionIndex + 1} title");
+            }
+        }
+    }
+
+    private static bool SameBlockSequence(
+        string sectionId, IReadOnlyList<NotebookBlock> previousBlocks, IReadOnlyList<NotebookBlock> nextBlocks)
+        => KeyBlocks(sectionId, previousBlocks).Select(static entry => entry.Key)
+            .SequenceEqual(KeyBlocks(sectionId, nextBlocks).Select(static entry => entry.Key), StringComparer.Ordinal);
+
     public void Dispose()
     {
         if (_disposed) {
@@ -141,30 +206,39 @@ public sealed class BrowserNotebookView :
         _root.Append(bar);
     }
 
-    private void RenderSection(
-        NotebookSection section,
-        int sectionIndex,
-        NotebookDockState dockState)
+    private DomElement CreateSectionShell(NotebookSection section, int sectionIndex)
     {
-        using var sectionElement = DomElement.Create("section")
+        var sectionElement = DomElement.Create("section")
             .Class("section")
             .Class("notebook-section");
         using var heading = DomElement.Create("header").Class("section-heading-editor");
-        var inputId = $"section-title-input-{sectionIndex}";
-        using var input = CreateInlineInput(
+        var inputId = NotebookElementIds.SectionTitleInput(section.Id);
+        var input = CreateInlineInput(
             inputId,
             $"Section {sectionIndex + 1} title",
             section.Title,
             "Untitled section");
+        _sectionTitleInputs.Add(section.Id, input);
         using var titleActions = DomElement.Create("div").Class("inline-edit-actions");
         AppendInlineSaveButton(
             titleActions,
             "Save section title",
             inputId,
-            $"rename-section:{sectionIndex}");
+            $"rename-section:{section.Id}");
         AppendDiscardButton(titleActions, inputId);
-        using var sectionActions = DomElement.Create("div").Class("section-actions");
-        var lastBlockId = section.Blocks.Select(GetBlockId).LastOrDefault(id => id is not null);
+        var sectionActions = DomElement.Create("div").Class("section-actions");
+        _sectionActionHosts.Add(section.Id, sectionActions);
+        RefreshSectionActions(section.Id, section.Blocks);
+        heading.Append(input).Append(titleActions).Append(sectionActions);
+        sectionElement.Append(heading);
+        return sectionElement;
+    }
+
+    private void RefreshSectionActions(string sectionId, IReadOnlyList<NotebookBlock> blocks)
+    {
+        var sectionActions = _sectionActionHosts[sectionId];
+        sectionActions.Text(string.Empty);
+        var lastBlockId = blocks.Select(GetBlockId).LastOrDefault(id => id is not null);
         if (lastBlockId is not null) {
             AppendAddMenu(
                 sectionActions,
@@ -175,58 +249,168 @@ public sealed class BrowserNotebookView :
             sectionActions,
             "×",
             "Delete section",
-            $"remove-section:{sectionIndex}");
-        heading.Append(input).Append(titleActions).Append(sectionActions);
-        sectionElement.Append(heading);
+            $"remove-section:{sectionId}");
+    }
 
-        foreach (var block in section.Blocks) {
-            switch (block) {
-                case ParagraphBlock { Editable: true } paragraph:
-                    AppendEditableParagraph(sectionElement, paragraph);
-                    break;
-                case ParagraphBlock paragraph:
-                    using (var element = DomElement.Create("p").Class("paragraph")) {
-                        AppendInlines(element, paragraph.Inlines);
-                        sectionElement.Append(element);
-                    }
-                    break;
-                case ListBlock list:
-                    using (var element = DomElement.Create("ul").Class("list")) {
-                        foreach (var item in list.Items) {
-                            using var listItem = DomElement.Create("li");
-                            AppendInlines(listItem, item);
-                            element.Append(listItem);
-                        }
-                        sectionElement.Append(element);
-                    }
-                    break;
-                case CodeCellBlock cell:
-                    var scriptWindow = dockState.GetWindow(
-                        cell.Id,
-                        DockWindowKind.Script);
-                    var outputWindow = dockState.GetWindow(
-                        cell.Id,
-                        DockWindowKind.Output);
-                    var renderWindow = dockState.GetWindow(
-                        cell.Id,
-                        DockWindowKind.Render);
-                    var cellView = new BrowserCellView(
-                        cell,
-                        _editors,
-                        scriptWindow,
-                        outputWindow,
-                        renderWindow);
-                    _cells.Add(cell.Id, cellView);
-                    _dock.RegisterWindow(cellView.Script);
-                    _dock.RegisterWindow(cellView.Output);
-                    _dock.RegisterWindow(cellView.Render);
-                    var region = DomElement.Create("div");
-                    _dock.RegisterRegion(scriptWindow.HomeRegionId, region);
-                    sectionElement.Append(region);
-                    break;
+    private void InsertSectionElement(
+        DomElement sectionElement, int sectionIndex, NotebookDocument nextDocument)
+    {
+        DomElement? before = null;
+        for (var index = sectionIndex + 1; index < nextDocument.Sections.Count; index++) {
+            if (_sectionElements.TryGetValue(nextDocument.Sections[index].Id, out var sibling)) {
+                before = sibling;
+                break;
             }
         }
-        _root.Append(sectionElement);
+        _root.InsertBefore(sectionElement, before ?? _floatingLayer);
+    }
+
+    private void ReconcileSectionBlocks(
+        string sectionId,
+        IReadOnlyList<NotebookBlock> previousBlocks,
+        IReadOnlyList<NotebookBlock> nextBlocks,
+        NotebookDockState previousDockState,
+        NotebookDockState nextDockState)
+    {
+        var previousKeyed = KeyBlocks(sectionId, previousBlocks);
+        var nextKeyed = KeyBlocks(sectionId, nextBlocks);
+
+        var nextKeys = new HashSet<string>(nextKeyed.Select(static entry => entry.Key), StringComparer.Ordinal);
+        foreach (var (key, block) in previousKeyed) {
+            if (!nextKeys.Contains(key)) {
+                RemoveBlockElement(key, block, previousDockState);
+            }
+        }
+
+        var previousKeys = new HashSet<string>(previousKeyed.Select(static entry => entry.Key), StringComparer.Ordinal);
+        foreach (var (key, block) in nextKeyed) {
+            if (!previousKeys.Contains(key)) {
+                _blockElements.Add(key, CreateBlockElement(block, nextDockState));
+            }
+        }
+
+        var nextOrder = nextKeyed.Select(static entry => entry.Key).ToList();
+        if (_sectionElements.TryGetValue(sectionId, out var sectionElement)) {
+            var previousOrder = _sectionBlockOrder.TryGetValue(sectionId, out var tracked) ? tracked : [];
+            RepositionBlocks(sectionElement, previousOrder, nextOrder);
+        }
+        _sectionBlockOrder[sectionId] = nextOrder;
+
+        if (previousKeyed.Length != nextKeyed.Length
+            || !previousKeyed.Select(static entry => entry.Key).SequenceEqual(nextKeyed.Select(static entry => entry.Key))) {
+            RefreshSectionActions(sectionId, nextBlocks);
+        }
+    }
+
+    private void RepositionBlocks(
+        DomElement sectionElement, IReadOnlyList<string> previousOrder, IReadOnlyList<string> nextOrder)
+    {
+        var previousSurvivors = previousOrder.Where(nextOrder.Contains).ToList();
+        var nextSurvivors = nextOrder.Where(previousOrder.Contains).ToList();
+        var alreadyPlaced = new HashSet<string>(StringComparer.Ordinal);
+        for (var index = 0; index < previousSurvivors.Count && index < nextSurvivors.Count; index++) {
+            if (previousSurvivors[index] == nextSurvivors[index]) {
+                alreadyPlaced.Add(previousSurvivors[index]);
+            }
+        }
+
+        DomElement? nextSibling = null;
+        for (var index = nextOrder.Count - 1; index >= 0; index--) {
+            var key = nextOrder[index];
+            var element = _blockElements[key];
+            if (!alreadyPlaced.Contains(key)) {
+                sectionElement.InsertBefore(element, nextSibling);
+            }
+            nextSibling = element;
+        }
+    }
+
+    private static (string Key, NotebookBlock Block)[] KeyBlocks(
+        string sectionId, IReadOnlyList<NotebookBlock> blocks)
+    {
+        var result = new (string Key, NotebookBlock Block)[blocks.Count];
+        var listOrdinal = 0;
+        for (var index = 0; index < blocks.Count; index++) {
+            var block = blocks[index];
+            var key = GetBlockId(block) ?? $"§list-{sectionId}-{listOrdinal++}";
+            result[index] = (key, block);
+        }
+        return result;
+    }
+
+    private DomElement CreateBlockElement(NotebookBlock block, NotebookDockState dockState)
+        => block switch {
+            ParagraphBlock { Editable: true } paragraph => CreateEditableParagraphElement(paragraph),
+            ParagraphBlock paragraph => CreateStaticParagraphElement(paragraph),
+            ListBlock list => CreateListElement(list),
+            CodeCellBlock cell => CreateCellElement(cell, dockState),
+            var unknown => throw new InvalidOperationException(
+                $"Unsupported block type '{unknown.GetType().Name}'."),
+        };
+
+    private void RemoveBlockElement(string key, NotebookBlock block, NotebookDockState dockState)
+    {
+        if (!_blockElements.Remove(key, out var element)) {
+            return;
+        }
+        if (block is CodeCellBlock cell) {
+            RemoveCellView(cell, dockState);
+            return;
+        }
+        element.Remove();
+        element.Dispose();
+    }
+
+    private DomElement CreateStaticParagraphElement(ParagraphBlock paragraph)
+    {
+        var element = DomElement.Create("p").Class("paragraph");
+        AppendInlines(element, paragraph.Inlines);
+        return element;
+    }
+
+    private DomElement CreateListElement(ListBlock list)
+    {
+        var element = DomElement.Create("ul").Class("list");
+        foreach (var item in list.Items) {
+            using var listItem = DomElement.Create("li");
+            AppendInlines(listItem, item);
+            element.Append(listItem);
+        }
+        return element;
+    }
+
+    private DomElement CreateCellElement(CodeCellBlock cell, NotebookDockState dockState)
+    {
+        var scriptWindow = dockState.GetWindow(cell.Id, DockWindowKind.Script);
+        var outputWindow = dockState.GetWindow(cell.Id, DockWindowKind.Output);
+        var renderWindow = dockState.GetWindow(cell.Id, DockWindowKind.Render);
+        var cellView = new BrowserCellView(
+            cell,
+            _editors,
+            scriptWindow,
+            outputWindow,
+            renderWindow);
+        _cells.Add(cell.Id, cellView);
+        _dock.RegisterWindow(cellView.Script);
+        _dock.RegisterWindow(cellView.Output);
+        _dock.RegisterWindow(cellView.Render);
+        var region = DomElement.Create("div");
+        _dock.RegisterRegion(scriptWindow.HomeRegionId, region);
+        return region;
+    }
+
+    private void RemoveCellView(CodeCellBlock cell, NotebookDockState dockState)
+    {
+        if (!_cells.Remove(cell.Id, out var cellView)) {
+            return;
+        }
+        foreach (var window in new[] { cellView.Script.Window, cellView.Output.Window, cellView.Render.Window }) {
+            var tab = dockState.GetTabForWindow(window.Id);
+            _dock.UnregisterWindow(window.Id, tab.Id);
+        }
+        _dock.UnregisterRegion(cellView.Script.Window.HomeRegionId);
+        _editors.Remove(cell.Id);
+        cellView.Dispose();
     }
 
     private static DomElement CreateInlineInput(
@@ -304,11 +488,11 @@ public sealed class BrowserNotebookView :
         }
     }
 
-    private static void AppendEditableParagraph(DomElement parent, ParagraphBlock paragraph)
+    private DomElement CreateEditableParagraphElement(ParagraphBlock paragraph)
     {
         var elementId = NotebookElementIds.Paragraph(paragraph.Id);
         var text = FlattenInlines(paragraph.Inlines);
-        using var wrapper = DomElement.Create("div").Class("paragraph-editor");
+        var wrapper = DomElement.Create("div").Class("paragraph-editor");
         using var textarea = DomElement.Create("textarea")
             .Class("inline-title-input")
             .Class("paragraph-textarea")
@@ -327,7 +511,7 @@ public sealed class BrowserNotebookView :
         AppendIconButton(blockActions, "↓", "Move down", $"move-cell-down:{paragraph.Id}");
         AppendIconButton(blockActions, "×", "Delete", $"remove-cell:{paragraph.Id}");
         wrapper.Append(textarea).Append(actions).Append(blockActions);
-        parent.Append(wrapper);
+        return wrapper;
     }
 
     private static string FlattenInlines(IReadOnlyList<Inline> inlines)

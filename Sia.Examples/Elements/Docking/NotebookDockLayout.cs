@@ -187,4 +187,87 @@ public static partial class NotebookDockLayout
         };
     }
 
+    public static NotebookDockState ReconcileDocument(
+        NotebookDockState previous,
+        NotebookDocument previousDocument,
+        NotebookDocument nextDocument)
+    {
+        ArgumentNullException.ThrowIfNull(previousDocument);
+        ArgumentNullException.ThrowIfNull(nextDocument);
+
+        var previousCellIds = CellIds(previousDocument);
+        var nextCellIds = CellIds(nextDocument);
+
+        var state = previous;
+        foreach (var cellId in previousCellIds) {
+            if (!nextCellIds.Contains(cellId)) {
+                state = RemoveCell(state, cellId);
+            }
+        }
+
+        var cellIndex = 0;
+        foreach (var section in nextDocument.Sections) {
+            foreach (var cell in section.Blocks.OfType<CodeCellBlock>()) {
+                if (!previousCellIds.Contains(cell.Id)) {
+                    state = AddCell(state, cell.Id, cellIndex);
+                }
+                cellIndex++;
+            }
+        }
+
+        return state;
+    }
+
+    private static HashSet<string> CellIds(NotebookDocument document)
+        => document.Sections
+            .SelectMany(static section => section.Blocks.OfType<CodeCellBlock>())
+            .Select(static cell => cell.Id)
+            .ToHashSet(StringComparer.Ordinal);
+
+    private static NotebookDockState AddCell(
+        NotebookDockState state,
+        string cellId,
+        int cellIndex)
+    {
+        var windows = state.Windows.ToBuilder();
+        var tabs = state.Tabs.ToBuilder();
+        var regionId = $"region-{cellId}";
+
+        var script = NotebookDockState.AddWindow(
+            windows, tabs, cellId, regionId, DockWindowKind.Script, $"[{cellIndex + 1}] {cellId}");
+        NotebookDockState.AddWindow(
+            windows, tabs, cellId, regionId, DockWindowKind.Output, $"Output · {cellId}");
+        NotebookDockState.AddWindow(
+            windows, tabs, cellId, regionId, DockWindowKind.Render, $"Render · {cellId}");
+
+        var scriptGroup = new DockTabGroup($"group-{state.NextNodeId}", [script.Id], script.Id);
+        var regions = state.Regions.Add(new(regionId, scriptGroup));
+
+        return state with {
+            Windows = windows.ToImmutable(),
+            Tabs = tabs.ToImmutable(),
+            Regions = regions,
+            NextNodeId = state.NextNodeId + 1,
+        };
+    }
+
+    private static NotebookDockState RemoveCell(NotebookDockState state, string cellId)
+    {
+        foreach (var window in state.Windows.Values.Where(w => w.CellId == cellId).ToArray()) {
+            var tab = state.GetTabForWindow(window.Id);
+            state = RemoveTab(state, tab.Id, out _);
+            state = state with {
+                Windows = state.Windows.Remove(window.Id),
+                Tabs = state.Tabs.Remove(tab.Id),
+            };
+        }
+
+        var regionId = $"region-{cellId}";
+        var regionIndex = FindRegionIndex(state.Regions, regionId);
+        if (regionIndex >= 0 && state.Regions[regionIndex].Root is null) {
+            state = state with { Regions = state.Regions.RemoveAt(regionIndex) };
+        }
+
+        return state;
+    }
 }

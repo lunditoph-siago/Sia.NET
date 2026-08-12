@@ -36,6 +36,24 @@ public sealed class BrowserDockWorkspaceView : IDisposable
         _windows.Add(window.Window.Id, window);
     }
 
+    public void UnregisterWindow(string windowId, string tabId)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_tabHeaders.Remove(tabId, out var header)) {
+            header.Dispose();
+        }
+        _windows.Remove(windowId);
+    }
+
+    public void UnregisterRegion(string regionId)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_regions.Remove(regionId, out var region)) {
+            region.Remove();
+            region.Dispose();
+        }
+    }
+
     public void Apply(NotebookDockState state)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);

@@ -52,7 +52,7 @@ public static class NotebookDocumentSerializer
 
     private static XElement WriteSection(NotebookSection section)
     {
-        var element = new XElement("Section");
+        var element = new XElement("Section", new XAttribute("Id", section.Id));
         if (section.Title.Length > 0) {
             element.SetAttributeValue("Title", section.Title);
         }

@@ -44,6 +44,7 @@ public static class NotebookDocumentParser
 
     private static NotebookSection ParseSection(XElement element)
     {
+        var id = (string?)element.Attribute("Id") ?? Guid.NewGuid().ToString("N");
         var title = (string?)element.Attribute("Title") ?? "";
         List<NotebookBlock> blocks = [];
         foreach (var child in element.Elements()) {
@@ -63,7 +64,7 @@ public static class NotebookDocumentParser
                     $"Unknown block element <{unknown}> in <Section Title=\"{title}\">."),
             });
         }
-        return new(title, blocks);
+        return new(id, title, blocks);
     }
 
     private static IReadOnlyList<Inline> ParseInlines(XElement element)
