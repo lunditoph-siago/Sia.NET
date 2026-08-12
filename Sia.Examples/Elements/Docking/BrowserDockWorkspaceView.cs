@@ -23,7 +23,6 @@ public sealed class BrowserDockWorkspaceView(DomElement floatingLayer) : IDispos
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         _regions.Add(regionId, root
-            .Class("cell")
             .Class("dock-region")
             .Attr("data-dock-region", regionId));
     }
@@ -159,7 +158,6 @@ public sealed class BrowserDockWorkspaceView(DomElement floatingLayer) : IDispos
 
         var containerId = FloatingContainerId(floating.Id);
         var root = DomElement.Create("div")
-            .Class("cell")
             .Class("floating-host")
             .Attr("data-dock-floating", floating.Id)
             .Attr(

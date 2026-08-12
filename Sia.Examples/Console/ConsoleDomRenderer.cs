@@ -307,7 +307,7 @@ internal sealed class ConsoleDomRenderer
         if (node.HasClass("section")) {
             return "Section";
         }
-        if (node.HasClass("cell")) {
+        if (node.HasClass("dock-region")) {
             return "Cell";
         }
         return string.Empty;
