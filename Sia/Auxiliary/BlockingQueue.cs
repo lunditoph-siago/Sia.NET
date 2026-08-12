@@ -29,7 +29,14 @@ public class BlockingQueue<T>
             return false;
         }
         while (!_queue.TryDequeue(out item)) {
+#if BROWSER
+            if (!_autoResetEvent.WaitOne(1500) && _queue.IsEmpty) {
+                item = default;
+                return false;
+            }
+#else
             _autoResetEvent.WaitOne();
+#endif
             if (IsCompleted) {
                 item = default;
                 return false;
