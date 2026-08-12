@@ -13,7 +13,7 @@ public sealed class BrowserNotebookView :
     private readonly DomElement _floatingLayer;
     private readonly BrowserEditorRegistry _editors;
     private readonly BrowserPackagePanel _packages;
-    private readonly BrowserDockWorkspaceView _dock;
+    private readonly BrowserCellWorkspaceView _cellWorkspace;
     private readonly Dictionary<string, BrowserCellView> _cells = [];
     private readonly Dictionary<string, DomElement> _sectionElements = [];
     private readonly Dictionary<string, DomElement> _sectionActionHosts = [];
@@ -26,7 +26,7 @@ public sealed class BrowserNotebookView :
         World world,
         NotebookDocument document,
         ICompilationReferenceResolver references,
-        NotebookDockState dockState)
+        NotebookCellState cellState)
     {
         _container = DomElement.Find("notebook");
         _root = DomElement.Create("div").Class("notebook-document");
@@ -35,7 +35,7 @@ public sealed class BrowserNotebookView :
         _floatingLayer = DomElement.Create("div")
             .Class("section")
             .Class("floating-layer");
-        _dock = new(_floatingLayer);
+        _cellWorkspace = new(_floatingLayer);
 
         RenderTitleBar(document.Title);
 
@@ -44,7 +44,7 @@ public sealed class BrowserNotebookView :
             var sectionElement = CreateSectionShell(section, index);
             _sectionElements.Add(section.Id, sectionElement);
             _root.Append(sectionElement);
-            ReconcileSectionBlocks(section.Id, [], section.Blocks, dockState, dockState);
+            ReconcileSectionBlocks(section.Id, [], section.Blocks, cellState, cellState);
         }
         _root.Append(_floatingLayer);
 
@@ -100,20 +100,20 @@ public sealed class BrowserNotebookView :
     void IRenderHost<PackageCountView>.Remove(in PackageCountView view)
         => _packages.UpdateCount(0);
 
-    void IRenderHost<NotebookDockPresentation>.Upsert(
-        in NotebookDockPresentation view)
-        => _dock.Apply(view.State);
+    void IRenderHost<NotebookCellPresentation>.Upsert(
+        in NotebookCellPresentation view)
+        => _cellWorkspace.Apply(view.State);
 
-    void IRenderHost<NotebookDockPresentation>.Remove(
-        in NotebookDockPresentation view)
+    void IRenderHost<NotebookCellPresentation>.Remove(
+        in NotebookCellPresentation view)
     {
     }
 
     public void ReconcileDocument(
         NotebookDocument previousDocument,
         NotebookDocument nextDocument,
-        NotebookDockState previousDockState,
-        NotebookDockState nextDockState)
+        NotebookCellState previousCellState,
+        NotebookCellState nextCellState)
     {
         var previousSections = previousDocument.Sections.ToDictionary(static section => section.Id);
         var nextSectionIds = new HashSet<string>(
@@ -126,7 +126,7 @@ public sealed class BrowserNotebookView :
                 continue;
             }
             sectionsChanged = true;
-            ReconcileSectionBlocks(sectionId, section.Blocks, [], previousDockState, nextDockState);
+            ReconcileSectionBlocks(sectionId, section.Blocks, [], previousCellState, nextCellState);
             if (_sectionElements.Remove(sectionId, out var sectionElement)) {
                 sectionElement.Remove();
                 sectionElement.Dispose();
@@ -148,7 +148,7 @@ public sealed class BrowserNotebookView :
             var previousBlocks = previousSections.TryGetValue(section.Id, out var previousSection)
                 ? previousSection.Blocks
                 : [];
-            ReconcileSectionBlocks(section.Id, previousBlocks, section.Blocks, previousDockState, nextDockState);
+            ReconcileSectionBlocks(section.Id, previousBlocks, section.Blocks, previousCellState, nextCellState);
         }
 
         if (sectionsChanged) {
@@ -165,7 +165,7 @@ public sealed class BrowserNotebookView :
             return;
         }
         _disposed = true;
-        _dock.Dispose();
+        _cellWorkspace.Dispose();
         _editors.Dispose();
         foreach (var cell in _cells.Values) {
             cell.Dispose();
@@ -264,8 +264,8 @@ public sealed class BrowserNotebookView :
         string sectionId,
         IReadOnlyList<NotebookBlock> previousBlocks,
         IReadOnlyList<NotebookBlock> nextBlocks,
-        NotebookDockState previousDockState,
-        NotebookDockState nextDockState)
+        NotebookCellState previousCellState,
+        NotebookCellState nextCellState)
     {
         var previousKeyed = KeyBlocks(previousBlocks);
         var nextKeyed = KeyBlocks(nextBlocks);
@@ -279,14 +279,14 @@ public sealed class BrowserNotebookView :
         var nextKeys = new HashSet<string>(nextOrder, StringComparer.Ordinal);
         foreach (var (key, block) in previousKeyed) {
             if (!nextKeys.Contains(key)) {
-                RemoveBlockElement(key, block, previousDockState);
+                RemoveBlockElement(key, block, previousCellState);
             }
         }
 
         var previousKeys = new HashSet<string>(previousOrder, StringComparer.Ordinal);
         foreach (var (key, block) in nextKeyed) {
             if (!previousKeys.Contains(key)) {
-                _blockElements.Add(key, CreateBlockElement(block, nextDockState));
+                _blockElements.Add(key, CreateBlockElement(block, nextCellState));
             }
         }
 
@@ -341,23 +341,23 @@ public sealed class BrowserNotebookView :
         return result;
     }
 
-    private DomElement CreateBlockElement(NotebookBlock block, NotebookDockState dockState)
+    private DomElement CreateBlockElement(NotebookBlock block, NotebookCellState cellState)
         => block switch {
             ParagraphBlock { Editable: true } paragraph => CreateEditableParagraphElement(paragraph),
             ParagraphBlock paragraph => CreateStaticParagraphElement(paragraph),
             ListBlock list => CreateListElement(list),
-            CodeCellBlock cell => CreateCellElement(cell, dockState),
+            CodeCellBlock cell => CreateCellElement(cell, cellState),
             var unknown => throw new InvalidOperationException(
                 $"Unsupported block type '{unknown.GetType().Name}'."),
         };
 
-    private void RemoveBlockElement(string key, NotebookBlock block, NotebookDockState dockState)
+    private void RemoveBlockElement(string key, NotebookBlock block, NotebookCellState cellState)
     {
         if (!_blockElements.Remove(key, out var element)) {
             return;
         }
         if (block is CodeCellBlock cell) {
-            RemoveCellView(cell, dockState);
+            RemoveCellView(cell, cellState);
             return;
         }
         element.Remove();
@@ -382,11 +382,11 @@ public sealed class BrowserNotebookView :
         return element;
     }
 
-    private DomElement CreateCellElement(CodeCellBlock cell, NotebookDockState dockState)
+    private DomElement CreateCellElement(CodeCellBlock cell, NotebookCellState cellState)
     {
-        var scriptWindow = dockState.GetWindow(cell.Id, DockWindowKind.Script);
-        var outputWindow = dockState.GetWindow(cell.Id, DockWindowKind.Output);
-        var renderWindow = dockState.GetWindow(cell.Id, DockWindowKind.Render);
+        var scriptWindow = cellState.GetWindow(cell.Id, CellWindowKind.Script);
+        var outputWindow = cellState.GetWindow(cell.Id, CellWindowKind.Output);
+        var renderWindow = cellState.GetWindow(cell.Id, CellWindowKind.Render);
         var cellView = new BrowserCellView(
             cell,
             _editors,
@@ -394,29 +394,29 @@ public sealed class BrowserNotebookView :
             outputWindow,
             renderWindow);
         _cells.Add(cell.Id, cellView);
-        _dock.RegisterWindow(cellView.Script);
-        _dock.RegisterWindow(cellView.Output);
-        _dock.RegisterWindow(cellView.Render);
+        _cellWorkspace.RegisterWindow(cellView.Script);
+        _cellWorkspace.RegisterWindow(cellView.Output);
+        _cellWorkspace.RegisterWindow(cellView.Render);
         var region = DomElement.Create("div");
-        _dock.RegisterRegion(scriptWindow.HomeRegionId, region);
+        _cellWorkspace.RegisterRegion(scriptWindow.HomeRegionId, region);
         return region;
     }
 
-    private void RemoveCellView(CodeCellBlock cell, NotebookDockState dockState)
+    private void RemoveCellView(CodeCellBlock cell, NotebookCellState cellState)
     {
         if (!_cells.Remove(cell.Id, out var cellView)) {
             return;
         }
-        UnregisterCellWindow(cellView.Script.Window, dockState);
-        UnregisterCellWindow(cellView.Output.Window, dockState);
-        UnregisterCellWindow(cellView.Render.Window, dockState);
-        _dock.UnregisterRegion(cellView.Script.Window.HomeRegionId);
+        UnregisterCellWindow(cellView.Script.Window, cellState);
+        UnregisterCellWindow(cellView.Output.Window, cellState);
+        UnregisterCellWindow(cellView.Render.Window, cellState);
+        _cellWorkspace.UnregisterRegion(cellView.Script.Window.HomeRegionId);
         _editors.Remove(cell.Id);
         cellView.Dispose();
     }
 
-    private void UnregisterCellWindow(DockWindow window, NotebookDockState dockState)
-        => _dock.UnregisterWindow(window.Id, dockState.GetTabForWindow(window.Id).Id);
+    private void UnregisterCellWindow(CellWindow window, NotebookCellState cellState)
+        => _cellWorkspace.UnregisterWindow(window.Id, cellState.GetTabForWindow(window.Id).Id);
 
     private static DomElement CreateInlineInput(
         string id,
@@ -531,13 +531,13 @@ public sealed class BrowserNotebookView :
         string label,
         IReadOnlyList<(string Icon, string Label, string Payload)> items)
     {
-        using var host = DomElement.Create("details").Class("cell-more");
+        using var host = DomElement.Create("details").Class("menu-toggle");
         using var summary = DomElement.Create("summary")
             .Class("icon-btn")
             .Attr("aria-label", label)
             .Attr("title", label)
             .Text("+");
-        using var menu = DomElement.Create("div").Class("cell-more-menu");
+        using var menu = DomElement.Create("div").Class("menu-popover");
         foreach (var (icon, itemLabel, payload) in items) {
             AppendMenuItem(menu, icon, itemLabel, payload);
         }
@@ -552,11 +552,11 @@ public sealed class BrowserNotebookView :
         string payload)
     {
         using var button = DomElement.Create("button")
-            .Class("cell-menu-item")
+            .Class("menu-item")
             .Attr("type", "button")
             .On("click", payload);
         using var glyph = DomElement.Create("span")
-            .Class("cell-menu-icon")
+            .Class("menu-icon")
             .Attr("aria-hidden", "true")
             .Text(icon);
         using var text = DomElement.Create("span").Text(label);

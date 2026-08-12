@@ -2,10 +2,10 @@ using System.Collections.Immutable;
 
 namespace Sia_Examples.Notebook;
 
-public static partial class NotebookDockLayout
+public static partial class NotebookCellLayout
 {
-    private static NotebookDockState DockToEmptyRegion(
-        NotebookDockState state,
+    private static NotebookCellState CellToEmptyRegion(
+        NotebookCellState state,
         string tabId,
         string regionId)
     {
@@ -23,7 +23,7 @@ public static partial class NotebookDockLayout
             return state;
         }
 
-        var group = new DockTabGroup(
+        var group = new CellTabGroup(
             $"group-{withoutSource.NextNodeId}",
             [tabId],
             tabId);
@@ -35,9 +35,9 @@ public static partial class NotebookDockLayout
         };
     }
 
-    private static NotebookDockState Reorder(
-        NotebookDockState state,
-        DockTabGroup group,
+    private static NotebookCellState Reorder(
+        NotebookCellState state,
+        CellTabGroup group,
         string tabId,
         int targetIndex)
     {
@@ -57,29 +57,29 @@ public static partial class NotebookDockLayout
             current => current with { TabIds = tabs, ActiveTabId = tabId });
     }
 
-    private static NotebookDockState UpdateGroupContaining(
-        NotebookDockState state,
+    private static NotebookCellState UpdateGroupContaining(
+        NotebookCellState state,
         string tabId,
-        Func<DockTabGroup, DockTabGroup> update)
+        Func<CellTabGroup, CellTabGroup> update)
         => TransformRoots(
             state,
             root => UpdateGroupContaining(root, tabId, update));
 
-    private static NotebookDockState UpdateGroup(
-        NotebookDockState state,
+    private static NotebookCellState UpdateGroup(
+        NotebookCellState state,
         string groupId,
-        Func<DockTabGroup, DockTabGroup> update)
+        Func<CellTabGroup, CellTabGroup> update)
         => TransformRoots(state, root => UpdateGroup(root, groupId, update));
 
-    private static NotebookDockState ReplaceGroup(
-        NotebookDockState state,
+    private static NotebookCellState ReplaceGroup(
+        NotebookCellState state,
         string groupId,
-        DockNode replacement)
+        CellNode replacement)
         => TransformRoots(state, root => ReplaceGroup(root, groupId, replacement));
 
-    private static NotebookDockState TransformRoots(
-        NotebookDockState state,
-        Func<DockNode, DockNode> transform)
+    private static NotebookCellState TransformRoots(
+        NotebookCellState state,
+        Func<CellNode, CellNode> transform)
         => state with {
             Regions = state.Regions
                 .Select(region => region.Root is null
@@ -91,53 +91,53 @@ public static partial class NotebookDockLayout
                 .ToImmutableArray(),
         };
 
-    private static DockNode UpdateGroupContaining(
-        DockNode node,
+    private static CellNode UpdateGroupContaining(
+        CellNode node,
         string tabId,
-        Func<DockTabGroup, DockTabGroup> update)
+        Func<CellTabGroup, CellTabGroup> update)
     {
-        if (node is DockTabGroup group) {
+        if (node is CellTabGroup group) {
             return group.TabIds.Contains(tabId) ? update(group) : group;
         }
-        var split = (DockSplit)node;
+        var split = (CellSplit)node;
         return split with {
             First = UpdateGroupContaining(split.First, tabId, update),
             Second = UpdateGroupContaining(split.Second, tabId, update),
         };
     }
 
-    private static DockNode UpdateGroup(
-        DockNode node,
+    private static CellNode UpdateGroup(
+        CellNode node,
         string groupId,
-        Func<DockTabGroup, DockTabGroup> update)
+        Func<CellTabGroup, CellTabGroup> update)
     {
-        if (node is DockTabGroup group) {
+        if (node is CellTabGroup group) {
             return group.Id == groupId ? update(group) : group;
         }
-        var split = (DockSplit)node;
+        var split = (CellSplit)node;
         return split with {
             First = UpdateGroup(split.First, groupId, update),
             Second = UpdateGroup(split.Second, groupId, update),
         };
     }
 
-    private static DockNode ReplaceGroup(
-        DockNode node,
+    private static CellNode ReplaceGroup(
+        CellNode node,
         string groupId,
-        DockNode replacement)
+        CellNode replacement)
     {
-        if (node is DockTabGroup group) {
+        if (node is CellTabGroup group) {
             return group.Id == groupId ? replacement : group;
         }
-        var split = (DockSplit)node;
+        var split = (CellSplit)node;
         return split with {
             First = ReplaceGroup(split.First, groupId, replacement),
             Second = ReplaceGroup(split.Second, groupId, replacement),
         };
     }
 
-    private static NotebookDockState RemoveTab(
-        NotebookDockState state,
+    private static NotebookCellState RemoveTab(
+        NotebookCellState state,
         string tabId,
         out bool removed)
     {
@@ -176,9 +176,9 @@ public static partial class NotebookDockLayout
         };
     }
 
-    private static DockNode? RemoveTab(DockNode node, string tabId)
+    private static CellNode? RemoveTab(CellNode node, string tabId)
     {
-        if (node is DockTabGroup group) {
+        if (node is CellTabGroup group) {
             if (!group.TabIds.Contains(tabId)) {
                 return group;
             }
@@ -192,7 +192,7 @@ public static partial class NotebookDockLayout
             };
         }
 
-        var split = (DockSplit)node;
+        var split = (CellSplit)node;
         var first = RemoveTab(split.First, tabId);
         var second = RemoveTab(split.Second, tabId);
         return (first, second) switch {

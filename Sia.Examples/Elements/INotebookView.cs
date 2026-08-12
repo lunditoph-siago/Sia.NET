@@ -4,6 +4,6 @@ public interface INotebookView :
     IRenderHost<NotebookCellSnapshot>,
     IRenderHost<PackageView>,
     IRenderHost<PackageCountView>,
-    IRenderHost<NotebookDockPresentation>
+    IRenderHost<NotebookCellPresentation>
 {
 }

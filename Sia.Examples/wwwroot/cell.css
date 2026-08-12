@@ -1,4 +1,4 @@
-.dock-region {
+.cell {
     position: relative;
     min-height: 3rem;
     margin: 0.8rem 0 1.4rem;
@@ -23,42 +23,12 @@
     }
 }
 
-.cell-header {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.5rem 0.6rem;
-    padding: 0.4rem 0.75rem;
-    background: rgba(127, 127, 127, 0.1);
-    border-bottom: 1px solid rgba(127, 127, 127, 0.3);
-    font-size: 0.78rem;
-
-    .cell-controls {
-        margin-left: auto;
-        display: flex;
-        gap: 0.35rem;
-    }
-
-    .phase {
-        font-size: 0.7rem;
-        padding: 0.1rem 0.5rem;
-        border-radius: 999px;
-        border: 1px solid currentColor;
-        opacity: 0.85;
-
-        &.phase-idle { color: var(--color-muted); }
-        &.phase-compiling, &.phase-running { color: var(--color-warning); }
-        &.phase-compileerror, &.phase-ranerror, &.phase-interrupted { color: var(--color-danger); }
-        &.phase-compiled, &.phase-ransuccess { color: var(--color-success); }
-    }
-}
-
 .cell-edit-actions {
     display: flex;
     align-items: center;
 }
 
-.dock-group {
+.cell-group {
     position: relative;
     display: flex;
     min-width: 0;
@@ -67,9 +37,36 @@
     flex-direction: column;
     container-type: inline-size;
 
-    .dock-tabs {
-        flex-wrap: nowrap !important;
+    /* Tab strip: chrome + tab list + toolbar in one component identity. */
+    .cell-tabs {
+        display: flex;
+        flex-wrap: nowrap;
+        align-items: center;
+        gap: 0.5rem 0.6rem;
+        padding: 0.4rem 0.75rem;
+        background: rgba(127, 127, 127, 0.1);
+        border-bottom: 1px solid rgba(127, 127, 127, 0.3);
+        font-size: 0.78rem;
         min-width: 0;
+
+        .cell-controls {
+            margin-left: auto;
+            display: flex;
+            gap: 0.35rem;
+        }
+
+        .phase {
+            font-size: 0.7rem;
+            padding: 0.1rem 0.5rem;
+            border-radius: 999px;
+            border: 1px solid currentColor;
+            opacity: 0.85;
+
+            &.phase-idle { color: var(--color-muted); }
+            &.phase-compiling, &.phase-running { color: var(--color-warning); }
+            &.phase-compileerror, &.phase-ranerror, &.phase-interrupted { color: var(--color-danger); }
+            &.phase-compiled, &.phase-ransuccess { color: var(--color-success); }
+        }
 
         .tab-list {
             display: flex;
@@ -117,7 +114,7 @@
                         opacity: 1;
                     }
 
-                    &.dragging { opacity: 0.35 !important; }
+                    &.dragging { opacity: 0.35; }
 
                     @media (max-width: 720px) {
                         max-width: 12rem;
@@ -158,7 +155,7 @@
 
                 .cell-controls {
                     width: 100%;
-                    margin-left: 0 !important;
+                    margin-left: 0;
                     padding: 0.15rem 0.35rem 0;
                     order: 2;
                     overflow-x: auto;
@@ -170,7 +167,7 @@
 
                 .cell-controls {
                     width: 100%;
-                    margin-left: 0 !important;
+                    margin-left: 0;
                     padding: 0.15rem 0.35rem 0;
                     order: 2;
                     overflow-x: auto;
@@ -179,13 +176,13 @@
         }
 
         @container (max-width: 34rem) {
-            flex-wrap: wrap !important;
+            flex-wrap: wrap;
 
             .tab-list { flex: 1 0 100%; order: 0; }
         }
 
         @media (max-width: 720px) {
-            flex-wrap: wrap !important;
+            flex-wrap: wrap;
 
             .tab-list { flex: 1 0 100%; order: 0; }
         }
@@ -233,7 +230,7 @@
     }
 }
 
-.dock-split {
+.cell-split {
     display: flex;
     height: 100%;
     min-width: 0;
@@ -273,7 +270,7 @@
             transition: min-height 0.25s ease, visibility 0.25s;
 
             &:not(.collapsed) {
-                min-height: min(40vh, 24rem);
+                min-height: min(28vh, 14rem);
             }
         }
 
@@ -313,7 +310,7 @@
             width: 100%;
             flex: 0 0 auto;
 
-            > .dock-group {
+            > .cell-group {
                 display: block;
                 width: 100%;
                 flex: 0 0 auto;
@@ -349,7 +346,7 @@
     &.tab-insert {
         top: 0.25rem;
         bottom: auto;
-        left: var(--dock-insertion-x);
+        left: var(--cell-insertion-x);
         width: 2px;
         height: 1.8rem;
         border: 0;

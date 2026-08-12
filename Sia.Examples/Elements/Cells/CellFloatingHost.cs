@@ -1,8 +1,8 @@
 namespace Sia_Examples.Notebook;
 
-public sealed record DockFloatingHost(
+public sealed record CellFloatingHost(
     string Id,
-    DockNode Root,
+    CellNode Root,
     int X,
     int Y,
     int Width,

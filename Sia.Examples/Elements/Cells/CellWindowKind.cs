@@ -1,6 +1,6 @@
 namespace Sia_Examples.Notebook;
 
-public enum DockWindowKind
+public enum CellWindowKind
 {
     Script,
     Output,

@@ -1,8 +1,8 @@
 namespace Sia_Examples.Notebook;
 
-public sealed record DockWindow(
+public sealed record CellWindow(
     string Id,
     string CellId,
     string HomeRegionId,
-    DockWindowKind Kind,
+    CellWindowKind Kind,
     string Title);

@@ -5,10 +5,10 @@ using Sia_Examples.Dom;
 
 namespace Sia_Examples.Notebook;
 
-public sealed class BrowserDockWorkspaceView(DomElement floatingLayer) : IDisposable
+public sealed class BrowserCellWorkspaceView(DomElement floatingLayer) : IDisposable
 {
     private readonly Dictionary<string, DomElement> _regions = [];
-    private readonly Dictionary<string, BrowserDockWindowView> _windows = [];
+    private readonly Dictionary<string, BrowserCellWindowView> _windows = [];
     private readonly Dictionary<string, TabHeaderView> _tabHeaders = [];
     private readonly Dictionary<string, GroupView> _groups = [];
     private readonly Dictionary<string, string> _groupContainers = [];
@@ -23,11 +23,11 @@ public sealed class BrowserDockWorkspaceView(DomElement floatingLayer) : IDispos
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         _regions.Add(regionId, root
-            .Class("dock-region")
-            .Attr("data-dock-region", regionId));
+            .Class("cell")
+            .Attr("data-cell-region", regionId));
     }
 
-    public void RegisterWindow(BrowserDockWindowView window)
+    public void RegisterWindow(BrowserCellWindowView window)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         _windows.Add(window.Window.Id, window);
@@ -53,7 +53,7 @@ public sealed class BrowserDockWorkspaceView(DomElement floatingLayer) : IDispos
         }
     }
 
-    public void Apply(NotebookDockState state)
+    public void Apply(NotebookCellState state)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
@@ -82,11 +82,11 @@ public sealed class BrowserDockWorkspaceView(DomElement floatingLayer) : IDispos
         ApplyGroups(state);
     }
 
-    private static Dictionary<string, int> FindSurfaceChildren(NotebookDockState state)
+    private static Dictionary<string, int> FindSurfaceChildren(NotebookCellState state)
     {
         var surfaceChildren = new Dictionary<string, int>();
         foreach (var cellId in state.Windows.Values.Select(window => window.CellId).Distinct()) {
-            if (NotebookDockLayout.FindSurfacePlacement(state, cellId) is { } placement) {
+            if (NotebookCellLayout.FindSurfacePlacement(state, cellId) is { } placement) {
                 surfaceChildren[placement.Split.Id] = placement.SurfaceIndex;
             }
         }
@@ -130,7 +130,7 @@ public sealed class BrowserDockWorkspaceView(DomElement floatingLayer) : IDispos
         floatingLayer.Dispose();
     }
 
-    private void RebuildRegion(DockRegion region)
+    private void RebuildRegion(CellRegion region)
     {
         if (!_regions.TryGetValue(region.Id, out var root)) {
             return;
@@ -152,14 +152,14 @@ public sealed class BrowserDockWorkspaceView(DomElement floatingLayer) : IDispos
         root.Append(placeholder).Append(preview);
     }
 
-    private void RebuildFloatingHost(DockFloatingHost floating)
+    private void RebuildFloatingHost(CellFloatingHost floating)
     {
         RemoveFloatingHostElement(floating.Id);
 
         var containerId = FloatingContainerId(floating.Id);
         var root = DomElement.Create("div")
             .Class("floating-host")
-            .Attr("data-dock-floating", floating.Id)
+            .Attr("data-cell-floating", floating.Id)
             .Attr(
                 "style",
                 $"left:{floating.X.ToString(CultureInfo.InvariantCulture)}px;"
@@ -186,17 +186,16 @@ public sealed class BrowserDockWorkspaceView(DomElement floatingLayer) : IDispos
         }
     }
 
-    private void AppendNode(DomElement parent, DockNode node, string containerId)
+    private void AppendNode(DomElement parent, CellNode node, string containerId)
     {
-        if (node is DockTabGroup group) {
+        if (node is CellTabGroup group) {
             var root = DomElement.Create("div")
-                .Class("dock-group")
-                .Attr("data-dock-group", group.Id);
+                .Class("cell-group")
+                .Attr("data-cell-group", group.Id);
             var tabs = DomElement.Create("div")
-                .Class("cell-header")
-                .Class("dock-tabs")
+                .Class("cell-tabs")
                 .Attr("role", "tablist")
-                .Attr("aria-label", "Docked windows");
+                .Attr("aria-label", "Cell windows");
             var tabList = DomElement.Create("div").Class("tab-list");
             var content = DomElement.Create("div").Class("group-content");
             using (var preview = CreateDropPreview()) {
@@ -209,19 +208,19 @@ public sealed class BrowserDockWorkspaceView(DomElement floatingLayer) : IDispos
             return;
         }
 
-        var split = (DockSplit)node;
+        var split = (CellSplit)node;
         var splitRoot = DomElement.Create("div")
-            .Class("dock-split")
-            .Class(split.Axis == DockAxis.Horizontal
+            .Class("cell-split")
+            .Class(split.Axis == CellAxis.Horizontal
                 ? "horizontal"
                 : "vertical")
-            .Attr("data-dock-split", split.Id);
+            .Attr("data-cell-split", split.Id);
         var first = DomElement.Create("div").Class("split-child");
         var second = DomElement.Create("div").Class("split-child");
         var separator = DomElement.Create("div")
             .Class("separator")
             .Attr("role", "separator")
-            .Attr("aria-orientation", split.Axis == DockAxis.Horizontal
+            .Attr("aria-orientation", split.Axis == CellAxis.Horizontal
                 ? "vertical"
                 : "horizontal");
         AppendNode(first, split.First, containerId);
@@ -233,10 +232,10 @@ public sealed class BrowserDockWorkspaceView(DomElement floatingLayer) : IDispos
     }
 
     private void SyncSplitRatios(
-        NotebookDockState state,
+        NotebookCellState state,
         IReadOnlyDictionary<string, int> surfaceChildren)
     {
-        foreach (var split in NotebookDockLayout.EnumerateSplits(state)) {
+        foreach (var split in NotebookCellLayout.EnumerateSplits(state)) {
             if (!_splits.TryGetValue(split.Id, out var view)) {
                 continue;
             }
@@ -268,9 +267,9 @@ public sealed class BrowserDockWorkspaceView(DomElement floatingLayer) : IDispos
             "style",
             $"flex-grow:{share.ToString("0.###", CultureInfo.InvariantCulture)}");
 
-    private void ApplyGroups(NotebookDockState state)
+    private void ApplyGroups(NotebookCellState state)
     {
-        foreach (var group in NotebookDockLayout.EnumerateGroups(state)) {
+        foreach (var group in NotebookCellLayout.EnumerateGroups(state)) {
             if (!_groups.TryGetValue(group.Id, out var groupView)) {
                 continue;
             }
@@ -283,7 +282,7 @@ public sealed class BrowserDockWorkspaceView(DomElement floatingLayer) : IDispos
         }
     }
 
-    private static string BuildGroupSignature(DockTabGroup group)
+    private static string BuildGroupSignature(CellTabGroup group)
         => group.ActiveTabId + "|" + string.Join(',', group.TabIds);
 
     private void DetachGroup(GroupView groupView)
@@ -303,7 +302,7 @@ public sealed class BrowserDockWorkspaceView(DomElement floatingLayer) : IDispos
         groupView.Signature = null;
     }
 
-    private void MountGroup(NotebookDockState state, DockTabGroup group, GroupView groupView)
+    private void MountGroup(NotebookCellState state, CellTabGroup group, GroupView groupView)
     {
         foreach (var tabId in group.TabIds) {
             var tab = state.Tabs[tabId];
@@ -332,7 +331,7 @@ public sealed class BrowserDockWorkspaceView(DomElement floatingLayer) : IDispos
         groupView.Signature = BuildGroupSignature(group);
     }
 
-    private TabHeaderView EnsureTabHeader(DockTab tab, DockWindow window)
+    private TabHeaderView EnsureTabHeader(CellTab tab, CellWindow window)
     {
         if (_tabHeaders.TryGetValue(tab.Id, out var existing)) {
             return existing;
@@ -344,14 +343,14 @@ public sealed class BrowserDockWorkspaceView(DomElement floatingLayer) : IDispos
             .Attr("type", "button")
             .Attr("role", "tab")
             .Attr("aria-controls", window.Id)
-            .Attr("data-dock-tab", tab.Id)
-            .Attr("data-dock-label", window.Title)
+            .Attr("data-cell-tab", tab.Id)
+            .Attr("data-cell-label", window.Title)
             .Attr("title", window.Title)
             .On("click", $"activate-tab:{tab.Id}")
             .Text(window.Title);
         root.Append(header);
         DomElement? close = null;
-        if (window.Kind != DockWindowKind.Script) {
+        if (window.Kind != CellWindowKind.Script) {
             close = DomElement.Create("button")
                 .Class("close")
                 .Attr("type", "button")
@@ -399,7 +398,7 @@ public sealed class BrowserDockWorkspaceView(DomElement floatingLayer) : IDispos
             .Class("drop-preview")
             .Attr("aria-hidden", "true");
 
-    private static string BuildRegionShape(DockNode? root)
+    private static string BuildRegionShape(CellNode? root)
     {
         if (root is null) {
             return string.Empty;
@@ -409,7 +408,7 @@ public sealed class BrowserDockWorkspaceView(DomElement floatingLayer) : IDispos
         return builder.ToString();
     }
 
-    private static string BuildFloatingShape(DockFloatingHost floating)
+    private static string BuildFloatingShape(CellFloatingHost floating)
     {
         var builder = new StringBuilder();
         builder
@@ -421,14 +420,14 @@ public sealed class BrowserDockWorkspaceView(DomElement floatingLayer) : IDispos
         return builder.ToString();
     }
 
-    private static void AppendShape(StringBuilder builder, DockNode node)
+    private static void AppendShape(StringBuilder builder, CellNode node)
     {
-        if (node is DockTabGroup group) {
+        if (node is CellTabGroup group) {
             builder.Append("G(").Append(group.Id).Append(')');
             return;
         }
-        var split = (DockSplit)node;
-        builder.Append(split.Axis == DockAxis.Horizontal ? "H(" : "V(");
+        var split = (CellSplit)node;
+        builder.Append(split.Axis == CellAxis.Horizontal ? "H(" : "V(");
         AppendShape(builder, split.First);
         builder.Append('|');
         AppendShape(builder, split.Second);

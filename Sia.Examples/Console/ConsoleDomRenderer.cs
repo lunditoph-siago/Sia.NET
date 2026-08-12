@@ -141,9 +141,9 @@ internal sealed class ConsoleDomRenderer
             || node.HasClass("editor-status")) {
             return;
         }
-        if (node.HasClass("cell-header") || node.HasClass("cell-controls")) {
+        if (node.HasClass("cell-tabs") || node.HasClass("cell-controls")) {
             RenderInlineRow(lines, node, depth, focused);
-            if (node.HasClass("cell-header")) {
+            if (node.HasClass("cell-tabs")) {
                 foreach (var child in node.Children.Where(static c => c.HasClass("cell-controls"))) {
                     RenderNode(lines, child, depth, focused, cursor);
                 }
@@ -307,7 +307,7 @@ internal sealed class ConsoleDomRenderer
         if (node.HasClass("section")) {
             return "Section";
         }
-        if (node.HasClass("dock-region")) {
+        if (node.HasClass("cell")) {
             return "Cell";
         }
         return string.Empty;

@@ -1,6 +1,6 @@
 namespace Sia_Examples.Notebook;
 
-public enum DockDropPosition
+public enum CellDropPosition
 {
     Center,
     Left,

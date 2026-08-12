@@ -1,6 +1,6 @@
 namespace Sia_Examples.Notebook;
 
-public enum DockAxis
+public enum CellAxis
 {
     Horizontal,
     Vertical,

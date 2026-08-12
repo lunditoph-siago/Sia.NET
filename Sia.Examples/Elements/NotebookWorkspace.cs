@@ -40,11 +40,11 @@ public sealed class NotebookWorkspace : IAsyncDisposable
         _info = info;
         _version = version;
         _session = new(mainThread, document, references);
-        var dockState = NotebookDockState.Create(document);
-        _view = new(world, document, references, dockState);
+        var cellState = NotebookCellState.Create(document);
+        _view = new(world, document, references, cellState);
         _mount = world.Mount(
             NotebookViewComponent.Definition,
-            new(_view, _session.Snapshot, dockState));
+            new(_view, _session.Snapshot, cellState));
         _previousSnapshot = _session.Snapshot;
         _previousDocument = document;
         world.FlushReactive();
@@ -90,27 +90,27 @@ public sealed class NotebookWorkspace : IAsyncDisposable
     }
 
     public void ActivateTab(string tabId)
-        => UpdateDock(state => NotebookDockLayout.Activate(state, tabId));
+        => UpdateCell(state => NotebookCellLayout.Activate(state, tabId));
 
     public void OpenWindow(string windowId)
-        => UpdateDock(state => NotebookDockLayout.OpenWindow(state, windowId));
+        => UpdateCell(state => NotebookCellLayout.OpenWindow(state, windowId));
 
     public void CloseWindow(string windowId)
-        => UpdateDock(state => NotebookDockLayout.CloseWindow(state, windowId));
+        => UpdateCell(state => NotebookCellLayout.CloseWindow(state, windowId));
 
-    public void Dock(string arguments)
+    public void Cell(string arguments)
     {
         ThrowIfDisposed();
         var parts = arguments.Split(':');
         if (parts.Length != 4
-            || !Enum.TryParse<DockDropPosition>(
+            || !Enum.TryParse<CellDropPosition>(
                 parts[2],
                 ignoreCase: true,
                 out var position)
             || !int.TryParse(parts[3], out var targetIndex)) {
             return;
         }
-        UpdateDock(state => NotebookDockLayout.Dock(
+        UpdateCell(state => NotebookCellLayout.Cell(
             state,
             parts[0],
             parts[1],
@@ -127,7 +127,7 @@ public sealed class NotebookWorkspace : IAsyncDisposable
             || !int.TryParse(parts[2], out var pointerY)) {
             return;
         }
-        UpdateDock(state => NotebookDockLayout.Detach(
+        UpdateCell(state => NotebookCellLayout.Detach(
             state,
             parts[0],
             pointerX,
@@ -359,16 +359,16 @@ public sealed class NotebookWorkspace : IAsyncDisposable
         _ = RemoveWhenCompleteAsync(observed);
     }
 
-    private void UpdateDock(Func<NotebookDockState, NotebookDockState> update)
+    private void UpdateCell(Func<NotebookCellState, NotebookCellState> update)
     {
         ThrowIfDisposed();
-        var state = _mount.GetState<NotebookDockState>();
+        var state = _mount.GetState<NotebookCellState>();
         var next = update(state.Value);
         if (next == state.Value) {
             return;
         }
-        if (!NotebookDockLayout.IsValid(next)) {
-            throw new InvalidOperationException("The dock operation produced an invalid layout.");
+        if (!NotebookCellLayout.IsValid(next)) {
+            throw new InvalidOperationException("The cell operation produced an invalid layout.");
         }
         state.Set(next);
         _world.FlushReactive();
@@ -412,14 +412,14 @@ public sealed class NotebookWorkspace : IAsyncDisposable
     private void ReconcileDocument()
     {
         var document = _session.ToDocument();
-        var dock = _mount.GetState<NotebookDockState>();
-        var nextDock = NotebookDockLayout.ReconcileDocument(dock.Value, _previousDocument, document);
-        if (!NotebookDockLayout.IsValid(nextDock)) {
+        var layout = _mount.GetState<NotebookCellState>();
+        var nextLayout = NotebookCellLayout.ReconcileDocument(layout.Value, _previousDocument, document);
+        if (!NotebookCellLayout.IsValid(nextLayout)) {
             throw new InvalidOperationException(
-                "Document reconciliation produced an invalid dock layout.");
+                "Document reconciliation produced an invalid cell layout.");
         }
-        _view.ReconcileDocument(_previousDocument, document, dock.Value, nextDock);
-        dock.Set(nextDock);
+        _view.ReconcileDocument(_previousDocument, document, layout.Value, nextLayout);
+        layout.Set(nextLayout);
         _previousDocument = document;
     }
 
@@ -428,8 +428,8 @@ public sealed class NotebookWorkspace : IAsyncDisposable
         var previous = _previousSnapshot.Cells.ToDictionary(
             static cell => cell.Id,
             static cell => cell.State);
-        var dock = _mount.GetState<NotebookDockState>();
-        var next = dock.Value;
+        var layout = _mount.GetState<NotebookCellState>();
+        var next = layout.Value;
         foreach (var cell in snapshot.Cells) {
             var hasPrevious = previous.TryGetValue(cell.Id, out var old);
             var state = cell.State;
@@ -443,9 +443,9 @@ public sealed class NotebookWorkspace : IAsyncDisposable
                     || old.StandardOutput != state.StandardOutput
                     || old.StandardError != state.StandardError
                     || completedRun)) {
-                next = OpenCellWindow(next, cell.Id, DockWindowKind.Output);
+                next = OpenCellWindow(next, cell.Id, CellWindowKind.Output);
             } else if (!hasOutput && hadOutput) {
-                next = CloseCellWindow(next, cell.Id, DockWindowKind.Output);
+                next = CloseCellWindow(next, cell.Id, CellWindowKind.Output);
             }
 
             if (state.RenderRequested
@@ -453,36 +453,36 @@ public sealed class NotebookWorkspace : IAsyncDisposable
                     || !old.RenderRequested
                     || old.RenderOutput != state.RenderOutput
                     || completedRun)) {
-                next = OpenCellWindow(next, cell.Id, DockWindowKind.Render);
+                next = OpenCellWindow(next, cell.Id, CellWindowKind.Render);
             } else if (!state.RenderRequested && hasPrevious && old.RenderRequested) {
-                next = CloseCellWindow(next, cell.Id, DockWindowKind.Render);
+                next = CloseCellWindow(next, cell.Id, CellWindowKind.Render);
             }
         }
-        if (next != dock.Value) {
-            if (!NotebookDockLayout.IsValid(next)) {
+        if (next != layout.Value) {
+            if (!NotebookCellLayout.IsValid(next)) {
                 throw new InvalidOperationException(
-                    "Surface synchronization produced an invalid dock layout.");
+                    "Surface synchronization produced an invalid cell layout.");
             }
-            dock.Set(next);
+            layout.Set(next);
         }
     }
 
     private static bool HasOutput(CellState state)
         => state.StandardOutput.Length > 0 || state.StandardError.Length > 0;
 
-    private static NotebookDockState OpenCellWindow(
-        NotebookDockState state,
+    private static NotebookCellState OpenCellWindow(
+        NotebookCellState state,
         string cellId,
-        DockWindowKind kind)
-        => NotebookDockLayout.OpenWindow(
+        CellWindowKind kind)
+        => NotebookCellLayout.OpenWindow(
             state,
             state.GetWindow(cellId, kind).Id);
 
-    private static NotebookDockState CloseCellWindow(
-        NotebookDockState state,
+    private static NotebookCellState CloseCellWindow(
+        NotebookCellState state,
         string cellId,
-        DockWindowKind kind)
-        => NotebookDockLayout.CloseWindow(
+        CellWindowKind kind)
+        => NotebookCellLayout.CloseWindow(
             state,
             state.GetWindow(cellId, kind).Id);
 

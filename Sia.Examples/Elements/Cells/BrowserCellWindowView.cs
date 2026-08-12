@@ -2,10 +2,10 @@ using Sia_Examples.Dom;
 
 namespace Sia_Examples.Notebook;
 
-public sealed class BrowserDockWindowView : IDisposable
+public sealed class BrowserCellWindowView : IDisposable
 {
-    public BrowserDockWindowView(
-        DockWindow window,
+    public BrowserCellWindowView(
+        CellWindow window,
         DomElement content,
         DomElement? toolbar = null)
     {
@@ -18,7 +18,7 @@ public sealed class BrowserDockWindowView : IDisposable
         Toolbar = toolbar;
     }
 
-    public DockWindow Window { get; }
+    public CellWindow Window { get; }
 
     public DomElement Content { get; }
 

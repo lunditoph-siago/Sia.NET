@@ -1,28 +1,28 @@
 namespace Sia_Examples.Notebook;
 
-public static partial class NotebookDockLayout
+public static partial class NotebookCellLayout
 {
     private const int FloatingWidth = 520;
     private const int FloatingHeight = 360;
 
     private const double ExpandedScriptRatio = 0.72;
 
-    private static NotebookDockState ExpandSurface(
-        NotebookDockState state,
+    private static NotebookCellState ExpandSurface(
+        NotebookCellState state,
         string cellId)
         => SetSurfaceScriptShare(state, cellId, ExpandedScriptRatio);
 
-    private static NotebookDockState SetSurfaceScriptShare(
-        NotebookDockState state,
+    private static NotebookCellState SetSurfaceScriptShare(
+        NotebookCellState state,
         string cellId,
         double scriptShare)
     {
         var surfaceSplit = FindSurfaceSplit(state, cellId);
-        var script = FindGroupForCell(state, cellId, DockWindowKind.Script);
+        var script = FindGroupForCell(state, cellId, CellWindowKind.Script);
         if (surfaceSplit is null || script is null) {
             return state;
         }
-        var ratio = surfaceSplit.First is DockTabGroup first && first.Id == script.Id
+        var ratio = surfaceSplit.First is CellTabGroup first && first.Id == script.Id
             ? scriptShare
             : 1 - scriptShare;
         if (surfaceSplit.Ratio == ratio) {
@@ -33,15 +33,15 @@ public static partial class NotebookDockLayout
             root => UpdateSplitRatio(root, surfaceSplit.Id, ratio));
     }
 
-    private static DockNode UpdateSplitRatio(
-        DockNode node,
+    private static CellNode UpdateSplitRatio(
+        CellNode node,
         string splitId,
         double ratio)
     {
-        if (node is DockTabGroup) {
+        if (node is CellTabGroup) {
             return node;
         }
-        var split = (DockSplit)node;
+        var split = (CellSplit)node;
         if (split.Id == splitId) {
             return split with { Ratio = ratio };
         }
@@ -51,7 +51,7 @@ public static partial class NotebookDockLayout
         };
     }
 
-    public static NotebookDockState Activate(NotebookDockState state, string tabId)
+    public static NotebookCellState Activate(NotebookCellState state, string tabId)
     {
         if (!state.Tabs.ContainsKey(tabId)
             || FindGroupContaining(state, tabId) is null) {
@@ -64,8 +64,8 @@ public static partial class NotebookDockLayout
             group => group with { ActiveTabId = tabId });
     }
 
-    public static NotebookDockState OpenWindow(
-        NotebookDockState state,
+    public static NotebookCellState OpenWindow(
+        NotebookCellState state,
         string windowId)
     {
         if (!state.Windows.TryGetValue(windowId, out var window)) {
@@ -75,12 +75,12 @@ public static partial class NotebookDockLayout
         var tab = state.GetTabForWindow(windowId);
         if (FindGroupContaining(state, tab.Id) is not null) {
             var activated = Activate(state, tab.Id);
-            return window.Kind is DockWindowKind.Output or DockWindowKind.Render
+            return window.Kind is CellWindowKind.Output or CellWindowKind.Render
                 ? ExpandSurface(activated, window.CellId)
                 : activated;
         }
 
-        if (window.Kind is DockWindowKind.Output or DockWindowKind.Render) {
+        if (window.Kind is CellWindowKind.Output or CellWindowKind.Render) {
             var surface = FindSurfaceGroupForCell(state, window.CellId);
             if (surface is not null) {
                 var opened = UpdateGroup(
@@ -92,15 +92,15 @@ public static partial class NotebookDockLayout
                     });
                 return ExpandSurface(opened, window.CellId);
             }
-            var script = FindGroupForCell(state, window.CellId, DockWindowKind.Script);
+            var script = FindGroupForCell(state, window.CellId, CellWindowKind.Script);
             if (script is not null) {
-                var surfaceGroup = new DockTabGroup(
+                var surfaceGroup = new CellTabGroup(
                     $"group-{state.NextNodeId}",
                     [tab.Id],
                     tab.Id);
-                var split = new DockSplit(
+                var split = new CellSplit(
                     $"split-{state.NextNodeId + 1}",
-                    DockAxis.Vertical,
+                    CellAxis.Vertical,
                     ExpandedScriptRatio,
                     script,
                     surfaceGroup);
@@ -115,7 +115,7 @@ public static partial class NotebookDockLayout
             return state;
         }
 
-        var group = new DockTabGroup(
+        var group = new CellTabGroup(
             $"group-{state.NextNodeId}",
             [tab.Id],
             tab.Id);
@@ -127,21 +127,21 @@ public static partial class NotebookDockLayout
         };
     }
 
-    public static NotebookDockState CloseWindow(
-        NotebookDockState state,
+    public static NotebookCellState CloseWindow(
+        NotebookCellState state,
         string windowId)
     {
         if (!state.Windows.TryGetValue(windowId, out var window)
-            || window.Kind == DockWindowKind.Script) {
+            || window.Kind == CellWindowKind.Script) {
             return state;
         }
 
-        if (window.Kind == DockWindowKind.Output
+        if (window.Kind == CellWindowKind.Output
             && FindSurfaceSplit(state, window.CellId) is not null) {
             return SetSurfaceScriptShare(
                 state,
                 window.CellId,
-                NotebookDockState.CollapsedScriptRatio);
+                NotebookCellState.CollapsedScriptRatio);
         }
 
         var tab = state.GetTabForWindow(windowId);
@@ -149,11 +149,11 @@ public static partial class NotebookDockLayout
         return removed ? next : state;
     }
 
-    public static NotebookDockState Dock(
-        NotebookDockState state,
+    public static NotebookCellState Cell(
+        NotebookCellState state,
         string tabId,
         string targetId,
-        DockDropPosition position,
+        CellDropPosition position,
         int targetIndex = int.MaxValue)
     {
         if (!state.Tabs.ContainsKey(tabId)) {
@@ -163,10 +163,10 @@ public static partial class NotebookDockLayout
         var source = FindGroupContaining(state, tabId);
         var target = FindGroup(state, targetId);
         if (target is null) {
-            return DockToEmptyRegion(state, tabId, targetId);
+            return CellToEmptyRegion(state, tabId, targetId);
         }
 
-        if (source?.Id == target.Id && position == DockDropPosition.Center) {
+        if (source?.Id == target.Id && position == CellDropPosition.Center) {
             return Reorder(state, target, tabId, targetIndex);
         }
         if (source?.Id == target.Id && source.TabIds.Length == 1) {
@@ -184,7 +184,7 @@ public static partial class NotebookDockLayout
             return state;
         }
 
-        if (position == DockDropPosition.Center) {
+        if (position == CellDropPosition.Center) {
             if (source?.Id == target.Id && sourceIndex >= 0 && sourceIndex < targetIndex) {
                 targetIndex--;
             }
@@ -200,12 +200,12 @@ public static partial class NotebookDockLayout
 
         var groupId = $"group-{withoutSource.NextNodeId}";
         var splitId = $"split-{withoutSource.NextNodeId + 1}";
-        var movedGroup = new DockTabGroup(groupId, [tabId], tabId);
-        var before = position is DockDropPosition.Left or DockDropPosition.Top;
-        var axis = position is DockDropPosition.Left or DockDropPosition.Right
-            ? DockAxis.Horizontal
-            : DockAxis.Vertical;
-        var split = new DockSplit(
+        var movedGroup = new CellTabGroup(groupId, [tabId], tabId);
+        var before = position is CellDropPosition.Left or CellDropPosition.Top;
+        var axis = position is CellDropPosition.Left or CellDropPosition.Right
+            ? CellAxis.Horizontal
+            : CellAxis.Vertical;
+        var split = new CellSplit(
             splitId,
             axis,
             0.5,
@@ -216,8 +216,8 @@ public static partial class NotebookDockLayout
         };
     }
 
-    public static NotebookDockState Detach(
-        NotebookDockState state,
+    public static NotebookCellState Detach(
+        NotebookCellState state,
         string tabId,
         int pointerX,
         int pointerY)
@@ -230,8 +230,8 @@ public static partial class NotebookDockLayout
         var withoutSource = RemoveTab(state, tabId, out _);
         var groupId = $"group-{withoutSource.NextNodeId}";
         var floatingId = $"floating-{withoutSource.NextNodeId + 1}";
-        var group = new DockTabGroup(groupId, [tabId], tabId);
-        var floating = new DockFloatingHost(
+        var group = new CellTabGroup(groupId, [tabId], tabId);
+        var floating = new CellFloatingHost(
             floatingId,
             group,
             Math.Max(8, pointerX - 80),
@@ -244,8 +244,8 @@ public static partial class NotebookDockLayout
         };
     }
 
-    public static NotebookDockState ReconcileDocument(
-        NotebookDockState previous,
+    public static NotebookCellState ReconcileDocument(
+        NotebookCellState previous,
         NotebookDocument previousDocument,
         NotebookDocument nextDocument)
     {
@@ -281,14 +281,14 @@ public static partial class NotebookDockLayout
             .Select(static cell => cell.Id)
             .ToHashSet(StringComparer.Ordinal);
 
-    private static NotebookDockState AddCell(
-        NotebookDockState state,
+    private static NotebookCellState AddCell(
+        NotebookCellState state,
         string cellId,
         int cellIndex)
     {
         var windows = state.Windows.ToBuilder();
         var tabs = state.Tabs.ToBuilder();
-        var region = NotebookDockState.RegisterCell(windows, tabs, cellId, cellIndex, state.NextNodeId);
+        var region = NotebookCellState.RegisterCell(windows, tabs, cellId, cellIndex, state.NextNodeId);
 
         return state with {
             Windows = windows.ToImmutable(),
@@ -298,7 +298,7 @@ public static partial class NotebookDockLayout
         };
     }
 
-    private static NotebookDockState RemoveCell(NotebookDockState state, string cellId)
+    private static NotebookCellState RemoveCell(NotebookCellState state, string cellId)
     {
         foreach (var window in state.Windows.Values.Where(w => w.CellId == cellId).ToArray()) {
             var tab = state.GetTabForWindow(window.Id);

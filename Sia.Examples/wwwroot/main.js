@@ -69,7 +69,7 @@ document.addEventListener('click', event => {
       input.blur();
     }
   }
-  event.target.closest?.('.cell-menu-item')
+  event.target.closest?.('.menu-item')
     ?.closest('details')
     ?.removeAttribute('open');
 });
@@ -107,18 +107,18 @@ function emit(payload) {
   }
 }
 
-const dockDragThreshold = 6;
-let dockDrag = null;
-let dockPreview = null;
-let suppressDockClick = false;
+const cellDragThreshold = 6;
+let cellDrag = null;
+let cellPreview = null;
+let suppressCellClick = false;
 
-function dockTabsIn(list) {
+function cellTabsIn(list) {
   return [...list.querySelectorAll(
-    ':scope > .tab-entry > [data-dock-tab]')];
+    ':scope > .tab-entry > [data-cell-tab]')];
 }
 
-function dockInsertionIndex(list, pointerX) {
-  const tabs = dockTabsIn(list);
+function cellInsertionIndex(list, pointerX) {
+  const tabs = cellTabsIn(list);
   for (let index = 0; index < tabs.length; index++) {
     const rect = tabs[index].getBoundingClientRect();
     if (pointerX < rect.left + rect.width / 2) {
@@ -128,12 +128,12 @@ function dockInsertionIndex(list, pointerX) {
   return tabs.length;
 }
 
-function dockPositionIn(group, pointerX, pointerY) {
-  const tabs = group.querySelector(':scope > .dock-tabs');
+function cellPositionIn(group, pointerX, pointerY) {
+  const tabs = group.querySelector(':scope > .cell-tabs');
   const tabList = tabs?.querySelector(':scope > .tab-list');
   if (tabs && tabList && pointerY <= tabs.getBoundingClientRect().bottom) {
-    const index = dockInsertionIndex(tabList, pointerX);
-    const tabItems = dockTabsIn(tabList);
+    const index = cellInsertionIndex(tabList, pointerX);
+    const tabItems = cellTabsIn(tabList);
     const groupRect = group.getBoundingClientRect();
     const insertionX = index < tabItems.length
       ? tabItems[index].getBoundingClientRect().left - groupRect.left
@@ -162,21 +162,21 @@ function dockPositionIn(group, pointerX, pointerY) {
     : { position: 'center', index: 2147483647 };
 }
 
-function findDockTarget(pointerX, pointerY) {
+function findCellTarget(pointerX, pointerY) {
   for (const element of document.elementsFromPoint(pointerX, pointerY)) {
-    const group = element.closest?.('[data-dock-group]');
+    const group = element.closest?.('[data-cell-group]');
     if (group) {
-      const placement = dockPositionIn(group, pointerX, pointerY);
+      const placement = cellPositionIn(group, pointerX, pointerY);
       return {
-        id: group.dataset.dockGroup,
+        id: group.dataset.cellGroup,
         preview: group.querySelector(':scope > .drop-preview'),
         ...placement,
       };
     }
-    const region = element.closest?.('.is-empty[data-dock-region]');
+    const region = element.closest?.('.is-empty[data-cell-region]');
     if (region) {
       return {
-        id: region.dataset.dockRegion,
+        id: region.dataset.cellRegion,
         position: 'center',
         index: 2147483647,
         preview: region.querySelector(':scope > .drop-preview'),
@@ -186,11 +186,11 @@ function findDockTarget(pointerX, pointerY) {
   return null;
 }
 
-function clearDockPreview() {
-  if (!dockPreview) {
+function clearCellPreview() {
+  if (!cellPreview) {
     return;
   }
-  dockPreview.classList.remove(
+  cellPreview.classList.remove(
     'visible',
     'center',
     'left',
@@ -198,76 +198,76 @@ function clearDockPreview() {
     'top',
     'bottom',
     'tab-insert');
-  dockPreview.style.removeProperty('--dock-insertion-x');
-  dockPreview = null;
+  cellPreview.style.removeProperty('--cell-insertion-x');
+  cellPreview = null;
 }
 
-function showDockPreview(target) {
-  if (dockPreview !== target?.preview) {
-    clearDockPreview();
+function showCellPreview(target) {
+  if (cellPreview !== target?.preview) {
+    clearCellPreview();
   }
   if (!target?.preview) {
     return;
   }
-  dockPreview = target.preview;
-  dockPreview.classList.remove(
+  cellPreview = target.preview;
+  cellPreview.classList.remove(
     'center',
     'left',
     'right',
     'top',
     'bottom',
     'tab-insert');
-  dockPreview.style.removeProperty('--dock-insertion-x');
+  cellPreview.style.removeProperty('--cell-insertion-x');
   if (target.insertionX !== undefined) {
-    dockPreview.style.setProperty('--dock-insertion-x', `${target.insertionX}px`);
-    dockPreview.classList.add('visible', 'tab-insert');
+    cellPreview.style.setProperty('--cell-insertion-x', `${target.insertionX}px`);
+    cellPreview.classList.add('visible', 'tab-insert');
     return;
   }
-  dockPreview.classList.add('visible', target.position);
+  cellPreview.classList.add('visible', target.position);
 }
 
-function beginDockDrag(event) {
-  dockDrag.started = true;
-  dockDrag.source.classList.add('dragging');
+function beginCellDrag(event) {
+  cellDrag.started = true;
+  cellDrag.source.classList.add('dragging');
   document.body.classList.add('drag-active');
   const ghost = document.createElement('div');
   ghost.className = 'drag-ghost';
-  ghost.textContent = dockDrag.source.dataset.dockLabel || dockDrag.source.textContent;
+  ghost.textContent = cellDrag.source.dataset.cellLabel || cellDrag.source.textContent;
   document.body.append(ghost);
-  dockDrag.ghost = ghost;
-  moveDockGhost(event.clientX, event.clientY);
+  cellDrag.ghost = ghost;
+  moveCellGhost(event.clientX, event.clientY);
 }
 
-function moveDockGhost(pointerX, pointerY) {
-  if (!dockDrag?.ghost) {
+function moveCellGhost(pointerX, pointerY) {
+  if (!cellDrag?.ghost) {
     return;
   }
-  dockDrag.ghost.style.transform = `translate3d(${pointerX + 12}px, ${pointerY + 12}px, 0)`;
+  cellDrag.ghost.style.transform = `translate3d(${pointerX + 12}px, ${pointerY + 12}px, 0)`;
 }
 
-function finishDockDrag() {
-  clearDockPreview();
-  if (!dockDrag) {
+function finishCellDrag() {
+  clearCellPreview();
+  if (!cellDrag) {
     return;
   }
-  dockDrag.source.classList.remove('dragging');
-  dockDrag.ghost?.remove();
+  cellDrag.source.classList.remove('dragging');
+  cellDrag.ghost?.remove();
   document.body.classList.remove('drag-active');
   try {
-    dockDrag.source.releasePointerCapture(dockDrag.pointerId);
+    cellDrag.source.releasePointerCapture(cellDrag.pointerId);
   } catch {
   }
-  dockDrag = null;
+  cellDrag = null;
 }
 
 document.addEventListener('pointerdown', event => {
-  const source = event.target.closest?.('[data-dock-tab]');
+  const source = event.target.closest?.('[data-cell-tab]');
   if (!source || (event.pointerType === 'mouse' && event.button !== 0)) {
     return;
   }
-  dockDrag = {
+  cellDrag = {
     source,
-    tabId: source.dataset.dockTab,
+    tabId: source.dataset.cellTab,
     pointerId: event.pointerId,
     startX: event.clientX,
     startY: event.clientY,
@@ -278,71 +278,71 @@ document.addEventListener('pointerdown', event => {
 });
 
 document.addEventListener('pointermove', event => {
-  if (!dockDrag || event.pointerId !== dockDrag.pointerId) {
+  if (!cellDrag || event.pointerId !== cellDrag.pointerId) {
     return;
   }
-  if (!dockDrag.started) {
+  if (!cellDrag.started) {
     const distance = Math.hypot(
-      event.clientX - dockDrag.startX,
-      event.clientY - dockDrag.startY);
-    if (distance < dockDragThreshold) {
+      event.clientX - cellDrag.startX,
+      event.clientY - cellDrag.startY);
+    if (distance < cellDragThreshold) {
       return;
     }
-    beginDockDrag(event);
+    beginCellDrag(event);
   }
   event.preventDefault();
-  moveDockGhost(event.clientX, event.clientY);
-  showDockPreview(findDockTarget(event.clientX, event.clientY));
+  moveCellGhost(event.clientX, event.clientY);
+  showCellPreview(findCellTarget(event.clientX, event.clientY));
 }, { passive: false });
 
 document.addEventListener('pointerup', event => {
-  if (!dockDrag || event.pointerId !== dockDrag.pointerId) {
+  if (!cellDrag || event.pointerId !== cellDrag.pointerId) {
     return;
   }
-  const { started, tabId } = dockDrag;
+  const { started, tabId } = cellDrag;
   if (!started) {
-    finishDockDrag();
+    finishCellDrag();
     return;
   }
 
   event.preventDefault();
-  const target = findDockTarget(event.clientX, event.clientY);
-  suppressDockClick = true;
-  finishDockDrag();
+  const target = findCellTarget(event.clientX, event.clientY);
+  suppressCellClick = true;
+  finishCellDrag();
   if (target) {
-    emit(`dock:${tabId}:${target.id}:${target.position}:${target.index}`);
+    emit(`cell:${tabId}:${target.id}:${target.position}:${target.index}`);
   } else {
-    emit(`dock-detach:${tabId}:${Math.round(event.clientX)}:${Math.round(event.clientY)}`);
+    emit(`cell-detach:${tabId}:${Math.round(event.clientX)}:${Math.round(event.clientY)}`);
   }
-  setTimeout(() => { suppressDockClick = false; }, 0);
+  setTimeout(() => { suppressCellClick = false; }, 0);
 });
 
 document.addEventListener('pointercancel', event => {
-  if (dockDrag?.pointerId === event.pointerId) {
-    finishDockDrag();
+  if (cellDrag?.pointerId === event.pointerId) {
+    finishCellDrag();
   }
 });
 
 document.addEventListener('click', event => {
-  if (suppressDockClick && event.target.closest?.('[data-dock-tab]')) {
+  if (suppressCellClick && event.target.closest?.('[data-cell-tab]')) {
     event.preventDefault();
     event.stopImmediatePropagation();
   }
 }, true);
 
 document.addEventListener('keydown', event => {
-  if (event.key === 'Escape' && dockDrag?.started) {
+  if (event.key === 'Escape' && cellDrag?.started) {
     event.preventDefault();
-    finishDockDrag();
+    finishCellDrag();
     return;
   }
-  const current = event.target.closest?.('[data-dock-tab]');
+  const current = event.target.closest?.('[data-cell-tab]');
   const list = current?.closest?.('.tab-list');
   if (!current || !list
       || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
     return;
   }
-  const tabs = dockTabsIn(list);
+  const tabs = cellTabsIn(list);
   const currentIndex = tabs.indexOf(current);
   const targetIndex = event.key === 'Home'
     ? 0

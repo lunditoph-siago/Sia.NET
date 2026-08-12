@@ -2,17 +2,17 @@ using System.Collections.Immutable;
 
 namespace Sia_Examples.Notebook;
 
-public static partial class NotebookDockLayout
+public static partial class NotebookCellLayout
 {
-    public static DockTabGroup? FindGroupContaining(
-        NotebookDockState state,
+    public static CellTabGroup? FindGroupContaining(
+        NotebookCellState state,
         string tabId)
         => EnumerateGroups(state).FirstOrDefault(group => group.TabIds.Contains(tabId));
 
-    public static DockTabGroup? FindGroup(NotebookDockState state, string groupId)
+    public static CellTabGroup? FindGroup(NotebookCellState state, string groupId)
         => EnumerateGroups(state).FirstOrDefault(group => group.Id == groupId);
 
-    public static IEnumerable<DockTabGroup> EnumerateGroups(NotebookDockState state)
+    public static IEnumerable<CellTabGroup> EnumerateGroups(NotebookCellState state)
     {
         foreach (var region in state.Regions) {
             if (region.Root is not null) {
@@ -28,7 +28,7 @@ public static partial class NotebookDockLayout
         }
     }
 
-    public static IEnumerable<DockSplit> EnumerateSplits(NotebookDockState state)
+    public static IEnumerable<CellSplit> EnumerateSplits(NotebookCellState state)
     {
         foreach (var region in state.Regions) {
             if (region.Root is not null) {
@@ -44,21 +44,21 @@ public static partial class NotebookDockLayout
         }
     }
 
-    public static DockSplit? FindSurfaceSplit(NotebookDockState state, string cellId)
+    public static CellSplit? FindSurfaceSplit(NotebookCellState state, string cellId)
     {
-        var script = FindGroupForCell(state, cellId, DockWindowKind.Script);
+        var script = FindGroupForCell(state, cellId, CellWindowKind.Script);
         var surface = FindSurfaceGroupForCell(state, cellId);
         if (script is null || surface is null || script.Id == surface.Id) {
             return null;
         }
         return EnumerateSplits(state).FirstOrDefault(split =>
-            split.First is DockTabGroup first && split.Second is DockTabGroup second
+            split.First is CellTabGroup first && split.Second is CellTabGroup second
                 && ((first.Id == script.Id && second.Id == surface.Id)
                     || (first.Id == surface.Id && second.Id == script.Id)));
     }
 
-    public static (DockSplit Split, int SurfaceIndex)? FindSurfacePlacement(
-        NotebookDockState state,
+    public static (CellSplit Split, int SurfaceIndex)? FindSurfacePlacement(
+        NotebookCellState state,
         string cellId)
     {
         var split = FindSurfaceSplit(state, cellId);
@@ -66,13 +66,13 @@ public static partial class NotebookDockLayout
         if (split is null || surface is null) {
             return null;
         }
-        var surfaceIndex = split.Second is DockTabGroup second && second.Id == surface.Id
+        var surfaceIndex = split.Second is CellTabGroup second && second.Id == surface.Id
             ? 1
             : 0;
         return (split, surfaceIndex);
     }
 
-    public static bool IsValid(NotebookDockState state)
+    public static bool IsValid(NotebookCellState state)
     {
         var nodeIds = new HashSet<string>(StringComparer.Ordinal);
         var placedTabs = new HashSet<string>(StringComparer.Ordinal);
@@ -98,10 +98,10 @@ public static partial class NotebookDockLayout
                 && state.Windows.ContainsKey(pair.Value.WindowId));
     }
 
-    private static DockTabGroup? FindGroupForCell(
-        NotebookDockState state,
+    private static CellTabGroup? FindGroupForCell(
+        NotebookCellState state,
         string cellId,
-        DockWindowKind kind)
+        CellWindowKind kind)
     {
         foreach (var group in EnumerateGroups(state)) {
             foreach (var tabId in group.TabIds) {
@@ -114,19 +114,19 @@ public static partial class NotebookDockLayout
         return null;
     }
 
-    private static DockTabGroup? FindSurfaceGroupForCell(
-        NotebookDockState state,
+    private static CellTabGroup? FindSurfaceGroupForCell(
+        NotebookCellState state,
         string cellId)
-        => FindGroupForCell(state, cellId, DockWindowKind.Output)
-            ?? FindGroupForCell(state, cellId, DockWindowKind.Render);
+        => FindGroupForCell(state, cellId, CellWindowKind.Output)
+            ?? FindGroupForCell(state, cellId, CellWindowKind.Render);
 
-    private static IEnumerable<DockTabGroup> EnumerateGroups(DockNode node)
+    private static IEnumerable<CellTabGroup> EnumerateGroups(CellNode node)
     {
-        if (node is DockTabGroup group) {
+        if (node is CellTabGroup group) {
             yield return group;
             yield break;
         }
-        var split = (DockSplit)node;
+        var split = (CellSplit)node;
         foreach (var childGroup in EnumerateGroups(split.First)) {
             yield return childGroup;
         }
@@ -135,12 +135,12 @@ public static partial class NotebookDockLayout
         }
     }
 
-    private static IEnumerable<DockSplit> EnumerateSplits(DockNode node)
+    private static IEnumerable<CellSplit> EnumerateSplits(CellNode node)
     {
-        if (node is DockTabGroup) {
+        if (node is CellTabGroup) {
             yield break;
         }
-        var split = (DockSplit)node;
+        var split = (CellSplit)node;
         yield return split;
         foreach (var nested in EnumerateSplits(split.First)) {
             yield return nested;
@@ -151,7 +151,7 @@ public static partial class NotebookDockLayout
     }
 
     private static int FindRegionIndex(
-        ImmutableArray<DockRegion> regions,
+        ImmutableArray<CellRegion> regions,
         string regionId)
     {
         for (var index = 0; index < regions.Length; index++) {
@@ -162,22 +162,22 @@ public static partial class NotebookDockLayout
         return -1;
     }
 
-    private static bool Contains(DockNode node, string tabId)
-        => node is DockTabGroup group
+    private static bool Contains(CellNode node, string tabId)
+        => node is CellTabGroup group
             ? group.TabIds.Contains(tabId)
-            : Contains(((DockSplit)node).First, tabId)
-                || Contains(((DockSplit)node).Second, tabId);
+            : Contains(((CellSplit)node).First, tabId)
+                || Contains(((CellSplit)node).Second, tabId);
 
     private static bool ValidateNode(
-        DockNode node,
-        NotebookDockState state,
+        CellNode node,
+        NotebookCellState state,
         ISet<string> nodeIds,
         ISet<string> placedTabs)
     {
         if (!nodeIds.Add(node.Id)) {
             return false;
         }
-        if (node is DockTabGroup group) {
+        if (node is CellTabGroup group) {
             if (group.TabIds.IsDefaultOrEmpty
                 || !group.TabIds.Contains(group.ActiveTabId)) {
                 return false;
@@ -190,7 +190,7 @@ public static partial class NotebookDockLayout
             return true;
         }
 
-        var split = (DockSplit)node;
+        var split = (CellSplit)node;
         return split.Ratio is >= 0 and <= 1
             && ValidateNode(split.First, state, nodeIds, placedTabs)
             && ValidateNode(split.Second, state, nodeIds, placedTabs);

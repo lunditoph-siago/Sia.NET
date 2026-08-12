@@ -21,9 +21,9 @@ public sealed class BrowserCellView : IDisposable
     public BrowserCellView(
         CodeCellBlock cell,
         BrowserEditorRegistry editors,
-        DockWindow scriptWindow,
-        DockWindow outputWindow,
-        DockWindow renderWindow)
+        CellWindow scriptWindow,
+        CellWindow outputWindow,
+        CellWindow renderWindow)
     {
         _cell = cell;
         _editors = editors;
@@ -44,13 +44,13 @@ public sealed class BrowserCellView : IDisposable
                 _editActions.Append(discard);
             }
             _runStop = CreateIconButton("▶", "Run cell", $"toggle-run:{cell.Id}");
-            using var more = DomElement.Create("details").Class("cell-more");
+            using var more = DomElement.Create("details").Class("menu-toggle");
             using var summary = DomElement.Create("summary")
                 .Class("icon-btn")
                 .Attr("aria-label", "More cell actions")
                 .Attr("title", "More cell actions")
                 .Text("⋯");
-            using var menu = DomElement.Create("div").Class("cell-more-menu");
+            using var menu = DomElement.Create("div").Class("menu-popover");
             AppendMenuButton(menu, "⌁", "Compile", $"compile:{cell.Id}");
             AppendMenuButton(menu, "›_", "Open console", $"open-window:{outputWindow.Id}");
             AppendMenuButton(menu, "◇", "Open render", $"open-window:{renderWindow.Id}");
@@ -88,11 +88,11 @@ public sealed class BrowserCellView : IDisposable
         Render = new(renderWindow, _render);
     }
 
-    public BrowserDockWindowView Script { get; }
+    public BrowserCellWindowView Script { get; }
 
-    public BrowserDockWindowView Output { get; }
+    public BrowserCellWindowView Output { get; }
 
-    public BrowserDockWindowView Render { get; }
+    public BrowserCellWindowView Render { get; }
 
     public void BeginEditing()
     {
@@ -260,11 +260,11 @@ public sealed class BrowserCellView : IDisposable
         string payload)
     {
         using var button = DomElement.Create("button")
-            .Class("cell-menu-item")
+            .Class("menu-item")
             .Attr("type", "button")
             .On("click", payload);
         using var glyph = DomElement.Create("span")
-            .Class("cell-menu-icon")
+            .Class("menu-icon")
             .Attr("aria-hidden", "true")
             .Text(icon);
         using var text = DomElement.Create("span").Text(label);

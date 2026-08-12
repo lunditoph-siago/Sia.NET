@@ -238,11 +238,11 @@ internal static class DomApplication
                             workspace.CloseWindow(argument);
                             break;
 
-                        case "dock" when workspace is not null:
-                            workspace.Dock(argument);
+                        case "cell" when workspace is not null:
+                            workspace.Cell(argument);
                             break;
 
-                        case "dock-detach" when workspace is not null:
+                        case "cell-detach" when workspace is not null:
                             workspace.Detach(argument);
                             break;
 

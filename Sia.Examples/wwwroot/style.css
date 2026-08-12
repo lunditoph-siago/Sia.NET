@@ -81,7 +81,7 @@ body {
     color: var(--color-fg);
 }
 
-/* Shared icon button (dock toolbars, notebook actions, header). */
+/* Shared icon button (cell toolbars, notebook actions, header). */
 
 .icon-btn {
     display: inline-grid;
@@ -127,9 +127,9 @@ body {
     &:hover { background: rgba(127, 127, 127, 0.15); }
 }
 
-/* Shared "more actions" menu (section headings and dock toolbars). */
+/* Shared "more actions" menu (section headings and cell toolbars). */
 
-.cell-more {
+.menu-toggle {
     position: relative;
     flex: 0 0 auto;
 
@@ -140,7 +140,7 @@ body {
     }
 }
 
-.cell-more-menu {
+.menu-popover {
     position: absolute;
     z-index: 50;
     top: calc(100% + 0.25rem);
@@ -154,7 +154,7 @@ body {
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
 }
 
-.cell-menu-item {
+.menu-item {
     display: grid;
     grid-template-columns: 1.5rem 1fr;
     align-items: center;
@@ -175,7 +175,7 @@ body {
     }
 }
 
-.cell-menu-icon {
+.menu-icon {
     text-align: center;
     opacity: 0.75;
 }
