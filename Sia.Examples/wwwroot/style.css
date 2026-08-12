@@ -152,17 +152,21 @@ body {
     min-width: 0;
     min-height: 3rem;
     isolation: isolate;
-}
 
-.dock-region-empty {
-    display: grid;
-    min-height: 6rem;
-    place-items: center;
-}
+    &.is-empty {
+        display: grid;
+        min-height: 6rem;
+        place-items: center;
+    }
 
-.dock-empty {
-    padding: 1rem;
-    opacity: 0.5;
+    > .vertical {
+        height: clamp(320px, 62vh, 620px);
+    }
+
+    .empty {
+        padding: 1rem;
+        opacity: 0.5;
+    }
 }
 
 .dock-group {
@@ -173,138 +177,172 @@ body {
     flex: 1 1 0;
     flex-direction: column;
     container-type: inline-size;
-}
 
-.dock-tabs {
-    flex-wrap: nowrap !important;
-    min-width: 0;
-}
+    .dock-tabs {
+        flex-wrap: nowrap !important;
+        min-width: 0;
 
-.dock-tab-list {
-    display: flex;
-    min-width: 0;
-    flex: 1 1 12rem;
-    align-self: stretch;
-    overflow-x: auto;
-    scrollbar-width: thin;
-}
+        .tab-list {
+            display: flex;
+            min-width: 0;
+            flex: 1 1 12rem;
+            align-self: stretch;
+            overflow-x: auto;
+            scrollbar-width: thin;
 
-.dock-tab-entry {
-    display: flex;
-    min-width: 0;
-    flex: 0 0 auto;
-    align-items: stretch;
-}
+            .tab-entry {
+                display: flex;
+                min-width: 0;
+                flex: 0 0 auto;
+                align-items: stretch;
 
-.dock-tab-entry .dock-tab {
-    min-width: 0;
-}
+                .tab {
+                    min-width: 0;
+                    flex: 0 0 auto;
+                    max-width: 18rem;
+                    overflow: hidden;
+                    padding: 0.2rem 0.55rem;
+                    border: 0;
+                    border-bottom: 2px solid transparent;
+                    background: transparent;
+                    color: inherit;
+                    font: inherit;
+                    font-weight: 500;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                    cursor: grab;
+                    opacity: 0.65;
+                    touch-action: none;
 
-.dock-tab-close {
-    width: 1.5rem;
-    border: 0;
-    border-bottom: 2px solid transparent;
-    background: transparent;
-    color: inherit;
-    font: inherit;
-    cursor: pointer;
-    opacity: 0;
-}
+                    &:hover, &:focus-visible {
+                        background: rgba(127, 127, 127, 0.15);
+                        opacity: 1;
+                    }
 
-.dock-tab-entry:hover .dock-tab-close,
-.dock-tab-entry.active .dock-tab-close,
-.dock-tab-close:focus-visible {
-    opacity: 0.65;
-}
+                    &:focus-visible {
+                        outline: 1px solid var(--color-accent);
+                        outline-offset: -1px;
+                    }
 
-.dock-tab-close:hover,
-.dock-tab-close:focus-visible {
-    background: rgba(127, 127, 127, 0.15);
-    opacity: 1;
-}
+                    &.active {
+                        border-bottom-color: var(--color-accent);
+                        opacity: 1;
+                    }
 
-.dock-tab {
-    flex: 0 0 auto;
-    max-width: 18rem;
-    overflow: hidden;
-    padding: 0.2rem 0.55rem;
-    border: 0;
-    border-bottom: 2px solid transparent;
-    background: transparent;
-    color: inherit;
-    font: inherit;
-    font-weight: 500;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    cursor: grab;
-    opacity: 0.65;
-    touch-action: none;
-}
+                    &.dragging { opacity: 0.35 !important; }
 
-.dock-tab:hover,
-.dock-tab:focus-visible {
-    background: rgba(127, 127, 127, 0.15);
-    opacity: 1;
-}
+                    @media (max-width: 720px) {
+                        max-width: 12rem;
+                    }
+                }
 
-.dock-tab:focus-visible {
-    outline: 1px solid var(--color-accent);
-    outline-offset: -1px;
-}
+                .close {
+                    width: 1.5rem;
+                    border: 0;
+                    border-bottom: 2px solid transparent;
+                    background: transparent;
+                    color: inherit;
+                    font: inherit;
+                    cursor: pointer;
+                    opacity: 0;
 
-.dock-tab.active {
-    border-bottom-color: var(--color-accent);
-    opacity: 1;
-}
+                    &:hover, &:focus-visible {
+                        background: rgba(127, 127, 127, 0.15);
+                        opacity: 1;
+                    }
+                }
 
-.dock-tab-drag-source {
-    opacity: 0.35 !important;
-}
+                &:hover .close,
+                &.active .close,
+                .close:focus-visible {
+                    opacity: 0.65;
+                }
+            }
+        }
 
-.dock-window-toolbar {
-    display: contents;
-}
+        .toolbar {
+            display: contents;
 
-.dock-tabs .phase,
-.dock-tabs .cell-controls {
-    flex: 0 0 auto;
-}
+            .phase, .cell-controls { flex: 0 0 auto; }
 
-.dock-group-content,
-.dock-window {
-    min-width: 0;
-    min-height: 0;
-    height: 100%;
-}
+            @container (max-width: 34rem) {
+                .phase { margin-left: 0.35rem; order: 1; }
 
-.dock-group-content {
-    flex: 1 1 auto;
-}
+                .cell-controls {
+                    width: 100%;
+                    margin-left: 0 !important;
+                    padding: 0.15rem 0.35rem 0;
+                    order: 2;
+                    overflow-x: auto;
+                }
+            }
 
-.dock-window-output {
-    min-height: 8rem;
-    max-height: min(50vh, 28rem);
-    overflow-y: auto;
-    background: rgba(127, 127, 127, 0.06);
-}
+            @media (max-width: 720px) {
+                .phase { margin-left: 0.35rem; order: 1; }
 
-.dock-window-render {
-    display: grid;
-    min-height: 12rem;
-    place-items: center;
-    background: rgba(127, 127, 127, 0.06);
-    color: var(--color-subtle);
-    font-family: var(--font-mono);
-}
+                .cell-controls {
+                    width: 100%;
+                    margin-left: 0 !important;
+                    padding: 0.15rem 0.35rem 0;
+                    order: 2;
+                    overflow-x: auto;
+                }
+            }
+        }
 
-.dock-window-script.is-editing .editor-container {
-    outline: 1px solid var(--color-muted);
-    outline-offset: -1px;
-}
+        @container (max-width: 34rem) {
+            flex-wrap: wrap !important;
 
-.dock-window-script.is-dirty .editor-container {
-    outline-color: var(--color-accent);
-    box-shadow: inset 0 0 0 1px var(--color-accent);
+            .tab-list { flex: 1 0 100%; order: 0; }
+        }
+
+        @media (max-width: 720px) {
+            flex-wrap: wrap !important;
+
+            .tab-list { flex: 1 0 100%; order: 0; }
+        }
+    }
+
+    .group-content {
+        min-width: 0;
+        min-height: 0;
+        height: 100%;
+        flex: 1 1 auto;
+
+        .window {
+            min-width: 0;
+            min-height: 0;
+            height: 100%;
+
+            &.output-window {
+                min-height: 8rem;
+                max-height: min(50vh, 28rem);
+                overflow-y: auto;
+                background: rgba(127, 127, 127, 0.06);
+            }
+
+            &.render-window {
+                display: grid;
+                min-height: 12rem;
+                place-items: center;
+                background: rgba(127, 127, 127, 0.06);
+                color: var(--color-subtle);
+                font-family: var(--font-mono);
+            }
+
+            &.script-window {
+                &.is-editing .editor-container {
+                    outline: 1px solid var(--color-muted);
+                    outline-offset: -1px;
+                }
+
+                &.is-dirty .editor-container {
+                    outline-color: var(--color-accent);
+                    box-shadow: inset 0 0 0 1px var(--color-accent);
+                }
+            }
+        }
+    }
 }
 
 .dock-split {
@@ -313,105 +351,100 @@ body {
     height: 100%;
     min-width: 0;
     min-height: 0;
+
+    &.horizontal {
+        flex-direction: row;
+
+        > .separator {
+            width: 1px;
+
+            @media (max-width: 720px) {
+                width: auto;
+                height: 1px;
+            }
+        }
+    }
+
+    &.vertical {
+        flex-direction: column;
+
+        > .separator { height: 1px; }
+    }
+
+    > .separator {
+        flex: 0 0 1px;
+        background: rgba(127, 127, 127, 0.3);
+    }
+
+    .split-child {
+        display: flex;
+        width: 100%;
+        min-width: 0;
+        min-height: 0;
+        flex-grow: var(--dock-ratio, 1);
+        flex-shrink: 1;
+        flex-basis: 0;
+
+        &:last-child { flex-grow: calc(1 - var(--dock-ratio, 0.5)); }
+
+        .output-window { min-height: 0; max-height: none; }
+
+        @media (max-width: 720px) {
+            display: block;
+            width: 100%;
+            flex: 0 0 auto;
+
+            > .dock-group {
+                display: block;
+                width: 100%;
+                flex: 0 0 auto;
+            }
+        }
+    }
+
+    @media (max-width: 720px) {
+        flex-direction: column !important;
+    }
 }
 
-.dock-split-horizontal {
-    flex-direction: row;
-}
-
-.dock-split-vertical {
-    flex-direction: column;
-}
-
-/* A region's top-level split is the only one given an actual height budget — code and its
-   output/render share this one clamp via --dock-ratio below, instead of each independently
-   claiming up to their own max and together overflowing a screen. Splits nested further in
-   (from manual re-docking) just inherit their share via height: 100% above. */
-.dock-region > .dock-split-vertical {
-    height: clamp(320px, 62vh, 620px);
-}
-
-.dock-split-child {
-    display: flex;
-    width: 100%;
-    min-width: 0;
-    min-height: 0;
-    flex-grow: var(--dock-ratio, 1);
-    flex-shrink: 1;
-    flex-basis: 0;
-
-    &:last-child { flex-grow: calc(1 - var(--dock-ratio, 0.5)); }
-
-    .dock-window-output { min-height: 0; max-height: none; }
-}
-
-.dock-floating-host .dock-split-vertical > .dock-split-child {
-    overflow: auto;
-}
-
-.dock-separator {
-    flex: 0 0 1px;
-    background: rgba(127, 127, 127, 0.3);
-}
-
-.dock-split-horizontal > .dock-separator {
-    width: 1px;
-}
-
-.dock-split-vertical > .dock-separator {
-    height: 1px;
-}
-
-.dock-drop-preview {
+.drop-preview {
     position: absolute;
     z-index: 30;
     display: none;
     border: 1px solid var(--color-accent);
     background: color-mix(in srgb, var(--color-accent) 15%, transparent);
     pointer-events: none;
+
+    &.visible { display: block; }
+
+    &.center { inset: 0.4rem; }
+
+    &.left { inset: 0.4rem 50% 0.4rem 0.4rem; }
+
+    &.right { inset: 0.4rem 0.4rem 0.4rem 50%; }
+
+    &.top { inset: 0.4rem 0.4rem 50%; }
+
+    &.bottom { inset: 50% 0.4rem 0.4rem; }
+
+    &.tab-insert {
+        top: 0.25rem;
+        bottom: auto;
+        left: var(--dock-insertion-x);
+        width: 2px;
+        height: 1.8rem;
+        border: 0;
+        background: var(--color-accent);
+    }
 }
 
-.dock-drop-preview.visible {
-    display: block;
-}
-
-.dock-drop-preview.dock-drop-center {
-    inset: 0.4rem;
-}
-
-.dock-drop-preview.dock-drop-left {
-    inset: 0.4rem 50% 0.4rem 0.4rem;
-}
-
-.dock-drop-preview.dock-drop-right {
-    inset: 0.4rem 0.4rem 0.4rem 50%;
-}
-
-.dock-drop-preview.dock-drop-top {
-    inset: 0.4rem 0.4rem 50%;
-}
-
-.dock-drop-preview.dock-drop-bottom {
-    inset: 50% 0.4rem 0.4rem;
-}
-
-.dock-drop-preview.dock-drop-tabs {
-    top: 0.25rem;
-    bottom: auto;
-    left: var(--dock-insertion-x);
-    width: 2px;
-    height: 1.8rem;
-    border: 0;
-    background: var(--color-accent);
-}
-
-.dock-drag-active,
-.dock-drag-active * {
+.drag-active,
+.drag-active * {
     cursor: grabbing !important;
     user-select: none !important;
 }
 
-.dock-drag-ghost {
+.drag-ghost {
     position: fixed;
     top: 0;
     left: 0;
@@ -429,106 +462,40 @@ body {
     white-space: nowrap;
     pointer-events: none;
     will-change: transform;
+
+    @media (prefers-reduced-motion: reduce) {
+        will-change: auto;
+    }
 }
 
-.dock-floating-layer {
+.floating-layer {
     position: fixed;
     z-index: 40;
     inset: 0;
     margin: 0 !important;
     pointer-events: none;
-}
 
-.dock-floating-host {
-    position: fixed;
-    display: flex;
-    overflow: hidden;
-    margin: 0 !important;
-    border: 1px solid rgba(127, 127, 127, 0.4) !important;
-    border-radius: 6px;
-    background: var(--color-bg);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-    pointer-events: auto;
-}
+    .floating-host {
+        position: fixed;
+        display: flex;
+        overflow: hidden;
+        margin: 0 !important;
+        border: 1px solid rgba(127, 127, 127, 0.4) !important;
+        border-radius: 6px;
+        background: var(--color-bg);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+        pointer-events: auto;
 
-@container (max-width: 34rem) {
-    .dock-tabs {
-        flex-wrap: wrap !important;
-    }
+        .vertical > .split-child {
+            overflow: auto;
+        }
 
-    .dock-tab-list {
-        flex: 1 0 100%;
-        order: 0;
-    }
-
-    .dock-tabs .phase {
-        margin-left: 0.35rem;
-        order: 1;
-    }
-
-    .dock-tabs .cell-controls {
-        width: 100%;
-        margin-left: 0 !important;
-        padding: 0.15rem 0.35rem 0;
-        order: 2;
-        overflow-x: auto;
-    }
-}
-
-@media (max-width: 720px) {
-    .dock-split {
-        flex-direction: column !important;
-    }
-
-    .dock-split-child,
-    .dock-split-child > .dock-group {
-        display: block;
-        width: 100%;
-        flex: 0 0 auto;
-    }
-
-    .dock-split-horizontal > .dock-separator {
-        width: auto;
-        height: 1px;
-    }
-
-    .dock-tabs {
-        flex-wrap: wrap !important;
-    }
-
-    .dock-tab-list {
-        flex: 1 0 100%;
-        order: 0;
-    }
-
-    .dock-tabs .phase {
-        margin-left: 0.35rem;
-        order: 1;
-    }
-
-    .dock-tabs .cell-controls {
-        width: 100%;
-        margin-left: 0 !important;
-        padding: 0.15rem 0.35rem 0;
-        order: 2;
-        overflow-x: auto;
-    }
-
-    .dock-tab {
-        max-width: 12rem;
-    }
-
-    .dock-floating-host {
-        right: 0.5rem !important;
-        left: 0.5rem !important;
-        width: auto !important;
-        max-height: calc(100dvh - 1rem);
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .dock-drag-ghost {
-        will-change: auto;
+        @media (max-width: 720px) {
+            right: 0.5rem !important;
+            left: 0.5rem !important;
+            width: auto !important;
+            max-height: calc(100dvh - 1rem);
+        }
     }
 }
 
@@ -1158,18 +1125,16 @@ body {
                 .editor-container {
                     display: grid;
                     position: relative;
-                    grid-template-columns: auto 1fr;
-                    grid-template-rows: 1fr auto;
+                    grid-template-columns: auto minmax(0, 1fr);
+                    grid-template-rows: minmax(0, 1fr) auto;
                     border: 1px solid rgba(127, 127, 127, 0.3);
                     border-radius: 4px;
                     overflow: hidden;
-                    height: clamp(200px, 55vh, 500px);
+                    min-height: 120px;
+                    max-height: min(50dvh, 500px);
                 }
 
-                /* Once output/render opens alongside it, the editor stops claiming its own
-                   clamp and instead fills whatever share .dock-split-child's ratio gave it —
-                   see .dock-region > .dock-split-vertical. */
-                .dock-split-child .editor-container {
+                .split-child .editor-container {
                     height: 100%;
                 }
 

@@ -101,13 +101,13 @@ public sealed class BrowserDockWorkspaceView : IDisposable
                 continue;
             }
             var empty = region.Root is null;
-            root.ToggleClass("dock-region-empty", empty);
+            root.ToggleClass("is-empty", empty);
             if (region.Root is not null) {
                 AppendNode(root, region.Root);
                 continue;
             }
             using var placeholder = DomElement.Create("div")
-                .Class("dock-empty")
+                .Class("empty")
                 .Text("Drop a window here");
             using var preview = CreateDropPreview();
             root.Append(placeholder).Append(preview);
@@ -116,7 +116,7 @@ public sealed class BrowserDockWorkspaceView : IDisposable
         foreach (var floating in state.FloatingHosts) {
             var root = DomElement.Create("div")
                 .Class("cell")
-                .Class("dock-floating-host")
+                .Class("floating-host")
                 .Attr("data-dock-floating", floating.Id)
                 .Attr(
                     "style",
@@ -141,8 +141,8 @@ public sealed class BrowserDockWorkspaceView : IDisposable
                 .Class("dock-tabs")
                 .Attr("role", "tablist")
                 .Attr("aria-label", "Docked windows");
-            var tabList = DomElement.Create("div").Class("dock-tab-list");
-            var content = DomElement.Create("div").Class("dock-group-content");
+            var tabList = DomElement.Create("div").Class("tab-list");
+            var content = DomElement.Create("div").Class("group-content");
             using (var preview = CreateDropPreview()) {
                 tabs.Append(tabList);
                 root.Append(tabs).Append(content).Append(preview);
@@ -156,16 +156,16 @@ public sealed class BrowserDockWorkspaceView : IDisposable
         using var splitRoot = DomElement.Create("div")
             .Class("dock-split")
             .Class(split.Axis == DockAxis.Horizontal
-                ? "dock-split-horizontal"
-                : "dock-split-vertical")
+                ? "horizontal"
+                : "vertical")
             .Attr("data-dock-split", split.Id)
             .Attr(
                 "style",
                 $"--dock-ratio:{split.Ratio.ToString(CultureInfo.InvariantCulture)}");
-        using var first = DomElement.Create("div").Class("dock-split-child");
-        using var second = DomElement.Create("div").Class("dock-split-child");
+        using var first = DomElement.Create("div").Class("split-child");
+        using var second = DomElement.Create("div").Class("split-child");
         using var separator = DomElement.Create("div")
-            .Class("dock-separator")
+            .Class("separator")
             .Attr("role", "separator")
             .Attr("aria-orientation", split.Axis == DockAxis.Horizontal
                 ? "vertical"
@@ -213,9 +213,9 @@ public sealed class BrowserDockWorkspaceView : IDisposable
         if (_tabHeaders.TryGetValue(tab.Id, out var existing)) {
             return existing;
         }
-        var root = DomElement.Create("div").Class("dock-tab-entry");
+        var root = DomElement.Create("div").Class("tab-entry");
         var header = DomElement.Create("button")
-            .Class("dock-tab")
+            .Class("tab")
             .Id(tab.Id)
             .Attr("type", "button")
             .Attr("role", "tab")
@@ -229,7 +229,7 @@ public sealed class BrowserDockWorkspaceView : IDisposable
         DomElement? close = null;
         if (window.Kind != DockWindowKind.Script) {
             close = DomElement.Create("button")
-                .Class("dock-tab-close")
+                .Class("close")
                 .Attr("type", "button")
                 .Attr("aria-label", $"Close {window.Title}")
                 .Attr("title", $"Close {window.Title}")
@@ -267,7 +267,7 @@ public sealed class BrowserDockWorkspaceView : IDisposable
 
     private static DomElement CreateDropPreview()
         => DomElement.Create("div")
-            .Class("dock-drop-preview")
+            .Class("drop-preview")
             .Attr("aria-hidden", "true");
 
     private static string BuildShape(NotebookDockState state)

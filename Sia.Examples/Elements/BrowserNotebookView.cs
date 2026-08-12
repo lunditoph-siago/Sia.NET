@@ -34,7 +34,7 @@ public sealed class BrowserNotebookView :
         _packages = new();
         _floatingLayer = DomElement.Create("div")
             .Class("section")
-            .Class("dock-floating-layer");
+            .Class("floating-layer");
         _dock = new(_floatingLayer);
 
         RenderTitleBar(document.Title);

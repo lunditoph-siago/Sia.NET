@@ -12,7 +12,7 @@ public sealed class BrowserDockWindowView : IDisposable
         Window = window;
         Content = content
             .Id(window.Id)
-            .Class("dock-window")
+            .Class("window")
             .Attr("role", "tabpanel")
             .Attr("aria-label", window.Title);
         Toolbar = toolbar;

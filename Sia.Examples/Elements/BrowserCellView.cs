@@ -28,7 +28,7 @@ public sealed class BrowserCellView : IDisposable
         _cell = cell;
         _editors = editors;
 
-        var toolbar = DomElement.Create("div").Class("dock-window-toolbar");
+        var toolbar = DomElement.Create("div").Class("toolbar");
         _phase = DomElement.Create("span").Class("phase");
         using (var controls = DomElement.Create("div").Class("cell-controls")) {
             _editActions = DomElement.Create("div")
@@ -66,7 +66,7 @@ public sealed class BrowserCellView : IDisposable
             toolbar.Append(_phase).Append(controls);
         }
 
-        _script = DomElement.Create("div").Class("dock-window-script");
+        _script = DomElement.Create("div").Class("script-window");
         _code = DomElement.Create(cell.Editable ? "div" : "pre").Class("code");
         if (cell.Editable) {
             _code.Class("code-edit").Id(NotebookElementIds.Editor(cell.Id));
@@ -74,14 +74,14 @@ public sealed class BrowserCellView : IDisposable
         _script.Append(_code);
         Script = new(scriptWindow, _script, toolbar);
 
-        var output = DomElement.Create("div").Class("dock-window-output");
+        var output = DomElement.Create("div").Class("output-window");
         _diagnostics = DomElement.Create("div").Class("diagnostics").Class("hidden");
         _output = DomElement.Create("pre").Class("output").Class("hidden");
         output.Append(_diagnostics).Append(_output);
         Output = new(outputWindow, output);
 
         _render = DomElement.Create("div")
-            .Class("dock-window-render")
+            .Class("render-window")
             .Attr("data-render-surface", cell.Id)
             .Attr("aria-live", "polite")
             .Text("Render surface · ready");

@@ -1,0 +1,78 @@
+<Notebook Title="Browser Guide: Your First Live Sia Notebook">
+  <Section Title="Start here">
+    <Paragraph>
+      This page is a live .NET workspace. Choose a notebook in the left sidebar, read from top
+      to bottom, and press <Code>Run</Code> on a code cell whenever you want to see its output.
+      The first run may take longer while the browser prepares the compiler; later runs reuse
+      that setup.
+    </Paragraph>
+    <List>
+      <Item><Code>Run</Code> compiles and executes the cell's scope.</Item>
+      <Item><Code>Compile</Code> checks the same code without executing it.</Item>
+      <Item><Code>Stop</Code> requests cancellation from work that cooperates with cancellation.</Item>
+      <Item><Code>Save</Code> stores your edited notebook; editing a built-in creates your own copy.</Item>
+    </List>
+    <Paragraph>
+      On a narrow screen, open the sidebar only when you need to switch notebooks. The editor,
+      output, and render surfaces remain the primary work area, so zoom and text selection keep
+      behaving like normal browser content.
+    </Paragraph>
+  </Section>
+
+  <Section Title="1. Run a cell and find its output">
+    <Paragraph>
+      Press <Code>Run</Code> below. Plain console text appears in the cell's Output view.
+      <Code>Notebook.Render</Code> sends a value to the Render view instead. Open the cell menu
+      if either view is hidden, then drag its tab to dock it where it is comfortable to read.
+    </Paragraph>
+    <CodeCell Id="browser-first-run" Editable="true" Scope="browser-tour"><![CDATA[
+      Console.WriteLine("Hello from .NET running in your browser.");
+      Console.WriteLine($"The shared world currently contains {world.Count} entities.");
+
+      var marker = world.Create(HList.From(
+          new TourMessage("The next cell can find this entity.")));
+
+      Notebook.Render("Render is separate from console output.");
+
+      public readonly record struct TourMessage(string Text);
+    ]]></CodeCell>
+  </Section>
+
+  <Section Title="2. Edit, compile, and recover">
+    <Paragraph>
+      Change the text or the number below. Use <Code>Compile</Code> first if you want diagnostics
+      without side effects, then use <Code>Run</Code>. A diagnostic points back to the relevant
+      source line. <Code>Discard</Code> restores the last saved source for that cell.
+    </Paragraph>
+    <CodeCell Id="browser-edit-and-compile" Editable="true" Scope="browser-tour"><![CDATA[
+      var found = 0;
+      foreach (var entity in world.Query(Matchers.Of<TourMessage>())) {
+          Console.WriteLine(entity.Get<TourMessage>().Text);
+          found++;
+      }
+
+      Console.WriteLine($"Found {found} message entity.");
+      Notebook.Render(new string('*', 12));
+    ]]></CodeCell>
+    <Paragraph>
+      These two cells share <Code>Scope="browser-tour"</Code>. Running the second cell recompiles
+      and replays the first one before it, so its type declarations and world changes are
+      available. Local variables do not leak between cells. A cell with no Scope is an isolated
+      program instead.
+    </Paragraph>
+  </Section>
+
+  <Section Title="3. Arrange the workspace">
+    <List>
+      <Item>Drag a tab by its label to move Output, Render, or editor surfaces between dock regions.</Item>
+      <Item>When a tab label has keyboard focus, use the arrow keys to move between neighboring tabs.</Item>
+      <Item>Use the cell menu to insert, move, or delete a cell; save when the layout and source are right.</Item>
+      <Item>Use the Packages panel only when a notebook genuinely needs an additional NuGet dependency.</Item>
+    </List>
+    <Paragraph>
+      Built-in notebooks are safe starting points: saving one produces a user notebook rather
+      than overwriting the shipped lesson. Deliberately introduce a syntax error, inspect the
+      diagnostic, discard it, and then continue to <Code>2. Sia Essentials</Code>.
+    </Paragraph>
+  </Section>
+</Notebook>

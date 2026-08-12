@@ -1,0 +1,303 @@
+<Notebook Title="Sia Essentials: From Components to Reactive Systems">
+  <Section Title="How this notebook is organized">
+    <Paragraph>
+      Sia is an entity-component-system framework. A <Code>World</Code> owns lightweight
+      <Code>Entity</Code> handles; components describe data; queries select component shapes;
+      systems process those selections. Every cell below shares <Code>Scope="sia-essentials"</Code>,
+      so running a later lesson recompiles and replays the earlier ones first — their types and
+      world state come along for free.
+    </Paragraph>
+    <Paragraph>
+      The notebook host already provides a fresh variable named <Code>world</Code>. Keep the data
+      flow explicit: direct component access is the low-level path, while generated Views and
+      Commands mutate data and notify interested systems. Every cell is editable — change a
+      number, break something on purpose, press Run again. Nothing here can touch anything
+      outside its own disposable <Code>World</Code>.
+    </Paragraph>
+  </Section>
+
+  <Section Title="1. World, entities, components, and generated Views">
+    <Paragraph>
+      Components are ordinary structs. <Code>HList.From</Code> creates an entity with a known
+      component shape. Adding <Code>[Sia]</Code> to component fields generates a typed
+      <Code>View</Code> plus change events such as <Code>Position.SetX</Code>. The View is the
+      default mutation API when observers must react.
+    </Paragraph>
+    <CodeCell Id="core-components" Editable="true" Scope="sia-essentials"><![CDATA[
+      var player = world.Create(HList.From(
+          new Name("Ari"),
+          new Position(2, 3),
+          new Velocity(1, -1),
+          new Health(100)));
+
+      Console.WriteLine($"created {player.Get<Name>().Value} at {player.Get<Position>()}");
+
+      var position = new Position.View(player, world);
+      position.X += 5;
+      position.Y += 2;
+      Console.WriteLine($"moved through View to {player.Get<Position>()}");
+
+      player.Add(new Selected());
+      Console.WriteLine($"selected: {player.Contains<Selected>()}");
+      player.Remove<Selected>();
+
+      Notebook.Render($"{player.Get<Name>().Value} @ {player.Get<Position>()}  HP {player.Get<Health>().Value}");
+
+      public readonly record struct Name(string Value);
+      public partial record struct Position([Sia] float X, [Sia] float Y);
+      public readonly record struct Velocity(float X, float Y);
+      public partial record struct Health([Sia] int Value);
+      public readonly record struct Selected;
+      public readonly record struct Disabled;
+    ]]></CodeCell>
+    <Paragraph>
+      That last line goes to a second view instead of the console — <Code>Notebook.Render</Code>
+      is the same mechanic Example 1 introduced.
+    </Paragraph>
+  </Section>
+
+  <Section Title="2. Queries, matchers, systems, and stages">
+    <Paragraph>
+      <Code>Matchers.Of</Code> requires components; <Code>Matchers.Exclude</Code> rejects them;
+      matcher combinators build richer selections. A <Code>SystemBase</Code> owns a query, while
+      a stage gives one or more systems an explicit lifetime and tick order.
+    </Paragraph>
+    <CodeCell Id="core-query-system" Editable="true" Scope="sia-essentials"><![CDATA[
+      world.Create(HList.From(
+          new Name("drone-a"), new Position(0, 0), new Velocity(2, 1)));
+      world.Create(HList.From(
+          new Name("drone-b"), new Position(10, 10), new Velocity(-1, 0), new Disabled()));
+
+      var activeMovers = Matchers.Of<Name, Position, Velocity>()
+          .And(Matchers.Exclude<Disabled>());
+      Console.WriteLine("active movers before the tick:");
+      foreach (var entity in world.Query(activeMovers)) {
+          Console.WriteLine("  " + entity.Get<Name>().Value);
+      }
+
+      using var stage = SystemChain.Empty
+          .Add<MovementSystem>()
+          .CreateStage(world);
+      stage.Tick();
+
+      public sealed class MovementSystem() : SystemBase(
+          Matchers.Of<Position, Velocity>().And(Matchers.Exclude<Disabled>()))
+      {
+          public override void Execute(World world, IEntityQuery query)
+          {
+              foreach (var entity in query) {
+                  ref readonly var velocity = ref entity.Get<Velocity>();
+                  var position = new Position.View(entity, world);
+                  position.X += velocity.X;
+                  position.Y += velocity.Y;
+              }
+              Console.WriteLine($"MovementSystem updated {query.Count} entity/entities.");
+          }
+      }
+    ]]></CodeCell>
+    <Paragraph>
+      <Code>activeMovers</Code> and <Code>MovementSystem</Code>'s own matcher are two independent
+      values that happen to both exclude <Code>Disabled</Code> — nothing ties them together.
+      Building the same matcher in two places means keeping them in sync is on you; a matcher
+      belongs to whoever asks the question, not to a component type.
+    </Paragraph>
+    <Paragraph>
+      <Code>MovementSystem</Code> favors clarity here: <Code>entity.Get&lt;Velocity&gt;()</Code>
+      for a read, <Code>Position.View</Code> for a write that should notify observers. When a hot
+      loop has nothing to notify, skip the View: <Code>query.ForSlice((ref Position p, ref
+      Velocity v) =&gt; { p.X += v.X; p.Y += v.Y; })</Code> iterates the same contiguous component
+      storage the View wraps, with no per-field event dispatch at all. Reach for it once profiling
+      says the dispatch overhead matters, not by default.
+    </Paragraph>
+  </Section>
+
+  <Section Title="3. Events make systems reactive">
+    <Paragraph>
+      The matcher says which entities a system can see; the trigger says when it needs to run.
+      This system observes only generated position-change events. Setting through
+      <Code>Position.View</Code> changes the data first, then dispatches the event that wakes the
+      system on its next tick.
+    </Paragraph>
+    <CodeCell Id="core-events" Editable="true" Scope="sia-essentials"><![CDATA[
+      using var stage = SystemChain.Empty
+          .Add<PositionChangedSystem>()
+          .CreateStage(world);
+
+      var beacon = world.Create(HList.From(
+          new Name("beacon"), new Position(0, 0)));
+      new Position.View(beacon, world) { X = 8, Y = 13 };
+      stage.Tick();
+
+      public sealed class PositionChangedSystem() : SystemBase(
+          Matchers.Of<Name, Position>(),
+          EventUnion.Of<Position.SetX, Position.SetY>())
+      {
+          public override void Execute(World world, IEntityQuery query)
+          {
+              foreach (var entity in query) {
+                  Console.WriteLine(
+                      $"reacted: {entity.Get<Name>().Value} -> {entity.Get<Position>()}");
+              }
+          }
+      }
+    ]]></CodeCell>
+    <Paragraph>
+      <Code>PositionChangedSystem</Code> ticks every frame regardless, but its query only ever
+      contains entities whose <Code>SetX</Code>/<Code>SetY</Code> fired since the last tick — an
+      entity that matches the matcher but never raised the trigger stays invisible to
+      <Code>Execute</Code> forever. The trigger, not the matcher, decides who shows up.
+    </Paragraph>
+  </Section>
+
+  <Section Title="4. Bundles and Commands express intent">
+    <Paragraph>
+      A generated <Code>[SiaBundle]</Code> groups a reusable component shape. A Command is both
+      executable behavior and an event: it updates through the World, and event-driven systems
+      can observe the same intent without coupling to the caller.
+    </Paragraph>
+    <CodeCell Id="core-bundles-commands" Editable="true" Scope="sia-essentials"><![CDATA[
+      var enemy = world.Create().AddBundle(new ActorBundle(
+          new Name("slime"),
+          new Position(4, 4),
+          new Velocity(0, 0),
+          new Health(30)));
+
+      using var stage = SystemChain.Empty
+          .Add<DamageLogSystem>()
+          .CreateStage(world);
+
+      var before = enemy.Get<Health>().Value;
+      enemy.Execute(new Damage(7));
+      stage.Tick();
+      var after = enemy.Get<Health>().Value;
+      Console.WriteLine($"health after command: {after}");
+      Notebook.Render($"{enemy.Get<Name>().Value}: {before} HP -> {after} HP");
+
+      [SiaBundle]
+      public partial record struct ActorBundle(
+          Name Name, Position Position, Velocity Velocity, Health Health);
+
+      public readonly record struct Damage(int Amount) : ICommand
+      {
+          public void Execute(World world, Entity target)
+              => new Health.View(target, world).Value -= Amount;
+      }
+
+      public sealed class DamageLogSystem() : SystemBase(
+          Matchers.Of<Name, Health>(),
+          EventUnion.Of<Damage>())
+      {
+          public override void Execute(World world, IEntityQuery query)
+          {
+              foreach (var entity in query) {
+                  Console.WriteLine($"damage observed for {entity.Get<Name>().Value}");
+              }
+          }
+      }
+    ]]></CodeCell>
+    <Paragraph>
+      A Command is exactly the intent it says it is and no more — <Code>Damage</Code> subtracts,
+      full stop, with nothing here stopping <Code>Health</Code> from going negative if the amount
+      is large enough. A <Code>DeathSystem</Code> that watches <Code>Health</Code> drop to zero
+      would be a second, separate piece added on top, not something <Code>Damage</Code> owes you
+      for free.
+    </Paragraph>
+  </Section>
+
+  <Section Title="5. Addons hold world-scoped services">
+    <Paragraph>
+      Addons are services whose lifecycle belongs to a World. <Code>AcquireAddon</Code> returns
+      the existing instance or constructs and initializes one; <Code>RemoveAddon</Code> runs its
+      cleanup hook. This keeps service ownership explicit without a global container.
+    </Paragraph>
+    <CodeCell Id="core-addons" Editable="true" Scope="sia-essentials"><![CDATA[
+      var clock = world.AcquireAddon<TutorialClock>();
+      clock.Advance(0.016f);
+      clock.Advance(0.016f);
+      Console.WriteLine($"frame {clock.Frame}, time {clock.Time:F3}s");
+      world.RemoveAddon<TutorialClock>();
+
+      public sealed class TutorialClock : IAddon
+      {
+          public int Frame { get; private set; }
+          public float Time { get; private set; }
+
+          public void OnInitialize(World world)
+              => Console.WriteLine("clock initialized");
+
+          public void OnUninitialize(World world)
+              => Console.WriteLine("clock released");
+
+          public void Advance(float deltaTime)
+          {
+              Frame++;
+              Time += deltaTime;
+          }
+      }
+    ]]></CodeCell>
+    <Paragraph>
+      <Code>AcquireAddon</Code> hands back the same live instance on every call until the addon is
+      actually removed — "clock initialized" prints exactly once per lifetime here, no matter how
+      many times <Code>AcquireAddon&lt;TutorialClock&gt;()</Code> gets called before that.
+    </Paragraph>
+    <Paragraph>
+      That's the whole application loop: create data, select it with matchers, tick ordered
+      systems, mutate through Views or Commands, and keep long-lived services in addons. One more
+      piece ties it together — how systems get ordered into a chain and re-run frame after frame.
+    </Paragraph>
+  </Section>
+
+  <Section Title="6. Composing system chains">
+    <Paragraph>
+      <Code>SystemChain.Empty.Add&lt;T&gt;()</Code> builds an ordered pipeline;
+      <Code>CreateStage(world)</Code> turns it into a <Code>SystemStage</Code> you
+      <Code>Tick()</Code> once per frame — call <Code>Tick()</Code> again and the whole chain runs
+      again, in the same order, against whatever the world looks like now. The same system class
+      can appear more than once in one chain: pass a factory to <Code>Add&lt;T&gt;</Code> and each
+      instance gets its own constructor arguments and its own private state.
+    </Paragraph>
+    <CodeCell Id="core-system-chains" Editable="true" Scope="sia-essentials"><![CDATA[
+      using var stage = SystemChain.Empty
+          .Add<SpawnWaveSystem>(() => new("slime", 2))
+          .Add<SpawnWaveSystem>(() => new("goblin", 1))
+          .CreateStage(world);
+
+      stage.Tick();
+      stage.Tick();
+
+      Console.WriteLine($"world now holds {world.Count} entities across every lesson so far.");
+
+      var census = new Dictionary<string, int>();
+      foreach (var entity in world.Query(Matchers.Of<Name>())) {
+          var kind = entity.Get<Name>().Value.Split('-')[0];
+          census[kind] = census.GetValueOrDefault(kind) + 1;
+      }
+      var lines = census
+          .OrderByDescending(pair => pair.Value)
+          .Select(pair => $"  {pair.Key,-8} {new string('#', pair.Value)} {pair.Value}");
+      Notebook.Render($"world census ({world.Count} total):\n" + string.Join('\n', lines));
+
+      public sealed class SpawnWaveSystem(string kind, int count) : SystemBase(Matchers.Any)
+      {
+          public override void Execute(World world, IEntityQuery query)
+          {
+              for (var i = 0; i < count; i++) {
+                  world.Create().AddBundle(new ActorBundle(
+                      new Name($"{kind}-{i}"), new Position(0, 0), new Velocity(0, 0), new Health(20)));
+              }
+              Console.WriteLine($"spawned {count} {kind}(s)");
+          }
+      }
+    ]]></CodeCell>
+    <Paragraph>
+      Two systems, two ticks: <Code>SpawnWaveSystem</Code> ran four times total, each time with
+      whichever constructor arguments its instance was built with. The census bars in the Render
+      pane are just that entity count grouped by name prefix and drawn as text — nothing about
+      Render requires a graphical surface.
+    </Paragraph>
+    <Paragraph>
+      The next notebook builds higher-level composition — reactors, reactive reconciliation,
+      events that can be intercepted, and safe concurrency — on top of these same primitives.
+    </Paragraph>
+  </Section>
+</Notebook>

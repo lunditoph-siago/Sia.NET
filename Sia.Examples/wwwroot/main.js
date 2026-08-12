@@ -114,7 +114,7 @@ let suppressDockClick = false;
 
 function dockTabsIn(list) {
   return [...list.querySelectorAll(
-    ':scope > .dock-tab-entry > [data-dock-tab]')];
+    ':scope > .tab-entry > [data-dock-tab]')];
 }
 
 function dockInsertionIndex(list, pointerX) {
@@ -130,7 +130,7 @@ function dockInsertionIndex(list, pointerX) {
 
 function dockPositionIn(group, pointerX, pointerY) {
   const tabs = group.querySelector(':scope > .dock-tabs');
-  const tabList = tabs?.querySelector(':scope > .dock-tab-list');
+  const tabList = tabs?.querySelector(':scope > .tab-list');
   if (tabs && tabList && pointerY <= tabs.getBoundingClientRect().bottom) {
     const index = dockInsertionIndex(tabList, pointerX);
     const tabItems = dockTabsIn(tabList);
@@ -169,17 +169,17 @@ function findDockTarget(pointerX, pointerY) {
       const placement = dockPositionIn(group, pointerX, pointerY);
       return {
         id: group.dataset.dockGroup,
-        preview: group.querySelector(':scope > .dock-drop-preview'),
+        preview: group.querySelector(':scope > .drop-preview'),
         ...placement,
       };
     }
-    const region = element.closest?.('.dock-region-empty[data-dock-region]');
+    const region = element.closest?.('.is-empty[data-dock-region]');
     if (region) {
       return {
         id: region.dataset.dockRegion,
         position: 'center',
         index: 2147483647,
-        preview: region.querySelector(':scope > .dock-drop-preview'),
+        preview: region.querySelector(':scope > .drop-preview'),
       };
     }
   }
@@ -192,12 +192,12 @@ function clearDockPreview() {
   }
   dockPreview.classList.remove(
     'visible',
-    'dock-drop-center',
-    'dock-drop-left',
-    'dock-drop-right',
-    'dock-drop-top',
-    'dock-drop-bottom',
-    'dock-drop-tabs');
+    'center',
+    'left',
+    'right',
+    'top',
+    'bottom',
+    'tab-insert');
   dockPreview.style.removeProperty('--dock-insertion-x');
   dockPreview = null;
 }
@@ -211,27 +211,27 @@ function showDockPreview(target) {
   }
   dockPreview = target.preview;
   dockPreview.classList.remove(
-    'dock-drop-center',
-    'dock-drop-left',
-    'dock-drop-right',
-    'dock-drop-top',
-    'dock-drop-bottom',
-    'dock-drop-tabs');
+    'center',
+    'left',
+    'right',
+    'top',
+    'bottom',
+    'tab-insert');
   dockPreview.style.removeProperty('--dock-insertion-x');
   if (target.insertionX !== undefined) {
     dockPreview.style.setProperty('--dock-insertion-x', `${target.insertionX}px`);
-    dockPreview.classList.add('visible', 'dock-drop-tabs');
+    dockPreview.classList.add('visible', 'tab-insert');
     return;
   }
-  dockPreview.classList.add('visible', `dock-drop-${target.position}`);
+  dockPreview.classList.add('visible', target.position);
 }
 
 function beginDockDrag(event) {
   dockDrag.started = true;
-  dockDrag.source.classList.add('dock-tab-drag-source');
-  document.body.classList.add('dock-drag-active');
+  dockDrag.source.classList.add('dragging');
+  document.body.classList.add('drag-active');
   const ghost = document.createElement('div');
-  ghost.className = 'dock-drag-ghost';
+  ghost.className = 'drag-ghost';
   ghost.textContent = dockDrag.source.dataset.dockLabel || dockDrag.source.textContent;
   document.body.append(ghost);
   dockDrag.ghost = ghost;
@@ -250,9 +250,9 @@ function finishDockDrag() {
   if (!dockDrag) {
     return;
   }
-  dockDrag.source.classList.remove('dock-tab-drag-source');
+  dockDrag.source.classList.remove('dragging');
   dockDrag.ghost?.remove();
-  document.body.classList.remove('dock-drag-active');
+  document.body.classList.remove('drag-active');
   try {
     dockDrag.source.releasePointerCapture(dockDrag.pointerId);
   } catch {
@@ -337,7 +337,7 @@ document.addEventListener('keydown', event => {
     return;
   }
   const current = event.target.closest?.('[data-dock-tab]');
-  const list = current?.closest?.('.dock-tab-list');
+  const list = current?.closest?.('.tab-list');
   if (!current || !list
       || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
     return;
