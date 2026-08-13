@@ -1,15 +1,11 @@
-using System.Security.Cryptography;
 using System.Text;
 using System.Xml;
-using System.Xml.Linq;
 
 namespace Sia_Examples.Notebook;
 
 public sealed class FileSystemNotebookStorage(string rootPath) : INotebookStorage
 {
     private const string Extension = ".notebook.xml";
-
-    private const int VersionLength = 12;
 
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
@@ -83,18 +79,9 @@ public sealed class FileSystemNotebookStorage(string rootPath) : INotebookStorag
 
     private static string NewKey() => Guid.NewGuid().ToString("N")[..12];
 
-    private static string PeekTitle(string xml)
-    {
-        using var reader = new StringReader(xml);
-        var document = XDocument.Load(reader, LoadOptions.None);
-        return (string?)document.Root?.Attribute("Title") ?? "";
-    }
+    private static string PeekTitle(string xml) => NotebookVersioning.PeekTitle(xml);
 
-    private static string ComputeVersion(string xml)
-    {
-        var hash = SHA256.HashData(Utf8NoBom.GetBytes(xml));
-        return Convert.ToHexStringLower(hash)[..VersionLength];
-    }
+    private static string ComputeVersion(string xml) => NotebookVersioning.ComputeVersion(xml);
 
     private static ValueTask<T> RunAsync<T>(Func<T> body, CancellationToken cancellationToken)
         => new(Task.Run(body, cancellationToken));
