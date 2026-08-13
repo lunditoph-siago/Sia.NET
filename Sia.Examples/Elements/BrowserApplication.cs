@@ -8,17 +8,12 @@ public static class BrowserApplication
 {
     public static async Task RunAsync()
     {
+        // Notebooks live on WASMFS's default in-memory backend, not OPFS:
+        // wasmfs_create_opfs_backend() can deadlock waiting for its proxy
+        // worker to spawn (Emscripten's own docs warn about this), and it
+        // did hang the whole app boot in production. No mount call means no
+        // deadlock risk; the tradeoff is notebooks don't survive a reload.
         const string NotebooksPath = "/notebooks";
-
-        await Task.Delay(16);
-        try {
-            if (!await OpfsMount.MountAsync(NotebooksPath)) {
-                Console.Error.WriteLine("OPFS unavailable; notebooks won't persist this session.");
-            }
-        }
-        catch (Exception error) {
-            Console.Error.WriteLine($"OPFS mount failed: {error.Message}");
-        }
 
         var mainThread = BrowserMainThread.Capture();
         var resources = new BrowserResourceLoader(mainThread);
