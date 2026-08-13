@@ -405,6 +405,60 @@ async function fetchText(url) {
   return new TextDecoder().decode(await loadBytes(url));
 }
 
+const NOTEBOOK_DB_NAME = 'sia-notebooks';
+const NOTEBOOK_DB_VERSION = 1;
+const NOTEBOOK_STORE = 'notebooks';
+
+let notebookDbPromise;
+
+function openNotebookDb() {
+  notebookDbPromise ??= new Promise((resolve, reject) => {
+    const request = indexedDB.open(NOTEBOOK_DB_NAME, NOTEBOOK_DB_VERSION);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains(NOTEBOOK_STORE)) {
+        request.result.createObjectStore(NOTEBOOK_STORE, { keyPath: 'key' });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  return notebookDbPromise;
+}
+
+function withNotebookStore(mode, op) {
+  return openNotebookDb().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(NOTEBOOK_STORE, mode);
+    const store = tx.objectStore(NOTEBOOK_STORE);
+    let result;
+    const request = op(store);
+    if (request) {
+      request.onsuccess = () => { result = request.result; };
+      request.onerror = () => reject(request.error);
+    }
+    tx.oncomplete = () => resolve(result);
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error ?? new Error('IndexedDB transaction aborted'));
+  }));
+}
+
+async function notebookGetAllJson() {
+  const records = await withNotebookStore('readonly', store => store.getAll());
+  return JSON.stringify(records ?? []);
+}
+
+async function notebookGetJson(key) {
+  const record = await withNotebookStore('readonly', store => store.get(key));
+  return record ? JSON.stringify(record) : null;
+}
+
+async function notebookPut(key, xml, savedAt) {
+  await withNotebookStore('readwrite', store => store.put({ key, xml, savedAt }));
+}
+
+async function notebookRemove(key) {
+  await withNotebookStore('readwrite', store => store.delete(key));
+}
+
 function lineOf(surface, node) {
   for (let current = node; current && current !== surface; current = current.parentNode) {
     if (current.nodeType === Node.ELEMENT_NODE && current.dataset?.ln !== undefined) {
@@ -1370,6 +1424,10 @@ setModuleImports('main.js', {
   },
   fetchBase64,
   fetchText,
+  notebookGetAllJson,
+  notebookGetJson,
+  notebookPut,
+  notebookRemove,
   reportError: message => console.error(message),
 });
 
