@@ -47,6 +47,7 @@ jobs:
           dotnet publish "$EXAMPLES_PROJECT"
           --configuration "$BUILD_CONFIG"
           --no-restore
+          -p:WasmCachePath="$RUNNER_TEMP/wasm-cache"
           -p:PublishDir="$PUBLISH_OUTPUT/"
 
       - name: Prepare Pages artifact
