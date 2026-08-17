@@ -77,6 +77,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Entity Create(in TEntity initial)
     {
+        World.EnsureOwnerThread();
         var entity = InnerHost.Create(initial);
         entity.GetStateUnchecked().Host = this;
 
@@ -92,6 +93,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Release(Entity entity)
     {
+        World.EnsureOwnerThread();
         var dispatcher = World.Dispatcher;
 
         TEntity.HandleTypes(new EntityRemoveEventSender(entity, dispatcher));
@@ -107,6 +109,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Add<TComponent>(Entity entity, in TComponent initial)
     {
+        World.EnsureOwnerThread();
         InnerHost.Add(entity, initial);
         World.Dispatcher.Send(entity, WorldEvents.Add<TComponent>.Instance);
         World.Dispatcher.Send(entity, WorldEvents.Set<TComponent>.Instance);
@@ -116,6 +119,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     public void AddMany<TList>(Entity entity, in TList list)
         where TList : struct, IHList
     {
+        World.EnsureOwnerThread();
         InnerHost.AddMany(entity, list);
         TList.HandleTypes(new EntityAddEventSender(entity, World.Dispatcher));
     }
@@ -123,6 +127,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Set<TComponent>(Entity entity, in TComponent value)
     {
+        World.EnsureOwnerThread();
         InnerHost.Set(entity, value);
         World.Dispatcher.Send(entity, WorldEvents.Set<TComponent>.Instance);
     }
@@ -130,6 +135,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Remove<TComponent>(Entity entity, out bool success)
     {
+        World.EnsureOwnerThread();
         InnerHost.Remove<TComponent>(entity, out success);
         if (success) {
             World.Dispatcher.Send(entity, WorldEvents.Remove<TComponent>.Instance);
@@ -140,6 +146,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     public void RemoveMany<TList>(Entity entity)
         where TList : struct, IHList
     {
+        World.EnsureOwnerThread();
         InnerHost.RemoveMany<TList>(entity);
         TList.HandleTypes(new ExEntityRemoveEventSender(entity, Descriptor, World.Dispatcher));
     }

@@ -8,4 +8,11 @@ public sealed class WorldDispatcher : Dispatcher<IEvent>
     {
         World = world;
     }
+
+    public new void Send<UEvent>(Entity target, in UEvent e)
+        where UEvent : IEvent
+    {
+        World.EnsureOwnerThread();
+        base.Send(target, e);
+    }
 }
