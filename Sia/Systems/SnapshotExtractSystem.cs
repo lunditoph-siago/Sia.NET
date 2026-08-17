@@ -1,5 +1,3 @@
-using System.Runtime.CompilerServices;
-
 namespace Sia;
 
 public abstract class SnapshotExtractSystem<TExtract> : SystemBase
@@ -7,11 +5,12 @@ public abstract class SnapshotExtractSystem<TExtract> : SystemBase
 {
     private IEntityQuery? _extractQuery;
     private bool _ownsQuery;
-    private int _count;
-    private TExtract[] _data = [];
+    private WorldSnapshot<TExtract> _snapshot = WorldSnapshot<TExtract>.Empty;
+    private long _version;
     private World _extractWorld = null!;
 
-    public ReadOnlySpan<TExtract> Data => _data.AsSpan(0, _count);
+    public ReadOnlySpan<TExtract> Data
+        => Volatile.Read(ref _snapshot).Data;
 
     protected abstract IEntityMatcher ExtractMatcher { get; }
     protected abstract TExtract Extract(Entity entity);
@@ -42,18 +41,27 @@ public abstract class SnapshotExtractSystem<TExtract> : SystemBase
 
     public void RunExtract()
     {
-        if (_extractQuery is null) {
-            _extractQuery = _extractWorld.Query(ExtractMatcher);
-            _ownsQuery = true;
+        if (_extractWorld is null) {
+            throw new InvalidOperationException(
+                "The snapshot extract system has not been initialized.");
         }
-        _count = _extractQuery.Count;
 
-        if (_data.Length < _count)
-            _data = new TExtract[_count];
+        if (_extractQuery is null) {
+            _ownsQuery = ExtractMatcher != Matchers.Any;
+            _extractQuery = _ownsQuery
+                ? _extractWorld.Query(ExtractMatcher)
+                : _extractWorld;
+        }
 
+        var count = _extractQuery.Count;
+        var data = new TExtract[count];
         var i = 0;
         _extractQuery.ForEach((EntityHandler)(entity => {
-            _data[i++] = Extract(entity);
+            data[i++] = Extract(entity);
         }));
+
+        Volatile.Write(
+            ref _snapshot,
+            new WorldSnapshot<TExtract>(++_version, data, count));
     }
 }
