@@ -23,6 +23,8 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     public Type EntityType => typeof(TEntity);
     public EntityDescriptor Descriptor { get; } = EntityDescriptor.Get<TEntity>();
 
+    public World? World { get; private set; }
+
     public int Capacity => Buffer.Capacity;
     public int Count => Buffer.Count;
     public int Version { get; private set; }
@@ -60,6 +62,7 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         }
         _entityStates = world.EntityStates;
         _ownsEntityStates = false;
+        World = world;
     }
 
     public virtual Entity Create() => Create(default!);
@@ -286,6 +289,7 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         Buffer.AsSpan()[..Buffer.Count].Clear();
         Buffer.Count = 0;
         Buffer.Dispose();
+        World = null;
         OnDisposed?.Invoke(this);
         GC.SuppressFinalize(this);
     }
