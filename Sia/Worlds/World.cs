@@ -46,12 +46,16 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Send<TEvent>(Entity target, in TEvent e)
         where TEvent : IEvent
-        => Dispatcher.Send(target, e);
+    {
+        ThrowIfForeignEntity(target);
+        Dispatcher.Send(target, e);
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Execute<TCommand>(Entity target, in TCommand command)
         where TCommand : ICommand
     {
+        ThrowIfForeignEntity(target);
         command.Execute(this, target);
         Dispatcher.Send(target, command);
     }
@@ -61,8 +65,19 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
         Entity target, ref TComponent component, in TCommand command)
         where TCommand : ICommand<TComponent>
     {
+        ThrowIfForeignEntity(target);
         command.Execute(this, target, ref component);
         Dispatcher.Send(target, command);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void ThrowIfForeignEntity(Entity target)
+    {
+        var owner = EntityWorldOwner.TryGet(target);
+        if (owner is not null && !ReferenceEquals(owner, this)) {
+            throw new ArgumentException(
+                "The entity belongs to a different world.", nameof(target));
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
