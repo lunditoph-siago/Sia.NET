@@ -10,23 +10,28 @@ public sealed class SubWorldContext(World parent) : IAddon, IWorldSource
 
 public sealed class SubWorld : IDisposable
 {
+    public static TimeSpan DefaultActorDrainTimeout { get; } = TimeSpan.FromSeconds(5);
+
     public World Parent { get; }
 
     public World World { get; }
 
-    public bool IsDisposed { get; private set; }
+    public bool IsDisposed => World.IsDisposed;
 
-    public SubWorld(World parent)
+    private readonly TimeSpan _actorDrainTimeout;
+
+    public SubWorld(World parent, TimeSpan? actorDrainTimeout = null)
     {
         Parent = parent;
         World = new World();
+        _actorDrainTimeout = actorDrainTimeout ?? DefaultActorDrainTimeout;
 
         World.AddAddon(new SubWorldContext(parent));
     }
 
     ~SubWorld()
     {
-        DoDispose();
+        DoDispose(false);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -45,14 +50,20 @@ public sealed class SubWorld : IDisposable
 
     public void Dispose()
     {
-        DoDispose();
+        DoDispose(true);
         GC.SuppressFinalize(this);
     }
 
-    private void DoDispose()
+    private void DoDispose(bool disposing)
     {
         if (IsDisposed) { return; }
-        IsDisposed = true;
+
+        if (World.Actor is { IsCompleted: false } actor) {
+            if (!disposing) { return; }
+            actor.CompleteAndDispose(_actorDrainTimeout);
+            return;
+        }
+
         World.Dispose();
     }
 }
