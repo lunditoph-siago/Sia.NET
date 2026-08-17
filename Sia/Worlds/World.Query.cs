@@ -89,8 +89,39 @@ public partial class World
         }
     }
 
+    private sealed class AnyQuery(World world) : IReactiveEntityQuery
+    {
+        public event Action<IReactiveEntityHost>? OnEntityHostAdded {
+            add => world.OnEntityHostAdded += value;
+            remove => world.OnEntityHostAdded -= value;
+        }
+
+        public event Action<IReactiveEntityHost>? OnEntityHostRemoved {
+            add => world.OnEntityHostRemoved += value;
+            remove => world.OnEntityHostRemoved -= value;
+        }
+
+        public int Count {
+            get {
+                var count = 0;
+                var hosts = world.Hosts;
+                for (var i = 0; i < hosts.Count; i++) {
+                    count += hosts[i].Count;
+                }
+                return count;
+            }
+        }
+
+        public int Version => world.Version;
+        public IReadOnlyList<IReactiveEntityHost> Hosts => world.Hosts;
+        IReadOnlyList<IEntityHost> IEntityQuery.Hosts => world.Hosts;
+
+        public void Dispose() {}
+    }
+
     public IReadOnlyDictionary<IEntityMatcher, EntityQuery> Queries => _queries;
 
+    private AnyQuery? _anyQuery;
     internal readonly Dictionary<IEntityMatcher, EntityQuery> _queries = [];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -133,7 +164,7 @@ public partial class World
     public IReactiveEntityQuery Query(IEntityMatcher matcher)
     {
         if (matcher == Matchers.Any) {
-            return this;
+            return _anyQuery ??= new(this);
         }
         if (_queries.TryGetValue(matcher, out var query)) {
             return query;
