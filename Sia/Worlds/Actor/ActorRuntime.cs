@@ -4,6 +4,8 @@ using System.Collections.Concurrent;
 
 public sealed class ActorRuntime : IDisposable
 {
+    public static TimeSpan DefaultDisposeTimeout { get; } = TimeSpan.FromSeconds(5);
+
     public int WorkerCount { get; }
     public int BatchSize { get; }
 
@@ -106,13 +108,24 @@ public sealed class ActorRuntime : IDisposable
     }
 
     public void Dispose()
+        => Dispose(DefaultDisposeTimeout);
+
+    public void Dispose(TimeSpan timeout)
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) {
             return;
         }
 
         _ready.Complete();
-        _blocking.Dispose();
+        _blocking.Dispose(timeout);
+
+#if !BROWSER
+        if (!Task.WaitAll(_workers, timeout)) {
+            throw new TimeoutException(
+                $"ActorRuntime workers did not stop within {timeout}.");
+        }
+#endif
+
         GC.SuppressFinalize(this);
     }
 
@@ -162,11 +175,22 @@ public sealed class ActorRuntime : IDisposable
         }
 
         public void Dispose()
+            => Dispose(DefaultDisposeTimeout);
+
+        public void Dispose(TimeSpan timeout)
         {
             if (Interlocked.Exchange(ref _disposed, 1) != 0) {
                 return;
             }
+
             _work.Complete();
+
+#if !BROWSER
+            if (!Task.WaitAll(_workers, timeout)) {
+                throw new TimeoutException(
+                    $"ActorRuntime blocking workers did not stop within {timeout}.");
+            }
+#endif
         }
     }
 }
