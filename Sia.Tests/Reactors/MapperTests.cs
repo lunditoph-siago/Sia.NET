@@ -18,7 +18,6 @@ public class MapperTests(MapperTests.MapperContext context) : IClassFixture<Mapp
         public MapperContext()
         {
             World = new World();
-            Context<World>.Current = World;
 
             Mapper = World.AcquireAddon<Mapper<ObjectId>>();
         }

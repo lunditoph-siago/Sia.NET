@@ -20,7 +20,6 @@ public class HierarchyTests(HierarchyTests.HierarchyContext context) : IClassFix
         public HierarchyContext()
         {
             World = new World();
-            Context<World>.Current = World;
 
             Hierarchy = World.AcquireAddon<Hierarchy<TestTag>>();
         }

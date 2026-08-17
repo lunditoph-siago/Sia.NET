@@ -2,9 +2,10 @@ namespace Sia;
 
 using System.Runtime.CompilerServices;
 
-public sealed class SubWorldContext : IAddon
+public sealed class SubWorldContext(World parent) : IAddon, IWorldSource
 {
-    public World Parent { get; set; } = null!;
+    public World Parent { get; } = parent;
+    public World Source => Parent;
 }
 
 public sealed class SubWorld : IDisposable
@@ -20,8 +21,7 @@ public sealed class SubWorld : IDisposable
         Parent = parent;
         World = new World();
 
-        var context = World.AddAddon<SubWorldContext>();
-        context.Parent = parent;
+        World.AddAddon(new SubWorldContext(parent));
     }
 
     ~SubWorld()
@@ -31,7 +31,17 @@ public sealed class SubWorld : IDisposable
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Tick(SystemStage stage, CancellationToken cancellation = default)
-        => stage.Tick(cancellation);
+    {
+        ArgumentNullException.ThrowIfNull(stage);
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
+
+        if (!ReferenceEquals(stage.World, World)) {
+            throw new ArgumentException(
+                "The stage was created for a different world.", nameof(stage));
+        }
+
+        stage.Tick(cancellation);
+    }
 
     public void Dispose()
     {

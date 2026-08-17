@@ -4,8 +4,6 @@ using System.Runtime.CompilerServices;
 
 public sealed partial class World : IReactiveEntityQuery, IEventSender
 {
-    public static World Current => Context.Get<World>();
-
     public event Action<World>? OnDisposed;
 
     public int Count { get; internal set; }
@@ -66,4 +64,13 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
         command.Execute(this, target, ref component);
         Dispatcher.Send(target, command);
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public WorldEntity Spawn()
+        => new(this, this.Create());
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public WorldEntity Spawn<TEntity>(in TEntity initial)
+        where TEntity : struct, IHList
+        => new(this, this.Create(initial));
 }

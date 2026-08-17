@@ -474,7 +474,7 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         source.WriteLine("{");
         source.Indent++;
 
-        source.WriteLine("private readonly global::Sia.World _world = world ?? global::Sia.Context<global::Sia.World>.Current!;");
+        source.WriteLine("private readonly global::Sia.World _world = world ?? entity.Host?.World ?? throw new global::System.InvalidOperationException(\"The entity is not attached to a world.\");");
         source.Write("private readonly ref ");
         WriteComponentType();
         source.Write(" _component = ref entity.Get<");

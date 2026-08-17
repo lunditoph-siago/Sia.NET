@@ -15,7 +15,6 @@ public class WorldFixture : IDisposable
     public WorldFixture()
     {
         World = new World();
-        Context<World>.Current = World;
     }
 
     public void Prepare<T1>(in T1 item1, int count, bool padding = true)

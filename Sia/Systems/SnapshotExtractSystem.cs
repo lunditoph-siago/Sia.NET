@@ -21,8 +21,8 @@ public abstract class SnapshotExtractSystem<TExtract> : SystemBase
 
     public override void Initialize(World world)
     {
-        _extractWorld = world.TryGetAddon<SubWorldContext>(out var ctx)
-            ? ctx.Parent
+        _extractWorld = world.TryGetAddon<IWorldSource>(out var source)
+            ? source.Source
             : world;
     }
 

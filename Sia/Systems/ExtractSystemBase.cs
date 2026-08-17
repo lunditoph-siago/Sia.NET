@@ -30,8 +30,8 @@ public abstract class ExtractSystemBase(
 
     public override void Initialize(World world)
     {
-        _parentWorld = world.TryGetAddon<SubWorldContext>(out var ctx)
-            ? ctx.Parent
+        _parentWorld = world.TryGetAddon<IWorldSource>(out var source)
+            ? source.Source
             : world;
         _ownsParentQuery = extractMatcher is not null && extractMatcher != Matchers.Any;
 

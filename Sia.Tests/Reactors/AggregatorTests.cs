@@ -18,7 +18,6 @@ public class AggregatorTests(AggregatorTests.AggregatorContext context) : IClass
         public AggregatorContext()
         {
             World = new World();
-            Context<World>.Current = World;
 
             Aggregator = World.AcquireAddon<Aggregator<ObjectId>>();
         }
