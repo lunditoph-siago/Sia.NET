@@ -311,4 +311,15 @@ public sealed class WorldActor : IDisposable
         Complete();
         GC.SuppressFinalize(this);
     }
+
+    public void CompleteAndDispose(TimeSpan timeout)
+    {
+        Complete();
+        if (!WaitForCompletion(timeout)) {
+            throw new TimeoutException(
+                $"WorldActor did not drain within {timeout}.");
+        }
+        ThrowIfFailed();
+        World.Dispose();
+    }
 }

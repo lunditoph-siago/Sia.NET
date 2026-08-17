@@ -30,6 +30,14 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
     private void Dispose(bool disposing)
     {
         if (IsDisposed) { return; }
+
+        if (disposing) {
+            ThrowIfActorIncomplete();
+        }
+        else if (_actor is { IsCompleted: false }) {
+            return;
+        }
+
         IsDisposed = true;
 
         Outcome<Exception>.Success
@@ -83,6 +91,15 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
         if (owner is not null && !ReferenceEquals(owner, this)) {
             throw new ArgumentException(
                 "The entity belongs to a different world.", nameof(target));
+        }
+    }
+
+    private void ThrowIfActorIncomplete()
+    {
+        if (_actor is { IsCompleted: false }) {
+            throw new InvalidOperationException(
+                "The world is bound to a WorldActor that has not completed. " +
+                "Call WorldActor.CompleteAndDispose(...) instead of World.Dispose() directly.");
         }
     }
 
