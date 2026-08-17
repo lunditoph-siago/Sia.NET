@@ -9,5 +9,5 @@ public interface ISystem
 
     void Initialize(World world);
     void Uninitialize(World world);
-    void Execute(World world, IEntityQuery query);
+    void Execute(WorldContext context, IEntityQuery query);
 }

@@ -8,13 +8,13 @@ public class ParallelSystemBaseTests
 
     public class UpdateSingleComponentSystem : ParallelSystemBase<VariableData>
     {
-        protected override void HandleSlice(ref VariableData c) => c.Value++;
+        protected override void HandleSlice(in WorldContext context, ref VariableData c) => c.Value++;
     }
 
     public class AssertSystem(int expected) : SystemBase(
         Matchers.Of<VariableData>())
     {
-        public override void Execute(World world, IEntityQuery query)
+        public override void Execute(WorldContext context, IEntityQuery query)
         {
             using var mem = SpanOwner<int>.Allocate(query.Count);
 

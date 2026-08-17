@@ -9,7 +9,7 @@ using CommunityToolkit.HighPerformance;
 public sealed class SystemStage : ISystemScheduleEntry, IDisposable
 {
     public readonly record struct Entry(
-        ISystem System, Action? Action, IDisposable? Disposable);
+        ISystem System, Action<WorldContext>? Action, IDisposable? Disposable);
 
     private sealed class CollectedEntityHost : IEntityHost
     {
@@ -22,6 +22,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
 
         public Type EntityType => Host.EntityType;
         public EntityDescriptor Descriptor => Host.Descriptor;
+        public World? World => Host.World;
 
         public int Capacity => Host.Capacity;
         public int Count => _entities.Count;
@@ -428,7 +429,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
     public ImmutableArray<Entry> Entries { get; }
     public bool IsDisposed { get; private set; }
 
-    private readonly Action _combinedAction;
+    private readonly Action<WorldContext> _combinedAction;
     private readonly ExecutionPlan? _plan;
 
     internal SystemStage(World world, IEnumerable<ISystem> systems)
@@ -484,10 +485,10 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
     int ISystemScheduleEntry.Version => 0;
     ExecutionPlan? ISystemScheduleEntry.Plan => _plan;
 
-    void ISystemScheduleEntry.TickSystem(int index)
+    void ISystemScheduleEntry.TickSystem(int index, WorldContext context)
     {
         ObjectDisposedException.ThrowIf(IsDisposed, this);
-        Entries[index].Action?.Invoke();
+        Entries[index].Action?.Invoke(context);
     }
 
     public void Dispose()
@@ -500,10 +501,11 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
             .ThrowIfFailed();
     }
 
-    public void Tick()
+    public void Tick(CancellationToken cancellation = default)
     {
         ObjectDisposedException.ThrowIf(IsDisposed, this);
-        _combinedAction();
+        var context = new WorldContext(World, cancellation);
+        _combinedAction(context);
     }
 
     private static Outcome<Exception> CleanupInitialized(
@@ -531,7 +533,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
         return result;
     }
 
-    private static Action ComposeActions(ImmutableArray<Entry> entries)
+    private static Action<WorldContext> ComposeActions(ImmutableArray<Entry> entries)
     {
         var actions = entries
             .Where(static entry => entry.Action != null)
@@ -539,17 +541,17 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
             .ToArray();
 
         return actions.Length switch {
-            0 => static () => { },
+            0 => static _ => { },
             1 => actions[0],
-            _ => () => {
+            _ => context => {
                 foreach (var action in actions) {
-                    action();
+                    action(context);
                 }
             }
         };
     }
 
-    private static Action? CreateSystemAction(World world, ISystem system, out IDisposable? disposable)
+    private static Action<WorldContext>? CreateSystemAction(World world, ISystem system, out IDisposable? disposable)
     {
         var matcher = system.Matcher;
         var children = system.Children;
@@ -562,7 +564,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
             else {
                 var childrenStage = children.CreateStage(world);
                 disposable = childrenStage;
-                return childrenStage.Tick;
+                return context => childrenStage.Tick(context.Cancellation);
             }
         }
 
@@ -570,18 +572,18 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
         var filter = system.Filter;
         var dispatcher = world.Dispatcher;
 
-        Action? selfAction;
+        Action<WorldContext>? selfAction;
         IDisposable? selfDisposable;
 
         if (trigger == null && filter == null) {
             if (matcher == Matchers.Any) {
                 selfDisposable = null;
-                selfAction = () => system.Execute(world, world);
+                selfAction = context => system.Execute(context, world);
             }
             else {
                 var query = world.Query(matcher);
                 selfDisposable = null;
-                selfAction = () => system.Execute(world, query);
+                selfAction = context => system.Execute(context, query);
             }
         }
         else {
@@ -589,13 +591,13 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
             var reactiveQuery = new ReactiveQuery(query, dispatcher, trigger, filter);
 
             selfDisposable = reactiveQuery;
-            selfAction = () => {
+            selfAction = context => {
                 if (reactiveQuery.Count == 0) {
                     return;
                 }
                 reactiveQuery.BeginExecution();
                 try {
-                    system.Execute(world, reactiveQuery);
+                    system.Execute(context, reactiveQuery);
                 }
                 finally {
                     reactiveQuery.EndExecution();
@@ -621,9 +623,9 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
                 ? new CompositeDisposable(selfDisposable, childrenStage)
                 : childrenStage;
 
-            return () => {
-                selfAction();
-                childrenStageAction();
+            return context => {
+                selfAction(context);
+                childrenStageAction(context);
             };
         }
         else {

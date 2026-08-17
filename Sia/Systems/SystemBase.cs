@@ -13,5 +13,5 @@ public abstract class SystemBase(
 
     public virtual void Initialize(World world) {}
     public virtual void Uninitialize(World world) {}
-    public virtual void Execute(World world, IEntityQuery query) {}
+    public virtual void Execute(WorldContext context, IEntityQuery query) {}
 }

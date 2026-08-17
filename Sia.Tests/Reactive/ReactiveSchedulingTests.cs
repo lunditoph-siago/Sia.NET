@@ -9,7 +9,7 @@ public class ReactiveSchedulingTests
 
     private sealed class IncrementSystem() : SystemBase(Matchers.Of<TickCounter>())
     {
-        public override void Execute(World world, IEntityQuery query)
+        public override void Execute(WorldContext context, IEntityQuery query)
             => query.ForSlice(static (ref TickCounter counter) => counter.Value++);
     }
 

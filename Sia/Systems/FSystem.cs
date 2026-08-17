@@ -2,7 +2,7 @@ using CommunityToolkit.HighPerformance;
 
 namespace Sia;
 
-public delegate void QueryHandler(IEntityQuery query, IRunner runner, RunnerBarrier? barrier);
+public delegate void QueryHandler(WorldContext context, IEntityQuery query, IRunner runner, RunnerBarrier? barrier);
 
 public class FSystem(QueryHandler queryHandler,
     IEntityMatcher matcher, IEventUnion? trigger = null, IEventUnion? filter = null)
@@ -10,8 +10,8 @@ public class FSystem(QueryHandler queryHandler,
 {
     private readonly QueryHandler _queryHandler = queryHandler;
 
-    public override void Execute(World world, IEntityQuery query)
-        => _queryHandler(query, CurrentThreadRunner.Instance, null);
+    public override void Execute(WorldContext context, IEntityQuery query)
+        => _queryHandler(context, query, CurrentThreadRunner.Instance, null);
 
     public FSystem WithMatcher(IEntityMatcher matcher)
         => new(_queryHandler, Matcher!.And(matcher), Trigger, Filter);
@@ -76,8 +76,8 @@ public class FSystemWithRunner(QueryHandler queryHandler, IRunner? runner = null
 
     private readonly QueryHandler _queryHandler = queryHandler;
 
-    public override void Execute(World world, IEntityQuery query)
-        => _queryHandler(query, Runner, null);
+    public override void Execute(WorldContext context, IEntityQuery query)
+        => _queryHandler(context, query, Runner, null);
 
     public FSystemWithBarrier WithBarrier()
         => new(_queryHandler, Runner, Matcher, Trigger, Filter);
@@ -89,10 +89,12 @@ public class FSystemWithBarrier(QueryHandler queryHandler, IRunner? runner = nul
 {
     public IRunner Runner { get; } = runner ?? CurrentThreadRunner.Instance;
 
-    public override void Execute(World world, IEntityQuery query)
+    private readonly QueryHandler _queryHandler = queryHandler;
+
+    public override void Execute(WorldContext context, IEntityQuery query)
     {
         var barrier = RunnerBarrier.Get();
-        queryHandler(query, Runner, barrier);
+        _queryHandler(context, query, Runner, barrier);
         barrier.WaitAndReturn();
     }
 }
@@ -100,73 +102,73 @@ public class FSystemWithBarrier(QueryHandler queryHandler, IRunner? runner = nul
 public class FSystem<T1>(ComponentHandler<T1> handler,
     IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
     : FSystem(
-        (query, runner, barrier) => query.ForSlice(handler, runner, barrier),
+        (context, query, runner, barrier) => query.ForSlice(handler, runner, barrier),
         matcher ?? Matchers.Of<T1>(), trigger, filter);
 
 public class FSystem<T1, T2>(ComponentHandler<T1, T2> handler,
     IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
     : FSystem(
-        (query, runner, barrier) => query.ForSlice(handler, runner, barrier),
+        (context, query, runner, barrier) => query.ForSlice(handler, runner, barrier),
         matcher ?? Matchers.Of<T1, T2>(), trigger, filter);
 
 public class FSystem<T1, T2, T3>(ComponentHandler<T1, T2, T3> handler,
     IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
     : FSystem(
-        (query, runner, barrier) => query.ForSlice(handler, runner, barrier),
+        (context, query, runner, barrier) => query.ForSlice(handler, runner, barrier),
         matcher ?? Matchers.Of<T1, T2, T3>(), trigger, filter);
 
 public class FSystem<T1, T2, T3, T4>(ComponentHandler<T1, T2, T3, T4> handler,
     IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
     : FSystem(
-        (query, runner, barrier) => query.ForSlice(handler, runner, barrier),
+        (context, query, runner, barrier) => query.ForSlice(handler, runner, barrier),
         matcher ?? Matchers.Of<T1, T2, T3, T4>(), trigger, filter);
 
 public class FSystem<T1, T2, T3, T4, T5>(ComponentHandler<T1, T2, T3, T4, T5> handler,
     IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
     : FSystem(
-        (query, runner, barrier) => query.ForSlice(handler, runner, barrier),
+        (context, query, runner, barrier) => query.ForSlice(handler, runner, barrier),
         matcher ?? Matchers.Of<T1, T2, T3, T4, T5>(), trigger, filter);
 
 public class FSystem<T1, T2, T3, T4, T5, T6>(ComponentHandler<T1, T2, T3, T4, T5, T6> handler,
     IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
     : FSystem(
-        (query, runner, barrier) => query.ForSlice(handler, runner, barrier),
+        (context, query, runner, barrier) => query.ForSlice(handler, runner, barrier),
         matcher ?? Matchers.Of<T1, T2, T3, T4, T5, T6>(), trigger, filter);
 
 public class FSystemWithEntity<T1>(ComponentHandlerWithEntity<T1> handler,
     IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
     : FSystem(
-        (query, runner, barrier) => query.ForSlice(handler, runner, barrier),
+        (context, query, runner, barrier) => query.ForSlice(handler, runner, barrier),
         matcher ?? Matchers.Of<T1>(), trigger, filter);
 
 public class FSystemWithEntity<T1, T2>(ComponentHandlerWithEntity<T1, T2> handler,
     IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
     : FSystem(
-        (query, runner, barrier) => query.ForSlice(handler, runner, barrier),
+        (context, query, runner, barrier) => query.ForSlice(handler, runner, barrier),
         matcher ?? Matchers.Of<T1, T2>(), trigger, filter);
 
 public class FSystemWithEntity<T1, T2, T3>(ComponentHandlerWithEntity<T1, T2, T3> handler,
     IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
     : FSystem(
-        (query, runner, barrier) => query.ForSlice(handler, runner, barrier),
+        (context, query, runner, barrier) => query.ForSlice(handler, runner, barrier),
         matcher ?? Matchers.Of<T1, T2, T3>(), trigger, filter);
 
 public class FSystemWithEntity<T1, T2, T3, T4>(ComponentHandlerWithEntity<T1, T2, T3, T4> handler,
     IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
     : FSystem(
-        (query, runner, barrier) => query.ForSlice(handler, runner, barrier),
+        (context, query, runner, barrier) => query.ForSlice(handler, runner, barrier),
         matcher ?? Matchers.Of<T1, T2, T3, T4>(), trigger, filter);
 
 public class FSystemWithEntity<T1, T2, T3, T4, T5>(ComponentHandlerWithEntity<T1, T2, T3, T4, T5> handler,
     IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
     : FSystem(
-        (query, runner, barrier) => query.ForSlice(handler, runner, barrier),
+        (context, query, runner, barrier) => query.ForSlice(handler, runner, barrier),
         matcher ?? Matchers.Of<T1, T2, T3, T4, T5>(), trigger, filter);
 
 public class FSystemWithEntity<T1, T2, T3, T4, T5, T6>(ComponentHandlerWithEntity<T1, T2, T3, T4, T5, T6> handler,
     IEntityMatcher? matcher = null, IEventUnion? trigger = null, IEventUnion? filter = null)
     : FSystem(
-        (query, runner, barrier) => query.ForSlice(handler, runner, barrier),
+        (context, query, runner, barrier) => query.ForSlice(handler, runner, barrier),
         matcher ?? Matchers.Of<T1, T2, T3, T4, T5, T6>(), trigger, filter);
 
 public static class FSystemSystemChainExtensions

@@ -15,7 +15,7 @@ public sealed class ReadHealthSystem()
 {
     public List<(int EntityId, int Health)> Seen { get; } = [];
 
-    public override void Execute(World world, IEntityQuery query, IEntityQuery extract)
+    public override void Execute(WorldContext context, IEntityQuery query, IEntityQuery extract)
     {
         Seen.Clear();
         extract.ForSlice((Entity entity, ref Health health) => {
@@ -29,7 +29,7 @@ public sealed class CountHealthSystem()
 {
     public int Count { get; private set; }
 
-    public override void Execute(World world, IEntityQuery query, IEntityQuery extract)
+    public override void Execute(WorldContext context, IEntityQuery query, IEntityQuery extract)
     {
         Count = 0;
         extract.ForSlice((ref Health _) => { Count++; });
@@ -41,7 +41,7 @@ public sealed class ReadDamageSystem()
 {
     public int Value { get; private set; }
 
-    public override void Execute(World world, IEntityQuery query, IEntityQuery extract)
+    public override void Execute(WorldContext context, IEntityQuery query, IEntityQuery extract)
     {
         extract.ForSlice((ref Damage damage) => { Value = damage.Value; });
     }

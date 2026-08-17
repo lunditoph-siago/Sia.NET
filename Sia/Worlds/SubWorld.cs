@@ -30,8 +30,8 @@ public sealed class SubWorld : IDisposable
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Tick(SystemStage stage)
-        => Context<World>.With(World, stage.Tick);
+    public void Tick(SystemStage stage, CancellationToken cancellation = default)
+        => stage.Tick(cancellation);
 
     public void Dispose()
     {

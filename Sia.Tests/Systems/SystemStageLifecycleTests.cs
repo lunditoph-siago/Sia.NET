@@ -35,7 +35,7 @@ public class SystemStageLifecycleTests
     {
         public int ExecutionCount { get; private set; }
 
-        public override void Execute(World world, IEntityQuery query)
+        public override void Execute(WorldContext context, IEntityQuery query)
         {
             ExecutionCount++;
             if (ExecutionCount == 1) {
@@ -50,7 +50,7 @@ public class SystemStageLifecycleTests
     {
         public int ExecutionCount { get; private set; }
 
-        public override void Execute(World world, IEntityQuery query)
+        public override void Execute(WorldContext context, IEntityQuery query)
             => ExecutionCount++;
     }
 
@@ -71,7 +71,7 @@ public class SystemStageLifecycleTests
     {
         public int ObservedCount { get; private set; }
 
-        public override void Execute(World world, IEntityQuery query)
+        public override void Execute(WorldContext context, IEntityQuery query)
             => ObservedCount += query.Count;
     }
 
@@ -135,7 +135,7 @@ public class SystemStageLifecycleTests
         Assert.Equal([secondError, firstError], thrown.InnerExceptions);
         Assert.True(stage.IsDisposed);
         stage.Dispose();
-        Assert.Throws<ObjectDisposedException>(stage.Tick);
+        Assert.Throws<ObjectDisposedException>(() => stage.Tick());
     }
 
     [Fact]
@@ -149,7 +149,7 @@ public class SystemStageLifecycleTests
             .CreateStage(world);
 
         world.Send(entity, new ProbeEvent());
-        Assert.Throws<InvalidOperationException>(stage.Tick);
+        Assert.Throws<InvalidOperationException>(() => stage.Tick());
 
         world.Send(entity, new ProbeEvent());
         stage.Tick();

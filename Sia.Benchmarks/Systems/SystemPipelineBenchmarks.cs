@@ -80,7 +80,7 @@ public class ReactiveSystemPipelineBenchmarks
 
 internal sealed class MovementSystem() : SystemBase(Matchers.Of<Position, Velocity>())
 {
-    public override void Execute(World world, IEntityQuery query)
+    public override void Execute(WorldContext context, IEntityQuery query)
         => query.ForSlice(static (ref Position position, ref Velocity velocity) => {
             position.X += velocity.X;
         });
@@ -89,7 +89,7 @@ internal sealed class MovementSystem() : SystemBase(Matchers.Of<Position, Veloci
 internal sealed class ReactiveMovementSystem() : SystemBase(
     Matchers.Of<Position, Velocity>(), EventUnion.Of<BenchmarkEvent>())
 {
-    public override void Execute(World world, IEntityQuery query)
+    public override void Execute(WorldContext context, IEntityQuery query)
         => query.ForSlice(static (ref Position position, ref Velocity velocity) => {
             position.X += velocity.X;
         });

@@ -85,7 +85,7 @@
               Aggregation<UserId>.EntityAdded,
               Aggregation<UserId>.EntityRemoved>())
       {
-          public override void Execute(World world, IEntityQuery query)
+          public override void Execute(WorldContext context, IEntityQuery query)
           {
               foreach (var entity in query) {
                   ref readonly var group = ref entity.Get<Aggregation<UserId>>();
@@ -203,7 +203,7 @@
           EventUnion.Of<SigTerm>(),
           filter: EventUnion.Of<HOEvents.Cancel<SigTerm>>())
       {
-          public override void Execute(World world, IEntityQuery query)
+          public override void Execute(WorldContext context, IEntityQuery query)
           {
               Console.WriteLine("delivering SIGTERM...");
               foreach (var entity in query) {
@@ -330,7 +330,7 @@
       {
           private readonly ConcurrentStack<Entity> _completed = [];
 
-          public override void Execute(World world, IEntityQuery query)
+          public override void Execute(WorldContext context, IEntityQuery query)
           {
               query.ForEachOnParallel(this, static (system, entity) => {
                   if (entity.Get<ParallelJob>().Index % 8 == 0) {
@@ -395,7 +395,7 @@
 
       public sealed class LoadDriftSystem() : SystemBase(Matchers.Of<Load>())
       {
-          public override void Execute(World world, IEntityQuery query)
+          public override void Execute(WorldContext context, IEntityQuery query)
           {
               foreach (var entity in query) {
                   ref var load = ref entity.Get<Load>();
@@ -407,7 +407,7 @@
       public sealed class LoadExtractSystem() : ExtractSystemBase(
           matcher: Matchers.Any, extractMatcher: Matchers.Of<ProcessName, Load>())
       {
-          public override void Execute(World world, IEntityQuery query, IEntityQuery extract)
+          public override void Execute(WorldContext context, IEntityQuery query, IEntityQuery extract)
               => Console.WriteLine($"  [live query] sees {extract.Count} process(es) in the real world");
       }
 

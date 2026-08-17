@@ -91,7 +91,7 @@ public abstract class EventSystemBase(SystemChain? children = null)
         where TEventUnion : IEventUnion<TEventUnion>
         => TEventUnion.HandleEventTypes(new EventRecorder(this));
 
-    public override void Execute(World world, IEntityQuery query)
+    public override void Execute(WorldContext context, IEntityQuery query)
     {
         (_eventCaches, _eventCachesBack) = (_eventCachesBack, _eventCaches);
         (_events, _eventsBack) = (_eventsBack, _events);
@@ -249,7 +249,7 @@ public abstract class SnapshotEventSystemBase<TSnapshot>(SystemChain? children =
         OnUninitialize += () => World.Dispatcher.Unlisten<TEvent>(EventListener);
     }
 
-    public override void Execute(World world, IEntityQuery query)
+    public override void Execute(WorldContext context, IEntityQuery query)
     {
         if (_eventsBack.Count == 0) {
             return;
