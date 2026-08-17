@@ -5,52 +5,67 @@ using System.Diagnostics.CodeAnalysis;
 
 public class BlockingQueue<T>
 {
-    public bool IsCompleted { get; private set; }
-
+    private readonly object _gate = new();
     private readonly ConcurrentQueue<T> _queue = new();
-    private readonly AutoResetEvent _autoResetEvent = new(false);
+    private readonly AutoResetEvent _itemEvent = new(false);
+    private readonly ManualResetEventSlim _completedEvent = new(false);
+    private readonly WaitHandle[] _waitHandles;
+    private volatile bool _isCompleted;
+
+    public BlockingQueue()
+    {
+        _waitHandles = [_itemEvent, _completedEvent.WaitHandle];
+    }
+
+    public bool IsCompleted => _isCompleted;
 
     public void Enqueue(T item)
     {
-        if (IsCompleted) {
-            throw new InvalidOperationException("BlockingQueue has been completed");
+        lock (_gate) {
+            if (_isCompleted) {
+                throw new InvalidOperationException("BlockingQueue has been completed");
+            }
+            _queue.Enqueue(item);
         }
-        _queue.Enqueue(item);
-        _autoResetEvent.Set();
+        _itemEvent.Set();
     }
 
     public bool TryPeek([MaybeNullWhen(false)] out T result)
         => _queue.TryPeek(out result);
 
+    public bool TryDequeue([MaybeNullWhen(false)] out T result)
+        => _queue.TryDequeue(out result);
+
     public bool Dequeue([MaybeNullWhen(false)] out T item)
     {
-        if (IsCompleted) {
-            item = default;
-            return false;
-        }
-        while (!_queue.TryDequeue(out item)) {
+        while (true) {
+            if (_queue.TryDequeue(out item)) {
+                return true;
+            }
+            if (_isCompleted) {
+                item = default;
+                return false;
+            }
 #if BROWSER
-            if (!_autoResetEvent.WaitOne(1500) && _queue.IsEmpty) {
+            if (WaitHandle.WaitAny(_waitHandles, 1500) == WaitHandle.WaitTimeout
+                && _queue.IsEmpty) {
                 item = default;
                 return false;
             }
 #else
-            _autoResetEvent.WaitOne();
+            WaitHandle.WaitAny(_waitHandles);
 #endif
-            if (IsCompleted) {
-                item = default;
-                return false;
-            }
         }
-        return true;
     }
 
     public void Complete()
     {
-        if (IsCompleted) {
-            return;
+        lock (_gate) {
+            if (_isCompleted) {
+                return;
+            }
+            _isCompleted = true;
         }
-        IsCompleted = true;
-        _autoResetEvent.Set();
+        _completedEvent.Set();
     }
 }
