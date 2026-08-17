@@ -64,6 +64,9 @@ public sealed class WorldActor : IDisposable
     public void PostTick(SystemStage stage)
         => Post(new TickMessage(stage));
 
+    public void PostTickSchedule(Scheduler scheduler, ScheduleLabel? label = null)
+        => Post(new SchedulerTickMessage(scheduler, label));
+
     public void Complete()
     {
         lock (_gate) {
