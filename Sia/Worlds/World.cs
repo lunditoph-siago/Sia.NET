@@ -64,4 +64,13 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
         command.Execute(this, target, ref component);
         Dispatcher.Send(target, command);
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public WorldEntity Spawn()
+        => new(this, this.Create());
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public WorldEntity Spawn<TEntity>(in TEntity initial)
+        where TEntity : struct, IHList
+        => new(this, this.Create(initial));
 }
