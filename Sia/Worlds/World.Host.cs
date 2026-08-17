@@ -77,13 +77,21 @@ public partial class World
     public bool ReleaseHost<THost>()
         where THost : IEntityHost
     {
-        if (_hosts.Remove(WorldEntityHostIndexer<THost>.Index, out var host)) {
-            Version++;
-            OnEntityHostRemoved?.Invoke(host);
-            host.Dispose();
-            return true;
+        var hostIndex = WorldEntityHostIndexer<THost>.Index;
+        if (!_hosts.TryGetValue(hostIndex, out var rawHost)) {
+            return false;
         }
-        return false;
+
+        var host = (THost)rawHost;
+        foreach (var entity in host.UnsafeGetEntitySpan().ToArray()) {
+            host.Release(entity);
+        }
+
+        _hosts.Remove(hostIndex, out var removedHost);
+        Version++;
+        OnEntityHostRemoved?.Invoke(removedHost!);
+        host.Dispose();
+        return true;
     }
 
     public bool TryGetHost<THost>([MaybeNullWhen(false)] out THost host)
