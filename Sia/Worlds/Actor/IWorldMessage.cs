@@ -5,6 +5,16 @@ public interface IWorldMessage
     void Execute(in WorldContext context);
 }
 
+public interface IAsyncWorldMessage : IWorldMessage
+{
+    Task ExecuteAsync(in WorldContext context);
+}
+
+public interface IBlockingWorldMessage : IWorldMessage
+{
+    void ExecuteBlocking(in WorldContext context);
+}
+
 public readonly record struct CommandMessage(CommandRequest Request) : IWorldMessage
 {
     public readonly void Execute(in WorldContext context)
