@@ -39,15 +39,24 @@ public partial class World
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public TAddon AddAddon<TAddon>()
         where TAddon : class, IAddon, new()
+        => AddAddon(new TAddon());
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public TAddon AddAddon<TAddon>(TAddon addon)
+        where TAddon : class, IAddon
     {
-        ref var addon = ref _addons[WorldAddonIndexer<TAddon>.Index];
-        if (addon != null) {
+        ArgumentNullException.ThrowIfNull(addon);
+
+        ref var slot = ref _addons[WorldAddonIndexer<TAddon>.Index];
+        if (slot != null) {
             throw new Exception("Addon already exists: " + typeof(TAddon));
         }
-        var newAddon = CreateAddon<TAddon>();
-        addon = newAddon;
-        OnAddonCreated?.Invoke(newAddon);
-        return newAddon;
+
+        addon.OnInitialize(this);
+        slot = addon;
+        _addonCount++;
+        OnAddonCreated?.Invoke(addon);
+        return addon;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
