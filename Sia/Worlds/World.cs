@@ -4,8 +4,6 @@ using System.Runtime.CompilerServices;
 
 public sealed partial class World : IReactiveEntityQuery, IEventSender
 {
-    public static World Current => Context.Get<World>();
-
     public event Action<World>? OnDisposed;
 
     public int Count { get; internal set; }

@@ -20,7 +20,6 @@ public class MapperBenchmarks
     public void Setup()
     {
         _world = new World();
-        Context<World>.Current = _world;
         _mapper = _world.AcquireAddon<Mapper<int>>();
         _entities = new Entity[EntityCount];
         for (var i = 0; i < EntityCount; i++) {
@@ -37,9 +36,6 @@ public class MapperBenchmarks
     [GlobalCleanup]
     public void Cleanup()
     {
-        if (ReferenceEquals(Context<World>.Current, _world)) {
-            Context<World>.Current = null;
-        }
         _world.Dispose();
     }
 

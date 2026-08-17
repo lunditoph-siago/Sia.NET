@@ -223,7 +223,6 @@ public class ExtractSystemTests
     public void ExtractSystemBase_FallsBackToSameWorldWithoutSubWorld()
     {
         using var world = new World();
-        Context<World>.Current = world;
         world.Create(HList.From(new Health(50)));
         world.Create(HList.From(new Health(60)));
 
@@ -266,7 +265,6 @@ public class ExtractSystemTests
     public void SnapshotExtractSystem_FreezesDataDoesNotSeeLaterMutations()
     {
         using var world = new World();
-        Context<World>.Current = world;
         world.Create(HList.From(new Health(100)));
         world.Create(HList.From(new Health(200)));
 
@@ -293,7 +291,6 @@ public class ExtractSystemTests
     public void SnapshotExtractSystem_UsesOwnWorldWithoutSubWorldContext()
     {
         using var world = new World();
-        Context<World>.Current = world;
         world.Create(HList.From(new Health(42)));
 
         var system = new HealthSnapshotSystem();
@@ -311,7 +308,6 @@ public class ExtractSystemTests
     public void SnapshotExtractSystem_GameThreadExtractsRenderThreadRenders()
     {
         using var world = new World();
-        Context<World>.Current = world;
 
         const int entityCount = 100;
         const int frameCount = 30;
@@ -348,7 +344,6 @@ public class ExtractSystemTests
     public void SnapshotExtractSystem_StressConcurrentExtractAndRender()
     {
         using var world = new World();
-        Context<World>.Current = world;
 
         const int entityCount = 100;
         const int frameCount = 30;
@@ -444,7 +439,6 @@ public class ExtractSystemTests
     public void ExtractSystem_AllMechanismsWorkTogether()
     {
         using var parent = new World();
-        Context<World>.Current = parent;
         parent.Create(HList.From(new Health(100), new Damage(10)));
         parent.Create(HList.From(new Health(200), new Damage(20)));
 
@@ -497,7 +491,6 @@ public class ExtractSystemTests
     public void ExtractSystem_ConcurrentSnapshotAndChannel()
     {
         using var world = new World();
-        Context<World>.Current = world;
         world.Create(HList.From(new FrameCounter(0)));
 
         var snapshot = new FrameSnapshotSystem();

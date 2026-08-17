@@ -40,7 +40,6 @@ public static class NotebookProgramBuilder
         }
 
         Emit("var world = new global::Sia.World();\n");
-        Emit("global::Sia.Context<global::Sia.World>.Current = world;\n");
         Emit("try {\n");
 
         for (var index = 0; index < splits.Count; index++) {
@@ -71,7 +70,6 @@ public static class NotebookProgramBuilder
 
         Emit("}\n");
         Emit("finally {\n");
-        Emit("global::Sia.Context<global::Sia.World>.Current = null;\n");
         Emit("world.Dispose();\n");
         Emit("}\n");
 
