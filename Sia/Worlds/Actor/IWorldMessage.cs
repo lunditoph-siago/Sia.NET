@@ -50,6 +50,34 @@ public sealed class TickMessage(SystemStage stage) : IWorldMessage
     }
 }
 
+public sealed class SchedulerTickMessage(Scheduler scheduler, ScheduleLabel? label = null)
+    : IWorldMessage
+{
+    private readonly TaskCompletionSource _completion =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public Scheduler Scheduler { get; } = scheduler;
+    public ScheduleLabel? Label { get; } = label;
+    public Task Completion => _completion.Task;
+
+    public void Execute(in WorldContext context)
+    {
+        try {
+            if (Label is { } label) {
+                Scheduler.TickSchedule(label, context.Cancellation);
+            }
+            else {
+                Scheduler.Tick(context.Cancellation);
+            }
+            _completion.TrySetResult();
+        }
+        catch (Exception error) {
+            _completion.TrySetException(error);
+            throw;
+        }
+    }
+}
+
 public sealed class CompleteMessage : IWorldMessage
 {
     public static CompleteMessage Instance { get; } = new();

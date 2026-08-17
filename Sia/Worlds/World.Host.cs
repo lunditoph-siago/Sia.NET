@@ -105,7 +105,7 @@ public partial class World
         return false;
     }
 
-    public bool ConainsHost<THost>()
+    public bool ContainsHost<THost>()
         where THost : IEntityHost
         => _hosts.ContainsKey(WorldEntityHostIndexer<THost>.Index);
     
