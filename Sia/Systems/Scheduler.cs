@@ -239,10 +239,11 @@ public sealed class Scheduler : IAddon, IDisposable
         _planValid = true;
     }
 
-    public void Tick()
+    public void Tick(CancellationToken cancellation = default)
     {
         EnsureActive();
         BeginTick();
+        var context = new WorldContext(_world, cancellation);
         try {
             var sources = GetSourceSnapshot();
             for (var i = 0; i < sources.Length; i++) {
@@ -268,7 +269,7 @@ public sealed class Scheduler : IAddon, IDisposable
                 EnsureSlotPlan(slot);
                 if (slot.Schedule is not { Manual: true }) {
                     _phase = SchedulerPhase.Executing;
-                    TickSlot(slot);
+                    TickSlot(slot, context);
                 }
                 _phase = SchedulerPhase.BeginTick;
             }
@@ -279,10 +280,12 @@ public sealed class Scheduler : IAddon, IDisposable
         }
     }
 
-    public void TickSchedule(ScheduleLabel label)
+    public void TickSchedule(
+        ScheduleLabel label, CancellationToken cancellation = default)
     {
         EnsureActive();
         BeginTick();
+        var context = new WorldContext(_world, cancellation);
         try {
             var sources = GetSourceSnapshot();
             _phase = SchedulerPhase.BeforeSchedule;
@@ -295,7 +298,7 @@ public sealed class Scheduler : IAddon, IDisposable
             if (_slots.TryGetValue(label, out var slot)) {
                 EnsureSlotPlan(slot);
                 _phase = SchedulerPhase.Executing;
-                TickSlot(slot);
+                TickSlot(slot, context);
             }
         }
         finally {
@@ -405,7 +408,7 @@ public sealed class Scheduler : IAddon, IDisposable
         _phase = SchedulerPhase.BeginTick;
     }
 
-    private static void TickSlot(ScheduleSlot slot)
+    private static void TickSlot(ScheduleSlot slot, WorldContext context)
     {
         var nodes = slot.RuntimeOrder;
         for (var i = 0; i < nodes.Length; i++) {
@@ -416,10 +419,10 @@ public sealed class Scheduler : IAddon, IDisposable
             }
             var systemEntry = node.SystemEntry;
             if (systemEntry == null) {
-                node.Entry.Tick();
+                node.Entry.Tick(context);
             }
             else if (systemEntry.Version == node.Version) {
-                systemEntry.TickSystem(node.SystemIndex);
+                systemEntry.TickSystem(node.SystemIndex, context);
             }
         }
     }

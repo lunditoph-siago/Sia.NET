@@ -55,10 +55,10 @@ public abstract class ExtractSystemBase(
         _parentWorld = null!;
     }
 
-    public sealed override void Execute(World world, IEntityQuery query)
-        => Execute(world, query, _extract);
+    public sealed override void Execute(WorldContext context, IEntityQuery query)
+        => Execute(context, query, _extract);
 
-    public abstract void Execute(World world, IEntityQuery query, IEntityQuery extract);
+    public abstract void Execute(WorldContext context, IEntityQuery query, IEntityQuery extract);
 }
 
 public sealed class ExtractChannel<T> : IDisposable where T : unmanaged

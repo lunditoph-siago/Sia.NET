@@ -33,8 +33,8 @@ public sealed class ScheduleRegistry(ScheduleLabel label) : ISystemScheduleEntry
 
     ExecutionPlan? ISystemScheduleEntry.Plan => CurrentPlan;
 
-    void ISystemScheduleEntry.TickSystem(int index)
-        => RuntimeOrder[index].Tick();
+    void ISystemScheduleEntry.TickSystem(int index, WorldContext context)
+        => RuntimeOrder[index].Tick(context.Cancellation);
 
     internal SystemStage? Remove(Entity slotEntity)
     {

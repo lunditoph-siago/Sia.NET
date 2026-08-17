@@ -11,7 +11,7 @@ public partial class SystemBaseTests
     public class AssertSystem(int expected) : SystemBase(
         Matchers.Of<VariableData>())
     {
-        public override void Execute(World world, IEntityQuery query)
+        public override void Execute(WorldContext context, IEntityQuery query)
         {
             using var mem = SpanOwner<int>.Allocate(query.Count);
 
@@ -29,7 +29,7 @@ public partial class SystemBaseTests
                 Matchers.Of<VariableData>(),
                 children: SystemChain.Empty.Add<AssertSystem>(() => new(2)))
         {
-            public override void Execute(World world, IEntityQuery query)
+            public override void Execute(WorldContext context, IEntityQuery query)
             {
                 query.ForSlice(static (ref VariableData c) => { c.Value++; });
                 query.ForSliceOnParallel(static (ref VariableData c) => { c.Value++; });
@@ -44,7 +44,7 @@ public partial class SystemBaseTests
                 Matchers.Of<VariableData, ConstData>(),
                 children: SystemChain.Empty.Add<AssertSystem>(() => new(2)))
         {
-            public override void Execute(World world, IEntityQuery query)
+            public override void Execute(WorldContext context, IEntityQuery query)
             {
                 query.ForSlice(static (ref VariableData c1, ref ConstData c2) => { c1.Value += c2.Value; });
                 query.ForSliceOnParallel(static (ref VariableData c1, ref ConstData c2) => { c1.Value += c2.Value; });
@@ -56,7 +56,7 @@ public partial class SystemBaseTests
                 Matchers.Of<VariableData, ConstData>(),
                 EventUnion.Of<ConstData.SetValue>())
         {
-            public override void Execute(World world, IEntityQuery query)
+            public override void Execute(WorldContext context, IEntityQuery query)
             {
                 query.ForSlice(static (ref VariableData c1, ref ConstData c2) => { c1.Value += c2.Value; });
                 query.ForSliceOnParallel(static (ref VariableData c1, ref ConstData c2) => { c1.Value += c2.Value; });

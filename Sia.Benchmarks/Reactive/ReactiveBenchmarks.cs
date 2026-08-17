@@ -223,7 +223,7 @@ internal readonly record struct BenchmarkScheduledSpec<TLabel>
 
 internal sealed class BenchmarkScheduledSystem<TTag>() : SystemBase(Matchers.Any)
 {
-    public override void Execute(World world, IEntityQuery query) {}
+    public override void Execute(WorldContext context, IEntityQuery query) {}
 }
 
 internal readonly record struct BenchmarkPersistentSchedule;

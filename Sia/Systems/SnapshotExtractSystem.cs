@@ -36,7 +36,7 @@ public abstract class SnapshotExtractSystem<TExtract> : SystemBase
         _extractWorld = null!;
     }
 
-    public sealed override void Execute(World world, IEntityQuery query)
+    public sealed override void Execute(WorldContext context, IEntityQuery query)
         => Render(Data);
 
     public void RunExtract()

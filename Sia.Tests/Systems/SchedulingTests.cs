@@ -22,7 +22,7 @@ public class SchedulingTests
     [SiaSystem]
     public class AdvancedInputBridgeSystem() : SystemBase(Matchers.Any)
     {
-        public override void Execute(World world, IEntityQuery query)
+        public override void Execute(WorldContext context, IEntityQuery query)
             => InitOrder.Add(nameof(AdvancedInputBridgeSystem));
     }
 
@@ -31,7 +31,7 @@ public class SchedulingTests
     [SiaAfter<AdvancedInputBridgeSystem>]
     public class AdvancedPhysicsSystem() : SystemBase(Matchers.Any)
     {
-        public override void Execute(World world, IEntityQuery query)
+        public override void Execute(WorldContext context, IEntityQuery query)
             => InitOrder.Add(nameof(AdvancedPhysicsSystem));
     }
 
@@ -40,7 +40,7 @@ public class SchedulingTests
     [SiaAfterSet<AdvancedSimulationSet>]
     public class AdvancedRenderPrepSystem() : SystemBase(Matchers.Any)
     {
-        public override void Execute(World world, IEntityQuery query)
+        public override void Execute(WorldContext context, IEntityQuery query)
             => InitOrder.Add(nameof(AdvancedRenderPrepSystem));
     }
 
@@ -61,7 +61,7 @@ public class SchedulingTests
 
     private sealed class TestScheduleEntry(string name) : IScheduleEntry
     {
-        public void Tick() => InitOrder.Add(name);
+        public void Tick(WorldContext context) => InitOrder.Add(name);
     }
 
     private sealed class CallbackScheduleEntry(
@@ -70,7 +70,7 @@ public class SchedulingTests
     {
         public Action? OnTick { get; set; }
 
-        public void Tick()
+        public void Tick(WorldContext context)
         {
             callbacks.Add(name);
             OnTick?.Invoke();
@@ -147,7 +147,7 @@ public class SchedulingTests
         public void OnAttached(Scheduler scheduler, ScheduleLabel label)
             => callbacks.Add($"{name}.attached:{label.Name}");
 
-        public void Tick() => callbacks.Add($"{name}.tick");
+        public void Tick(WorldContext context) => callbacks.Add($"{name}.tick");
 
         public void OnDetached(Scheduler scheduler, ScheduleLabel label)
         {
@@ -288,10 +288,10 @@ public class SchedulingTests
 
         using var stage = SystemChain.Empty
             .Add<AdvancedRenderPrepSystem>()
-            .Add(commitInput, () => new FSystem((_, _, _) => InitOrder.Add(nameof(commitInput)), Matchers.Any))
+            .Add(commitInput, () => new FSystem((_, _, _, _) => InitOrder.Add(nameof(commitInput)), Matchers.Any))
             .Add<AdvancedPhysicsSystem>()
-            .Add(telemetry, () => new FSystem((_, _, _) => InitOrder.Add(nameof(telemetry)), Matchers.Any))
-            .Add(collectInput, () => new FSystem((_, _, _) => InitOrder.Add(nameof(collectInput)), Matchers.Any))
+            .Add(telemetry, () => new FSystem((_, _, _, _) => InitOrder.Add(nameof(telemetry)), Matchers.Any))
+            .Add(collectInput, () => new FSystem((_, _, _, _) => InitOrder.Add(nameof(collectInput)), Matchers.Any))
             .Add<AdvancedInputBridgeSystem>()
             .Configure(commitInput, descriptor => descriptor
                 .After(collectInput)
@@ -356,7 +356,7 @@ public class SchedulingTests
             .ConfigureSchedule(first, schedule => schedule.Before(second))
             .ConfigureSchedule(second, schedule => schedule.Before(first));
 
-        var exception = Assert.Throws<ScheduleCycleException>(scheduler.Tick);
+        var exception = Assert.Throws<ScheduleCycleException>(() => scheduler.Tick());
 
         Assert.Equal([first, second, first], exception.Cycle.ToArray());
         Assert.DoesNotContain(upstream, exception.Cycle);
