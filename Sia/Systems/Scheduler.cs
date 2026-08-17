@@ -273,6 +273,8 @@ public sealed class Scheduler : IAddon, IDisposable
                 }
                 _phase = SchedulerPhase.BeginTick;
             }
+
+            context.World.Commands.Apply(context.World);
         }
         finally {
             _phase = SchedulerPhase.Idle;
@@ -300,6 +302,8 @@ public sealed class Scheduler : IAddon, IDisposable
                 _phase = SchedulerPhase.Executing;
                 TickSlot(slot, context);
             }
+
+            context.World.Commands.Apply(context.World);
         }
         finally {
             _phase = SchedulerPhase.Idle;

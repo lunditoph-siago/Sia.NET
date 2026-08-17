@@ -506,6 +506,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
         ObjectDisposedException.ThrowIf(IsDisposed, this);
         var context = new WorldContext(World, cancellation);
         _combinedAction(context);
+        World.Commands.Apply(World);
     }
 
     private static Outcome<Exception> CleanupInitialized(
