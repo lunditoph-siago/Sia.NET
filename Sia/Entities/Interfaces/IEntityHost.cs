@@ -7,6 +7,8 @@ public interface IEntityHost : IEnumerable<Entity>, IDisposable
     Type EntityType { get; }
     EntityDescriptor Descriptor { get; }
 
+    World? World => null;
+
     int Capacity { get; }
     int Count { get; }
     int Version { get; }
