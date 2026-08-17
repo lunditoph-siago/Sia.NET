@@ -566,6 +566,63 @@
     </Paragraph>
   </Section>
 
+  <Section Title="9. Actors: one owner thread, ticks and mutations posted in">
+    <Paragraph>
+      <Code>WorldActor</Code> binds to a <Code>World</Code> and becomes the only thread allowed to
+      touch it — every other thread has to <Code>Post</Code> work into its mailbox instead of
+      calling <Code>Send</Code>/<Code>Execute</Code>/<Code>Create</Code> directly, and the world
+      throws if you try anyway. <Code>PostTickSchedule</Code> posts a <Code>Scheduler</Code> tick
+      the same way <Code>PostTick</Code> posts a raw <Code>SystemStage</Code>. This cell builds a
+      private <Code>World</Code> (never the shared one this notebook mutates elsewhere), runs its
+      actor on a dedicated thread, and shuts it down with <Code>CompleteAndDispose</Code>, which
+      drains the mailbox before disposing the world instead of racing it.
+    </Paragraph>
+    <CodeCell Id="advanced-actor" Editable="true"><![CDATA[
+      using var actorWorld = new World();
+      actorWorld.Spawn(HList.From(new TickCount(0)));
+
+      var scheduler = actorWorld.AcquireAddon<Scheduler>();
+      scheduler.UseCorePipeline()
+          .AddSchedule(new Schedule(CoreSchedules.Update)
+              .Add<CountTicksSystem>());
+
+      using var actor = new WorldActor(actorWorld);
+      var ownerThread = System.Threading.Tasks.Task.Run(() => actor.Run());
+
+      actor.PostTickSchedule(scheduler, CoreSchedules.Update);
+      actor.PostTickSchedule(scheduler, CoreSchedules.Update);
+      actor.PostTickSchedule(scheduler, CoreSchedules.Update);
+
+      try {
+          actorWorld.Create(HList.From(new TickCount(99)));
+      }
+      catch (InvalidOperationException error) {
+          Console.WriteLine($"blocked from the notebook thread: {error.Message}");
+      }
+
+      actor.CompleteAndDispose(TimeSpan.FromSeconds(5));
+      ownerThread.Wait(TimeSpan.FromSeconds(5));
+
+      public partial record struct TickCount(int Value);
+
+      public sealed class CountTicksSystem() : SystemBase(Matchers.Of<TickCount>())
+      {
+          public override void Execute(WorldContext context, IEntityQuery query)
+              => query.ForSlice(static (ref TickCount c) => {
+                  c.Value++;
+                  Console.WriteLine($"tick {c.Value} ran on the actor's own thread");
+              });
+      }
+    ]]></CodeCell>
+    <Paragraph>
+      The blocked <Code>Create</Code> call is the point: this notebook's own cell-execution
+      thread is not the actor's owner thread, so the guard fires exactly like it would for any
+      other caller. <Code>CompleteAndDispose</Code> only returns once every posted tick has run
+      and the actor's thread has exited — nothing here disposes <Code>actorWorld</Code> while a
+      message might still be touching it.
+    </Paragraph>
+  </Section>
+
   <Section Title="Where to go next">
     <List>
       <Item><Code>Reactive.ForEach</Code> and <Code>PatchForEach</Code> reconcile keyed collections.</Item>
