@@ -15,6 +15,8 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
 
     internal EntityStatePool EntityStates { get; } = new();
 
+    private WorldActor? _actor;
+
     public World()
     {
         Dispatcher = new WorldDispatcher(this);
@@ -48,6 +50,7 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
     public void Send<TEvent>(Entity target, in TEvent e)
         where TEvent : IEvent
     {
+        EnsureOwnerThread();
         ThrowIfForeignEntity(target);
         Dispatcher.Send(target, e);
     }
@@ -56,6 +59,7 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
     public void Execute<TCommand>(Entity target, in TCommand command)
         where TCommand : ICommand
     {
+        EnsureOwnerThread();
         ThrowIfForeignEntity(target);
         command.Execute(this, target);
         Dispatcher.Send(target, command);
@@ -66,6 +70,7 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
         Entity target, ref TComponent component, in TCommand command)
         where TCommand : ICommand<TComponent>
     {
+        EnsureOwnerThread();
         ThrowIfForeignEntity(target);
         command.Execute(this, target, ref component);
         Dispatcher.Send(target, command);
@@ -78,6 +83,46 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
         if (owner is not null && !ReferenceEquals(owner, this)) {
             throw new ArgumentException(
                 "The entity belongs to a different world.", nameof(target));
+        }
+    }
+
+    internal void BindActor(WorldActor actor)
+    {
+        if (Interlocked.CompareExchange(ref _actor, actor, null) is { } existing
+            && !ReferenceEquals(existing, actor)) {
+            throw new InvalidOperationException(
+                "The world is already bound to a different actor.");
+        }
+    }
+
+    public WorldActor? Actor => _actor;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Post(IWorldMessage message)
+        => (Actor ?? throw new InvalidOperationException(
+                "The world is not bound to an actor."))
+            .Post(message);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Post(in CommandRequest request)
+        => (Actor ?? throw new InvalidOperationException(
+                "The world is not bound to an actor."))
+            .Post(request);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Post<TEvent>(Entity target, in TEvent e)
+        where TEvent : IEvent
+        => (Actor ?? throw new InvalidOperationException(
+                "The world is not bound to an actor."))
+            .Post(target, e);
+
+    public void EnsureOwnerThread()
+    {
+        var actor = _actor;
+        if (actor != null && !actor.IsOwnerThread) {
+            throw new InvalidOperationException(
+                "World operations must run on the actor owner thread. " +
+                "Post a message to the WorldActor instead.");
         }
     }
 
