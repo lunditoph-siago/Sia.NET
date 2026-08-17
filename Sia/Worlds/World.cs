@@ -11,6 +11,7 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
     public int Version { get; internal set; }
 
     public WorldDispatcher Dispatcher { get; }
+    public IWorldCommandQueue Commands { get; } = new WorldCommandQueue();
 
     internal EntityStatePool EntityStates { get; } = new();
 
