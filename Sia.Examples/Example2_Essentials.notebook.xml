@@ -90,11 +90,11 @@
       public sealed class MovementSystem() : SystemBase(
           Matchers.Of<Position, Velocity>().And(Matchers.Exclude<Disabled>()))
       {
-          public override void Execute(World world, IEntityQuery query)
+          public override void Execute(WorldContext context, IEntityQuery query)
           {
               foreach (var entity in query) {
                   ref readonly var velocity = ref entity.Get<Velocity>();
-                  var position = new Position.View(entity, world);
+                  var position = new Position.View(entity, context.World);
                   position.X += velocity.X;
                   position.Y += velocity.Y;
               }
@@ -142,7 +142,7 @@
           Matchers.Of<Name, Position>(),
           EventUnion.Of<Position.SetX, Position.SetY>())
       {
-          public override void Execute(World world, IEntityQuery query)
+          public override void Execute(WorldContext context, IEntityQuery query)
           {
               foreach (var entity in query) {
                   Console.WriteLine(
@@ -202,7 +202,7 @@
           Matchers.Of<Name, Health>(),
           EventUnion.Of<Damage>())
       {
-          public override void Execute(World world, IEntityQuery query)
+          public override void Execute(WorldContext context, IEntityQuery query)
           {
               foreach (var entity in query) {
                   Console.WriteLine($"damage observed for {entity.Get<Name>().Value}");
@@ -303,10 +303,10 @@
 
       public sealed class SpawnWaveSystem(string kind, int count) : SystemBase(Matchers.Any)
       {
-          public override void Execute(World world, IEntityQuery query)
+          public override void Execute(WorldContext context, IEntityQuery query)
           {
               for (var i = 0; i < count; i++) {
-                  world.Create().AddBundle(new ActorBundle(
+                  context.World.Create().AddBundle(new ActorBundle(
                       new Name($"{kind}-{i}"), new Position(0, 0), new Velocity(0, 0), new Health(20)));
               }
               Console.WriteLine($"spawned {count} {kind}(s)");
