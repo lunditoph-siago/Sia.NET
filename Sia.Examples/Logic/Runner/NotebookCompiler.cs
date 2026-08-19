@@ -23,7 +23,8 @@ public sealed class NotebookCompiler
     private readonly CSharpCompilationOptions _compilationOptions =
         new CSharpCompilationOptions(OutputKind.ConsoleApplication)
             .WithConcurrentBuild(false)
-            .WithNullableContextOptions(NullableContextOptions.Enable);
+            .WithNullableContextOptions(NullableContextOptions.Enable)
+            .WithAllowUnsafe(true);
 
     private NotebookProgram _program;
 
