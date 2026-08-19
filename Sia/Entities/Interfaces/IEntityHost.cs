@@ -17,7 +17,7 @@ public interface IEntityHost : IEnumerable<Entity>, IDisposable
 
     Entity Create();
     void Release(Entity entity);
-    void MoveOut(Entity entity);
+    void MoveOut(Entity entity, IEntityHost destination);
 
     Entity GetEntity(int slot);
     ref byte GetByteRef(int slot);
@@ -54,12 +54,14 @@ public interface IReactiveEntityHost : IEntityHost
 {
     event EntityHandler? OnEntityCreated;
     event EntityHandler? OnEntityReleased;
+    event EntityMigrationHandler? OnEntityMovedOut;
+    event EntityMigrationHandler? OnEntityMovedIn;
 }
 
 public interface IEntityHost<TEntity> : IEntityHost
     where TEntity : struct, IHList
 {
     Entity Create(in TEntity initial);
-    void MoveIn(Entity entity, in TEntity data);
+    void MoveIn(Entity entity, in TEntity data, IEntityHost source);
     ref TEntity GetRef(int slot);
 }

@@ -1,5 +1,7 @@
 namespace Sia.Reactors;
 
+using System.Linq;
+
 public sealed class QuerySubscription : IDisposable
 {
     public IReactiveEntityQuery Query { get; }
@@ -25,8 +27,24 @@ public sealed class QuerySubscription : IDisposable
     {
         host.OnEntityCreated += _onAdded;
         host.OnEntityReleased += _onRemoved;
+        host.OnEntityMovedOut += HandleMovedOut;
+        host.OnEntityMovedIn += HandleMovedIn;
 
         foreach (var entity in host) {
+            _onAdded(entity);
+        }
+    }
+
+    private void HandleMovedOut(Entity entity, IReactiveEntityHost destination)
+    {
+        if (!Query.Hosts.Contains(destination)) {
+            _onRemoved(entity);
+        }
+    }
+
+    private void HandleMovedIn(Entity entity, IReactiveEntityHost source)
+    {
+        if (!Query.Hosts.Contains(source)) {
             _onAdded(entity);
         }
     }
@@ -42,6 +60,8 @@ public sealed class QuerySubscription : IDisposable
         foreach (var host in Query.Hosts) {
             host.OnEntityCreated -= _onAdded;
             host.OnEntityReleased -= _onRemoved;
+            host.OnEntityMovedOut -= HandleMovedOut;
+            host.OnEntityMovedIn -= HandleMovedIn;
         }
     }
 }

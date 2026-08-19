@@ -98,8 +98,8 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
         public Entity GetEntity(int slot)
             => Host.GetEntity(_entities[slot].Slot);
 
-        public void MoveOut(Entity entity)
-            => Host.MoveOut(entity);
+        public void MoveOut(Entity entity, IEntityHost destination)
+            => Host.MoveOut(entity, destination);
 
         public void Add<TComponent>(Entity entity, in TComponent initial)
             => Host.Add(entity, initial);

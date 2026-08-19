@@ -26,6 +26,8 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
 
     public event EntityHandler? OnEntityCreated;
     public event EntityHandler? OnEntityReleased;
+    public event EntityMigrationHandler? OnEntityMovedOut;
+    public event EntityMigrationHandler? OnEntityMovedIn;
     public event Action<IEntityHost>? OnDisposed;
 
     public World World { get; } = world;
@@ -151,17 +153,21 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
         TList.HandleTypes(new ExEntityRemoveEventSender(entity, Descriptor, World.Dispatcher));
     }
 
-    public void MoveIn(Entity entity, in TEntity data)
+    public void MoveIn(Entity entity, in TEntity data, IEntityHost source)
     {
-        InnerHost.MoveIn(entity, data);
+        InnerHost.MoveIn(entity, data, source);
         entity.GetStateUnchecked().Host = this;
-        OnEntityCreated?.Invoke(entity);
+        if (source is IReactiveEntityHost reactiveSource) {
+            OnEntityMovedIn?.Invoke(entity, reactiveSource);
+        }
     }
 
-    public void MoveOut(Entity entity)
+    public void MoveOut(Entity entity, IEntityHost destination)
     {
-        OnEntityReleased?.Invoke(entity);
-        InnerHost.MoveOut(entity);
+        if (destination is IReactiveEntityHost reactiveDestination) {
+            OnEntityMovedOut?.Invoke(entity, reactiveDestination);
+        }
+        InnerHost.MoveOut(entity, destination);
     }
 
     public Entity GetEntity(int slot) => InnerHost.GetEntity(slot);
