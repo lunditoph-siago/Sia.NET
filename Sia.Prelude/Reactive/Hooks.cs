@@ -8,6 +8,8 @@ public ref struct Hooks
     private readonly Entity _cell;
     private StateCells? _states;
 
+    public readonly World World => _reconciler.World;
+
     internal Hooks(in ExpandContext context)
     {
         _reconciler = context.Reconciler;

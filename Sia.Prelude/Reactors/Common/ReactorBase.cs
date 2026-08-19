@@ -61,41 +61,22 @@ public abstract class ReactorBase<TTypeUnion> : ReactorBase
     protected IEntityMatcher Matcher { get; } = Matchers.From<TTypeUnion>();
 
     [AllowNull]
-    protected IReactiveEntityQuery Query { get; private set; }
+    protected IReactiveEntityQuery Query => _subscription?.Query!;
+
+    [AllowNull]
+    private QuerySubscription _subscription;
 
     public override void OnInitialize(World world)
     {
         base.OnInitialize(world);
-
-        Query = world.Query(Matcher);
-        Query.OnEntityHostAdded += OnEntityHostAdded;
-
-        foreach (var host in Query.Hosts) {
-            OnEntityHostAdded(host);
-        }
-    }
-
-    private void OnEntityHostAdded(IReactiveEntityHost host)
-    {
-        host.OnEntityCreated += OnEntityAdded;
-        host.OnEntityReleased += OnEntityRemoved;
-
-        foreach (var entity in host) {
-            OnEntityAdded(entity);
-        }
+        _subscription = new QuerySubscription(world.Query(Matcher), OnEntityAdded, OnEntityRemoved);
     }
 
     public override void OnUninitialize(World world)
     {
         base.OnUninitialize(world);
-
-        foreach (var host in Query.Hosts) {
-            host.OnEntityCreated -= OnEntityAdded;
-            host.OnEntityReleased -= OnEntityRemoved;
-        }
-
-        Query.Dispose();
-        Query = null;
+        _subscription.Dispose();
+        _subscription = null;
     }
 
     protected abstract void OnEntityAdded(Entity entity);
