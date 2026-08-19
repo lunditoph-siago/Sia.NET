@@ -84,7 +84,7 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     public Entity GetEntity(int slot)
         => _entities[slot];
 
-    public void MoveOut(Entity entity)
+    public void MoveOut(Entity entity, IEntityHost destination)
         => MoveOut(entity.GetState());
 
     private void MoveOut(EntityState state)
@@ -105,7 +105,7 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         Buffer.Count--;
     }
 
-    public void MoveIn(Entity entity, in TEntity data)
+    public void MoveIn(Entity entity, in TEntity data, IEntityHost source)
     {
         _ = entity.GetCurrentState();
         MoveInTrusted(entity, data);
@@ -142,10 +142,11 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         }
         var state = entity.GetStateUnchecked();
         ref var data = ref Buffer.GetRef(state.Slot);
-        var host = state.Host!.GetSiblingHost<HList<TComponent, TEntity>>();
+        var host = state.Host!;
+        var siblingHost = host.GetSiblingHost<HList<TComponent, TEntity>>();
         var moved = HList.Cons(initial, data);
-        MoveOut(state);
-        host.MoveIn(entity, moved);
+        host.MoveOut(entity, siblingHost);
+        siblingHost.MoveIn(entity, moved, host);
     }
 
     private struct EntityMover(Entity e)
@@ -156,8 +157,8 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         {
             var host = e.GetStateUnchecked().Host!;
             var siblingHost = host.GetSiblingHost<T>();
-            host.MoveOut(e);
-            siblingHost.MoveIn(e, data);
+            host.MoveOut(e, siblingHost);
+            siblingHost.MoveIn(e, data, host);
         }
     }
 
@@ -239,8 +240,8 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
             }
             var host = e.GetStateUnchecked().Host!;
             var siblingHost = host.GetSiblingHost<T>();
-            host.MoveOut(e);
-            siblingHost.MoveIn(e, value);
+            host.MoveOut(e, siblingHost);
+            siblingHost.MoveIn(e, value, host);
         }
     }
 
