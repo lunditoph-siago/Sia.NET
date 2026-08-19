@@ -155,9 +155,14 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     {
         InnerHost.MoveIn(entity, data);
         entity.GetStateUnchecked().Host = this;
+        OnEntityCreated?.Invoke(entity);
     }
 
-    public void MoveOut(Entity entity) => InnerHost.MoveOut(entity);
+    public void MoveOut(Entity entity)
+    {
+        OnEntityReleased?.Invoke(entity);
+        InnerHost.MoveOut(entity);
+    }
 
     public Entity GetEntity(int slot) => InnerHost.GetEntity(slot);
     public ref TEntity GetRef(int slot) => ref InnerHost.GetRef(slot);
