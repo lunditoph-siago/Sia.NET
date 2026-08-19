@@ -69,6 +69,7 @@ public abstract class ReactorBase<TTypeUnion> : ReactorBase
     public override void OnInitialize(World world)
     {
         base.OnInitialize(world);
+        OnBeforeSubscribe(world);
         _subscription = new QuerySubscription(world.Query(Matcher), OnEntityAdded, OnEntityRemoved);
     }
 
@@ -78,6 +79,8 @@ public abstract class ReactorBase<TTypeUnion> : ReactorBase
         _subscription.Dispose();
         _subscription = null;
     }
+
+    protected virtual void OnBeforeSubscribe(World world) {}
 
     protected abstract void OnEntityAdded(Entity entity);
     protected abstract void OnEntityRemoved(Entity entity);

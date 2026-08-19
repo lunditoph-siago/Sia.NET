@@ -14,10 +14,8 @@ public abstract class AggregatorBase<TId> : ReactorBase<TypeUnion<Sid<TId>>>
 
     public Aggregation<TId> this[in TId component] => _aggrs[component].Get<Aggregation<TId>>();
 
-    public override void OnInitialize(World world)
+    protected override void OnBeforeSubscribe(World world)
     {
-        base.OnInitialize(world);
-
         _aggregationSubscription = new QuerySubscription(
             world.Query<TypeUnion<Aggregation<TId>>>(),
             OnAggregationCreated, OnAggregationReleased);
