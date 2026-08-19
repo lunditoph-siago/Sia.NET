@@ -31,6 +31,8 @@ public partial record struct Node<TTag>
     internal Entity? _prevParent;
     internal HashSet<Entity>? _children;
 
+    public Node() { }
+
     public Node(Entity? parent)
     {
         _parent = parent;
