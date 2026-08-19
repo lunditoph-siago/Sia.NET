@@ -8,7 +8,7 @@ public abstract class AggregatorBase<TId> : ReactorBase<TypeUnion<Sid<TId>>>
     where TId : notnull, IEquatable<TId>
 {
     [AllowNull]
-    private IReactiveEntityQuery _aggregationQuery;
+    private QuerySubscription _aggregationSubscription;
     private readonly Dictionary<TId, Entity> _aggrs = [];
     private readonly Stack<HashSet<Entity>> _groupPool = new();
 
@@ -18,19 +18,16 @@ public abstract class AggregatorBase<TId> : ReactorBase<TypeUnion<Sid<TId>>>
     {
         base.OnInitialize(world);
 
-        _aggregationQuery = world.Query<TypeUnion<Aggregation<TId>>>();
-        _aggregationQuery.OnEntityHostAdded += host => {
-            host.OnEntityCreated += OnAggregationCreated;
-            host.OnEntityReleased += OnAggregationReleased;
-        };
+        _aggregationSubscription = new QuerySubscription(
+            world.Query<TypeUnion<Aggregation<TId>>>(),
+            OnAggregationCreated, OnAggregationReleased);
 
         Listen((Entity entity, in WorldEvents.Add<Aggregation<TId>> e) => {
             ref var aggr = ref entity.Get<Aggregation<TId>>();
             if (aggr.Aggregator != this) {
                 return;
             }
-            var group = _groupPool.TryPop(out var pooled) ? pooled : [];
-            aggr._group = group;
+            aggr._group ??= _groupPool.TryPop(out var pooled) ? pooled : [];
         });
 
         Listen((Entity entity, in WorldEvents.Remove<Aggregation<TId>> e) => {
@@ -53,21 +50,18 @@ public abstract class AggregatorBase<TId> : ReactorBase<TypeUnion<Sid<TId>>>
     {
         base.OnUninitialize(world);
 
-        foreach (var host in _aggregationQuery.Hosts) {
-            host.OnEntityCreated -= OnAggregationCreated;
-            host.OnEntityReleased -= OnAggregationReleased;
-        }
-
-        _aggregationQuery.Dispose();
-        _aggregationQuery = null;
+        _aggregationSubscription.Dispose();
+        _aggregationSubscription = null;
     }
 
     private void OnAggregationCreated(Entity entity)
     {
         ref var aggr = ref entity.Get<Aggregation<TId>>();
-        if (_aggrs.TryAdd(aggr.Id, entity)) {
-            aggr.Aggregator = this;
+        if (!_aggrs.TryAdd(aggr.Id, entity)) {
+            return;
         }
+        aggr.Aggregator = this;
+        aggr._group ??= _groupPool.TryPop(out var pooled) ? pooled : [];
     }
 
     private void OnAggregationReleased(Entity entity)
@@ -114,7 +108,7 @@ public abstract class AggregatorBase<TId> : ReactorBase<TypeUnion<Sid<TId>>>
 
             ref var aggr = ref aggrEntity.Get<Aggregation<TId>>();
             aggr.First = entity;
-            aggr._group = _groupPool.TryPop(out var pooled) ? pooled : [];
+            aggr._group ??= _groupPool.TryPop(out var pooled) ? pooled : [];
             aggr._group.Add(entity);
         }
         else {
@@ -144,6 +138,7 @@ public abstract class AggregatorBase<TId> : ReactorBase<TypeUnion<Sid<TId>>>
             var groupEntity = aggrEntity;
             _aggrs.Remove(id);
             _groupPool.Push(group);
+            aggr._group = null;
             groupEntity.Destroy();
         }
         else if (aggr.First == entity) {
