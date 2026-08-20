@@ -24,11 +24,11 @@ public class HListTests
         }
     }
 
-    [Theory]
-    [InlineData(1)]
-    public void HList_HandleHead_Test(int value)
+    [Fact]
+    public void HList_HandleHead_Test()
     {
         // Arrange
+        const int value = 1;
         var list = HList.From(value);
         var mockHandler = new MockHandler();
 

@@ -2,7 +2,7 @@ namespace Sia.Tests.Reactive;
 
 using global::Sia.Reactive;
 
-public class ReactiveSchedulingTests
+public class ReactiveSchedulingTests(QueryTestHelpers helpers) : IClassFixture<QueryTestHelpers>
 {
     private readonly record struct TestSchedule;
     private record struct TickCounter(int Value);
@@ -57,8 +57,7 @@ public class ReactiveSchedulingTests
 
         scheduler.TickSchedule(new("unregistered"));
 
-        using var query = world.Query(Matchers.Of<ReactiveValue>());
-        var output = Assert.Single(query.Hosts.SelectMany(static host => host));
+        var output = helpers.FindSingle<ReactiveValue>(world);
         Assert.Equal(7, output.Get<ReactiveValue>().Value);
     }
 }

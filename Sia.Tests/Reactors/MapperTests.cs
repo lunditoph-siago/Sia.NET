@@ -2,57 +2,34 @@ namespace Sia.Tests.Reactors;
 
 using Sia.Reactors;
 
-[TestCaseOrderer("Sia.Tests.PriorityOrderer", "Sia.Tests")]
-public class MapperTests(MapperTests.MapperContext context) : IClassFixture<MapperTests.MapperContext>
+public class MapperTests
 {
-    public class MapperContext : IDisposable
+    private readonly record struct ObjectId(Guid Value);
+
+    [Fact]
+    public void CreatingAnEntityWithASid_RegistersItInTheMapper()
     {
-        public readonly record struct ObjectId(Guid Value);
+        using var world = new World();
+        var mapper = world.AcquireAddon<Mapper<ObjectId>>();
+        var id = new ObjectId(Guid.NewGuid());
 
-        public List<Entity> Entities = [];
+        var entity = world.Create(HList.From(Sid.From(id)));
 
-        public Mapper<ObjectId> Mapper;
-
-        public World World;
-
-        public MapperContext()
-        {
-            World = new World();
-
-            Mapper = World.AcquireAddon<Mapper<ObjectId>>();
-        }
-
-        public void Dispose() => World.Dispose();
+        Assert.Equal(entity, mapper[id]);
     }
 
-    public static List<object[]> MapperTestData =>
-    [
-        [new MapperContext.ObjectId[] { new(Guid.NewGuid()), new(Guid.NewGuid()) }],
-    ];
-
-    [Theory, Priority(0)]
-    [MemberData(nameof(MapperTestData))]
-    public void Mapper_Setup_Test(MapperContext.ObjectId[] objectIds)
+    [Fact]
+    public void SettingSid_RemapsTheEntityToTheNewId()
     {
-        foreach (var objectId in objectIds) {
-            // Act
-            var entityRef = context.World.Create(HList.From(Sid.From(objectId)));
-            context.Entities.Add(entityRef);
+        using var world = new World();
+        var mapper = world.AcquireAddon<Mapper<ObjectId>>();
+        var previousId = new ObjectId(Guid.NewGuid());
+        var entity = world.Create(HList.From(Sid.From(previousId)));
 
-            // Assert
-            Assert.True(entityRef == context.Mapper[objectId]);
-        }
-    }
+        var newId = new ObjectId(Guid.NewGuid());
+        entity.SetSid(newId);
 
-    [Theory, Priority(1)]
-    [InlineData(0)]
-    public void Mapper_SetSid_Test(int target)
-    {
-        // Act
-        var id = new MapperContext.ObjectId(Guid.NewGuid());
-        context.Entities[target].SetSid(id);
-
-        // Assert
-        Assert.True(context.Mapper[id] == context.Entities[target]);
+        Assert.Equal(entity, mapper[newId]);
+        Assert.False(mapper.ContainsKey(previousId));
     }
 }

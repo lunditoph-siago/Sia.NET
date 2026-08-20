@@ -7,7 +7,7 @@ using ScopedList = Sia.HList<Sia.Tests.Reactive.ScopedValue, Sia.EmptyHList>;
 
 namespace Sia.Tests.Reactive;
 
-public class ReactiveTermTests
+public class ReactiveTermTests(QueryTestHelpers helpers) : IClassFixture<QueryTestHelpers>
 {
     [Fact]
     public void Cond_SwitchesOwnershipWithoutLeakingTheInactiveBranch()
@@ -17,15 +17,15 @@ public class ReactiveTermTests
         var probe = new BranchProbe();
         var mount = reconciler.Mount(new BranchSpec(probe));
 
-        Assert.Single(FindAll<BranchValue>(world));
+        Assert.Single(helpers.FindAll<BranchValue>(world));
         probe.Visible.Set(false);
         reconciler.Flush();
 
-        Assert.Empty(FindAll<BranchValue>(world));
+        Assert.Empty(helpers.FindAll<BranchValue>(world));
 
         probe.Visible.Set(true);
         reconciler.Flush();
-        Assert.Single(FindAll<BranchValue>(world));
+        Assert.Single(helpers.FindAll<BranchValue>(world));
 
         mount.Unmount();
         Assert.Equal(0, world.Count);
@@ -40,16 +40,14 @@ public class ReactiveTermTests
             new(1, 10),
             new(2, 20),
         }));
-        var initial = FindAll<KeyedValue>(world)
-            .ToDictionary(entity => entity.Get<KeyedValue>().Key);
+        var initial = helpers.FindAllByKey<KeyedValue, int>(world, v => v.Key);
 
         mount.Update(new ListSpec(new KeyedValue[] {
             new(2, 21),
             new(1, 11),
         }));
         reconciler.Flush();
-        var reordered = FindAll<KeyedValue>(world)
-            .ToDictionary(entity => entity.Get<KeyedValue>().Key);
+        var reordered = helpers.FindAllByKey<KeyedValue, int>(world, v => v.Key);
 
         Assert.Equal(initial[1], reordered[1]);
         Assert.Equal(initial[2], reordered[2]);
@@ -57,7 +55,7 @@ public class ReactiveTermTests
 
         mount.Update(new ListSpec(new KeyedValue[] { new(2, 22) }));
         reconciler.Flush();
-        var remaining = FindAll<KeyedValue>(world);
+        var remaining = helpers.FindAll<KeyedValue>(world);
         Assert.DoesNotContain(remaining, entity => entity.Get<KeyedValue>().Key == 1);
         Assert.Equal(initial[2], Assert.Single(remaining));
 
@@ -76,11 +74,11 @@ public class ReactiveTermTests
                 new KeyedValue(i, i * 10),
             }));
 
-            var output = Assert.Single(FindAll<KeyedValue>(world));
+            var output = Assert.Single(helpers.FindAll<KeyedValue>(world));
             Assert.Equal(i, output.Get<KeyedValue>().Key);
 
             mount.Unmount();
-            Assert.Empty(FindAll<KeyedValue>(world));
+            Assert.Empty(helpers.FindAll<KeyedValue>(world));
         }
     }
 
@@ -92,15 +90,13 @@ public class ReactiveTermTests
         var mount = reconciler.Mount(new PatchListSpec(
             new KeyedValue[] { new(1, 10), new(2, 20) },
             Array.Empty<int>()));
-        var initial = FindAll<KeyedValue>(world)
-            .ToDictionary(entity => entity.Get<KeyedValue>().Key);
+        var initial = helpers.FindAllByKey<KeyedValue, int>(world, v => v.Key);
 
         mount.Update(new PatchListSpec(
             new KeyedValue[] { new(2, 21), new(3, 30) },
             Array.Empty<int>()));
         reconciler.Flush();
-        var patched = FindAll<KeyedValue>(world)
-            .ToDictionary(entity => entity.Get<KeyedValue>().Key);
+        var patched = helpers.FindAllByKey<KeyedValue, int>(world, v => v.Key);
 
         Assert.Equal(initial[1], patched[1]);
         Assert.Equal(initial[2], patched[2]);
@@ -109,8 +105,7 @@ public class ReactiveTermTests
 
         mount.Update(new PatchListSpec(Array.Empty<KeyedValue>(), new[] { 1 }));
         reconciler.Flush();
-        var remaining = FindAll<KeyedValue>(world)
-            .ToDictionary(entity => entity.Get<KeyedValue>().Key);
+        var remaining = helpers.FindAllByKey<KeyedValue, int>(world, v => v.Key);
         Assert.DoesNotContain(1, remaining.Keys);
         Assert.Equal(patched[2], remaining[2]);
         Assert.Equal(patched[3], remaining[3]);
@@ -138,26 +133,41 @@ public class ReactiveTermTests
         var reconciler = world.AcquireAddon<Reconciler>();
         var probe = new ScopeProbe();
         var mount = reconciler.Mount(new ScopeSpec(probe));
-        var output = FindAll<ScopedValue>(world).Single();
+        var output = helpers.FindAll<ScopedValue>(world).Single();
 
         probe.Theme.Set(new Theme(2));
         reconciler.Flush();
 
-        Assert.Equal(output, FindAll<ScopedValue>(world).Single());
+        Assert.Equal(output, helpers.FindAll<ScopedValue>(world).Single());
         Assert.Equal(2, output.Get<ScopedValue>().Theme);
         Assert.Equal(2, probe.ConsumerExpansions);
 
         probe.Visible.Set(false);
         reconciler.Flush();
-        Assert.Empty(FindAll<ScopedValue>(world));
+        Assert.Empty(helpers.FindAll<ScopedValue>(world));
 
         probe.Theme.Set(new Theme(3));
         reconciler.Flush();
         Assert.Equal(2, probe.ConsumerExpansions);
-        Assert.Empty(FindAll<ScopedValue>(world));
+        Assert.Empty(helpers.FindAll<ScopedValue>(world));
 
         mount.Unmount();
         Assert.Equal(0, world.Count);
+    }
+
+    [Fact]
+    public void ExpandContextUseState_AddingFirstHookAfterInitialRender_IsRejected()
+    {
+        using var world = new World();
+        var reconciler = world.AcquireAddon<Reconciler>();
+        var mount = reconciler.Mount(new ConditionalStateSpec(false));
+
+        mount.Update(new ConditionalStateSpec(true));
+
+        var error = Assert.Throws<InvalidOperationException>(reconciler.Flush);
+        Assert.Contains("Hook count changed", error.Message);
+
+        mount.Unmount();
     }
 
     [Fact]
@@ -176,11 +186,6 @@ public class ReactiveTermTests
         Assert.Equal(0, world.Count);
     }
 
-    private static Entity[] FindAll<T>(World world)
-    {
-        using var query = world.Query(Matchers.Of<T>());
-        return [.. query.Hosts.SelectMany(static host => host)];
-    }
 }
 
 public readonly record struct BranchValue(int Value);
@@ -284,6 +289,21 @@ public static partial class RefComponent
     {
         props.Probe.Values.Add(hooks.UseRef(static () => new object()).Value);
         return global::Sia.Reactive.Reactive.None;
+    }
+}
+
+public readonly record struct ConditionalStateSpec(bool Enabled)
+    : ISpec<ConditionalStateSpec, Unit, UnitTerm>
+{
+    public static UnitTerm Expand(
+        in ConditionalStateSpec props,
+        in Unit state,
+        in ExpandContext context)
+    {
+        if (props.Enabled) {
+            _ = context.UseState(0);
+        }
+        return default;
     }
 }
 

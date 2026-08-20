@@ -210,14 +210,19 @@ public class RunnerTests
     }
 
     [Fact]
-    public async Task ParallelRunner_Run_GroupAction_NoBarrier_DoesNotThrow()
+    public void ParallelRunner_Run_GroupAction_NoBarrier_CompletesAllItemsWithoutThrowing()
     {
         using var runner = new ParallelRunner(4);
         const int total = 50;
+        using var countdown = new CountdownEvent(total);
 
-        runner.Run(total, _ => { });
+        runner.Run(total, range => {
+            for (var i = range.Item1; i < range.Item2; i++) {
+                countdown.Signal();
+            }
+        });
 
-        await Task.Delay(200);
+        Assert.True(countdown.Wait(TimeSpan.FromSeconds(5)));
     }
 
     [Fact]

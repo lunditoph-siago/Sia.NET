@@ -22,10 +22,10 @@ public record TestTemplate<T> : Test
 
 public class TemplateTests
 {
-    [Theory]
-    [InlineData("test")]
-    public void Template_Test(string value)
+    [Fact]
+    public void Template_Test()
     {
+        const string value = "test";
         var obj = new TestObject<string>(new TestTemplate<string> { Value = value });
 
         Assert.Equal(value, obj.Value);

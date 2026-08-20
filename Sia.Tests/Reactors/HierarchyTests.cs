@@ -2,69 +2,71 @@ namespace Sia.Tests.Reactors;
 
 using Sia.Reactors;
 
-[TestCaseOrderer("Sia.Tests.PriorityOrderer", "Sia.Tests")]
-public class HierarchyTests(HierarchyTests.HierarchyContext context) : IClassFixture<HierarchyTests.HierarchyContext>
+public class HierarchyTests
 {
-    public class HierarchyContext : IDisposable
+    public sealed class TestTag;
+
+    private readonly record struct Name(string Value);
+
+    private static Entity CreateNode(World world, string name, Entity? parent = null)
+        => world.Create(HList.From(
+            parent is { } attached ? new Node<TestTag>(attached) : new Node<TestTag>(),
+            new Name(name)));
+
+    [Fact]
+    public void CreatingChildrenWithAParent_PopulatesTheParentsChildrenInCreationOrder()
     {
-        public readonly record struct Name(string Value);
+        using var world = new World();
+        world.AcquireAddon<Hierarchy<TestTag>>();
 
-        public sealed class TestTag;
+        var root = CreateNode(world, "root");
+        var first = CreateNode(world, "first", root);
+        var second = CreateNode(world, "second", root);
 
-        public List<Entity> Entities = [];
+        var childNames = root.Get<Node<TestTag>>().Children
+            .Select(child => child.Get<Name>().Value);
 
-        public Hierarchy<TestTag> Hierarchy;
-
-        public World World;
-
-        public HierarchyContext()
-        {
-            World = new World();
-
-            Hierarchy = World.AcquireAddon<Hierarchy<TestTag>>();
-        }
-
-        public void Dispose() => World.Dispose();
+        Assert.Equal(["first", "second"], childNames);
     }
 
-    public static List<object[]> HierarchyTestData => [
-        [new ValueTuple<string, int>[] { new("test1", -1), new("test2", 0), new("test3", 0),  new("test4", 2) }]
-    ];
-
-    [Theory, Priority(0)]
-    [MemberData(nameof(HierarchyTestData))]
-    public void Hierarchy_Setup_Test((string, int)[] hierarchies)
+    [Fact]
+    public void ExecutingSetParent_ReparentsTheEntityUnderTheNewParent()
     {
-        // Arrange
-        foreach (var (name, index) in hierarchies) {
-            var node = index >= 0
-                ? new Node<HierarchyContext.TestTag>(context.Entities[index])
-                : new Node<HierarchyContext.TestTag>();
-            var entityRef = context.World.Create(HList.From(node, new HierarchyContext.Name(name)));
-            context.Entities.Add(entityRef);
-        }
+        using var world = new World();
+        world.AcquireAddon<Hierarchy<TestTag>>();
 
-        // Act
-        var actualChildren = context.Entities.First().Get<Node<HierarchyContext.TestTag>>().Children
-            .Select(child => child.Get<HierarchyContext.Name>().Value);
-        var expectedChildren = hierarchies.Where(value => value.Item2 == 0).Select(value => value.Item1);
+        var parent = CreateNode(world, "parent");
+        var orphan = CreateNode(world, "orphan");
 
-        // Assert
-        Assert.Equal(expectedChildren, actualChildren);
+        world.Execute(orphan, new Node<TestTag>.SetParent(parent));
+
+        Assert.Contains(orphan, parent.Get<Node<TestTag>>().Children);
     }
 
-    [Theory, Priority(1)]
-    [InlineData(3)]
-    public void Hierarchy_Execute_Test(int target)
+    [Fact]
+    public void DestroyingAParentWithAChild_DoesNotAliasChildrenAcrossNewParents()
     {
-        // Act
-        context.World.Execute(context.Entities[target],
-            new Node<HierarchyContext.TestTag>.SetParent(context.Entities[0]));
+        using var world = new World();
+        world.AcquireAddon<Hierarchy<TestTag>>();
 
-        // Assert
-        Assert.True(
-            context.Entities[0].Get<Node<HierarchyContext.TestTag>>().Children
-                .Select(child => child.Get<HierarchyContext.Name>().Value)
-                .Any());
+        var a = world.Create(HList.From(new Node<TestTag>()));
+        var c1 = world.Create(HList.From(new Node<TestTag>(a)));
+
+        a.Destroy();
+
+        var b = world.Create(HList.From(new Node<TestTag>()));
+        var d = world.Create(HList.From(new Node<TestTag>()));
+
+        var c2 = world.Create(HList.From(new Node<TestTag>(b)));
+        var c3 = world.Create(HList.From(new Node<TestTag>(d)));
+
+        var bChildren = b.Get<Node<TestTag>>().Children;
+        var dChildren = d.Get<Node<TestTag>>().Children;
+
+        Assert.Single(bChildren);
+        Assert.Single(dChildren);
+        Assert.Contains(c2, bChildren);
+        Assert.Contains(c3, dChildren);
+        Assert.False(c1.IsValid);
     }
 }

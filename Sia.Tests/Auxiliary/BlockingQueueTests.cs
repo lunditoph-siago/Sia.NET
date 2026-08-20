@@ -32,15 +32,27 @@ public class BlockingQueueTests
     }
 
     [Fact]
-    public void BlockingQueue_Dequeue_BlocksUntilItemIsAvailable_Test()
+    public async Task BlockingQueue_Dequeue_BlocksUntilItemIsAvailable_Test()
     {
         var queue = new BlockingQueue<int>();
-        Task.Run(() => {
-            Thread.Sleep(100);
-            queue.Enqueue(2);
+        using var reachedDequeue = new ManualResetEventSlim();
+        var dequeued = new TaskCompletionSource<(bool Success, int Item)>();
+
+        var worker = Task.Run(() => {
+            reachedDequeue.Set();
+            var success = queue.Dequeue(out var item);
+            dequeued.SetResult((success, item));
         });
 
-        Assert.True(queue.Dequeue(out var item));
+        reachedDequeue.Wait();
+        Assert.False(dequeued.Task.IsCompleted);
+
+        queue.Enqueue(2);
+
+        var (success, item) = await dequeued.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(success);
         Assert.Equal(2, item);
+
+        await worker;
     }
 }
