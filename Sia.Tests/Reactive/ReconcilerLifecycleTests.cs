@@ -8,7 +8,7 @@ using FailingTree = global::Sia.Reactive.Group<
         global::Sia.Reactive.UnitTerm>,
     FailingTerm>;
 
-public class ReconcilerLifecycleTests
+public class ReconcilerLifecycleTests(QueryTestHelpers helpers) : IClassFixture<QueryTestHelpers>
 {
     [Fact]
     public void MountStateUpdateAndUnmount_PreserveOutputOwnership()
@@ -18,7 +18,7 @@ public class ReconcilerLifecycleTests
         var probe = new LifecycleProbe();
 
         var mount = reconciler.Mount(new LifecycleSpec(probe));
-        var output = FindOutput(world);
+        var output = helpers.FindSingle<ReactiveValue>(world);
 
         Assert.Equal(1, world.Count);
 
@@ -26,7 +26,7 @@ public class ReconcilerLifecycleTests
         probe.State.Set(3);
         reconciler.Flush();
 
-        Assert.Equal(output, FindOutput(world));
+        Assert.Equal(output, helpers.FindSingle<ReactiveValue>(world));
         Assert.Equal(3, output.Get<ReactiveValue>().Value);
         Assert.Equal(2, probe.Expansions);
 
@@ -58,7 +58,7 @@ public class ReconcilerLifecycleTests
 
         current.Update(new HandleSpec(3));
         reconciler.Flush();
-        Assert.Equal(3, FindOutput(world).Get<ReactiveValue>().Value);
+        Assert.Equal(3, helpers.FindSingle<ReactiveValue>(world).Get<ReactiveValue>().Value);
     }
 
     [Fact]
@@ -101,12 +101,12 @@ public class ReconcilerLifecycleTests
         var reconciler = world.AcquireAddon<Reconciler>();
         var mount = reconciler.Mount(
             Spec.Of<int, EntityTerm<ValueList, UnitTerm>>(4, ExpandValue));
-        var output = FindOutput(world);
+        var output = helpers.FindSingle<ReactiveValue>(world);
 
         mount.Update(Spec.Of<int, EntityTerm<ValueList, UnitTerm>>(5, ExpandValue));
         reconciler.Flush();
 
-        Assert.Equal(output, FindOutput(world));
+        Assert.Equal(output, helpers.FindSingle<ReactiveValue>(world));
         Assert.Equal(5, output.Get<ReactiveValue>().Value);
     }
 
@@ -129,11 +129,6 @@ public class ReconcilerLifecycleTests
         in ExpandContext context)
         => Term.Entity(HList.From(new ReactiveValue(value)));
 
-    private static Entity FindOutput(World world)
-    {
-        using var query = world.Query(Matchers.Of<ReactiveValue>());
-        return Assert.Single(query.Hosts.SelectMany(static host => host));
-    }
 }
 
 public readonly record struct ReactiveValue(int Value);

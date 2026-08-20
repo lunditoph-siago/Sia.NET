@@ -2,81 +2,69 @@ namespace Sia.Tests.Reactors;
 
 using Sia.Reactors;
 
-[TestCaseOrderer("Sia.Tests.PriorityOrderer", "Sia.Tests")]
-public class AggregatorTests(AggregatorTests.AggregatorContext context) : IClassFixture<AggregatorTests.AggregatorContext>
+public class AggregatorTests
 {
-    public class AggregatorContext : IDisposable
+    private readonly record struct ObjectId(int Value);
+
+    [Fact]
+    public void EntitiesSharingASid_MergeIntoOneAggregation()
     {
-        public readonly record struct ObjectId(int Value);
+        using var world = new World();
+        world.AcquireAddon<Aggregator<ObjectId>>();
 
-        public List<Entity> Entities = [];
+        world.Create(HList.From(Sid.From(new ObjectId(0))));
+        world.Create(HList.From(Sid.From(new ObjectId(0))));
 
-        public Aggregator<ObjectId> Aggregator;
-
-        public World World;
-
-        public AggregatorContext()
-        {
-            World = new World();
-
-            Aggregator = World.AcquireAddon<Aggregator<ObjectId>>();
-        }
-
-        public void Dispose() => World.Dispose();
+        Assert.Equal(1, world.Query(Matchers.Of<Aggregation<ObjectId>>()).Count);
     }
 
-    public static List<object[]> AggregatorTestData =>
-    [
-        [new AggregatorContext.ObjectId[] { new(0), new(0) }, 1],
-        [new AggregatorContext.ObjectId[] { new(1), new(1) }, 2],
-    ];
-
-    [Theory, Priority(0)]
-    [MemberData(nameof(AggregatorTestData))]
-    public void Aggregator_Setup_Test(AggregatorContext.ObjectId[] objectIds, int entityCount)
+    [Fact]
+    public void EntitiesWithDistinctSids_EachGetTheirOwnAggregation()
     {
-        // Act
-        var entityRefs = objectIds
-            .Select(objectId => context.World.Create(HList.From(Sid.From(objectId))))
-            .ToArray();
-        context.Entities.AddRange(entityRefs);
+        using var world = new World();
+        world.AcquireAddon<Aggregator<ObjectId>>();
 
-        // Assert
-        Assert.Equal(objectIds.Length, entityRefs.Count());
-        Assert.Equal(entityCount, context.World.Query(Matchers.Of<Aggregation<AggregatorContext.ObjectId>>()).Count);
+        world.Create(HList.From(Sid.From(new ObjectId(0))));
+        world.Create(HList.From(Sid.From(new ObjectId(1))));
+
+        Assert.Equal(2, world.Query(Matchers.Of<Aggregation<ObjectId>>()).Count);
     }
 
-    [Theory, Priority(1)]
-    [InlineData(0, 2)]
-    public void Aggregator_SetSid_Test(int target, int value)
+    [Fact]
+    public void SettingSid_MovesTheEntityIntoTheNewAggregation()
     {
-        // Arrange
-        var objectId = new AggregatorContext.ObjectId(value);
+        using var world = new World();
+        var aggregator = world.AcquireAddon<Aggregator<ObjectId>>();
+        var entity = world.Create(HList.From(Sid.From(new ObjectId(0))));
+        world.Create(HList.From(Sid.From(new ObjectId(0))));
 
-        // Act
-        context.Entities[target].SetSid(objectId);
+        var newId = new ObjectId(2);
+        entity.SetSid(newId);
 
-        // Assert
-        var actualResult = new List<AggregatorContext.ObjectId>();
-        foreach (var entity in context.World.Query(Matchers.Of<Aggregation<AggregatorContext.ObjectId>>())) {
-            ref var aggregation = ref entity.Get<Aggregation<AggregatorContext.ObjectId>>();
-            actualResult.Add(aggregation.Id);
-        }
-        Assert.Contains(objectId, actualResult);
+        Assert.True(aggregator.TryGet(newId, out var aggregationEntity));
+        Assert.Equal(entity, aggregationEntity.Get<Aggregation<ObjectId>>().First);
     }
 
-    [Theory, Priority(2)]
-    [InlineData(1, 6)]
-    public void Aggregator_Dispose_Test(int target, int entityCount)
+    [Fact]
+    public void SettingSidOnTheSoleAggregationMember_ThrowsWhileDestroyingTheEmptiedAggregation()
     {
-        // Act
-        var result = context.Aggregator.TryGet(new AggregatorContext.ObjectId(target), out var aggregatorEntity);
-        if (result) {
-            aggregatorEntity.Destroy();
-        }
+        using var world = new World();
+        world.AcquireAddon<Aggregator<ObjectId>>();
+        var entity = world.Create(HList.From(Sid.From(new ObjectId(0))));
 
-        // Assert
-        Assert.True(result);
-        Assert.Equal(entityCount, context.World.Count);
+        Assert.Throws<InvalidOperationException>(() => entity.SetSid(new ObjectId(2)));
+    }
+
+    [Fact]
+    public void DestroyingTheAggregationEntity_DoesNotDestroyItsMembers()
+    {
+        using var world = new World();
+        var aggregator = world.AcquireAddon<Aggregator<ObjectId>>();
+        var member = world.Create(HList.From(Sid.From(new ObjectId(1))));
+
+        Assert.True(aggregator.TryGet(new ObjectId(1), out var aggregationEntity));
+        aggregationEntity.Destroy();
+
+        Assert.True(member.IsValid);
     }
 }
