@@ -3,16 +3,16 @@ namespace Sia_Examples.Notebook;
 public sealed class NotebookLibrary(INotebookStorage storage)
 {
     private static readonly IReadOnlyList<NotebookInfo> BuiltIn = [
-        new("1. Browser Guide",
-            "Run, edit, inspect, arrange, and save a live notebook",
+        new("1. Browser",
+            "Run C# and Sia.NET in the browser",
             "Example1_Guide.notebook.xml",
             NotebookOrigin.BuiltIn),
-        new("2. Essential Features",
-            "Worlds, entities, components, queries, systems, events, and addons",
+        new("2. Essentials",
+            "Components, queries, systems, events, and addons",
             "Example2_Essentials.notebook.xml",
             NotebookOrigin.BuiltIn),
-        new("3. Prelude Features",
-            "Reactors, reactive reconciliation, higher-order events, concurrency, and serialization",
+        new("3. Runtime",
+            "Reactive lifecycles, concurrency, snapshots, and actors",
             "Example3_Prelude.notebook.xml",
             NotebookOrigin.BuiltIn),
     ];

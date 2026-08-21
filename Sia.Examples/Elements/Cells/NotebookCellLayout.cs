@@ -1,11 +1,21 @@
+using System.Collections.Immutable;
+
 namespace Sia_Examples.Notebook;
 
 public static partial class NotebookCellLayout
 {
     private const int FloatingWidth = 520;
     private const int FloatingHeight = 360;
+    private const int FloatingMargin = 8;
+    private const int FloatingHeaderOffsetX = 80;
+    private const int FloatingHeaderOffsetY = 20;
+    private const int FloatingPreferredTop = 48;
 
-    private const double ExpandedScriptRatio = 0.72;
+    private const double PrimaryPaneShare = 5.0 / 8.0;
+    private const double SecondaryPaneShare = 3.0 / 8.0;
+    private const double MinPaneShare = 0.15;
+
+    private const double ExpandedScriptRatio = PrimaryPaneShare;
 
     private static NotebookCellState ExpandSurface(
         NotebookCellState state,
@@ -22,7 +32,11 @@ public static partial class NotebookCellLayout
         if (surfaceSplit is null || script is null) {
             return state;
         }
-        var ratio = surfaceSplit.First is CellTabGroup first && first.Id == script.Id
+        var surface = FindSurfaceGroupForCell(state, cellId);
+        if (surface is null) {
+            return state;
+        }
+        var ratio = surfaceSplit.Second is CellTabGroup second && second.Id == surface.Id
             ? scriptShare
             : 1 - scriptShare;
         if (surfaceSplit.Ratio == ratio) {
@@ -62,6 +76,19 @@ public static partial class NotebookCellLayout
             state,
             tabId,
             group => group with { ActiveTabId = tabId });
+    }
+
+    public static NotebookCellState ResizeSplit(
+        NotebookCellState state,
+        string splitId,
+        double ratio)
+    {
+        if (!double.IsFinite(ratio)
+            || !EnumerateSplits(state).Any(split => split.Id == splitId)) {
+            return state;
+        }
+        var normalized = Math.Clamp(ratio, MinPaneShare, 1 - MinPaneShare);
+        return TransformRoots(state, root => UpdateSplitRatio(root, splitId, normalized));
     }
 
     public static NotebookCellState OpenWindow(
@@ -156,7 +183,8 @@ public static partial class NotebookCellLayout
         CellDropPosition position,
         int targetIndex = int.MaxValue)
     {
-        if (!state.Tabs.ContainsKey(tabId)) {
+        if (!state.Tabs.ContainsKey(tabId)
+            || !CanPlaceTab(state, tabId, targetId)) {
             return state;
         }
 
@@ -208,7 +236,9 @@ public static partial class NotebookCellLayout
         var split = new CellSplit(
             splitId,
             axis,
-            0.5,
+            before
+                ? DefaultMovedPaneShare(state, tabId, target)
+                : 1 - DefaultMovedPaneShare(state, tabId, target),
             before ? movedGroup : target,
             before ? target : movedGroup);
         return ReplaceGroup(withoutSource, target.Id, split) with {
@@ -216,11 +246,26 @@ public static partial class NotebookCellLayout
         };
     }
 
+    private static double DefaultMovedPaneShare(
+        NotebookCellState state,
+        string tabId,
+        CellTabGroup target)
+    {
+        var movedIsScript = state.Windows[state.Tabs[tabId].WindowId].Kind
+            == CellWindowKind.Script;
+        var targetHasScript = GroupContainsKind(state, target, CellWindowKind.Script);
+        return movedIsScript && !targetHasScript
+            ? PrimaryPaneShare
+            : SecondaryPaneShare;
+    }
+
     public static NotebookCellState Detach(
         NotebookCellState state,
         string tabId,
         int pointerX,
-        int pointerY)
+        int pointerY,
+        int viewportWidth,
+        int viewportHeight)
     {
         if (!state.Tabs.ContainsKey(tabId)
             || FindGroupContaining(state, tabId) is null) {
@@ -231,17 +276,40 @@ public static partial class NotebookCellLayout
         var groupId = $"group-{withoutSource.NextNodeId}";
         var floatingId = $"floating-{withoutSource.NextNodeId + 1}";
         var group = new CellTabGroup(groupId, [tabId], tabId);
+        var maxX = Math.Max(FloatingMargin, viewportWidth - FloatingWidth - FloatingMargin);
+        var maxY = Math.Max(FloatingMargin, viewportHeight - FloatingHeight - FloatingMargin);
+        var minY = Math.Min(FloatingPreferredTop, maxY);
         var floating = new CellFloatingHost(
             floatingId,
             group,
-            Math.Max(8, pointerX - 80),
-            Math.Max(48, pointerY - 20),
+            Math.Clamp(pointerX - FloatingHeaderOffsetX, FloatingMargin, maxX),
+            Math.Clamp(pointerY - FloatingHeaderOffsetY, minY, maxY),
             FloatingWidth,
             FloatingHeight);
         return withoutSource with {
             FloatingHosts = withoutSource.FloatingHosts.Add(floating),
             NextNodeId = withoutSource.NextNodeId + 2,
         };
+    }
+
+    public static NotebookCellState NormalizeFloatingHosts(
+        NotebookCellState state,
+        int viewportWidth,
+        int viewportHeight)
+    {
+        var changed = false;
+        var hosts = state.FloatingHosts.Select(host => {
+            var maxX = Math.Max(FloatingMargin, viewportWidth - host.Width - FloatingMargin);
+            var maxY = Math.Max(FloatingMargin, viewportHeight - host.Height - FloatingMargin);
+            var x = Math.Clamp(host.X, FloatingMargin, maxX);
+            var y = Math.Clamp(host.Y, FloatingMargin, maxY);
+            if (x == host.X && y == host.Y) {
+                return host;
+            }
+            changed = true;
+            return host with { X = x, Y = y };
+        }).ToImmutableArray();
+        return changed ? state with { FloatingHosts = hosts } : state;
     }
 
     public static NotebookCellState ReconcileDocument(
@@ -252,43 +320,47 @@ public static partial class NotebookCellLayout
         ArgumentNullException.ThrowIfNull(previousDocument);
         ArgumentNullException.ThrowIfNull(nextDocument);
 
-        var previousCellIds = CellIds(previousDocument);
-        var nextCellIds = CellIds(nextDocument);
+        var previousCells = PresentationCells(previousDocument);
+        var nextCells = PresentationCells(nextDocument);
 
         var state = previous;
-        foreach (var cellId in previousCellIds) {
-            if (!nextCellIds.Contains(cellId)) {
-                state = RemoveCell(state, cellId);
+        foreach (var presentationId in previousCells.Keys) {
+            if (!nextCells.ContainsKey(presentationId)) {
+                state = RemoveCell(state, presentationId);
             }
         }
 
-        var cellIndex = 0;
-        foreach (var section in nextDocument.Sections) {
-            foreach (var cell in section.Blocks.OfType<CodeCellBlock>()) {
-                if (!previousCellIds.Contains(cell.Id)) {
-                    state = AddCell(state, cell.Id, cellIndex);
-                }
-                cellIndex++;
-            }
+        foreach (var (presentationId, cell) in nextCells) {
+            state = previousCells.TryGetValue(presentationId, out var previousCell)
+                ? ReconcileScripts(state, previousCell, cell)
+                : AddCell(state, cell);
         }
 
         return state;
     }
 
-    private static HashSet<string> CellIds(NotebookDocument document)
-        => document.Sections
-            .SelectMany(static section => section.Blocks.OfType<CodeCellBlock>())
-            .Select(static cell => cell.Id)
-            .ToHashSet(StringComparer.Ordinal);
+    private static Dictionary<string, NotebookCellState.PresentationCell> PresentationCells(
+        NotebookDocument document)
+    {
+        var result = new Dictionary<string, NotebookCellState.PresentationCell>(StringComparer.Ordinal);
+        foreach (var section in document.Sections) {
+            foreach (var block in section.Blocks) {
+                if (NotebookCellState.Describe(block) is not { } cell) {
+                    continue;
+                }
+                result.Add(cell.PresentationId, cell);
+            }
+        }
+        return result;
+    }
 
     private static NotebookCellState AddCell(
         NotebookCellState state,
-        string cellId,
-        int cellIndex)
+        NotebookCellState.PresentationCell cell)
     {
         var windows = state.Windows.ToBuilder();
         var tabs = state.Tabs.ToBuilder();
-        var region = NotebookCellState.RegisterCell(windows, tabs, cellId, cellIndex, state.NextNodeId);
+        var region = NotebookCellState.RegisterCell(windows, tabs, cell, state.NextNodeId);
 
         return state with {
             Windows = windows.ToImmutable(),
@@ -298,9 +370,9 @@ public static partial class NotebookCellLayout
         };
     }
 
-    private static NotebookCellState RemoveCell(NotebookCellState state, string cellId)
+    private static NotebookCellState RemoveCell(NotebookCellState state, string presentationId)
     {
-        foreach (var window in state.Windows.Values.Where(w => w.CellId == cellId).ToArray()) {
+        foreach (var window in state.Windows.Values.Where(w => w.CellId == presentationId).ToArray()) {
             var tab = state.GetTabForWindow(window.Id);
             state = RemoveTab(state, tab.Id, out _);
             state = state with {
@@ -309,10 +381,68 @@ public static partial class NotebookCellLayout
             };
         }
 
-        var regionId = $"region-{cellId}";
+        var regionId = $"region-{presentationId}";
         var regionIndex = FindRegionIndex(state.Regions, regionId);
-        if (regionIndex >= 0 && state.Regions[regionIndex].Root is null) {
+        if (regionIndex >= 0) {
             state = state with { Regions = state.Regions.RemoveAt(regionIndex) };
+        }
+
+        return state;
+    }
+
+    private static NotebookCellState ReconcileScripts(
+        NotebookCellState state,
+        NotebookCellState.PresentationCell previous,
+        NotebookCellState.PresentationCell next)
+    {
+        if (previous.Scripts.SequenceEqual(next.Scripts)) {
+            return state;
+        }
+        var previousIds = previous.Scripts.Select(static s => s.ScriptId).ToHashSet(StringComparer.Ordinal);
+        var nextIds = next.Scripts.Select(static s => s.ScriptId).ToHashSet(StringComparer.Ordinal);
+
+        foreach (var scriptId in previousIds) {
+            if (nextIds.Contains(scriptId)) {
+                continue;
+            }
+            var windowId = NotebookCellState.WindowId(scriptId, CellWindowKind.Script);
+            if (!state.Windows.TryGetValue(windowId, out var window)) {
+                continue;
+            }
+            var tab = state.GetTabForWindow(window.Id);
+            state = RemoveTab(state, tab.Id, out _);
+            state = state with {
+                Windows = state.Windows.Remove(window.Id),
+                Tabs = state.Tabs.Remove(tab.Id),
+            };
+        }
+
+        var regionId = $"region-{next.PresentationId}";
+        var windows = state.Windows.ToBuilder();
+        var tabs = state.Tabs.ToBuilder();
+        var newTabIds = ImmutableArray.CreateBuilder<string>();
+        foreach (var script in next.Scripts) {
+            var windowId = NotebookCellState.WindowId(script.ScriptId, CellWindowKind.Script);
+            if (windows.TryGetValue(windowId, out var existing)) {
+                if (existing.Title != script.Title) {
+                    windows[windowId] = existing with { Title = script.Title };
+                }
+                continue;
+            }
+            newTabIds.Add(NotebookCellState.AddWindow(
+                windows, tabs, next.PresentationId, script.ScriptId, regionId,
+                CellWindowKind.Script, script.Title).Id);
+        }
+        state = state with { Windows = windows.ToImmutable(), Tabs = tabs.ToImmutable() };
+
+        if (newTabIds.Count > 0) {
+            var scriptGroup = FindGroupForCell(state, next.PresentationId, CellWindowKind.Script);
+            if (scriptGroup is not null) {
+                state = UpdateGroup(state, scriptGroup.Id, group => group with {
+                    TabIds = group.TabIds.AddRange(newTabIds),
+                    ActiveTabId = newTabIds[newTabIds.Count - 1],
+                });
+            }
         }
 
         return state;

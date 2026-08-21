@@ -1,0 +1,77 @@
+@layer overlays {
+    #overlay-root {
+        position: fixed;
+        z-index: var(--z-overlay-root);
+        inset: 0;
+        pointer-events: none;
+    }
+}
+
+@layer components {
+    .menu-toggle {
+        position: relative;
+        flex: 0 0 auto;
+
+        > summary {
+            list-style: none;
+
+            &::-webkit-details-marker {
+                display: none;
+            }
+        }
+    }
+
+    .menu-popover {
+        display: none;
+        min-width: 11rem;
+        padding: 0.25rem;
+        border: 1px solid var(--color-muted);
+        border-radius: var(--radius-popover);
+        background: var(--color-bg);
+        box-shadow: var(--shadow-overlay);
+    }
+}
+
+@layer overlays {
+    #overlay-root > .menu-popover.is-portaled {
+        position: fixed;
+        top: 0;
+        right: auto;
+        left: 0;
+        display: grid;
+        width: max-content;
+        max-width: calc(100vw - 1rem);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        pointer-events: auto;
+    }
+}
+
+@layer components {
+    .menu-item {
+        display: grid;
+        grid-template-columns: 1.5rem 1fr;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.3rem 0.45rem;
+        border: 0;
+        border-radius: var(--radius-small);
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        font-size: 0.78rem;
+        text-align: left;
+        cursor: pointer;
+
+        &:hover,
+        &:focus-visible {
+            outline: none;
+            background: var(--surface-hover);
+        }
+    }
+
+    .menu-icon {
+        opacity: 0.75;
+        text-align: center;
+    }
+}

@@ -5,39 +5,64 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Sia.NET Examples</title>
     <link rel="preload" id="webassembly" />
+    <link rel="stylesheet" href="tokens.css" />
+    <link rel="stylesheet" href="base.css" />
     <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="controls.css" />
+    <link rel="stylesheet" href="notebook.css" />
     <link rel="stylesheet" href="editor.css" />
     <link rel="stylesheet" href="cell.css" />
+    <link rel="stylesheet" href="overlay.css" />
     <script type="importmap"></script>
     <script src="threads#[.{fingerprint}].js"></script>
 </head>
 <body>
     <div id="app">
-        <aside id="sidebar" aria-label="Notebook explorer">
+        <aside id="sidebar" aria-label="Workspace sidebar" data-sidebar-view="explorer">
             <div class="sidebar-heading">
-                <span>EXPLORER</span>
+                <div class="sidebar-tabs" role="tablist" aria-label="Sidebar views">
+                    <button class="sidebar-tab active" type="button" role="tab"
+                            id="sidebar-explorer-tab" aria-controls="sidebar-explorer"
+                            aria-selected="true" data-sidebar-tab="explorer">
+                        Explorer
+                    </button>
+                    <button class="sidebar-tab" type="button" role="tab"
+                            id="sidebar-files-tab" aria-controls="sidebar-files"
+                            aria-selected="false" tabindex="-1" data-sidebar-tab="files">
+                        Files
+                    </button>
+                </div>
                 <span id="sidebar-actions" class="sidebar-actions"></span>
             </div>
-            <section class="library-folder">
-                <button class="library-folder-toggle" type="button"
-                        data-library-toggle="built-in-notebooks" aria-expanded="true">
-                    <svg class="folder-caret" viewBox="0 0 24 24" width="12" height="12">
-                        <polyline points="6 9 12 15 18 9" />
-                    </svg>
-                    <span>Built-in</span>
-                </button>
-                <div id="built-in-notebooks" class="library-items"></div>
-            </section>
-            <section class="library-folder">
-                <button class="library-folder-toggle" type="button"
-                        data-library-toggle="user-notebooks" aria-expanded="true">
-                    <svg class="folder-caret" viewBox="0 0 24 24" width="12" height="12">
-                        <polyline points="6 9 12 15 18 9" />
-                    </svg>
-                    <span>User notebooks</span>
-                </button>
-                <div id="user-notebooks" class="library-items"></div>
-            </section>
+            <div id="sidebar-explorer" class="sidebar-panel" role="tabpanel"
+                 aria-labelledby="sidebar-explorer-tab">
+                <section class="library-folder">
+                    <button class="library-folder-toggle" type="button"
+                            data-library-toggle="built-in-notebooks" aria-expanded="true">
+                        <svg class="folder-caret" viewBox="0 0 24 24" width="12" height="12">
+                            <polyline points="6 9 12 15 18 9" />
+                        </svg>
+                        <span>Built-in</span>
+                    </button>
+                    <div id="built-in-notebooks" class="library-items"></div>
+                </section>
+                <section class="library-folder">
+                    <button class="library-folder-toggle" type="button"
+                            data-library-toggle="user-notebooks" aria-expanded="true">
+                        <svg class="folder-caret" viewBox="0 0 24 24" width="12" height="12">
+                            <polyline points="6 9 12 15 18 9" />
+                        </svg>
+                        <span>User notebooks</span>
+                    </button>
+                    <div id="user-notebooks" class="library-items"></div>
+                </section>
+            </div>
+            <div id="sidebar-files" class="sidebar-panel hidden" role="tabpanel"
+                 aria-labelledby="sidebar-files-tab">
+                <div id="notebook-files" class="file-tree">
+                    <span class="file-tree-placeholder">Open a notebook to see its files.</span>
+                </div>
+            </div>
         </aside>
         <main id="content">
             <div id="content-header">
@@ -59,8 +84,59 @@
                     <div id="packages-popover" class="packages-popover"></div>
                 </div>
             </div>
-            <div id="notebook"><span class="placeholder">← Choose a notebook to open it</span></div>
+            <div id="notebook">
+                <article id="notebook-home" class="notebook-home">
+                    <section class="home-intro">
+                        <p class="home-eyebrow">Sia.NET</p>
+                        <h1>An entity component system for modern .NET.</h1>
+                        <p class="home-lead">
+                            Build data-oriented worlds with entities, components, queries, events,
+                            and reactive systems. The examples run directly in this browser.
+                        </p>
+                        <button id="home-start-guide" class="home-primary" type="button">
+                            Open the first example <span aria-hidden="true">→</span>
+                        </button>
+                    </section>
+
+                    <figure class="home-code">
+                        <figcaption>
+                            <span>World.cs</span>
+                            <small>C# · browser</small>
+                        </figcaption>
+                        <pre aria-label="Sia code example"><code><span class="code-keyword">var</span> world = <span class="code-keyword">new</span> <span class="code-type">World</span>();
+
+<span class="code-comment">// Components give data a shape.</span>
+world.Create(HList.From(
+    <span class="code-keyword">new</span> <span class="code-type">Position</span>(0, 0),
+    <span class="code-keyword">new</span> <span class="code-type">Velocity</span>(1, 0)));
+
+<span class="code-comment">// Queries find that shape.</span>
+<span class="code-keyword">var</span> moving = world.Query(
+    Matchers.Of&lt;<span class="code-type">Position</span>, <span class="code-type">Velocity</span>&gt;());</code></pre>
+                    </figure>
+
+                    <section class="home-projects" aria-label="Sia projects">
+                        <div class="home-projects-label">
+                            <strong>More from Sia</strong>
+                            <span>Project space</span>
+                        </div>
+                        <article class="home-project">
+                            <strong>Sia.Physics</strong>
+                            <span>Physics engine</span>
+                        </article>
+                        <article class="home-project">
+                            <strong>Sia.Animation</strong>
+                            <span>Animation runtime</span>
+                        </article>
+                        <article class="home-project">
+                            <strong>Ecosystem</strong>
+                            <span>Window · WebGPU · Asset</span>
+                        </article>
+                    </section>
+                </article>
+            </div>
         </main>
     </div>
+    <div id="overlay-root" aria-live="off"></div>
 </body>
 </html>

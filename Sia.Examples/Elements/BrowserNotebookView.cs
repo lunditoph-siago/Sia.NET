@@ -13,8 +13,10 @@ public sealed class BrowserNotebookView :
     private readonly DomElement _floatingLayer;
     private readonly BrowserEditorRegistry _editors;
     private readonly BrowserPackagePanel _packages;
+    private readonly BrowserNotebookFileTree _fileTree;
     private readonly BrowserCellWorkspaceView _cellWorkspace;
-    private readonly Dictionary<string, BrowserCellView> _cells = [];
+    private readonly Dictionary<string, BrowserCellView> _cellsByBlock = [];
+    private readonly Dictionary<string, BrowserCellView> _cellsByScript = [];
     private readonly Dictionary<string, DomElement> _sectionElements = [];
     private readonly Dictionary<string, DomElement> _sectionActionHosts = [];
     private readonly Dictionary<string, DomElement> _sectionTitleInputs = [];
@@ -32,6 +34,7 @@ public sealed class BrowserNotebookView :
         _root = DomElement.Create("div").Class("notebook-document");
         _editors = new(world, references);
         _packages = new();
+        _fileTree = new(document, cellState);
         _floatingLayer = DomElement.Create("div")
             .Class("section")
             .Class("floating-layer");
@@ -53,36 +56,43 @@ public sealed class BrowserNotebookView :
 
     public BrowserEditorRegistry Editors => _editors;
 
+    public void UpdateCellScope(string cellId, string? scope)
+    {
+        if (_cellsByBlock.TryGetValue(cellId, out var cell)) {
+            cell.UpdateScope(scope);
+        }
+    }
+
     public void BeginEditorEdit(string cellId)
     {
-        if (_cells.TryGetValue(cellId, out var cell)) {
-            cell.BeginEditing();
+        if (_cellsByScript.TryGetValue(cellId, out var cell)) {
+            cell.BeginEditing(cellId);
         }
     }
 
     public void UpdateEditorDirty(string cellId)
     {
-        if (_cells.TryGetValue(cellId, out var cell)) {
-            cell.UpdateDirtyState();
+        if (_cellsByScript.TryGetValue(cellId, out var cell)) {
+            cell.UpdateDirtyState(cellId);
         }
     }
 
     public void EndEditorEdit(string cellId)
     {
-        if (_cells.TryGetValue(cellId, out var cell)) {
-            cell.EndEditing();
+        if (_cellsByScript.TryGetValue(cellId, out var cell)) {
+            cell.EndEditing(cellId);
         }
     }
 
     public void DiscardEditor(string cellId)
     {
-        if (_cells.TryGetValue(cellId, out var cell)) {
-            cell.DiscardChanges();
+        if (_cellsByScript.TryGetValue(cellId, out var cell)) {
+            cell.DiscardChanges(cellId);
         }
     }
 
     void IRenderHost<NotebookCellSnapshot>.Upsert(in NotebookCellSnapshot view)
-        => _cells[view.Id].Update(view.State);
+        => _cellsByScript[view.Id].Update(view.Id, view.State);
 
     void IRenderHost<NotebookCellSnapshot>.Remove(in NotebookCellSnapshot view)
     {
@@ -102,7 +112,10 @@ public sealed class BrowserNotebookView :
 
     void IRenderHost<NotebookCellPresentation>.Upsert(
         in NotebookCellPresentation view)
-        => _cellWorkspace.Apply(view.State);
+    {
+        _cellWorkspace.Apply(view.State);
+        _fileTree.UpdateSelection(view.State);
+    }
 
     void IRenderHost<NotebookCellPresentation>.Remove(
         in NotebookCellPresentation view)
@@ -157,6 +170,7 @@ public sealed class BrowserNotebookView :
                 _sectionTitleInputs[sectionId].Attr("aria-label", $"Section {sectionIndex + 1} title");
             }
         }
+        _fileTree.Update(nextDocument, nextCellState);
     }
 
     public void Dispose()
@@ -167,10 +181,12 @@ public sealed class BrowserNotebookView :
         _disposed = true;
         _cellWorkspace.Dispose();
         _editors.Dispose();
-        foreach (var cell in _cells.Values) {
+        foreach (var cell in _cellsByBlock.Values) {
             cell.Dispose();
         }
-        _cells.Clear();
+        _cellsByBlock.Clear();
+        _cellsByScript.Clear();
+        _fileTree.Dispose();
         _packages.Dispose();
         _root.Remove();
         _root.Dispose();
@@ -272,6 +288,8 @@ public sealed class BrowserNotebookView :
         var previousOrder = previousKeyed.Select(static entry => entry.Key).ToList();
         var nextOrder = nextKeyed.Select(static entry => entry.Key).ToList();
 
+        ReconcileSurvivingCells(previousKeyed, nextKeyed, previousCellState, nextCellState);
+
         if (previousOrder.SequenceEqual(nextOrder, StringComparer.Ordinal)) {
             return;
         }
@@ -297,6 +315,62 @@ public sealed class BrowserNotebookView :
         _sectionBlockOrder[sectionId] = nextOrder;
 
         RefreshSectionActions(sectionId, nextBlocks);
+    }
+
+    private void ReconcileSurvivingCells(
+        (string Key, NotebookBlock Block)[] previousKeyed,
+        (string Key, NotebookBlock Block)[] nextKeyed,
+        NotebookCellState previousCellState,
+        NotebookCellState nextCellState)
+    {
+        var previousByKey = previousKeyed.ToDictionary(static entry => entry.Key, static entry => entry.Block);
+        foreach (var (key, block) in nextKeyed) {
+            if (block is not CodeCellBlock nextCell
+                || !previousByKey.TryGetValue(key, out var previousBlock)
+                || previousBlock is not CodeCellBlock previousCell
+                || !_cellsByBlock.TryGetValue(key, out var cellView)) {
+                continue;
+            }
+            ReconcileCellScripts(cellView, previousCell, nextCell, previousCellState, nextCellState);
+        }
+    }
+
+    private void ReconcileCellScripts(
+        BrowserCellView cellView,
+        CodeCellBlock previousCell,
+        CodeCellBlock nextCell,
+        NotebookCellState previousCellState,
+        NotebookCellState nextCellState)
+    {
+        cellView.UpdateScope(nextCell.Scope);
+        var previousIds = new HashSet<string>(
+            previousCell.Scripts.Select(static script => script.Id), StringComparer.Ordinal);
+        var nextIds = new HashSet<string>(
+            nextCell.Scripts.Select(static script => script.Id), StringComparer.Ordinal);
+        if (previousIds.SetEquals(nextIds)) {
+            return;
+        }
+
+        foreach (var script in previousCell.Scripts) {
+            if (nextIds.Contains(script.Id)) {
+                continue;
+            }
+            var window = cellView.RemoveScript(script.Id);
+            _cellsByScript.Remove(script.Id);
+            _editors.Remove(script.Id);
+            if (window is not null) {
+                UnregisterCellWindow(window.Window, previousCellState);
+            }
+        }
+
+        foreach (var script in nextCell.Scripts) {
+            if (previousIds.Contains(script.Id)) {
+                continue;
+            }
+            var window = cellView.AddScript(script, nextCellState.GetScriptWindow(script.Id));
+            _cellsByScript.Add(script.Id, cellView);
+            _cellWorkspace.RegisterWindow(window);
+        }
     }
 
     private void RepositionBlocks(
@@ -364,6 +438,52 @@ public sealed class BrowserNotebookView :
         element.Dispose();
     }
 
+    private DomElement CreateCellElement(CodeCellBlock cell, NotebookCellState cellState)
+    {
+        var outputWindow = cellState.GetWindow(cell.Id, CellWindowKind.Output);
+        var renderWindow = cellState.GetWindow(cell.Id, CellWindowKind.Render);
+        var scriptWindows = cell.Scripts
+            .Select(script => (script, Window: cellState.GetScriptWindow(script.Id)))
+            .ToArray();
+
+        var cellView = new BrowserCellView(cell, scriptWindows, _editors, outputWindow, renderWindow);
+        _cellsByBlock.Add(cell.Id, cellView);
+        foreach (var script in cell.Scripts) {
+            _cellsByScript.Add(script.Id, cellView);
+        }
+
+        _cellWorkspace.RegisterWindow(cellView.Output);
+        _cellWorkspace.RegisterWindow(cellView.Render);
+        foreach (var scriptWindow in cellView.Scripts) {
+            _cellWorkspace.RegisterWindow(scriptWindow);
+        }
+
+        var region = DomElement.Create("div");
+        _cellWorkspace.RegisterRegion(
+            scriptWindows[0].Window.HomeRegionId,
+            cell.Id,
+            region);
+        return region;
+    }
+
+    private void RemoveCellView(CodeCellBlock cell, NotebookCellState cellState)
+    {
+        if (!_cellsByBlock.Remove(cell.Id, out var cellView)) {
+            return;
+        }
+        foreach (var script in cell.Scripts) {
+            _cellsByScript.Remove(script.Id);
+            _editors.Remove(script.Id);
+        }
+        foreach (var scriptWindow in cellView.Scripts) {
+            UnregisterCellWindow(scriptWindow.Window, cellState);
+        }
+        UnregisterCellWindow(cellView.Output.Window, cellState);
+        UnregisterCellWindow(cellView.Render.Window, cellState);
+        _cellWorkspace.UnregisterRegion(cellView.Scripts[0].Window.HomeRegionId);
+        cellView.Dispose();
+    }
+
     private DomElement CreateStaticParagraphElement(ParagraphBlock paragraph)
     {
         var element = DomElement.Create("p").Class("paragraph");
@@ -380,39 +500,6 @@ public sealed class BrowserNotebookView :
             element.Append(listItem);
         }
         return element;
-    }
-
-    private DomElement CreateCellElement(CodeCellBlock cell, NotebookCellState cellState)
-    {
-        var scriptWindow = cellState.GetWindow(cell.Id, CellWindowKind.Script);
-        var outputWindow = cellState.GetWindow(cell.Id, CellWindowKind.Output);
-        var renderWindow = cellState.GetWindow(cell.Id, CellWindowKind.Render);
-        var cellView = new BrowserCellView(
-            cell,
-            _editors,
-            scriptWindow,
-            outputWindow,
-            renderWindow);
-        _cells.Add(cell.Id, cellView);
-        _cellWorkspace.RegisterWindow(cellView.Script);
-        _cellWorkspace.RegisterWindow(cellView.Output);
-        _cellWorkspace.RegisterWindow(cellView.Render);
-        var region = DomElement.Create("div");
-        _cellWorkspace.RegisterRegion(scriptWindow.HomeRegionId, region);
-        return region;
-    }
-
-    private void RemoveCellView(CodeCellBlock cell, NotebookCellState cellState)
-    {
-        if (!_cells.Remove(cell.Id, out var cellView)) {
-            return;
-        }
-        UnregisterCellWindow(cellView.Script.Window, cellState);
-        UnregisterCellWindow(cellView.Output.Window, cellState);
-        UnregisterCellWindow(cellView.Render.Window, cellState);
-        _cellWorkspace.UnregisterRegion(cellView.Script.Window.HomeRegionId);
-        _editors.Remove(cell.Id);
-        cellView.Dispose();
     }
 
     private void UnregisterCellWindow(CellWindow window, NotebookCellState cellState)
