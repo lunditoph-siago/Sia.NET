@@ -5,4 +5,5 @@ public sealed record CellWindow(
     string CellId,
     string HomeRegionId,
     CellWindowKind Kind,
-    string Title);
+    string Title,
+    string SourceId);

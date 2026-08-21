@@ -99,7 +99,17 @@ public static class NotebookDocumentSerializer
         if (cell.Scope is { Length: > 0 } scope) {
             element.SetAttributeValue("Scope", scope);
         }
-        element.Add(new XCData('\n' + IndentCode(cell.InitialSource) + '\n'));
+        element.Add(Laid(cell.Scripts.Select(WriteScript), indent: 6));
+        return element;
+    }
+
+    private static XElement WriteScript(CellScript script)
+    {
+        var element = new XElement("Script", new XAttribute("Id", script.Id));
+        if (script.Name is { Length: > 0 } name) {
+            element.SetAttributeValue("Name", name);
+        }
+        element.Add(new XCData('\n' + IndentCode(script.InitialSource) + '\n'));
         return element;
     }
 

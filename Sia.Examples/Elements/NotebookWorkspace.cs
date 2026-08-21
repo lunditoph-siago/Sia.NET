@@ -102,36 +102,79 @@ public sealed class NotebookWorkspace : IAsyncDisposable
     {
         ThrowIfDisposed();
         var parts = arguments.Split(':');
-        if (parts.Length != 4
+        if (parts.Length != 5
+            || !long.TryParse(parts[0], out var revision)
             || !Enum.TryParse<CellDropPosition>(
-                parts[2],
+                parts[3],
                 ignoreCase: true,
                 out var position)
-            || !int.TryParse(parts[3], out var targetIndex)) {
+            || !int.TryParse(parts[4], out var targetIndex)) {
             return;
         }
         UpdateCell(state => NotebookCellLayout.Cell(
             state,
-            parts[0],
             parts[1],
+            parts[2],
             position,
-            targetIndex));
+            targetIndex),
+            revision,
+            acknowledge: true);
     }
 
     public void Detach(string arguments)
     {
         ThrowIfDisposed();
         var parts = arguments.Split(':');
-        if (parts.Length != 3
-            || !int.TryParse(parts[1], out var pointerX)
-            || !int.TryParse(parts[2], out var pointerY)) {
+        if (parts.Length != 6
+            || !long.TryParse(parts[0], out var revision)
+            || !int.TryParse(parts[2], out var pointerX)
+            || !int.TryParse(parts[3], out var pointerY)
+            || !int.TryParse(parts[4], out var viewportWidth)
+            || !int.TryParse(parts[5], out var viewportHeight)) {
             return;
         }
         UpdateCell(state => NotebookCellLayout.Detach(
             state,
-            parts[0],
+            parts[1],
             pointerX,
-            pointerY));
+            pointerY,
+            viewportWidth,
+            viewportHeight),
+            revision,
+            acknowledge: true);
+    }
+
+    public void NormalizeCells(string arguments)
+    {
+        ThrowIfDisposed();
+        var parts = arguments.Split(':');
+        if (parts.Length != 2
+            || !int.TryParse(parts[0], out var viewportWidth)
+            || !int.TryParse(parts[1], out var viewportHeight)) {
+            return;
+        }
+        UpdateCell(state => NotebookCellLayout.NormalizeFloatingHosts(
+            state,
+            viewportWidth,
+            viewportHeight));
+    }
+
+    public void ResizeCellSplit(string arguments)
+    {
+        ThrowIfDisposed();
+        var parts = arguments.Split(':');
+        if (parts.Length != 3
+            || !long.TryParse(parts[0], out var revision)
+            || !double.TryParse(
+                parts[2],
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var ratio)) {
+            return;
+        }
+        UpdateCell(
+            state => NotebookCellLayout.ResizeSplit(state, parts[1], ratio),
+            revision,
+            acknowledge: true);
     }
 
     public void Stop()
@@ -163,9 +206,7 @@ public sealed class NotebookWorkspace : IAsyncDisposable
         var value = input?.Value().Trim() ?? string.Empty;
         SynchronizeEditors();
         _session.SetCellScope(cellId, value);
-        if (input is not null) {
-            input.Attr("data-saved-value", value);
-        }
+        _view.UpdateCellScope(cellId, value);
     }
 
     public void BeginEditorEdit(string cellId)
@@ -179,6 +220,33 @@ public sealed class NotebookWorkspace : IAsyncDisposable
         ThrowIfDisposed();
         SynchronizeEditors();
         _session.InsertCell(afterBlockId);
+    }
+
+    public void AddScript(string cellId)
+    {
+        ThrowIfDisposed();
+        SynchronizeEditors();
+        _session.AddScript(cellId);
+    }
+
+    public void RemoveScript(string scriptId)
+    {
+        ThrowIfDisposed();
+        SynchronizeEditors();
+        _session.RemoveScript(scriptId);
+    }
+
+    public void RenameScript(string arguments)
+    {
+        ThrowIfDisposed();
+        var separator = arguments.IndexOf(':');
+        if (separator < 0) {
+            return;
+        }
+        var scriptId = arguments[..separator];
+        var name = Uri.UnescapeDataString(arguments[(separator + 1)..]);
+        SynchronizeEditors();
+        _session.RenameScript(scriptId, name);
     }
 
     public void InsertParagraph(string afterBlockId)
@@ -346,18 +414,18 @@ public sealed class NotebookWorkspace : IAsyncDisposable
 
     private void SynchronizeEditors()
     {
-        foreach (var cell in _session.Cells) {
-            if (!cell.Editable) {
+        foreach (var script in _session.Scripts) {
+            if (!_session.IsScriptEditable(script.Id)) {
                 continue;
             }
-            var source = _view.Editors.GetSource(cell.Id);
-            if (source != _session.GetState(cell.Id).Source) {
+            var source = _view.Editors.GetSource(script.Id);
+            if (source != _session.GetState(script.Id).Source) {
                 _session.UpdateCellSource(
-                    cell.Id,
+                    script.Id,
                     source,
                     _lifetime.Token);
             }
-            _view.EndEditorEdit(cell.Id);
+            _view.EndEditorEdit(script.Id);
         }
     }
 
@@ -368,17 +436,24 @@ public sealed class NotebookWorkspace : IAsyncDisposable
         _ = RemoveWhenCompleteAsync(observed);
     }
 
-    private void UpdateCell(Func<NotebookCellState, NotebookCellState> update)
+    private void UpdateCell(
+        Func<NotebookCellState, NotebookCellState> update,
+        long? expectedRevision = null,
+        bool acknowledge = false)
     {
         ThrowIfDisposed();
         var state = _mount.GetState<NotebookCellState>();
+        if (expectedRevision is { } expected && expected != state.Value.Revision) {
+            return;
+        }
         var next = update(state.Value);
-        if (next == state.Value) {
+        if (next == state.Value && !acknowledge) {
             return;
         }
         if (!NotebookCellLayout.IsValid(next)) {
             throw new InvalidOperationException("The cell operation produced an invalid layout.");
         }
+        next = next with { Revision = state.Value.Revision + 1 };
         state.Set(next);
         _world.FlushReactive();
     }
@@ -427,6 +502,7 @@ public sealed class NotebookWorkspace : IAsyncDisposable
             throw new InvalidOperationException(
                 "Document reconciliation produced an invalid cell layout.");
         }
+        nextLayout = nextLayout with { Revision = layout.Value.Revision + 1 };
         _view.ReconcileDocument(_previousDocument, document, layout.Value, nextLayout);
         layout.Set(nextLayout);
         _previousDocument = document;
@@ -439,42 +515,58 @@ public sealed class NotebookWorkspace : IAsyncDisposable
             static cell => cell.State);
         var layout = _mount.GetState<NotebookCellState>();
         var next = layout.Value;
+
+        var groups = new Dictionary<string, List<(CellState State, CellState? Previous)>>(StringComparer.Ordinal);
         foreach (var cell in snapshot.Cells) {
-            var hasPrevious = previous.TryGetValue(cell.Id, out var old);
-            var state = cell.State;
-            var hasOutput = HasOutput(state);
-            var hadOutput = hasPrevious && HasOutput(old);
-            var completedRun = hasPrevious
-                && old.Phase == CellPhase.Running
-                && state.Phase is CellPhase.RanSuccess or CellPhase.RanError;
-            if (hasOutput
-                && (!hadOutput
-                    || old.StandardOutput != state.StandardOutput
-                    || old.StandardError != state.StandardError
-                    || completedRun)) {
-                next = OpenCellWindow(next, cell.Id, CellWindowKind.Output);
+            var presentationId = next.GetScriptWindow(cell.Id).CellId;
+            var member = (cell.State, previous.TryGetValue(cell.Id, out var old) ? old : (CellState?)null);
+            if (!groups.TryGetValue(presentationId, out var members)) {
+                members = [];
+                groups.Add(presentationId, members);
+            }
+            members.Add(member);
+        }
+
+        foreach (var (presentationId, members) in groups) {
+            var hasOutput = members.Exists(static m => HasOutput(m.State));
+            var hadOutput = members.Exists(static m => m.Previous is { } old && HasOutput(old));
+            var outputChanged = members.Exists(static m =>
+                m.Previous is not { } old
+                || old.StandardOutput != m.State.StandardOutput
+                || old.StandardError != m.State.StandardError
+                || CompletedRun(old, m.State));
+            if (hasOutput && (!hadOutput || outputChanged)) {
+                next = OpenCellWindow(next, presentationId, CellWindowKind.Output);
             } else if (!hasOutput && hadOutput) {
-                next = CloseCellWindow(next, cell.Id, CellWindowKind.Output);
+                next = CloseCellWindow(next, presentationId, CellWindowKind.Output);
             }
 
-            if (state.RenderRequested
-                && (!hasPrevious
+            var rendering = members.Exists(static m => m.State.RenderRequested);
+            var wasRendering = members.Exists(static m => m.Previous?.RenderRequested == true);
+            var renderChanged = members.Exists(static m =>
+                m.State.RenderRequested
+                && (m.Previous is not { } old
                     || !old.RenderRequested
-                    || old.RenderOutput != state.RenderOutput
-                    || completedRun)) {
-                next = OpenCellWindow(next, cell.Id, CellWindowKind.Render);
-            } else if (!state.RenderRequested && hasPrevious && old.RenderRequested) {
-                next = CloseCellWindow(next, cell.Id, CellWindowKind.Render);
+                    || old.RenderOutput != m.State.RenderOutput
+                    || CompletedRun(old, m.State)));
+            if (rendering && renderChanged) {
+                next = OpenCellWindow(next, presentationId, CellWindowKind.Render);
+            } else if (!rendering && wasRendering) {
+                next = CloseCellWindow(next, presentationId, CellWindowKind.Render);
             }
         }
+
         if (next != layout.Value) {
             if (!NotebookCellLayout.IsValid(next)) {
                 throw new InvalidOperationException(
                     "Surface synchronization produced an invalid cell layout.");
             }
-            layout.Set(next);
+            layout.Set(next with { Revision = layout.Value.Revision + 1 });
         }
     }
+
+    private static bool CompletedRun(CellState old, CellState state)
+        => old.Phase == CellPhase.Running && state.Phase is CellPhase.RanSuccess or CellPhase.RanError;
 
     private static bool HasOutput(CellState state)
         => state.StandardOutput.Length > 0 || state.StandardError.Length > 0;

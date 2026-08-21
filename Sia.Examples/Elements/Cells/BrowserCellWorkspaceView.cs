@@ -19,12 +19,13 @@ public sealed class BrowserCellWorkspaceView(DomElement floatingLayer) : IDispos
     private readonly Dictionary<string, string> _floatingShapes = [];
     private bool _disposed;
 
-    public void RegisterRegion(string regionId, DomElement root)
+    public void RegisterRegion(string regionId, string cellId, DomElement root)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         _regions.Add(regionId, root
             .Class("cell")
-            .Attr("data-cell-region", regionId));
+            .Attr("data-cell-region", regionId)
+            .Attr("data-cell-owner", cellId));
     }
 
     public void RegisterWindow(BrowserCellWindowView window)
@@ -80,6 +81,7 @@ public sealed class BrowserCellWorkspaceView(DomElement floatingLayer) : IDispos
 
         SyncSplitRatios(state, FindSurfaceChildren(state));
         ApplyGroups(state);
+        floatingLayer.Attr("data-cell-layout-revision", state.Revision.ToString(CultureInfo.InvariantCulture));
     }
 
     private static Dictionary<string, int> FindSurfaceChildren(NotebookCellState state)
@@ -220,6 +222,9 @@ public sealed class BrowserCellWorkspaceView(DomElement floatingLayer) : IDispos
         var separator = DomElement.Create("div")
             .Class("separator")
             .Attr("role", "separator")
+            .Attr("tabindex", "0")
+            .Attr("aria-valuemin", "15")
+            .Attr("aria-valuemax", "85")
             .Attr("aria-orientation", split.Axis == CellAxis.Horizontal
                 ? "vertical"
                 : "horizontal");
@@ -240,9 +245,13 @@ public sealed class BrowserCellWorkspaceView(DomElement floatingLayer) : IDispos
                 continue;
             }
             var ratio = split.Ratio;
+            view.Separator.Attr(
+                "aria-valuenow",
+                Math.Round(ratio * 100).ToString(CultureInfo.InvariantCulture));
             if (surfaceChildren.TryGetValue(split.Id, out var surfaceIndex)) {
                 var surfaceShare = surfaceIndex == 0 ? ratio : 1 - ratio;
                 view.Root.ToggleClass("surface", true);
+                view.Separator.Attr("aria-disabled", "true");
                 view.First.ToggleClass("surface-pane", surfaceIndex == 0);
                 view.Second.ToggleClass("surface-pane", surfaceIndex == 1);
                 view.First.ToggleClass("collapsed", surfaceIndex == 0 && surfaceShare <= 0);
@@ -251,6 +260,7 @@ public sealed class BrowserCellWorkspaceView(DomElement floatingLayer) : IDispos
                 view.Second.Attr("style", string.Empty);
             } else {
                 view.Root.ToggleClass("surface", false);
+                view.Separator.Attr("aria-disabled", "false");
                 view.First.ToggleClass("surface-pane", false);
                 view.Second.ToggleClass("surface-pane", false);
                 view.First.ToggleClass("collapsed", ratio <= 0);
@@ -265,19 +275,32 @@ public sealed class BrowserCellWorkspaceView(DomElement floatingLayer) : IDispos
     private static void SetShare(DomElement child, double share)
         => child.Attr(
             "style",
-            $"flex-grow:{share.ToString("0.###", CultureInfo.InvariantCulture)}");
+            $"--cell-split-share:{share.ToString("0.###", CultureInfo.InvariantCulture)}");
 
     private void ApplyGroups(NotebookCellState state)
     {
+        var changed = new List<(CellTabGroup Group, GroupView View)>();
         foreach (var group in NotebookCellLayout.EnumerateGroups(state)) {
             if (!_groups.TryGetValue(group.Id, out var groupView)) {
                 continue;
+            }
+            foreach (var tabId in group.TabIds) {
+                if (!state.Tabs.TryGetValue(tabId, out var tab)
+                    || !state.Windows.TryGetValue(tab.WindowId, out var window)) {
+                    continue;
+                }
+                EnsureTabHeader(tab, window, NotebookCellLayout.CanCloseTab(state, tabId));
             }
             var signature = BuildGroupSignature(group);
             if (groupView.Signature == signature) {
                 continue;
             }
+            changed.Add((group, groupView));
+        }
+        foreach (var (_, groupView) in changed) {
             DetachGroup(groupView);
+        }
+        foreach (var (group, groupView) in changed) {
             MountGroup(state, group, groupView);
         }
     }
@@ -293,6 +316,9 @@ public sealed class BrowserCellWorkspaceView(DomElement floatingLayer) : IDispos
             }
         }
         groupView.MountedTabs.Clear();
+        groupView.Adder?.Remove();
+        groupView.Adder?.Dispose();
+        groupView.Adder = null;
         if (groupView.ActiveWindowId is { } windowId
             && _windows.TryGetValue(windowId, out var window)) {
             window.Toolbar?.Remove();
@@ -304,10 +330,12 @@ public sealed class BrowserCellWorkspaceView(DomElement floatingLayer) : IDispos
 
     private void MountGroup(NotebookCellState state, CellTabGroup group, GroupView groupView)
     {
+        var scriptCellId = NotebookCellLayout.GetScriptGroupCellId(state, group);
         foreach (var tabId in group.TabIds) {
             var tab = state.Tabs[tabId];
             var window = state.Windows[tab.WindowId];
-            var header = EnsureTabHeader(tab, window);
+            var closable = NotebookCellLayout.CanCloseTab(state, tabId);
+            var header = EnsureTabHeader(tab, window, closable);
             var active = tabId == group.ActiveTabId;
             header.Root.ToggleClass("active", active);
             header.Tab
@@ -316,6 +344,19 @@ public sealed class BrowserCellWorkspaceView(DomElement floatingLayer) : IDispos
                 .Attr("tabindex", active ? "0" : "-1");
             groupView.TabList.Append(header.Root);
             groupView.MountedTabs.Add(tabId);
+        }
+
+        if (scriptCellId is not null) {
+            var adder = DomElement.Create("button")
+                .Class("icon-btn")
+                .Class("tab-add")
+                .Attr("type", "button")
+                .Attr("aria-label", "Add script")
+                .Attr("title", "Add script")
+                .On("click", $"add-script:{scriptCellId}")
+                .Text("+");
+            groupView.TabList.Append(adder);
+            groupView.Adder = adder;
         }
 
         var activeTab = state.Tabs[group.ActiveTabId];
@@ -331,9 +372,11 @@ public sealed class BrowserCellWorkspaceView(DomElement floatingLayer) : IDispos
         groupView.Signature = BuildGroupSignature(group);
     }
 
-    private TabHeaderView EnsureTabHeader(CellTab tab, CellWindow window)
+    private TabHeaderView EnsureTabHeader(CellTab tab, CellWindow window, bool closable)
     {
         if (_tabHeaders.TryGetValue(tab.Id, out var existing)) {
+            SyncLabel(existing, window);
+            SyncCloseButton(existing, window, closable);
             return existing;
         }
         var root = DomElement.Create("div").Class("tab-entry");
@@ -344,25 +387,50 @@ public sealed class BrowserCellWorkspaceView(DomElement floatingLayer) : IDispos
             .Attr("role", "tab")
             .Attr("aria-controls", window.Id)
             .Attr("data-cell-tab", tab.Id)
-            .Attr("data-cell-label", window.Title)
-            .Attr("title", window.Title)
-            .On("click", $"activate-tab:{tab.Id}")
-            .Text(window.Title);
+            .Attr("data-cell-owner", window.CellId)
+            .On("click", $"activate-tab:{tab.Id}");
         root.Append(header);
-        DomElement? close = null;
-        if (window.Kind != CellWindowKind.Script) {
-            close = DomElement.Create("button")
-                .Class("close")
-                .Attr("type", "button")
-                .Attr("aria-label", $"Close {window.Title}")
-                .Attr("title", $"Close {window.Title}")
-                .On("click", $"close-window:{window.Id}")
-                .Text("×");
-            root.Append(close);
-        }
-        var view = new TabHeaderView(root, header, close);
+        var view = new TabHeaderView(root, header);
+        SyncLabel(view, window);
+        SyncCloseButton(view, window, closable);
         _tabHeaders.Add(tab.Id, view);
         return view;
+    }
+
+    private static void SyncLabel(TabHeaderView view, CellWindow window)
+    {
+        view.Tab
+            .Attr("aria-label", window.Title)
+            .Attr("title", window.Title)
+            .Text(window.Title);
+        view.Close?
+            .Attr("aria-label", $"Close {window.Title}")
+            .Attr("title", $"Close {window.Title}");
+    }
+
+    private static void SyncCloseButton(TabHeaderView view, CellWindow window, bool closable)
+    {
+        view.Root.ToggleClass("has-close", closable);
+        if (closable == (view.Close is not null)) {
+            return;
+        }
+        if (!closable) {
+            view.Close?.Remove();
+            view.Close?.Dispose();
+            view.Close = null;
+            return;
+        }
+        var payload = window.Kind == CellWindowKind.Script
+            ? $"remove-script:{window.SourceId}"
+            : $"close-window:{window.Id}";
+        view.Close = DomElement.Create("button")
+            .Class("close")
+            .Attr("type", "button")
+            .Attr("aria-label", $"Close {window.Title}")
+            .Attr("title", $"Close {window.Title}")
+            .On("click", payload)
+            .Text("×");
+        view.Root.Append(view.Close);
     }
 
     private void DisposeContainer(string containerId)
@@ -452,10 +520,13 @@ public sealed class BrowserCellWorkspaceView(DomElement floatingLayer) : IDispos
 
         public string? ActiveWindowId { get; set; }
 
+        public DomElement? Adder { get; set; }
+
         public List<string> MountedTabs { get; } = [];
 
         public void Dispose()
         {
+            Adder?.Dispose();
             Content.Dispose();
             TabList.Dispose();
             Tabs.Dispose();
@@ -478,11 +549,14 @@ public sealed class BrowserCellWorkspaceView(DomElement floatingLayer) : IDispos
         }
     }
 
-    private sealed record TabHeaderView(
-        DomElement Root,
-        DomElement Tab,
-        DomElement? Close) : IDisposable
+    private sealed class TabHeaderView(DomElement root, DomElement tab) : IDisposable
     {
+        public DomElement Root { get; } = root;
+
+        public DomElement Tab { get; } = tab;
+
+        public DomElement? Close { get; set; }
+
         public void Dispose()
         {
             Root.Remove();

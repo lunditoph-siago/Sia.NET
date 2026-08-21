@@ -11,6 +11,8 @@ public sealed class BrowserApplicationView :
     private readonly DomElement _userNotebooks = DomElement.Find("user-notebooks");
     private readonly SortedDictionary<int, ExampleNode> _examples = [];
     private readonly DomElement _newButton;
+    private readonly DomElement _home;
+    private readonly DomElement[] _homeButtons;
     private readonly DomElement _notebookBar;
     private readonly DomElement _status;
     private readonly DomElement _deleteButton;
@@ -19,6 +21,11 @@ public sealed class BrowserApplicationView :
 
     public BrowserApplicationView()
     {
+        _home = DomElement.Find("notebook-home");
+        _homeButtons = [
+            BindHomeAction("home-start-guide", "select:0"),
+        ];
+
         using (var actions = DomElement.Find("sidebar-actions")) {
             _newButton = CreateIconButton("+", "New notebook", "new-notebook");
             actions.Append(_newButton);
@@ -75,6 +82,8 @@ public sealed class BrowserApplicationView :
 
     public void HideNotebookBar()
     {
+        using var notebook = DomElement.Find("notebook");
+        notebook.Text(string.Empty).Append(_home);
         _notebookBar.ToggleClass("hidden", true);
         HideConflict();
     }
@@ -122,6 +131,10 @@ public sealed class BrowserApplicationView :
         _status.Dispose();
         _notebookBar.Dispose();
         _newButton.Dispose();
+        foreach (var button in _homeButtons) {
+            button.Dispose();
+        }
+        _home.Dispose();
         _userNotebooks.Dispose();
         _builtInNotebooks.Dispose();
     }
@@ -147,6 +160,9 @@ public sealed class BrowserApplicationView :
             .Attr("title", label)
             .On("click", payload)
             .Text(icon);
+
+    private static DomElement BindHomeAction(string id, string payload)
+        => DomElement.Find(id).On("click", payload);
 
     private sealed class ExampleNode(
         DomElement root,

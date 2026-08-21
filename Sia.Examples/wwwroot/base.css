@@ -1,0 +1,27 @@
+@layer reset {
+    *,
+    *::before,
+    *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+}
+
+@layer base {
+    body {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        height: 100dvh;
+        background: var(--color-bg);
+        color: var(--color-fg);
+        font-family: system-ui, monospace;
+    }
+}
+
+@layer utilities {
+    .hidden {
+        display: none !important;
+    }
+}

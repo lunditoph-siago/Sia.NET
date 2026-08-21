@@ -9,4 +9,6 @@ public static class NotebookElementIds
     public static string SectionTitleInput(string sectionId) => $"section-title-input-{sectionId}";
 
     public static string ScopeInput(string cellId) => $"scope-{cellId}";
+
+    public static string ScopeSummary(string cellId) => $"scope-summary-{cellId}";
 }

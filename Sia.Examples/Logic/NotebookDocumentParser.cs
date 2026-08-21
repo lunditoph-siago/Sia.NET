@@ -50,17 +50,33 @@ public static class NotebookDocumentParser
                 "List" => new ListBlock(
                     (string?)child.Attribute("Id") ?? Guid.NewGuid().ToString("N"),
                     child.Elements("Item").Select(ParseInlines).ToList()),
-                "CodeCell" => new CodeCellBlock(
-                    (string?)child.Attribute("Id") ?? Guid.NewGuid().ToString("N"),
-                    DedentCode(child.Value),
-                    (bool?)child.Attribute("Editable") ?? true,
-                    (string?)child.Attribute("Scope")),
+                "CodeCell" => ParseCodeCell(child),
                 var unknown => throw new FormatException(
                     $"Unknown block element <{unknown}> in <Section Title=\"{title}\">."),
             });
         }
         return new(id, title, blocks);
     }
+
+    private static CodeCellBlock ParseCodeCell(XElement element)
+    {
+        var cellId = (string?)element.Attribute("Id") ?? Guid.NewGuid().ToString("N");
+        var scripts = element.Elements("Script").Select(ParseScript).ToList();
+        if (scripts.Count == 0) {
+            throw new FormatException($"<CodeCell Id=\"{cellId}\"> must contain at least one <Script> element.");
+        }
+        return new(
+            cellId,
+            scripts,
+            (bool?)element.Attribute("Editable") ?? true,
+            (string?)element.Attribute("Scope"));
+    }
+
+    private static CellScript ParseScript(XElement element)
+        => new(
+            (string?)element.Attribute("Id") ?? Guid.NewGuid().ToString("N"),
+            DedentCode(element.Value),
+            (string?)element.Attribute("Name"));
 
     private static IReadOnlyList<Inline> ParseInlines(XElement element)
     {

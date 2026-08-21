@@ -1,108 +1,88 @@
-<Notebook Title="Browser Guide: Your First Live Sia Notebook">
-  <Section Title="Start here">
-    <Paragraph>
-      This page is a live .NET workspace. Choose a notebook in the left sidebar, read from top
-      to bottom, and press <Code>Run</Code> on a code cell whenever you want to see its output.
-      The first run takes a little longer while the browser warms up the compiler; runs after
-      that start quickly.
-    </Paragraph>
-    <List>
-      <Item><Code>Run</Code> compiles and executes the cell, together with any cells that share its scope.</Item>
-      <Item><Code>Compile</Code> checks the same code without executing it.</Item>
-      <Item><Code>Stop</Code> cancels a run or compile that is still in progress.</Item>
-      <Item><Code>Save</Code> stores your edited notebook; editing a built-in creates your own copy.</Item>
-    </List>
-    <Paragraph>
-      On a narrow screen, open the sidebar only when you need to switch notebooks. The editor,
-      output, and render surfaces remain the primary work area, so zoom and text selection keep
-      behaving like normal browser content.
-    </Paragraph>
+<Notebook Title="A World in the Browser">
+  <Section Id="435bd71b89084f39b7c7441086b2b4e1" Title="A browser-hosted World">
+    <Paragraph> This page runs Sia.NET and C# in WebAssembly. A script writes text to Output and sends values to Render. </Paragraph>
   </Section>
+  <Section Id="7fb3d8fe2ec74eeaa116f668dd6d1a62" Title="1. Create an entity">
+    <Paragraph> Create an entity with a <Code>Message</Code> component. The World stores it for the rest of this scope. </Paragraph>
+    <CodeCell Id="browser-first-run" Editable="true" Scope="browser-world">
+      <Script Id="browser-first-run" Name="Create"><![CDATA[
+    Console.WriteLine("Hello from .NET running in your browser.");
+    Console.WriteLine($"The World contains {world.Count} entities.");
 
-  <Section Title="1. Run a cell and find its output">
-    <Paragraph>
-      Press <Code>Run</Code> below. Plain console text appears in the cell's Output view.
-      <Code>Notebook.Render</Code> sends a value to the Render view instead. Open the cell menu
-      if either view is hidden, then drag its tab to dock it where it is comfortable to read.
-    </Paragraph>
-    <CodeCell Id="browser-first-run" Editable="true" Scope="browser-tour"><![CDATA[
-      Console.WriteLine("Hello from .NET running in your browser.");
-      Console.WriteLine($"The shared world currently contains {world.Count} entities.");
+    world.Create(HList.From(
+        new Message("Stored in the shared World.")));
 
-      var marker = world.Create(HList.From(
-          new TourMessage("The next cell can find this entity.")));
+    Notebook.Render("Entity created.");
 
-      Notebook.Render("Render is separate from console output.");
-
-      public readonly record struct TourMessage(string Text);
-    ]]></CodeCell>
+    public readonly record struct Message(string Text);
+]]></Script>
+    </CodeCell>
   </Section>
+  <Section Id="5f3226a6b9624ba0bc05bcc222af7b70" Title="2. Share a scope">
+    <Paragraph> Cells with the same scope compile and run in order. Later cells can use types and entities created earlier. </Paragraph>
+    <CodeCell Id="browser-edit-and-compile" Editable="true" Scope="browser-world">
+      <Script Id="browser-edit-and-compile" Name="Query"><![CDATA[
+    foreach (var entity in world.Query(Matchers.Of<Message>())) {
+        Console.WriteLine(entity.Get<Message>().Text);
+    }
 
-  <Section Title="2. Edit, compile, and recover">
-    <Paragraph>
-      Change the text or the number below. Use <Code>Compile</Code> first if you want diagnostics
-      without side effects, then use <Code>Run</Code>. A diagnostic points back to the relevant
-      source line. <Code>Discard</Code> restores the last saved source for that cell.
-    </Paragraph>
-    <CodeCell Id="browser-edit-and-compile" Editable="true" Scope="browser-tour"><![CDATA[
-      var found = 0;
-      foreach (var entity in world.Query(Matchers.Of<TourMessage>())) {
-          Console.WriteLine(entity.Get<TourMessage>().Text);
-          found++;
-      }
-
-      Console.WriteLine($"Found {found} message entity.");
-      Notebook.Render(new string('*', 12));
-    ]]></CodeCell>
-    <CodeCell Id="browser-scope-replay" Editable="true" Scope="browser-tour"><![CDATA[
-      var carried = world.Count;
-      Console.WriteLine($"Replay start: {carried} {(carried == 1 ? "entity" : "entities")} carried over from the cells above.");
-      foreach (var entity in world.Query(Matchers.Of<TourMessage>())) {
-          Console.WriteLine($"  still here: {entity.Get<TourMessage>().Text}");
-      }
-      Notebook.Render("One run, three cells: the scope replays from the top.");
-    ]]></CodeCell>
-    <Paragraph>
-      These three cells share <Code>Scope="browser-tour"</Code>. Run any one of them and the
-      earlier cells in the scope compile and run again first, so their types and world changes
-      are there to use. The console above proves it — the marker entity created in the very
-      first cell is still around when this cell replays it. Local variables never cross between
-      cells. The scope name lives in the small field on the right of each cell's tab strip: give
-      two cells the same name and they run together, leave it blank and the cell runs alone.
-    </Paragraph>
+    Notebook.Render($"Messages: {world.Query(Matchers.Of<Message>()).Count}");
+]]></Script>
+    </CodeCell>
+    <CodeCell Id="browser-scope-replay" Editable="true" Scope="browser-world">
+      <Script Id="browser-scope-replay" Name="Replay"><![CDATA[
+    Console.WriteLine($"The shared scope contains {world.Count} entity.");
+    foreach (var entity in world.Query(Matchers.Of<Message>())) {
+        Console.WriteLine($"message: {entity.Get<Message>().Text}");
+    }
+]]></Script>
+    </CodeCell>
   </Section>
+  <Section Id="1708b688faf944cf8ffb4a376a1cd848" Title="3. Run in isolation">
+    <Paragraph> A cell without a scope gets an independent World. Nothing from the scoped cells is carried into it. </Paragraph>
+    <CodeCell Id="browser-isolated" Editable="true">
+      <Script Id="browser-isolated" Name="Inspect"><![CDATA[
+    var found = world.Query(Matchers.Of<Message>()).Count;
+    Console.WriteLine($"Messages in the isolated World: {found}");
+    Notebook.Render(found == 0 ? "No shared messages." : "Message found.");
 
-  <Section Title="3. A cell without a scope is an island">
-    <Paragraph>
-      This cell has no scope at all. Press <Code>Run</Code> and it starts from an empty world of
-      its own — no <Code>TourMessage</Code> entities here, even though the shared scope above
-      just created one. It declares its own copy of the type, exactly like the scoped cells do.
-    </Paragraph>
-    <CodeCell Id="browser-isolated" Editable="true"><![CDATA[
-      var found = 0;
-      foreach (var entity in world.Query(Matchers.Of<TourMessage>())) {
-          found++;
-      }
-      Console.WriteLine($"Found {found} TourMessage entities — this cell's world starts empty.");
-      Notebook.Render(found == 0
-          ? "Isolated: this cell's world starts empty."
-          : "Unexpected — scope isolation failed.");
-
-      public readonly record struct TourMessage(string Text);
-    ]]></CodeCell>
+    public readonly record struct Message(string Text);
+]]></Script>
+    </CodeCell>
   </Section>
+  <Section Id="9c1c2f6b3a7d4e9082a4b3c2d1e0f5a6" Title="4. Split the source">
+    <Paragraph> One cell can contain several named scripts. Model defines the data, Score contains the logic, and Report produces the result. </Paragraph>
+    <CodeCell Id="browser-multi-script" Editable="true">
+      <Script Id="browser-multi-model" Name="Model"><![CDATA[
+    var roster = new[] {
+        world.Create(HList.From(new Player("Aki", 12))),
+        world.Create(HList.From(new Player("Ben", 27))),
+        world.Create(HList.From(new Player("Cy", 9))),
+    };
+    Console.WriteLine("Created three players.");
 
-  <Section Title="4. Arrange the workspace">
-    <List>
-      <Item>Drag a tab by its label to move Output, Render, or editor surfaces between dock regions.</Item>
-      <Item>When a tab label has keyboard focus, use the arrow keys to move between neighboring tabs.</Item>
-      <Item>Use the cell menu to insert, move, or delete a cell; save when the layout and source are right.</Item>
-      <Item>Use the Packages panel only when a notebook genuinely needs an additional NuGet dependency.</Item>
-    </List>
-    <Paragraph>
-      Built-in notebooks are safe starting points: saving one produces a user notebook rather
-      than overwriting the shipped lesson. Deliberately introduce a syntax error, inspect the
-      diagnostic, discard it, and then continue to <Code>2. Sia Essentials</Code>.
-    </Paragraph>
+    public readonly record struct Player(string Name, int Score);
+]]></Script>
+      <Script Id="browser-multi-scoring" Name="Score"><![CDATA[
+    public static class Scoring
+    {
+        public static int Total(World world)
+        {
+            var total = 0;
+            foreach (var entity in world.Query(Matchers.Of<Player>())) {
+                total += entity.Get<Player>().Score;
+            }
+            return total;
+        }
+    }
+]]></Script>
+      <Script Id="browser-multi-report" Name="Report"><![CDATA[
+    foreach (var entity in world.Query(Matchers.Of<Player>())) {
+        var player = entity.Get<Player>();
+        Console.WriteLine($"{player.Name,-4} {player.Score,3}");
+    }
+    Notebook.Render($"{world.Count} players · {Scoring.Total(world)} points");
+]]></Script>
+    </CodeCell>
   </Section>
 </Notebook>

@@ -1,0 +1,95 @@
+@layer reset, tokens, base, layout, components, overlays, utilities;
+
+@layer tokens {
+    :root {
+        color-scheme: light dark;
+        --font-mono: ui-monospace, monospace;
+        --color-bg: #eff1f5;
+        --color-fg: #4c4f69;
+        --color-muted: #9ca0b0;
+        --color-subtle: #7c7f93;
+        --color-accent: #8839ef;
+        --color-success: #40a02b;
+        --color-warning: #df8e1d;
+        --color-info: #1e66f5;
+        --color-highlight: #fe640b;
+        --color-danger: #d20f39;
+        --color-bg-secondary: var(--color-bg);
+        --color-border: var(--color-muted);
+        --color-text: var(--color-fg);
+        --color-text-dim: var(--color-muted);
+
+        --surface-subtle: rgba(127, 127, 127, 0.06);
+        --surface-chrome: rgba(127, 127, 127, 0.1);
+        --surface-selected: rgba(127, 127, 127, 0.12);
+        --surface-hover: rgba(127, 127, 127, 0.15);
+        --border-subtle: rgba(127, 127, 127, 0.3);
+        --border-control: rgba(127, 127, 127, 0.4);
+        --focus-muted: rgba(127, 127, 127, 0.5);
+        --selection-bg: rgba(100, 150, 255, 0.3);
+
+        --radius-small: 3px;
+        --radius-control: 4px;
+        --radius-popover: 5px;
+        --radius-container: 6px;
+        --radius-panel: 8px;
+        --radius-pill: 999px;
+
+        --shadow-overlay: 0 8px 24px rgba(0, 0, 0, 0.2);
+        --shadow-drawer: 8px 0 24px rgba(0, 0, 0, 0.2);
+        --shadow-completion: 0 4px 12px rgba(0, 0, 0, 0.3);
+
+        --z-split-handle: 5;
+        --z-page-header: 10;
+        --z-editor-popup: 20;
+        --z-drop-preview: 30;
+        --z-floating-window: 40;
+        --z-navigation-drawer: 60;
+        --z-navigation-control: 70;
+        --z-drag-ghost: 80;
+        --z-overlay-root: 90;
+    }
+
+    @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) {
+            --color-bg: #1e1e2e;
+            --color-fg: #cdd6f4;
+            --color-muted: #6c7086;
+            --color-subtle: #9399b2;
+            --color-accent: #cba6f7;
+            --color-success: #a6e3a1;
+            --color-warning: #f9e2af;
+            --color-info: #89b4fa;
+            --color-highlight: #fab387;
+            --color-danger: #f38ba8;
+        }
+    }
+
+    :root[data-theme="light"] {
+        color-scheme: light;
+        --color-bg: #eff1f5;
+        --color-fg: #4c4f69;
+        --color-muted: #9ca0b0;
+        --color-subtle: #7c7f93;
+        --color-accent: #8839ef;
+        --color-success: #40a02b;
+        --color-warning: #df8e1d;
+        --color-info: #1e66f5;
+        --color-highlight: #fe640b;
+        --color-danger: #d20f39;
+    }
+
+    :root[data-theme="dark"] {
+        color-scheme: dark;
+        --color-bg: #1e1e2e;
+        --color-fg: #cdd6f4;
+        --color-muted: #6c7086;
+        --color-subtle: #9399b2;
+        --color-accent: #cba6f7;
+        --color-success: #a6e3a1;
+        --color-warning: #f9e2af;
+        --color-info: #89b4fa;
+        --color-highlight: #fab387;
+        --color-danger: #f38ba8;
+    }
+}
