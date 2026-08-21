@@ -38,12 +38,17 @@ if (typeof window === "undefined") {
             await import("./main.js");
         }
 
-        if (window.crossOriginIsolated) {
+        if (window.crossOriginIsolated
+            && navigator.serviceWorker?.controller?.scriptURL === workerUrl) {
             await loadMain();
             return;
         }
 
         if (!("serviceWorker" in navigator)) {
+            if (window.crossOriginIsolated) {
+                await loadMain();
+                return;
+            }
             throw new Error("Service workers are unavailable; threaded WebAssembly cannot start.");
         }
 
@@ -68,6 +73,11 @@ if (typeof window === "undefined") {
                 navigator.serviceWorker.addEventListener("controllerchange", controllerChanged);
                 controllerChanged();
             });
+        }
+
+        if (window.crossOriginIsolated) {
+            await loadMain();
+            return;
         }
 
         if (window.sessionStorage.getItem(reloadKey) === "1") {
