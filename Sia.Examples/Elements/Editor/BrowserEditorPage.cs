@@ -355,7 +355,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             var files = _fileOrder.Select(static file =>
                 new EditorProjectCompiler.File(file.Id, file.Name, file.Source)).ToArray();
             var result = await _compiler.CompileAsync(files, _lifetime.Token);
-            if (_disposed) {
+            if (_lifetime.IsCancellationRequested) {
                 return;
             }
             RenderDiagnostics(result.Diagnostics);
@@ -374,7 +374,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             _consoleOutput.Text("Running EditorProject…\n");
             DomRuntime.Flush();
             var execution = await EditorProjectCompiler.ExecuteAsync(result.AssemblyImage!);
-            if (_disposed) {
+            if (_lifetime.IsCancellationRequested) {
                 return;
             }
             _consoleOutput

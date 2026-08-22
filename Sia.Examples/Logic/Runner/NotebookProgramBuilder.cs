@@ -88,23 +88,28 @@ public static class NotebookProgramBuilder
             IsUserCode: false));
         foreach (var (_, files) in splitCells) {
             foreach (var (file, path, parts) in files) {
-                var fileBuilder = new StringBuilder();
-                fileBuilder.Append(EnsureTrailingNewline(parts.Usings));
-                if (parts.Types.Length > 0) {
-                    fileBuilder.Append("#line ").Append(parts.TypesStartLine)
-                        .Append(" \"").Append(EscapeDirectivePath(path)).Append("\"\n");
-                    fileBuilder.Append(EnsureTrailingNewline(parts.Types));
-                    fileBuilder.Append("#line default\n");
-                }
                 sources.Add(new(
                     file.Id,
                     path,
                     file.Name,
-                    fileBuilder.ToString()));
+                    BuildFileSource(path, parts)));
             }
         }
 
         return new NotebookProgram(builder.ToString(), true, ranges, sources);
+    }
+
+    private static string BuildFileSource(string path, SourceParts parts)
+    {
+        var builder = new StringBuilder();
+        builder.Append(EnsureTrailingNewline(parts.Usings));
+        if (parts.Types.Length > 0) {
+            builder.Append("#line ").Append(parts.TypesStartLine)
+                .Append(" \"").Append(EscapeDirectivePath(path)).Append("\"\n");
+            builder.Append(EnsureTrailingNewline(parts.Types));
+            builder.Append("#line default\n");
+        }
+        return builder.ToString();
     }
 
     public static IReadOnlyDictionary<string, string> SliceOutput(string captured, NotebookProgram program)

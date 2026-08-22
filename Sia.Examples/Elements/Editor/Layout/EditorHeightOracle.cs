@@ -46,13 +46,11 @@ public sealed class EditorHeightOracle(bool lineWrapping)
 
     public bool MustRefreshForHeights(IReadOnlyList<double> lineHeights)
     {
-        var changed = false;
+        var before = _heightSamples.Count;
         foreach (var height in lineHeights) {
-            if (_heightSamples.Add((int)Math.Floor(height * 10))) {
-                changed = true;
-            }
+            _heightSamples.Add((int)Math.Floor(height * 10));
         }
-        return changed;
+        return _heightSamples.Count != before;
     }
 
     public bool Refresh(

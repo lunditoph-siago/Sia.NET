@@ -37,6 +37,8 @@ internal static class ManagedAssemblyExecutor
         finally {
             global::System.Console.SetOut(originalOut);
             global::System.Console.SetError(originalErr);
+            stdOut.Dispose();
+            stdErr.Dispose();
             _executionGate.Release();
         }
     }

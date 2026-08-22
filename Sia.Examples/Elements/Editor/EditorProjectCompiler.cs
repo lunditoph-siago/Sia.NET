@@ -5,9 +5,15 @@ namespace Sia_Examples.Editor;
 
 internal sealed class EditorProjectCompiler(ICompilationReferenceResolver references)
 {
-    private static int _programCounter;
-
     private readonly CSharpCompilationEngine _engine = new(references);
+
+    private static class ProgramNames
+    {
+        private static int _counter;
+
+        public static string Next()
+            => $"EditorProject_{Interlocked.Increment(ref _counter)}";
+    }
 
     public async Task<CompileResult> CompileAsync(
         IReadOnlyList<File> files,
@@ -35,9 +41,7 @@ internal sealed class EditorProjectCompiler(ICompilationReferenceResolver refere
             file.Name,
             file.Source)));
         var result = await _engine.CompileAsync(
-            new(
-                $"EditorProject_{Interlocked.Increment(ref _programCounter)}",
-                sources),
+            new(ProgramNames.Next(), sources),
             cancellationToken);
         return new(
             result.Success,

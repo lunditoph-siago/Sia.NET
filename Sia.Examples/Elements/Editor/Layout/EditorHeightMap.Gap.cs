@@ -124,7 +124,8 @@ public sealed class EditorHeightMapGap(int length, bool isSingleLine = false) : 
         if (measured is not null && measured.From <= offset + Length && measured.More) {
             var nodes = new List<EditorHeightMap?>();
             var pos = Math.Max(offset, measured.From);
-            var singleHeight = -1.0;
+            double? singleHeight = null;
+            var mixedHeights = false;
             if (measured.From > offset) {
                 nodes.Add(new EditorHeightMapGap(measured.From - offset - 1).UpdateHeight(oracle, offset));
             }
@@ -134,10 +135,10 @@ public sealed class EditorHeightMapGap(int length, bool isSingleLine = false) : 
                     nodes.Add(null);
                 }
                 var height = measured.Heights[measured.Index++];
-                if (singleHeight == -1) {
+                if (singleHeight is null) {
                     singleHeight = height;
-                } else if (Math.Abs(height - singleHeight) >= Epsilon) {
-                    singleHeight = -2;
+                } else if (!mixedHeights && Math.Abs(height - singleHeight.Value) >= Epsilon) {
+                    mixedHeights = true;
                 }
                 var line = new EditorHeightMapText(len, height) { Outdated = false };
                 nodes.Add(line);
@@ -148,9 +149,10 @@ public sealed class EditorHeightMapGap(int length, bool isSingleLine = false) : 
                 nodes.Add(new EditorHeightMapGap(end - pos).UpdateHeight(oracle, pos));
             }
             var result = Of(nodes);
-            if (singleHeight < 0
+            if (mixedHeights
+                || singleHeight is null
                 || Math.Abs(result.Height - Height) >= Epsilon
-                || Math.Abs(singleHeight - HeightMetrics(oracle, offset).PerLine) >= Epsilon) {
+                || Math.Abs(singleHeight.Value - HeightMetrics(oracle, offset).PerLine) >= Epsilon) {
                 EditorHeightMapChangeTracker.MarkChanged();
             }
             return ReplaceInstance(this, result);
