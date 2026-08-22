@@ -1,12 +1,24 @@
 # Sia.NET
+
+[![Live Playground](https://img.shields.io/badge/%E2%96%B6_live_playground-Sia.NET-2ea44f)](https://lunditoph-siago.github.io/Sia.NET/)
 [![Build Status](https://github.com/lunditoph-siago/Sia.NET/actions/workflows/nuget.yml/badge.svg?event=push)](https://github.com/lunditoph-siago/Sia.NET/actions/workflows/nuget.yml)
 [![NuGet Downloads](https://img.shields.io/nuget/dt/Sia)](https://www.nuget.org/packages/Sia)
 
-Modern ECS framework for .NET
+A modern, reactive ECS framework for .NET.
+
+**[▶ Try Sia without installing anything](https://lunditoph-siago.github.io/Sia.NET/)**
+— open the playground, edit the C#, hit Run.
+
+## Getting started
+
+```bash
+dotnet add package Sia
+dotnet add package Sia.CodeGenerators
+```
 
 ## Example
 
-```C#
+```csharp
 namespace Sia_Examples;
 
 using System.Numerics;
@@ -46,9 +58,9 @@ public static partial class Example1_HealthDamage
     public class HealthUpdateSystem() : SystemBase(
         Matchers.Of<Health>())
     {
-        public override void Execute(World world, IEntityQuery query)
+        public override void Execute(WorldContext context, IEntityQuery query)
         {
-            var game = world.GetAddon<Game>();
+            var game = context.World.GetAddon<Game>();
 
             foreach (var entity in query) {
                 ref var health = ref entity.Get<Health>();
@@ -62,12 +74,12 @@ public static partial class Example1_HealthDamage
     public class DeathSystem() : SystemBase(
         Matchers.Of<Health>())
     {
-        public override void Execute(World world, IEntityQuery query)
+        public override void Execute(WorldContext context, IEntityQuery query)
         {
             // faster than foreach
             query.ForSlice((Entity entity, ref Health health) => {
                 if (health.Value <= 0) {
-                    entity.Dispose();
+                    entity.Destroy();
                     Console.WriteLine("Dead!");
                 }
             });
@@ -83,7 +95,7 @@ public static partial class Example1_HealthDamage
         Matchers.Of<Transform, Health>(),
         EventUnion.Of<WorldEvents.Add<Health>, Transform.SetPosition>())
     {
-        public override void Execute(World world, IEntityQuery query)
+        public override void Execute(WorldContext context, IEntityQuery query)
         {
             foreach (var entity in query) {
                 var pos = entity.Get<Transform>().Position;
@@ -102,7 +114,7 @@ public static partial class Example1_HealthDamage
     public class GameplaySystems() : SystemBase(
         SystemChain.Empty
             .Add<LocationDamageSystem>());
-    
+
     public class MonitorSystems() : SystemBase(
         SystemChain.Empty
             .Add((ref Health health) => Console.WriteLine("Damage: HP " + health.Value),
@@ -137,7 +149,7 @@ public static partial class Example1_HealthDamage
             .Add<GameplaySystems>()
             .Add<MonitorSystems>()
             .CreateStage(world);
-        
+
         var player = Player.Create(world, new(1, 1));
         game.BeginFrame(0.5f);
         stage.Tick();
