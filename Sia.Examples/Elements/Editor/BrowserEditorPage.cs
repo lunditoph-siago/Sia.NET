@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Globalization;
 using Sia;
 using Sia_Examples.Dom;
@@ -5,18 +6,20 @@ using Sia_Examples.Notebook;
 
 namespace Sia_Examples.Editor;
 
-internal sealed class BrowserEditorPage : IAsyncDisposable
+internal sealed partial class BrowserEditorPage : IAsyncDisposable
 {
-    private const string EditorId = "standalone-editor";
-    private const string SplitId = "editor-page-main-split";
+    private const string RegionId = "region-editor-page";
+    private const string ProjectId = "editor-page";
+    private const string ConsoleTabId = "tab-console-output";
+    private const string RenderTabId = "tab-render-render";
+    private const double DefaultEditorShare = 0.72;
     private const int HighlightLimit = 200_000;
 
     private readonly BrowserEditorRegistry _editors;
-    private readonly BrowserEditorHost _editor;
     private readonly EditorProjectCompiler _compiler;
     private readonly DomElement _container;
     private readonly DomElement _root;
-    private readonly DomElement _editorSurface;
+    private readonly DomElement _workbench;
     private readonly DomElement _activeFileName;
     private readonly DomElement _workspaceStatus;
     private readonly DomElement _buildStatus;
@@ -25,12 +28,7 @@ internal sealed class BrowserEditorPage : IAsyncDisposable
     private readonly DomElement _renderOutput;
     private readonly DomElement _consolePanel;
     private readonly DomElement _renderPanel;
-    private readonly DomElement _consoleTab;
-    private readonly DomElement _renderTab;
     private readonly DomElement _layoutRevision;
-    private readonly DomElement _splitFirst;
-    private readonly DomElement _splitSecond;
-    private readonly DomElement _splitSeparator;
     private readonly List<EditorFile> _fileOrder;
     private readonly Dictionary<string, EditorFile> _files;
     private readonly Dictionary<string, FileNode> _fileNodes = [];
@@ -38,8 +36,8 @@ internal sealed class BrowserEditorPage : IAsyncDisposable
     private readonly CancellationTokenSource _lifetime = new();
     private readonly HashSet<Task> _operations = [];
 
+    private NotebookCellState _state;
     private EditorFile _activeFile;
-    private long _splitRevision;
     private bool _busy;
     private bool _disposed;
 
@@ -55,8 +53,7 @@ internal sealed class BrowserEditorPage : IAsyncDisposable
         _container = DomElement.Find("notebook");
         _root = Own(DomElement.Create("section")
             .Class("editor-page")
-            .Attr("aria-label", "Standalone Sia editor")
-            .Attr("data-cell-region", "editor-project"));
+            .Attr("aria-label", "Standalone Sia editor"));
 
         var explorer = Own(DomElement.Create("aside")
             .Class("editor-page-explorer")
@@ -89,73 +86,22 @@ internal sealed class BrowserEditorPage : IAsyncDisposable
         actions
             .Append(CreateAction("Build", "editor-page-build", "Compile the C# project"))
             .Append(CreateAction("Run ▶", "editor-page-run", "Compile and run the C# project"))
+            .Append(CreateAction(
+                "Console", "editor-page-open:console", "Open the Console window", secondary: true))
+            .Append(CreateAction(
+                "Render", "editor-page-open:render", "Open the Render window", secondary: true))
+            .Append(CreateAction(
+                "Clear", "editor-page-clear", "Clear Console and Render output", secondary: true))
             .Append(CreateAction("Reset", "editor-page-reset", "Reset the active file", secondary: true))
             .Append(CreateAction("Close", "editor-page-home", "Return to the examples home"));
         titlebar.Append(title).Append(actions);
 
-        var workbench = Own(DomElement.Create("div").Class("editor-page-workbench"));
-        var tabs = Own(DomElement.Create("div")
-            .Class("editor-page-tabs")
-            .Attr("role", "tablist")
-            .Attr("aria-label", "Open files"));
-        var split = Own(DomElement.Create("div")
-            .Class("editor-page-split")
-            .Class("cell-split")
-            .Class("vertical")
-            .Attr("data-cell-split", SplitId));
-        _splitFirst = Own(DomElement.Create("div")
-            .Class("split-child")
-            .Class("editor-page-editor-pane"));
-        _editorSurface = Own(DomElement.Create("div").Class("editor-page-editor"));
-        _splitFirst.Append(_editorSurface);
-        _splitSeparator = Own(DomElement.Create("div")
-            .Class("separator")
-            .Attr("role", "separator")
-            .Attr("tabindex", "0")
-            .Attr("aria-label", "Resize editor and output panels")
-            .Attr("aria-valuemin", "15")
-            .Attr("aria-valuemax", "85")
-            .Attr("aria-orientation", "horizontal")
-            .Attr("aria-disabled", "false"));
-        _splitSecond = Own(DomElement.Create("div")
-            .Class("split-child")
-            .Class("editor-page-panel-pane"));
-
-        var panel = Own(DomElement.Create("section")
-            .Class("editor-page-panel")
-            .Attr("aria-label", "Project output"));
-        var panelHeader = Own(DomElement.Create("div").Class("editor-page-panel-header"));
-        var panelTabs = Own(DomElement.Create("div")
-            .Class("editor-page-panel-tabs")
-            .Attr("role", "tablist")
-            .Attr("aria-label", "Output views"));
-        _consoleTab = CreatePanelTab("Console", PanelKind.Console);
-        _renderTab = CreatePanelTab("Render", PanelKind.Render);
-        panelTabs.Append(_consoleTab).Append(_renderTab);
-        panelHeader
-            .Append(panelTabs)
-            .Append(CreateAction("Clear", "editor-page-clear", "Clear Console and Render", secondary: true));
-        var panelContent = Own(DomElement.Create("div").Class("editor-page-panel-content"));
-        _consolePanel = Own(DomElement.Create("div")
-            .Class("editor-page-console")
-            .Attr("role", "tabpanel"));
-        _diagnostics = Own(DomElement.Create("div").Class("editor-page-diagnostics"));
-        _consoleOutput = Own(DomElement.Create("pre")
-            .Class("editor-page-console-output")
-            .Text("Build or run the project to see output."));
-        _consolePanel.Append(_diagnostics).Append(_consoleOutput);
-        _renderPanel = Own(DomElement.Create("div")
-            .Class("editor-page-render")
-            .Attr("role", "tabpanel"));
-        _renderOutput = Own(DomElement.Create("pre")
-            .Class("editor-page-render-output")
-            .Text("Render surface · waiting for Notebook.Render(…)"));
-        _renderPanel.Append(_renderOutput);
-        panelContent.Append(_consolePanel).Append(_renderPanel);
-        panel.Append(panelHeader).Append(panelContent);
-        _splitSecond.Append(panel);
-        split.Append(_splitFirst).Append(_splitSeparator).Append(_splitSecond);
-        workbench.Append(tabs).Append(split);
+        _workbench = Own(DomElement.Create("div")
+            .Class("editor-page-workbench")
+            .Attr("data-cell-region", RegionId)
+            .Attr("data-cell-owner", ProjectId)
+            .Attr("role", "region")
+            .Attr("aria-label", "Editor layout"));
 
         var statusbar = Own(DomElement.Create("footer").Class("editor-page-statusbar"));
         _activeFileName = Own(DomElement.Create("span"));
@@ -169,29 +115,39 @@ internal sealed class BrowserEditorPage : IAsyncDisposable
             .Attr("data-cell-layout-revision", "0")
             .Attr("aria-hidden", "true"));
 
+        _diagnostics = Own(DomElement.Create("div").Class("editor-page-diagnostics"));
+        _consoleOutput = Own(DomElement.Create("pre")
+            .Class("editor-page-console-output")
+            .Text("Build or run the project to see output."));
+        _consolePanel = Own(DomElement.Create("div")
+            .Class("editor-page-console")
+            .Attr("role", "tabpanel"));
+        _consolePanel.Append(_diagnostics).Append(_consoleOutput);
+        _renderOutput = Own(DomElement.Create("pre")
+            .Class("editor-page-render-output")
+            .Text("Render surface · waiting for Notebook.Render(…)"));
+        _renderPanel = Own(DomElement.Create("div")
+            .Class("editor-page-render")
+            .Attr("role", "tabpanel"));
+        _renderPanel.Append(_renderOutput);
+
         foreach (var file in _fileOrder) {
             var node = CreateFileNode(file);
             _fileNodes.Add(file.Id, node);
             fileList.Append(node.ExplorerButton);
-            tabs.Append(node.TabButton);
         }
 
         _root
             .Append(explorer)
             .Append(titlebar)
-            .Append(workbench)
+            .Append(_workbench)
             .Append(statusbar)
             .Append(_layoutRevision);
         _container.Text(string.Empty).Append(_root);
 
-        SetSplitRatio(0.72);
-        SetPanel(PanelKind.Console);
         _editors = new(world, references);
-        _editor = _editors.Add(
-            _editorSurface,
-            EditorId,
-            _activeFile.Source,
-            HighlightsFor(_activeFile.Source));
+        _state = CreateLayoutState();
+        ApplyLayout();
         UpdateChrome();
     }
 
@@ -204,7 +160,16 @@ internal sealed class BrowserEditorPage : IAsyncDisposable
 
         switch (eventName) {
             case "editor-page-file":
-                Activate(argument);
+                OpenFile(argument);
+                return true;
+            case "editor-page-tab":
+                ActivateTab(argument);
+                return true;
+            case "editor-page-tab-close":
+                UpdateState(state => NotebookCellLayout.CloseTab(state, argument));
+                return true;
+            case "editor-page-open":
+                OpenPanelWindow(argument);
                 return true;
             case "editor-page-build":
                 StartOperation(run: false);
@@ -212,22 +177,28 @@ internal sealed class BrowserEditorPage : IAsyncDisposable
             case "editor-page-run":
                 StartOperation(run: true);
                 return true;
-            case "editor-page-panel":
-                if (Enum.TryParse<PanelKind>(argument, ignoreCase: true, out var panel)) {
-                    SetPanel(panel);
-                }
-                return true;
             case "editor-page-clear":
                 ClearOutput();
                 return true;
             case "editor-page-reset":
                 ResetActiveFile();
                 return true;
+            case "editor-page-home":
+                return true;
+            case "cell":
+                CellMove(argument);
+                return true;
+            case "cell-detach":
+                CellDetach(argument);
+                return true;
             case "cell-resize":
-                ResizeSplit(argument);
+                CellResize(argument);
+                return true;
+            case "cell-normalize":
+                CellNormalize(argument);
                 return true;
             case "editor-focus":
-                return argument == EditorId;
+                return SurfaceIds.Contains(argument);
             default:
                 return _editors.Route(payload);
         }
@@ -244,6 +215,8 @@ internal sealed class BrowserEditorPage : IAsyncDisposable
             await operation;
         }
         _editors.Dispose();
+        DisposeSurfaces();
+        DisposeLayoutViews();
         _root.Remove();
         for (var index = _ownedElements.Count - 1; index >= 0; index--) {
             _ownedElements[index].Dispose();
@@ -252,14 +225,112 @@ internal sealed class BrowserEditorPage : IAsyncDisposable
         _lifetime.Dispose();
     }
 
-    private void Activate(string id)
+    private void OpenFile(string fileId)
     {
-        if (!_files.TryGetValue(id, out var file) || ReferenceEquals(file, _activeFile)) {
+        if (!_files.TryGetValue(fileId, out var file)) {
             return;
         }
-        SaveActiveSource();
         _activeFile = file;
-        _editor.Update(file.Source, HighlightsFor(file.Source));
+        UpdateState(state => NotebookCellLayout.OpenTabIntoHome(state, TabIdFor(fileId)));
+    }
+
+    private void ActivateTab(string tabId)
+    {
+        if (!_state.Tabs.TryGetValue(tabId, out var tab)) {
+            return;
+        }
+        var window = _state.Windows[tab.WindowId];
+        if (window.Kind == CellWindowKind.Script
+            && _files.TryGetValue(window.SourceId, out var file)) {
+            _activeFile = file;
+        }
+        UpdateState(state => NotebookCellLayout.Activate(state, tabId));
+    }
+
+    private void OpenPanelWindow(string windowKey)
+        => UpdateState(state => NotebookCellLayout.OpenTabIntoHome(
+            state,
+            windowKey == "console" ? ConsoleTabId : RenderTabId));
+
+    private void CellMove(string arguments)
+    {
+        var parts = arguments.Split(':');
+        if (parts.Length != 5
+            || !long.TryParse(parts[0], out var revision)
+            || !Enum.TryParse<CellDropPosition>(parts[3], ignoreCase: true, out var position)
+            || !int.TryParse(parts[4], out var targetIndex)) {
+            return;
+        }
+        UpdateState(
+            state => NotebookCellLayout.Cell(state, parts[1], parts[2], position, targetIndex),
+            revision,
+            acknowledge: true);
+    }
+
+    private void CellDetach(string arguments)
+    {
+        var parts = arguments.Split(':');
+        if (parts.Length != 6
+            || !long.TryParse(parts[0], out var revision)
+            || !int.TryParse(parts[2], out var pointerX)
+            || !int.TryParse(parts[3], out var pointerY)
+            || !int.TryParse(parts[4], out var viewportWidth)
+            || !int.TryParse(parts[5], out var viewportHeight)) {
+            return;
+        }
+        UpdateState(
+            state => NotebookCellLayout.Detach(
+                state, parts[1], pointerX, pointerY, viewportWidth, viewportHeight),
+            revision,
+            acknowledge: true);
+    }
+
+    private void CellResize(string arguments)
+    {
+        var parts = arguments.Split(':');
+        if (parts.Length != 3
+            || !long.TryParse(parts[0], out var revision)
+            || !double.TryParse(parts[2], CultureInfo.InvariantCulture, out var ratio)) {
+            return;
+        }
+        UpdateState(
+            state => NotebookCellLayout.ResizeSplit(state, parts[1], ratio),
+            revision,
+            acknowledge: true);
+    }
+
+    private void CellNormalize(string arguments)
+    {
+        var parts = arguments.Split(':');
+        if (parts.Length != 2
+            || !int.TryParse(parts[0], out var viewportWidth)
+            || !int.TryParse(parts[1], out var viewportHeight)) {
+            return;
+        }
+        UpdateState(
+            state => NotebookCellLayout.NormalizeFloatingHosts(state, viewportWidth, viewportHeight));
+    }
+
+    private void UpdateState(
+        Func<NotebookCellState, NotebookCellState> update,
+        long? expectedRevision = null,
+        bool acknowledge = false)
+    {
+        if (_disposed) {
+            return;
+        }
+        if (expectedRevision is { } expected && expected != _state.Revision) {
+            return;
+        }
+        var next = update(_state);
+        if (next == _state && !acknowledge) {
+            return;
+        }
+        if (!NotebookCellLayout.IsValid(next)) {
+            throw new InvalidOperationException("The editor layout operation produced an invalid state.");
+        }
+        _state = next with { Revision = _state.Revision + 1 };
+        ApplyLayout();
         UpdateChrome();
     }
 
@@ -268,9 +339,9 @@ internal sealed class BrowserEditorPage : IAsyncDisposable
         if (_busy) {
             return;
         }
-        SaveActiveSource();
+        SaveEditorSources();
         _busy = true;
-        SetPanel(PanelKind.Console);
+        UpdateState(state => NotebookCellLayout.OpenTabIntoHome(state, ConsoleTabId));
         _buildStatus.Text(run ? "Building to run…" : "Building…").ToggleClass("busy", true);
         _diagnostics.Text(string.Empty);
         _consoleOutput.Text(run ? "Building project before execution…" : "Building C# project…");
@@ -291,7 +362,6 @@ internal sealed class BrowserEditorPage : IAsyncDisposable
             if (!result.Success) {
                 _buildStatus.Text("Build failed").ToggleClass("busy", false);
                 _consoleOutput.Text($"Build failed with {ErrorCount(result.Diagnostics)} error(s).\n");
-                SetPanel(PanelKind.Console);
                 return;
             }
             if (!run) {
@@ -313,7 +383,9 @@ internal sealed class BrowserEditorPage : IAsyncDisposable
             _renderOutput.Text(execution.RenderRequested
                 ? execution.RenderOutput
                 : "Render surface · run completed without Notebook.Render(…)");
-            SetPanel(execution.RenderRequested ? PanelKind.Render : PanelKind.Console);
+            if (execution.RenderRequested) {
+                UpdateState(state => NotebookCellLayout.OpenTabIntoHome(state, RenderTabId));
+            }
             _buildStatus
                 .Text(execution.Success ? "Run succeeded" : "Run failed")
                 .ToggleClass("busy", false);
@@ -351,40 +423,8 @@ internal sealed class BrowserEditorPage : IAsyncDisposable
     private void ResetActiveFile()
     {
         _activeFile.Source = _activeFile.InitialSource;
-        _editor.Update(_activeFile.Source, HighlightsFor(_activeFile.Source));
+        RefreshEditorForFile(_activeFile);
         UpdateChrome("reset to bundled sample");
-    }
-
-    private void ResizeSplit(string arguments)
-    {
-        var parts = arguments.Split(':');
-        if (parts.Length != 3
-            || !long.TryParse(parts[0], out var revision)
-            || revision != _splitRevision
-            || parts[1] != SplitId
-            || !double.TryParse(parts[2], CultureInfo.InvariantCulture, out var ratio)) {
-            return;
-        }
-        SetSplitRatio(ratio);
-        _splitRevision++;
-        _layoutRevision.Attr("data-cell-layout-revision", _splitRevision.ToString(CultureInfo.InvariantCulture));
-    }
-
-    private void SetSplitRatio(double ratio)
-    {
-        var normalized = Math.Clamp(ratio, 0.15, 0.85);
-        _splitFirst.Attr("style", $"--cell-split-share:{normalized.ToString("0.####", CultureInfo.InvariantCulture)}");
-        _splitSecond.Attr("style", $"--cell-split-share:{(1 - normalized).ToString("0.####", CultureInfo.InvariantCulture)}");
-        _splitSeparator.Attr("aria-valuenow", Math.Round(normalized * 100).ToString(CultureInfo.InvariantCulture));
-    }
-
-    private void SetPanel(PanelKind panel)
-    {
-        var console = panel == PanelKind.Console;
-        _consoleTab.ToggleClass("active", console).Attr("aria-selected", console ? "true" : "false");
-        _renderTab.ToggleClass("active", !console).Attr("aria-selected", console ? "false" : "true");
-        _consolePanel.ToggleClass("hidden", !console);
-        _renderPanel.ToggleClass("hidden", console);
     }
 
     private void ClearOutput()
@@ -393,8 +433,6 @@ internal sealed class BrowserEditorPage : IAsyncDisposable
         _consoleOutput.Text(string.Empty).ToggleClass("output-error", false);
         _renderOutput.Text("Render surface · waiting for Notebook.Render(…)");
     }
-
-    private void SaveActiveSource() => _activeFile.Source = _editor.Source;
 
     private void UpdateChrome(string? message = null)
     {
@@ -418,25 +456,8 @@ internal sealed class BrowserEditorPage : IAsyncDisposable
             .Text("C#"));
         var fileName = Own(DomElement.Create("span").Text(file.Name));
         explorerButton.Append(fileIcon).Append(fileName);
-
-        var tabButton = Own(DomElement.Create("button")
-            .Class("editor-page-tab")
-            .Attr("type", "button")
-            .Attr("role", "tab")
-            .On("click", $"editor-page-file:{file.Id}"));
-        var tabIcon = Own(DomElement.Create("span").Attr("aria-hidden", "true").Text("C#"));
-        var tabName = Own(DomElement.Create("span").Text(file.Name));
-        tabButton.Append(tabIcon).Append(tabName);
-        return new(explorerButton, tabButton);
+        return new(explorerButton);
     }
-
-    private DomElement CreatePanelTab(string label, PanelKind panel)
-        => Own(DomElement.Create("button")
-            .Class("editor-page-panel-tab")
-            .Attr("type", "button")
-            .Attr("role", "tab")
-            .On("click", $"editor-page-panel:{panel.ToString().ToLowerInvariant()}")
-            .Text(label));
 
     private DomElement CreateAction(string label, string payload, string title, bool secondary = false)
     {
@@ -474,7 +495,6 @@ internal sealed class BrowserEditorPage : IAsyncDisposable
                 _busy = false;
                 _buildStatus.Text("Operation failed").ToggleClass("busy", false);
                 _consoleOutput.Text(error.ToString()).ToggleClass("output-error", true);
-                SetPanel(PanelKind.Console);
                 DomRuntime.ReportError(error.ToString());
                 DomRuntime.Flush();
             }
@@ -492,6 +512,9 @@ internal sealed class BrowserEditorPage : IAsyncDisposable
 
     private static IReadOnlyList<HighlightRun> HighlightsFor(string source)
         => source.Length <= HighlightLimit ? CSharpHighlighter.Classify(source) : [];
+
+    private static string TabIdFor(string fileId)
+        => $"tab-{fileId}-script";
 
     private static IReadOnlyList<EditorFile> CreateFiles()
     {
@@ -527,12 +550,6 @@ internal sealed class BrowserEditorPage : IAsyncDisposable
         ];
     }
 
-    private enum PanelKind
-    {
-        Console,
-        Render,
-    }
-
     private sealed class EditorFile(string id, string name, string source)
     {
         public string Id { get; } = id;
@@ -541,18 +558,13 @@ internal sealed class BrowserEditorPage : IAsyncDisposable
         public string Source { get; set; } = source;
     }
 
-    private sealed class FileNode(DomElement explorerButton, DomElement tabButton)
+    private sealed class FileNode(DomElement explorerButton)
     {
         public DomElement ExplorerButton { get; } = explorerButton;
-        public DomElement TabButton { get; } = tabButton;
 
         public void SetActive(bool active)
-        {
-            ExplorerButton.ToggleClass("active", active).Attr("aria-selected", active.ToString().ToLowerInvariant());
-            TabButton
+            => ExplorerButton
                 .ToggleClass("active", active)
-                .Attr("aria-selected", active.ToString().ToLowerInvariant())
-                .Attr("tabindex", active ? "0" : "-1");
-        }
+                .Attr("aria-selected", active.ToString().ToLowerInvariant());
     }
 }

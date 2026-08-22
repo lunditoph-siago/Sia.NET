@@ -91,6 +91,53 @@ public static partial class NotebookCellLayout
         return TransformRoots(state, root => UpdateSplitRatio(root, splitId, normalized));
     }
 
+    public static NotebookCellState CloseTab(
+        NotebookCellState state,
+        string tabId)
+    {
+        if (!state.Tabs.ContainsKey(tabId)) {
+            return state;
+        }
+        var next = RemoveTab(state, tabId, out var removed);
+        return removed ? next : state;
+    }
+
+    public static NotebookCellState OpenTabIntoHome(
+        NotebookCellState state,
+        string tabId)
+    {
+        if (!state.Tabs.TryGetValue(tabId, out var tab)
+            || !state.Windows.TryGetValue(tab.WindowId, out var window)) {
+            return state;
+        }
+        if (FindGroupContaining(state, tabId) is not null) {
+            return Activate(state, tabId);
+        }
+        var target = EnumerateGroups(state).FirstOrDefault(group => group.TabIds.Any(otherTabId =>
+            state.Tabs.TryGetValue(otherTabId, out var otherTab)
+            && state.Windows.TryGetValue(otherTab.WindowId, out var otherWindow)
+            && otherWindow.CellId == window.CellId));
+        if (target is not null) {
+            return UpdateGroup(state, target.Id, group => group with {
+                TabIds = group.TabIds.Add(tabId),
+                ActiveTabId = tabId,
+            });
+        }
+        var regionIndex = FindRegionIndex(state.Regions, window.HomeRegionId);
+        if (regionIndex < 0 || state.Regions[regionIndex].Root is not null) {
+            return state;
+        }
+        var groupNodeId = $"group-{state.NextNodeId}";
+        return state with {
+            Regions = state.Regions.SetItem(
+                regionIndex,
+                state.Regions[regionIndex] with {
+                    Root = new CellTabGroup(groupNodeId, [tabId], tabId),
+                }),
+            NextNodeId = state.NextNodeId + 1,
+        };
+    }
+
     public static NotebookCellState OpenWindow(
         NotebookCellState state,
         string windowId)

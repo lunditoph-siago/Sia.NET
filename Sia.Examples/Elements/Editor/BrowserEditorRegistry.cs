@@ -51,6 +51,13 @@ public sealed class BrowserEditorRegistry(
             ? editor.Source
             : throw new KeyNotFoundException($"Editor '{cellId}' is not mounted.");
 
+    public void Update(string cellId, string source, IReadOnlyList<HighlightRun> highlights)
+    {
+        if (_editors.TryGetValue(cellId, out var editor)) {
+            editor.Update(source, highlights);
+        }
+    }
+
     public bool TryGetSource(string cellId, out string source)
     {
         if (_editors.TryGetValue(cellId, out var editor)) {
