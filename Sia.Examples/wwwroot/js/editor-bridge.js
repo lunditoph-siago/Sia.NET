@@ -4,6 +4,7 @@ const editorHandlers = new Map();
 const selectionSyncPending = new WeakSet();
 const editorSelectionUpdates = new WeakMap();
 const editorSurfaceHandlers = new WeakMap();
+const lastScrolledIntoView = new WeakMap();
 const caretMarkerText = '\u200b';
 const caretMarkerSelector = '[data-editor-caret-marker]';
 
@@ -746,6 +747,10 @@ function applyEditorSelection(surface, update) {
     const selection = window.getSelection();
     selectionSyncPending.add(surface);
     selection.setBaseAndExtent(anchor.node, anchor.offset, head.node, head.offset);
-    headLine.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    const key = `${anchorLineIndex}:${anchorColumn}:${headLineIndex}:${headColumn}`;
+    if (lastScrolledIntoView.get(surface) !== key) {
+        lastScrolledIntoView.set(surface, key);
+        headLine.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    }
     return true;
 }

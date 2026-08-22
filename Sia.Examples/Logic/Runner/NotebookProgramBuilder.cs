@@ -1,4 +1,5 @@
 using System.Text;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -9,17 +10,15 @@ public static class NotebookProgramBuilder
     public const string WrapperNamespace = "NotebookCell";
 
     private const char _marker = '\uE000';
-    private const string _renderStartToken = "\uE001R\uE001";
-    private const string _renderEndToken = "\uE001E\uE001";
 
     private static string StartToken(int index) => $"{_marker}S{index}{_marker}";
     private static string EndToken(int index) => $"{_marker}E{index}{_marker}";
 
-    public static NotebookProgram Build(IReadOnlyList<(string Id, string Source)> cells)
+    public static NotebookProgram Build(IReadOnlyList<NotebookProgramCell> cells)
     {
         var builder = new StringBuilder();
         var ranges = new List<CellRange>(cells.Count);
-        var typeParts = new List<(string Id, string Text)>(cells.Count);
+        var sources = new List<CSharpSourceDocument>();
         var line = 0;
 
         void Emit(string text)
@@ -32,39 +31,47 @@ public static class NotebookProgramBuilder
             }
         }
 
-        var splits = cells.Select(c => (c.Id, Parts: Split(c.Source))).ToList();
-        foreach (var (_, parts) in splits) {
-            if (parts.Usings.Length > 0) {
-                Emit(EnsureTrailingNewline(parts.Usings));
+        var fileIndex = 0;
+        var splitCells = cells.Select(cell => (
+            cell.Id,
+            Files: cell.Files.Select(file => {
+                var path = $"Notebook/File{fileIndex++}.cs";
+                return (File: file, Path: path, Parts: Split(file.Source));
+            }).ToArray())).ToArray();
+        var emittedUsings = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var (_, files) in splitCells) {
+            foreach (var (_, _, parts) in files) {
+                foreach (var usingDirective in parts.RunnerUsings) {
+                    if (emittedUsings.Add(usingDirective)) {
+                        Emit(EnsureTrailingNewline(usingDirective));
+                    }
+                }
             }
         }
 
         Emit("var world = new global::Sia.World();\n");
         Emit("try {\n");
 
-        for (var index = 0; index < splits.Count; index++) {
-            var (id, parts) = splits[index];
-            var (_, statements, types) = parts;
+        for (var index = 0; index < splitCells.Length; index++) {
+            var (id, files) = splitCells[index];
             var startToken = StartToken(index);
             var endToken = EndToken(index);
 
-            Emit("{\n");
             Emit($"global::System.Console.Out.Write(\"{startToken}\");\n");
             Emit($"global::System.Console.Error.Write(\"{startToken}\");\n");
-            Emit("try {\n");
             var statementsStartLine = line;
-            Emit(EnsureTrailingNewline(statements));
-            Emit("}\n");
-            Emit("catch (global::System.Exception __sia_cell_ex) {\n");
-            Emit("global::System.Console.Error.WriteLine(__sia_cell_ex.ToString());\n");
-            Emit("}\n");
-            Emit("finally {\n");
+            foreach (var (_, path, parts) in files) {
+                if (parts.Statements.Length == 0) {
+                    continue;
+                }
+                Emit($"#line {parts.StatementsStartLine} \"{EscapeDirectivePath(path)}\"\n");
+                Emit(EnsureTrailingNewline(parts.Statements));
+                Emit("#line default\n");
+                Emit("#line hidden\n");
+            }
             Emit($"global::System.Console.Out.Write(\"{endToken}\");\n");
             Emit($"global::System.Console.Error.Write(\"{endToken}\");\n");
-            Emit("}\n");
-            Emit("}\n");
 
-            typeParts.Add((id, types));
             ranges.Add(new(id, statementsStartLine, null, startToken, endToken));
         }
 
@@ -73,25 +80,31 @@ public static class NotebookProgramBuilder
         Emit("world.Dispose();\n");
         Emit("}\n");
 
-        Emit($"\nnamespace {WrapperNamespace} {{\n");
-        Emit("public static class Notebook {\n");
-        Emit("public static void Render(object? value = null) {\n");
-        Emit($"global::System.Console.Out.Write(\"{_renderStartToken}\");\n");
-        Emit("if (value is not null) global::System.Console.Out.Write(value);\n");
-        Emit($"global::System.Console.Out.Write(\"{_renderEndToken}\");\n");
-        Emit("}\n}\n");
-        for (var index = 0; index < typeParts.Count; index++) {
-            var (id, text) = typeParts[index];
-            if (text.Length == 0) {
-                continue;
+        sources.Add(new(
+            "$runner",
+            "Notebook/Runner.g.cs",
+            "Runner.g.cs",
+            builder.ToString(),
+            IsUserCode: false));
+        foreach (var (_, files) in splitCells) {
+            foreach (var (file, path, parts) in files) {
+                var fileBuilder = new StringBuilder();
+                fileBuilder.Append(EnsureTrailingNewline(parts.Usings));
+                if (parts.Types.Length > 0) {
+                    fileBuilder.Append("#line ").Append(parts.TypesStartLine)
+                        .Append(" \"").Append(EscapeDirectivePath(path)).Append("\"\n");
+                    fileBuilder.Append(EnsureTrailingNewline(parts.Types));
+                    fileBuilder.Append("#line default\n");
+                }
+                sources.Add(new(
+                    file.Id,
+                    path,
+                    file.Name,
+                    fileBuilder.ToString()));
             }
-            var typesStartLine = line;
-            Emit(EnsureTrailingNewline(text));
-            ranges[index] = ranges[index] with { TypesStartLine = typesStartLine };
         }
-        Emit("}\n");
 
-        return new NotebookProgram(builder.ToString(), true, ranges);
+        return new NotebookProgram(builder.ToString(), true, ranges, sources);
     }
 
     public static IReadOnlyDictionary<string, string> SliceOutput(string captured, NotebookProgram program)
@@ -113,50 +126,57 @@ public static class NotebookProgramBuilder
 
     public static (string StandardOutput, string RenderOutput, bool RenderRequested)
         SplitRenderOutput(string output)
-    {
-        var standard = new StringBuilder(output.Length);
-        var render = new StringBuilder();
-        var position = 0;
-        var requested = false;
-        while (position < output.Length) {
-            var start = output.IndexOf(_renderStartToken, position, StringComparison.Ordinal);
-            if (start < 0) {
-                standard.Append(output, position, output.Length - position);
-                break;
-            }
-            standard.Append(output, position, start - position);
-            var contentStart = start + _renderStartToken.Length;
-            var end = output.IndexOf(_renderEndToken, contentStart, StringComparison.Ordinal);
-            if (end < 0) {
-                standard.Append(output, start, output.Length - start);
-                break;
-            }
-            if (render.Length > 0) {
-                render.AppendLine();
-            }
-            render.Append(output, contentStart, end - contentStart);
-            requested = true;
-            position = end + _renderEndToken.Length;
-        }
-        return (standard.ToString(), render.ToString(), requested);
-    }
+        => RenderOutputProtocol.Split(output);
+
+    internal static string BuildStandaloneRenderSupport()
+        => RenderOutputProtocol.BuildSupportSource();
 
     private static string EnsureTrailingNewline(string text)
         => text.Length == 0 || text[^1] == '\n' ? text : text + "\n";
 
-    private static (string Usings, string Statements, string Types) Split(string source)
+    private static string EscapeDirectivePath(string path)
+        => path.Replace("\\", "\\\\", StringComparison.Ordinal)
+            .Replace("\"", "\\\"", StringComparison.Ordinal);
+
+    private static SourceParts Split(string source)
     {
         var tree = CSharpSyntaxTree.ParseText(source);
         var root = (CompilationUnitSyntax)tree.GetRoot();
+        var text = tree.GetText();
 
         var usingsEnd = root.Usings.Count > 0 ? root.Usings[^1].FullSpan.End : 0;
+        var runnerUsings = root.Usings
+            .Select(static usingDirective => usingDirective.WithoutTrivia().ToFullString())
+            .ToArray();
+        var statementsStartLine = text.Lines.GetLineFromPosition(usingsEnd).LineNumber + 1;
 
         var firstTypeMember = root.Members.FirstOrDefault(m => m is not GlobalStatementSyntax);
         if (firstTypeMember is null) {
-            return (source[..usingsEnd], source[usingsEnd..], "");
+            return new(
+                source[..usingsEnd],
+                source[usingsEnd..],
+                "",
+                statementsStartLine,
+                statementsStartLine,
+                runnerUsings);
         }
 
         var insertAt = firstTypeMember.SpanStart;
-        return (source[..usingsEnd], source[usingsEnd..insertAt], source[insertAt..]);
+        var typesStartLine = text.Lines.GetLineFromPosition(insertAt).LineNumber + 1;
+        return new(
+            source[..usingsEnd],
+            source[usingsEnd..insertAt],
+            source[insertAt..],
+            statementsStartLine,
+            typesStartLine,
+            runnerUsings);
     }
+
+    private readonly record struct SourceParts(
+        string Usings,
+        string Statements,
+        string Types,
+        int StatementsStartLine,
+        int TypesStartLine,
+        IReadOnlyList<string> RunnerUsings);
 }

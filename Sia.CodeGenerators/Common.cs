@@ -143,6 +143,14 @@ internal static class Common
         }
     }
 
+    public static void AppendHintNamespace(StringBuilder builder, INamespaceSymbol ns)
+    {
+        if (!ns.IsGlobalNamespace) {
+            builder.Append(ns.ToDisplayString());
+            builder.Append('.');
+        }
+    }
+
     public static IDisposable GenerateInNamespace(IndentedTextWriter source, INamespaceSymbol ns)
     {
         if (!ns.IsGlobalNamespace) {

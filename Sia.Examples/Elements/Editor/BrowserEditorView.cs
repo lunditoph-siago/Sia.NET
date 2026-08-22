@@ -190,9 +190,13 @@ public sealed class BrowserEditorView : IEditorView
     void IRenderHost<EditorSelectionView>.Upsert(in EditorSelectionView view)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        var unchanged = _selection == view;
         _selection = view;
         if (_suppressSelectionUpdate) {
             _suppressSelectionUpdate = false;
+            return;
+        }
+        if (unchanged) {
             return;
         }
         DomRuntime.SetEditorSelection(

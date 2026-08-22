@@ -24,21 +24,27 @@ internal static class DynamicAssemblyRegistry
 
     public static void Register(string name, Assembly assembly)
     {
-        _loaded.TryAdd(name, assembly);
+        if (!_loaded.TryAdd(name, assembly)) {
+            return;
+        }
         Interlocked.Increment(ref _version);
         EnsureHooked();
     }
 
     public static void Register(string name, byte[] image)
     {
-        _images.TryAdd(name, image);
+        if (!_images.TryAdd(name, image)) {
+            return;
+        }
         Interlocked.Increment(ref _version);
         EnsureHooked();
     }
 
     public static void RegisterAnalyzer(string name, byte[] image)
     {
-        _analyzers.TryAdd(name, image);
+        if (!_analyzers.TryAdd(name, image)) {
+            return;
+        }
         Interlocked.Increment(ref _version);
         EnsureHooked();
     }

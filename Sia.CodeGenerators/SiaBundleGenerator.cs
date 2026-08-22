@@ -93,8 +93,7 @@ internal partial class SiaBundleGenerator : IIncrementalGenerator
     private static string GenerateFileName(CodeGenerationInfo info)
     {
         var builder = new StringBuilder();
-        builder.Append(info.Namespace.ToDisplayString());
-        builder.Append('.');
+        AppendHintNamespace(builder, info.Namespace);
         foreach (var parentType in info.ParentTypes) {
             builder.Append(parentType.Identifier.ToString());
             builder.Append('.');

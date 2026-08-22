@@ -573,6 +573,9 @@ public sealed class BrowserEditorHost : IDisposable
         var before = State.Value;
         var after = ApplyNativeSelection(before, nativeSelection);
         if (!command(new(after, state => after = state))) {
+            var viewport = EnsureSelectionVisible(after, Viewport.Value);
+            ApplyViewport(viewport);
+            _world.FlushReactive();
             return false;
         }
         Commit(after);
@@ -622,11 +625,17 @@ public sealed class BrowserEditorHost : IDisposable
             _viewState.SetMainViewport(viewport);
         }
 
+        viewport = EnsureSelectionVisible(state, viewport);
+        ApplyViewport(viewport);
+        _world.FlushReactive();
+    }
+
+    private EditorViewport EnsureSelectionVisible(EditorState state, EditorViewport viewport)
+    {
         var headPosition = state.Selection.Main.Head;
         if (!viewport.Contains(headPosition)) {
-            var relocated = _viewState.EnsureIncludes(
+            viewport = _viewState.EnsureIncludes(
                 new EditorScrollTarget(headPosition, ScrollYStrategy.Nearest), _lastClientHeight);
-            viewport = relocated;
             var block = _viewState.HeightMap.LineAt(headPosition, QueryType.ByPos, _viewState.Oracle, 0, 0);
             _view.ScrollLineIntoView(block.Top);
         }
@@ -640,9 +649,7 @@ public sealed class BrowserEditorHost : IDisposable
                 Math.Max(viewport.To, anchorBlock.To));
             _viewState.SetMainViewport(viewport);
         }
-
-        ApplyViewport(viewport);
-        _world.FlushReactive();
+        return viewport;
     }
 
     private void ScheduleHighlight()

@@ -28,6 +28,7 @@
         --focus-muted: rgba(127, 127, 127, 0.5);
         --selection-bg: rgba(100, 150, 255, 0.3);
 
+        --radius-none: 0;
         --radius-small: 3px;
         --radius-control: 4px;
         --radius-popover: 5px;
@@ -39,6 +40,7 @@
         --shadow-drawer: 8px 0 24px rgba(0, 0, 0, 0.2);
         --shadow-completion: 0 4px 12px rgba(0, 0, 0, 0.3);
 
+        --z-sticky-content: 2;
         --z-split-handle: 5;
         --z-page-header: 10;
         --z-editor-popup: 20;

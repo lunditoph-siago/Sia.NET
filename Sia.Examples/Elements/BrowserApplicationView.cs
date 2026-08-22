@@ -24,6 +24,7 @@ public sealed class BrowserApplicationView :
         _home = DomElement.Find("notebook-home");
         _homeButtons = [
             BindHomeAction("home-start-guide", "select:0"),
+            BindHomeAction("home-open-editor", "open-editor"),
         ];
 
         using (var actions = DomElement.Find("sidebar-actions")) {
