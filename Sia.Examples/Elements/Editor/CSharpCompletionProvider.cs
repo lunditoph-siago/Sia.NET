@@ -12,10 +12,6 @@ public sealed class CSharpCompletionProvider(
     private const string _memberAccessSentinel = "__SiaCompletionSentinel";
 
     private readonly ICompilationReferenceResolver _references = references;
-    private readonly CSharpCompilationOptions _compilationOptions =
-        new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)
-            .WithConcurrentBuild(false);
-
     public async Task<CompletionResult> QueryAsync(
         string source,
         int position,
@@ -27,10 +23,12 @@ public sealed class CSharpCompletionProvider(
         var querySource = BuildQuerySource(source, replacementStart, position);
         var syntaxTree = CSharpSyntaxTree.ParseText(
             SourceText.From(querySource),
+            CSharpLanguageOptions.Parse,
             path: "Completion.cs",
             cancellationToken: cancellationToken);
         var globalUsingsTree = CSharpSyntaxTree.ParseText(
             SourceText.From(NotebookLanguageContext.GlobalUsings),
+            CSharpLanguageOptions.Parse,
             path: "GlobalUsings.g.cs",
             cancellationToken: cancellationToken);
         var metadataReferences = await _references.GetReferencesAsync(
@@ -40,7 +38,7 @@ public sealed class CSharpCompletionProvider(
             "Completion",
             [syntaxTree, globalUsingsTree],
             metadataReferences,
-            _compilationOptions);
+            CSharpLanguageOptions.Library);
         var root = await syntaxTree.GetRootAsync(cancellationToken);
         var semanticModel = compilation.GetSemanticModel(syntaxTree);
         var symbols = GetCandidates(

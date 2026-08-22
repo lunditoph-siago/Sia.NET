@@ -1,27 +1,24 @@
 namespace Sia_Examples.Notebook;
 
-public sealed record NotebookProgram(
-    string Source,
-    bool NeedsWrapperUsing,
-    IReadOnlyList<CellRange> CellRanges)
+public sealed class NotebookProgram
 {
-    public string? ResolveCellId(int line)
+    internal NotebookProgram(
+        string source,
+        bool needsWrapperUsing,
+        IReadOnlyList<CellRange> cellRanges,
+        IReadOnlyList<CSharpSourceDocument> compilationSources)
     {
-        string? owner = null;
-        var bestStart = -1;
-        foreach (var range in CellRanges) {
-            if (range.StatementsStartLine <= line
-                && range.StatementsStartLine > bestStart) {
-                owner = range.CellId;
-                bestStart = range.StatementsStartLine;
-            }
-            if (range.TypesStartLine is { } typesStart
-                && typesStart <= line
-                && typesStart > bestStart) {
-                owner = range.CellId;
-                bestStart = typesStart;
-            }
-        }
-        return owner;
+        Source = source;
+        NeedsWrapperUsing = needsWrapperUsing;
+        CellRanges = cellRanges;
+        CompilationSources = compilationSources;
     }
+
+    public string Source { get; }
+
+    public bool NeedsWrapperUsing { get; }
+
+    public IReadOnlyList<CellRange> CellRanges { get; }
+
+    internal IReadOnlyList<CSharpSourceDocument> CompilationSources { get; }
 }

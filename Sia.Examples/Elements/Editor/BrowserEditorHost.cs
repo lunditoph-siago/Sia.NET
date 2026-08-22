@@ -1,3 +1,4 @@
+using System.Globalization;
 using Sia;
 using Sia.Reactive;
 using Sia_Examples.Dom;
@@ -18,7 +19,12 @@ public sealed class BrowserEditorHost : IDisposable
     private readonly ReactiveMount<EditorViewProps> _mount;
     private readonly List<(DomElement Element, string Label)> _completionItems = [];
 
+    private readonly EditorViewState _viewState;
+
     private State<EditorState>? _state;
+    private State<EditorViewport>? _viewport;
+    private double _lastClientHeight = 400;
+    private double _lastScrollTop;
     private CompletionResult? _completion;
     private CompletionResult? _completionSource;
     private DomElement? _completionPopup;
@@ -48,6 +54,10 @@ public sealed class BrowserEditorHost : IDisposable
         var initialState = EditorState.Create(
             source,
             EditorDecorations.FromHighlights(highlights));
+        var oracle = new EditorHeightOracle(lineWrapping: false).SetDoc(initialState.Doc);
+        var heightMap = EditorHeightMap.Empty()
+            .ApplyChanges(Text.Empty, oracle, [(0, 0, 0, initialState.Doc.Length)]);
+        _viewState = new EditorViewState(heightMap, oracle);
         _mount = _world.Mount(EditorViewComponent.Definition, new(_view, initialState));
     }
 
@@ -59,10 +69,98 @@ public sealed class BrowserEditorHost : IDisposable
             "text" => HandleTextInput(arguments),
             "mut" => HandleDomMutation(arguments),
             "sel" => HandleSelection(arguments),
+            "measure" => HandleMeasure(arguments),
             "complete" => HandleCompletionRequest(arguments),
             "highlight" => HandleHighlightRequest(arguments),
             _ => false,
         };
+
+    private bool HandleMeasure(string arguments)
+    {
+        var parts = arguments.Split(':', 7);
+        if (parts.Length < 7
+            || !TryParseInvariant(parts[0], out var scrollTop)
+            || !TryParseInvariant(parts[1], out var clientHeight)
+            || !int.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out var firstLineIndex)
+            || !TryParseInvariant(parts[3], out var contentWidth)
+            || !TryParseInvariant(parts[4], out var charWidth)
+            || !TryParseInvariant(parts[5], out var lineHeight)) {
+            return false;
+        }
+
+        double[]? heights = null;
+        if (parts[6].Length > 0 && !TryParseHeights(parts[6], out heights)) {
+            return false;
+        }
+
+        _lastClientHeight = clientHeight;
+        var state = State.Value;
+        var oracle = _viewState.Oracle.SetDoc(state.Doc);
+
+        var oracleChanged = false;
+        var lineLength = contentWidth / charWidth;
+        if (charWidth > 1 && lineHeight > 0 && contentWidth > 20 && lineLength >= 10) {
+            oracleChanged = oracle.Refresh(
+                lineWrapping: true,
+                lineHeight: lineHeight,
+                charWidth: charWidth,
+                textHeight: lineHeight,
+                lineLength: lineLength,
+                knownHeights: heights ?? []);
+        }
+
+        var hasMeasuredLines = heights is { Length: > 0 } && firstLineIndex >= 0 && firstLineIndex < state.Doc.Lines;
+        if (hasMeasuredLines || oracleChanged) {
+            EditorMeasuredHeights? measured = null;
+            if (hasMeasuredLines) {
+                var from = state.Doc.Line(firstLineIndex + 1).From;
+                measured = new EditorMeasuredHeights(from, heights!);
+            }
+            _viewState.SetHeightMap(_viewState.HeightMap.UpdateHeight(oracle, 0, force: oracleChanged, measured));
+        }
+
+        var bias = scrollTop - _lastScrollTop;
+        _lastScrollTop = scrollTop;
+        var viewport = _viewState.ComputeViewport(scrollTop, scrollTop + clientHeight, bias);
+        ApplyViewport(viewport);
+        _world.FlushReactive();
+        return true;
+    }
+
+    private static bool TryParseInvariant(string value, out double result)
+        => double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out result);
+
+    private static bool TryParseHeights(string csv, out double[] heights)
+    {
+        var segments = csv.Split(',');
+        heights = new double[segments.Length];
+        for (var index = 0; index < segments.Length; index++) {
+            if (!TryParseInvariant(segments[index], out heights[index])) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void ApplyViewport(EditorViewport viewport)
+    {
+        if (!viewport.Equals(Viewport.Value)) {
+            Viewport.Set(viewport);
+        }
+        PushSpacerHeights(viewport);
+    }
+
+    private void PushSpacerHeights(EditorViewport viewport)
+    {
+        var oracle = _viewState.Oracle;
+        var map = _viewState.HeightMap;
+        var before = viewport.From <= 0
+            ? 0
+            : map.LineAt(viewport.From, QueryType.ByPos, oracle, 0, 0).Top;
+        var afterBlock = map.LineAt(Math.Min(viewport.To, map.Length), QueryType.ByPos, oracle, 0, 0);
+        var after = Math.Max(0, map.Height - afterBlock.Bottom);
+        _view.SetSpacerHeights(before, after);
+    }
 
     public void Update(string source, IReadOnlyList<HighlightRun> highlights)
     {
@@ -214,12 +312,30 @@ public sealed class BrowserEditorHost : IDisposable
                 break;
 
             case DomMutationScope.Document:
+                if (mutation.LineIndex < 0
+                    || mutation.WindowEnd <= mutation.LineIndex
+                    || mutation.WindowEnd > state.Doc.Lines) {
+                    change = null;
+                    return false;
+                }
+                var windowStart = state.Doc.Line(mutation.LineIndex + 1);
+                var windowEndLine = state.Doc.Line(mutation.WindowEnd);
+                var windowLength = windowEndLine.To - windowStart.From;
+                var windowLocalFrom = Math.Clamp(
+                    beforeSelection.Main.From - windowStart.From,
+                    0,
+                    windowLength);
+                var windowLocalTo = Math.Clamp(
+                    beforeSelection.Main.To - windowStart.From,
+                    windowLocalFrom,
+                    windowLength);
                 difference = TextDiff.FindForSelection(
-                    state.Doc.SliceDoc(),
+                    state.Doc.SliceDoc(windowStart.From, windowEndLine.To),
                     mutation.Replacement,
-                    beforeSelection.Main.From,
-                    beforeSelection.Main.To,
+                    windowLocalFrom,
+                    windowLocalTo,
                     MutationPreference(mutation.InputType));
+                offset = windowStart.From;
                 break;
 
             default:
@@ -253,12 +369,13 @@ public sealed class BrowserEditorHost : IDisposable
 
     private static bool TryReadDomMutation(string arguments, out DomMutation mutation)
     {
-        var parts = arguments.Split(':', 12);
-        if (parts.Length < 12
+        var parts = arguments.Split(':', 13);
+        if (parts.Length < 13
             || !TryReadMutationScope(parts[0], out var scope)
             || !int.TryParse(parts[1], out var lineIndex)
-            || !TryReadSelection(parts, 2, out var before)
-            || !TryReadSelection(parts, 6, out var after)) {
+            || !int.TryParse(parts[2], out var windowEnd)
+            || !TryReadSelection(parts, 3, out var before)
+            || !TryReadSelection(parts, 7, out var after)) {
             mutation = default;
             return false;
         }
@@ -266,10 +383,11 @@ public sealed class BrowserEditorHost : IDisposable
         mutation = new(
             scope,
             lineIndex,
+            windowEnd,
             before,
             after,
-            Uri.UnescapeDataString(parts[10]),
-            Uri.UnescapeDataString(parts[11]));
+            Uri.UnescapeDataString(parts[11]),
+            Uri.UnescapeDataString(parts[12]));
         return true;
     }
 
@@ -455,6 +573,9 @@ public sealed class BrowserEditorHost : IDisposable
         var before = State.Value;
         var after = ApplyNativeSelection(before, nativeSelection);
         if (!command(new(after, state => after = state))) {
+            var viewport = EnsureSelectionVisible(after, Viewport.Value);
+            ApplyViewport(viewport);
+            _world.FlushReactive();
             return false;
         }
         Commit(after);
@@ -483,11 +604,52 @@ public sealed class BrowserEditorHost : IDisposable
         if (state == State.Value) {
             return;
         }
+        var before = State.Value;
         if (state.Doc.SliceDoc() != _highlightedSource) {
             ScheduleHighlight();
         }
         State.Set(state);
+
+        var viewport = Viewport.Value;
+        if (!ReferenceEquals(state.LineUpdate, before.LineUpdate) && state.LineUpdate is { } update) {
+            var ranges = new List<(int FromA, int ToA, int FromB, int ToB)>();
+            update.Changes.IterateChangedRanges(
+                (oldFrom, oldTo, newFrom, newTo) => ranges.Add((oldFrom, oldTo, newFrom, newTo)));
+            var oracle = _viewState.Oracle.SetDoc(state.Doc);
+            _viewState.SetHeightMap(_viewState.HeightMap.ApplyChanges(update.BeforeDocument, oracle, ranges));
+
+            var mapped = _viewState.MapViewport(viewport, update.Changes).Clamp(state.Doc.Length);
+            viewport = _viewState.IsAppropriate(mapped)
+                ? mapped
+                : _viewState.ComputeViewport(_lastScrollTop, _lastScrollTop + _lastClientHeight);
+            _viewState.SetMainViewport(viewport);
+        }
+
+        viewport = EnsureSelectionVisible(state, viewport);
+        ApplyViewport(viewport);
         _world.FlushReactive();
+    }
+
+    private EditorViewport EnsureSelectionVisible(EditorState state, EditorViewport viewport)
+    {
+        var headPosition = state.Selection.Main.Head;
+        if (!viewport.Contains(headPosition)) {
+            viewport = _viewState.EnsureIncludes(
+                new EditorScrollTarget(headPosition, ScrollYStrategy.Nearest), _lastClientHeight);
+            var block = _viewState.HeightMap.LineAt(headPosition, QueryType.ByPos, _viewState.Oracle, 0, 0);
+            _view.ScrollLineIntoView(block.Top);
+        }
+
+        var anchorPosition = state.Selection.Main.Anchor;
+        if (!viewport.Contains(anchorPosition)) {
+            var anchorBlock = _viewState.HeightMap.LineAt(
+                anchorPosition, QueryType.ByPos, _viewState.Oracle, 0, 0);
+            viewport = new EditorViewport(
+                Math.Min(viewport.From, anchorBlock.From),
+                Math.Max(viewport.To, anchorBlock.To));
+            _viewState.SetMainViewport(viewport);
+        }
+        return viewport;
     }
 
     private void ScheduleHighlight()
@@ -859,6 +1021,7 @@ public sealed class BrowserEditorHost : IDisposable
     private readonly record struct DomMutation(
         DomMutationScope Scope,
         int LineIndex,
+        int WindowEnd,
         BrowserSelection Before,
         BrowserSelection After,
         string InputType,
@@ -866,6 +1029,9 @@ public sealed class BrowserEditorHost : IDisposable
 
     private State<EditorState> State
         => _state ??= _mount.GetState<EditorState>();
+
+    private State<EditorViewport> Viewport
+        => _viewport ??= _mount.GetState<EditorViewport>(1);
 
     private string CompletionScheduleKey => $"completion:{_cellId}";
 

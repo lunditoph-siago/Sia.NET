@@ -95,17 +95,22 @@
         --editor-gutter-width: 42px;
         position: relative;
         display: grid;
-        grid-template-columns: var(--editor-gutter-width) minmax(0, 1fr);
         grid-template-rows: minmax(0, 1fr) auto;
         max-height: min(50dvh, 500px);
         overflow: hidden;
     }
 
-    .editor-gutter {
-        grid-column: 1;
+    .editor-scroll {
         grid-row: 1;
+        display: flex;
+        align-items: flex-start;
+        overflow: auto;
+        overflow-anchor: none;
+    }
+
+    .editor-gutter {
+        flex: 0 0 var(--editor-gutter-width);
         width: var(--editor-gutter-width);
-        overflow: hidden;
         border-right: 1px solid var(--color-border);
         background: var(--color-bg-secondary);
         color: var(--color-text-dim);
@@ -122,13 +127,9 @@
         }
     }
 
-    .editor-scroll {
-        grid-column: 2;
-        grid-row: 1;
-        overflow: auto;
-    }
-
     .editor-lines {
+        flex: 1 1 auto;
+        min-width: 0;
         min-height: 100%;
         outline: none;
         color: var(--color-text);
@@ -143,6 +144,12 @@
 
     .editor-line {
         min-height: 1.5em;
+    }
+
+    .editor-spacer {
+        overflow: hidden;
+        pointer-events: none;
+        user-select: none;
     }
 
     .completion-popup {

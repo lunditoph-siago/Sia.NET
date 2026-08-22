@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="controls.css" />
     <link rel="stylesheet" href="notebook.css" />
     <link rel="stylesheet" href="editor.css" />
+    <link rel="stylesheet" href="editor-page.css" />
     <link rel="stylesheet" href="cell.css" />
     <link rel="stylesheet" href="overlay.css" />
     <script type="importmap"></script>
@@ -93,9 +94,14 @@
                             Build data-oriented worlds with entities, components, queries, events,
                             and reactive systems. The examples run directly in this browser.
                         </p>
-                        <button id="home-start-guide" class="home-primary" type="button">
-                            Open the first example <span aria-hidden="true">→</span>
-                        </button>
+                        <div class="home-actions">
+                            <button id="home-start-guide" class="home-primary" type="button">
+                                Open the first example <span aria-hidden="true">→</span>
+                            </button>
+                            <button id="home-open-editor" class="home-primary secondary" type="button">
+                                Open Editor Lab <span aria-hidden="true">↗</span>
+                            </button>
+                        </div>
                     </section>
 
                     <figure class="home-code">

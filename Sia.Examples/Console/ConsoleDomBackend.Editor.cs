@@ -26,6 +26,27 @@ internal sealed partial class ConsoleDomBackend
     {
     }
 
+    public void AttachGutterHeights(IDomNode gutter, IDomNode lines, string cellId)
+    {
+        _ = AsNode(gutter);
+        _ = AsNode(lines);
+    }
+
+    public void DetachGutterHeights(IDomNode lines)
+    {
+        _ = AsNode(lines);
+    }
+
+    public void SetDocumentLines(IDomNode lines, int totalLines)
+    {
+        _ = AsNode(lines);
+    }
+
+    public void ScrollLineIntoView(IDomNode lines, double targetTop)
+    {
+        _ = AsNode(lines);
+    }
+
     public void SetEditorSelection(
         IDomNode node,
         int anchorLine,
@@ -37,12 +58,6 @@ internal sealed partial class ConsoleDomBackend
             node,
             "data-selection",
             $"{anchorLine}:{anchorColumn}:{headLine}:{headColumn}");
-    }
-
-    public void SyncGutterScroll(IDomNode scroll, IDomNode gutter)
-    {
-        _ = AsNode(scroll);
-        _ = AsNode(gutter);
     }
 
     public void PlaceOverlay(

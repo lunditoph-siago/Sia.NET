@@ -1,10 +1,10 @@
 namespace Sia_Examples.Notebook;
 
-public readonly record struct NotebookDiagnostic(
+internal sealed record CSharpCompilationDiagnostic(
     string Id,
     string Message,
     NotebookDiagnosticSeverity Severity,
+    string? SourceId,
+    string? SourcePath,
     int Line,
-    int Column,
-    bool InUserCode,
-    string? SourceId = null);
+    int Column);

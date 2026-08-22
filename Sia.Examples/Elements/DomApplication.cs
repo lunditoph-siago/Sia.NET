@@ -1,6 +1,7 @@
 using Sia;
 using Sia.Reactive;
 using Sia_Examples.Dom;
+using Sia_Examples.Editor;
 using Sia_Examples.Notebook;
 
 namespace Sia_Examples;
@@ -31,6 +32,25 @@ internal static class DomApplication
             DomRuntime.Flush();
 
             NotebookWorkspace? workspace = null;
+            BrowserEditorPage? editorPage = null;
+
+            async Task CloseWorkspaceAsync()
+            {
+                if (workspace is null) {
+                    return;
+                }
+                await workspace.DisposeAsync();
+                workspace = null;
+            }
+
+            async ValueTask CloseEditorPageAsync()
+            {
+                if (editorPage is null) {
+                    return;
+                }
+                await editorPage.DisposeAsync();
+                editorPage = null;
+            }
 
             void RefreshSidebarSelection()
             {
@@ -43,10 +63,8 @@ internal static class DomApplication
 
             async Task OpenAsync(NotebookInfo info)
             {
-                if (workspace is not null) {
-                    await workspace.DisposeAsync();
-                    workspace = null;
-                }
+                await CloseEditorPageAsync();
+                await CloseWorkspaceAsync();
                 var (document, version) = await library.LoadAsync(info);
                 var references = new MetadataReferenceProvider(
                     frameworkAssemblies,
@@ -83,10 +101,8 @@ internal static class DomApplication
                                 break;
 
                             case "new-notebook": {
-                                    if (workspace is not null) {
-                                        await workspace.DisposeAsync();
-                                        workspace = null;
-                                    }
+                                    await CloseEditorPageAsync();
+                                    await CloseWorkspaceAsync();
                                     var info = new NotebookInfo(
                                         "Untitled",
                                         "",
@@ -110,6 +126,23 @@ internal static class DomApplication
                                     await workspace.InitializeAsync();
                                     break;
                                 }
+
+                            case "open-editor": {
+                                    await CloseWorkspaceAsync();
+                                    await CloseEditorPageAsync();
+                                    view.HideNotebookBar();
+                                    var references = new MetadataReferenceProvider(
+                                        frameworkAssemblies,
+                                        packages);
+                                    editorPage = new BrowserEditorPage(world, references);
+                                    RefreshSidebarSelection();
+                                    break;
+                                }
+
+                            case "editor-page-home" when editorPage is not null:
+                                await CloseEditorPageAsync();
+                                view.HideNotebookBar();
+                                break;
 
                             case "compile" when workspace is not null:
                                 workspace.StartCompile(argument);
@@ -271,7 +304,9 @@ internal static class DomApplication
                                 break;
 
                             default:
-                                workspace?.RouteEditorEvent(payload);
+                                if (editorPage?.Route(payload) != true) {
+                                    workspace?.RouteEditorEvent(payload);
+                                }
                                 break;
                         }
                     }
@@ -281,9 +316,8 @@ internal static class DomApplication
                     DomRuntime.Flush();
                 }
             } finally {
-                if (workspace is not null) {
-                    await workspace.DisposeAsync();
-                }
+                await CloseEditorPageAsync();
+                await CloseWorkspaceAsync();
                 if (app.IsMounted) {
                     app.Unmount();
                 }

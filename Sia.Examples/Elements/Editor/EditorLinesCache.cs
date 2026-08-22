@@ -5,6 +5,8 @@ internal sealed class EditorLinesCache
     private Text? _document;
     private RangeSet<Decoration>? _decorations;
     private EditorLineIdentities _identities;
+    private EditorViewport _viewport;
+    private HashSet<int> _mountedKeys = [];
 
     public Patch Update(in EditorLinesProps props)
     {
@@ -13,7 +15,8 @@ internal sealed class EditorLinesCache
             || !ReferenceEquals(_decorations, props.Decorations)
             || props.Update is not { } update
             || !ReferenceEquals(update.BeforeDocument, _document)
-            || !ReferenceEquals(_identities.Values, props.Identities.Values)) {
+            || !ReferenceEquals(_identities.Values, props.Identities.Values)
+            || !_viewport.Equals(props.Viewport)) {
             patch = Rebuild(props);
         } else {
             patch = UpdateChangedLines(props, update.Changes);
@@ -22,24 +25,26 @@ internal sealed class EditorLinesCache
         _document = props.Document;
         _decorations = props.Decorations;
         _identities = props.Identities;
+        _viewport = props.Viewport;
         return patch;
     }
 
     private Patch Rebuild(in EditorLinesProps props)
     {
-        var upserts = new (int Key, EditorLineItem Value)[props.Document.Lines];
-        var currentKeys = new HashSet<int>();
-        for (var index = 0; index < props.Document.Lines; index++) {
-            upserts[index] = BuildLine(props, index);
-            currentKeys.Add(upserts[index].Key);
+        var (from, to) = LineIndexRange(props.Document, props.Viewport);
+        var length = to - from;
+        var upserts = new (int Key, EditorLineItem Value)[length];
+        var currentKeys = new HashSet<int>(length);
+        for (var index = from; index < to; index++) {
+            var built = BuildLine(props, index);
+            upserts[index - from] = built;
+            currentKeys.Add(built.Key);
         }
 
-        if (_document is null) {
-            return new(upserts, []);
-        }
-        var removals = _identities.Values
-            .Where(key => !currentKeys.Contains(key))
-            .ToArray();
+        var removals = _mountedKeys.Count == 0
+            ? []
+            : _mountedKeys.Where(key => !currentKeys.Contains(key)).ToArray();
+        _mountedKeys = currentKeys;
         return new(upserts, removals);
     }
 
@@ -47,6 +52,7 @@ internal sealed class EditorLinesCache
         in EditorLinesProps props,
         ChangeSet changes)
     {
+        var (viewportFrom, viewportTo) = LineIndexRange(props.Document, props.Viewport);
         var changedLines = new HashSet<int>();
         var document = props.Document;
         changes.IterateChangedRanges((_, _, from, to) => {
@@ -57,6 +63,8 @@ internal sealed class EditorLinesCache
                 end--;
             }
             end = Math.Max(start, end);
+            start = Math.Max(start, viewportFrom);
+            end = Math.Min(end, viewportTo - 1);
             for (var index = start; index <= end; index++) {
                 changedLines.Add(index);
             }
@@ -68,6 +76,17 @@ internal sealed class EditorLinesCache
             upserts[target++] = BuildLine(props, index);
         }
         return new(upserts, []);
+    }
+
+    private static (int From, int To) LineIndexRange(Text document, EditorViewport viewport)
+    {
+        if (document.Lines == 0) {
+            return (0, 0);
+        }
+        var clamped = viewport.Clamp(document.Length);
+        var from = document.LineAt(clamped.From).Number - 1;
+        var to = document.LineAt(clamped.To).Number;
+        return (from, to);
     }
 
     private static (int Key, EditorLineItem Value) BuildLine(

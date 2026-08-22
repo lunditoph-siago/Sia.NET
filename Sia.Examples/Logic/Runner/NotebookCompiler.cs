@@ -1,10 +1,4 @@
-using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
 using System.Threading;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.Emit;
-using Microsoft.CodeAnalysis.Text;
 
 namespace Sia_Examples.Notebook;
 
@@ -12,19 +6,8 @@ public sealed class NotebookCompiler
 {
     private static int _programCounter;
 
-    private static readonly IEnumerable<string> _frameworkSymbols =
-        ["NET", "NET7_0_OR_GREATER", "NET8_0_OR_GREATER", "NET9_0_OR_GREATER",
-            "NET10_0_OR_GREATER", "NET11_0_OR_GREATER"];
-
     private readonly string _assemblyName;
-    private readonly ICompilationReferenceResolver _referenceResolver;
-    private readonly CSharpParseOptions _parseOptions = CSharpParseOptions.Default
-        .WithPreprocessorSymbols(_frameworkSymbols);
-    private readonly CSharpCompilationOptions _compilationOptions =
-        new CSharpCompilationOptions(OutputKind.ConsoleApplication)
-            .WithConcurrentBuild(false)
-            .WithNullableContextOptions(NullableContextOptions.Enable)
-            .WithAllowUnsafe(true);
+    private readonly CSharpCompilationEngine _engine;
 
     private NotebookProgram _program;
 
@@ -32,7 +15,7 @@ public sealed class NotebookCompiler
         NotebookProgram program,
         ICompilationReferenceResolver referenceResolver)
     {
-        _referenceResolver = referenceResolver;
+        _engine = new(referenceResolver);
         _assemblyName = $"NotebookProgram_{Interlocked.Increment(ref _programCounter)}";
         _program = program;
     }
@@ -43,114 +26,35 @@ public sealed class NotebookCompiler
     {
         var globalUsings = NotebookLanguageContext.GetGlobalUsings(
             _program.NeedsWrapperUsing);
-        var references = await _referenceResolver.GetReferencesAsync(
-            $"{globalUsings}\n{_program.Source}",
-            cancellationToken);
-        var (emitResult, diagnostics, image) = Emit(
-            globalUsings,
-            references,
-            cancellationToken);
-
-        if (!emitResult.Success && HasMissingReferenceDiagnostics(emitResult.Diagnostics)) {
-            var allReferences = await _referenceResolver.GetAllReferencesAsync(cancellationToken);
-            (emitResult, diagnostics, image) = Emit(
+        var sources = new List<CSharpSourceDocument>(_program.CompilationSources.Count + 2) {
+            new(
+                "$global-usings",
+                "Notebook/GlobalUsings.g.cs",
+                "GlobalUsings.g.cs",
                 globalUsings,
-                allReferences,
-                cancellationToken);
-        }
-
-        return emitResult.Success ? new(true, image, diagnostics) : new(false, null, diagnostics);
-    }
-
-    private (EmitResult EmitResult, IReadOnlyList<NotebookDiagnostic> Diagnostics, byte[] Image) Emit(
-        string globalUsings,
-        IReadOnlyList<MetadataReference> references,
-        CancellationToken cancellationToken)
-    {
-        var userTree = CSharpSyntaxTree.ParseText(
-            SourceText.From(_program.Source),
-            _parseOptions,
-            "Cell.cs",
+                IsUserCode: false),
+            new(
+                "$render-support",
+                "Notebook/Render.g.cs",
+                "Render.g.cs",
+                NotebookProgramBuilder.BuildStandaloneRenderSupport(),
+                IsUserCode: false),
+        };
+        sources.AddRange(_program.CompilationSources);
+        var result = await _engine.CompileAsync(
+            new(_assemblyName, sources),
             cancellationToken);
-        var globalUsingsTree = CSharpSyntaxTree.ParseText(
-            SourceText.From(globalUsings),
-            _parseOptions,
-            "GlobalUsings.g.cs",
-            cancellationToken);
-        var compilation = CSharpCompilation.Create(
-            _assemblyName,
-            [userTree, globalUsingsTree],
-            references,
-            _compilationOptions);
-
-        var expanded = GeneratorPipeline.Run(compilation, _parseOptions, out var generatorDiagnostics);
-
-        using var stream = new MemoryStream();
-        var emitResult = expanded.Emit(stream, cancellationToken: cancellationToken);
-        var diagnostics = BuildDiagnostics(emitResult.Diagnostics.Concat(generatorDiagnostics), userTree);
-
-        return (emitResult, diagnostics, emitResult.Success ? stream.ToArray() : []);
+        var diagnostics = result.Diagnostics.Select(static diagnostic => new NotebookDiagnostic(
+            diagnostic.Id,
+            diagnostic.Message,
+            diagnostic.Severity,
+            diagnostic.Line,
+            diagnostic.Column,
+            diagnostic.SourceId is not null,
+            diagnostic.SourceId)).ToArray();
+        return new(result.Success, result.AssemblyImage, diagnostics);
     }
 
-    private static bool HasMissingReferenceDiagnostics(IEnumerable<Diagnostic> diagnostics)
-        => diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error
-            && d.Id is "CS0246" or "CS0234" or "CS0012");
-
-    [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "Loads a freshly emitted in-memory assembly, not application code trimming can affect.")]
-    public static async Task<NotebookExecuteResult> ExecuteAsync(byte[] assemblyImage)
-    {
-        var stdOut = new StringWriter();
-        var stdErr = new StringWriter();
-        var originalOut = global::System.Console.Out;
-        var originalErr = global::System.Console.Error;
-        global::System.Console.SetOut(stdOut);
-        global::System.Console.SetError(stdErr);
-        try {
-            var assembly = Assembly.Load(assemblyImage);
-            DynamicAssemblyRegistry.Register(assembly.GetName().Name!, assembly);
-            var entryPoint = assembly.EntryPoint
-                ?? throw new InvalidOperationException("No entry point found in the compiled program.");
-            var result = entryPoint.Invoke(null, [Array.Empty<string>()]);
-            if (result is Task task) {
-                await task;
-            }
-            return new(true, stdOut.ToString(), stdErr.ToString());
-        }
-        catch (Exception e) {
-            var inner = e is TargetInvocationException { InnerException: { } captured } ? captured : e;
-            stdErr.WriteLine(inner.ToString());
-            return new(false, stdOut.ToString(), stdErr.ToString());
-        }
-        finally {
-            global::System.Console.SetOut(originalOut);
-            global::System.Console.SetError(originalErr);
-        }
-    }
-
-    private static IReadOnlyList<NotebookDiagnostic> BuildDiagnostics(
-        IEnumerable<Diagnostic> diagnostics, SyntaxTree userTree)
-    {
-        List<NotebookDiagnostic> results = [];
-        foreach (var diagnostic in diagnostics) {
-            if (diagnostic.Severity == DiagnosticSeverity.Hidden) {
-                continue;
-            }
-            var inUserCode = diagnostic.Location.SourceTree == userTree;
-            var lineSpan = diagnostic.Location.GetLineSpan();
-            results.Add(new(
-                diagnostic.Id,
-                diagnostic.GetMessage(),
-                diagnostic.Severity switch {
-                    DiagnosticSeverity.Error => NotebookDiagnosticSeverity.Error,
-                    DiagnosticSeverity.Warning => NotebookDiagnosticSeverity.Warning,
-                    _ => NotebookDiagnosticSeverity.Info,
-                },
-                inUserCode ? lineSpan.StartLinePosition.Line + 1 : 0,
-                inUserCode ? lineSpan.StartLinePosition.Character + 1 : 0,
-                inUserCode));
-        }
-        return results;
-    }
-
+    public static Task<NotebookExecuteResult> ExecuteAsync(byte[] assemblyImage)
+        => ManagedAssemblyExecutor.ExecuteAsync(assemblyImage);
 }
