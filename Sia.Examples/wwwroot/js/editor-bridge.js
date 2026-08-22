@@ -16,6 +16,21 @@ function lineOf(surface, node) {
     return null;
 }
 
+function isRealLine(node) {
+    return node?.nodeType === Node.ELEMENT_NODE && node.dataset?.ln !== undefined;
+}
+
+function mountedLineRange(surface) {
+    const lines = surface.querySelectorAll(':scope > .editor-line[data-ln]');
+    if (!lines.length) {
+        return null;
+    }
+    return {
+        start: Number(lines[0].dataset.ln),
+        end: Number(lines[lines.length - 1].dataset.ln) + 1,
+    };
+}
+
 function columnInLine(line, node, offset) {
     const range = document.createRange();
     range.setStart(line, 0);
@@ -242,24 +257,40 @@ export function attachEditorSurface(cellId, surface) {
                 return null;
             }
 
-            let lineIndex = 0;
-            for (const sibling of surface.childNodes) {
-                if (sibling === top) {
-                    break;
-                }
+            const range = document.createRange();
+            if (isRealLine(top)) {
+                range.setStart(top, 0);
+                range.setEnd(node, offset);
+                const lines = normalizeText(range.toString()).split('\n');
+                return {
+                    line: top,
+                    lineIndex: Number(top.dataset.ln) + lines.length - 1,
+                    column: lines.at(-1).length,
+                };
+            }
+
+            let anchor = top.previousSibling;
+            while (anchor && !isRealLine(anchor)) {
+                anchor = anchor.previousSibling;
+            }
+            let lineIndex = anchor ? Number(anchor.dataset.ln) + 1 : 0;
+            for (
+                let sibling = anchor ? anchor.nextSibling : surface.firstChild;
+                sibling && sibling !== top;
+                sibling = sibling.nextSibling
+            ) {
                 const text = normalizeText(
                     sibling.nodeType === Node.TEXT_NODE
                         ? sibling.nodeValue
                         : (sibling.innerText ?? sibling.textContent ?? ''),
                 );
-                lineIndex += text.split('\n').length;
+                lineIndex += text.split('\n').length - 1;
             }
-            const range = document.createRange();
             range.setStart(top, 0);
             range.setEnd(node, offset);
             const lines = normalizeText(range.toString()).split('\n');
             return {
-                line: top.nodeType === Node.ELEMENT_NODE ? top : null,
+                line: null,
                 lineIndex: lineIndex + lines.length - 1,
                 column: lines.at(-1).length,
             };
@@ -327,6 +358,7 @@ export function attachEditorSurface(cellId, surface) {
 
     const readDocumentText = () =>
         [...surface.children]
+            .filter((child) => isRealLine(child))
             .map((line) => line.textContent.replaceAll(caretMarkerText, ''))
             .join('\n');
 
@@ -388,16 +420,20 @@ export function attachEditorSurface(cellId, surface) {
         }
 
         let lineIndex;
+        let windowEnd;
         let replacement;
         if (scope === 'd') {
-            lineIndex = -1;
+            const range = mountedLineRange(surface);
+            lineIndex = range ? range.start : -1;
+            windowEnd = range ? range.end : -1;
             replacement = readDocumentText();
         } else {
             lineIndex = Number(line.dataset.ln);
+            windowEnd = lineIndex + 1;
             replacement = line.textContent.replaceAll(caretMarkerText, '');
         }
         emit(
-            `mut:${cellId}:${scope}:${lineIndex}:` +
+            `mut:${cellId}:${scope}:${lineIndex}:${windowEnd}:` +
                 `${selectionArguments(snapshot.before)}:` +
                 `${selectionArguments(after)}:` +
                 `${encodeURIComponent(snapshot.inputType)}:` +

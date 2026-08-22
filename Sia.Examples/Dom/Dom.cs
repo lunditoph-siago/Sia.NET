@@ -39,6 +39,18 @@ internal static class DomRuntime
     public static void AcknowledgeEditorCommand(string cellId, int sequence)
         => Backend.AcknowledgeEditorCommand(cellId, sequence);
 
+    public static void AttachGutterHeights(DomElement gutter, DomElement lines, string cellId)
+        => Backend.AttachGutterHeights(gutter.Node, lines.Node, cellId);
+
+    public static void DetachGutterHeights(DomElement lines)
+        => Backend.DetachGutterHeights(lines.Node);
+
+    public static void SetDocumentLines(DomElement lines, int totalLines)
+        => Backend.SetDocumentLines(lines.Node, totalLines);
+
+    public static void ScrollLineIntoView(DomElement lines, double targetTop)
+        => Backend.ScrollLineIntoView(lines.Node, targetTop);
+
     public static void SetEditorSelection(
         DomElement element,
         int anchorLine,
@@ -51,9 +63,6 @@ internal static class DomRuntime
             anchorColumn,
             headLine,
             headColumn);
-
-    public static void SyncGutterScroll(DomElement scroll, DomElement gutter)
-        => Backend.SyncGutterScroll(scroll.Node, gutter.Node);
 
     public static void PlaceOverlay(
         DomElement container,

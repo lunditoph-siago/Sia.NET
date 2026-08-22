@@ -128,6 +128,30 @@ internal sealed class BrowserDomBackend(BrowserMainThread mainThread) : IDomBack
         BrowserInterop.AcknowledgeEditorCommand(cellId, sequence);
     }
 
+    public void AttachGutterHeights(IDomNode gutter, IDomNode lines, string cellId)
+    {
+        VerifyAccess();
+        BrowserInterop.AttachGutterHeights(Handle(gutter), Handle(lines), cellId);
+    }
+
+    public void DetachGutterHeights(IDomNode lines)
+    {
+        VerifyAccess();
+        BrowserInterop.DetachGutterHeights(Handle(lines));
+    }
+
+    public void SetDocumentLines(IDomNode lines, int totalLines)
+    {
+        VerifyAccess();
+        BrowserInterop.SetDocumentLines(Handle(lines), totalLines);
+    }
+
+    public void ScrollLineIntoView(IDomNode lines, double targetTop)
+    {
+        VerifyAccess();
+        BrowserInterop.ScrollLineIntoView(Handle(lines), targetTop);
+    }
+
     public void SetEditorSelection(
         IDomNode node,
         int anchorLine,
@@ -142,12 +166,6 @@ internal sealed class BrowserDomBackend(BrowserMainThread mainThread) : IDomBack
             anchorColumn,
             headLine,
             headColumn);
-    }
-
-    public void SyncGutterScroll(IDomNode scroll, IDomNode gutter)
-    {
-        VerifyAccess();
-        BrowserInterop.SyncGutterScroll(Handle(scroll), Handle(gutter));
     }
 
     public void PlaceOverlay(
@@ -269,6 +287,18 @@ internal static partial class BrowserInterop
     [JSImport("acknowledgeEditorCommand", "main.js")]
     public static partial void AcknowledgeEditorCommand(string cellId, int sequence);
 
+    [JSImport("attachGutterHeights", "main.js")]
+    public static partial void AttachGutterHeights(JSObject gutter, JSObject lines, string cellId);
+
+    [JSImport("detachGutterHeights", "main.js")]
+    public static partial void DetachGutterHeights(JSObject lines);
+
+    [JSImport("setDocumentLines", "main.js")]
+    public static partial void SetDocumentLines(JSObject lines, int totalLines);
+
+    [JSImport("scrollLineIntoView", "main.js")]
+    public static partial void ScrollLineIntoView(JSObject lines, double targetTop);
+
     [JSImport("setEditorSelection", "main.js")]
     public static partial void SetEditorSelection(
         JSObject element,
@@ -276,9 +306,6 @@ internal static partial class BrowserInterop
         int anchorColumn,
         int headLine,
         int headColumn);
-
-    [JSImport("syncGutterScroll", "main.js")]
-    public static partial void SyncGutterScroll(JSObject scroll, JSObject gutter);
 
     [JSImport("placeOverlay", "main.js")]
     public static partial void PlaceOverlay(

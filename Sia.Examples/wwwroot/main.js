@@ -8,6 +8,12 @@ import {
     ignoreOwnWrites,
     setEditorSelection,
 } from './js/editor-bridge.js';
+import {
+    attachGutterHeights,
+    detachGutterHeights,
+    scrollLineIntoView,
+    setDocumentLines,
+} from './js/editor-heightmap.js';
 import { clearOverlayPlacement, ensureVisible, placeOverlay } from './js/editor-overlay.js';
 import {
     cancelScheduledEvent,
@@ -55,15 +61,14 @@ setModuleImports('main.js', {
     attachEditorSurface,
     detachEditorSurface,
     acknowledgeEditorCommand,
+    attachGutterHeights,
+    detachGutterHeights,
+    setDocumentLines,
+    scrollLineIntoView,
     setEditorSelection,
     placeOverlay,
     clearOverlayPlacement,
     ensureVisible,
-    syncGutterScroll(scroll, gutter) {
-        scroll.addEventListener('scroll', () => {
-            gutter.scrollTop = scroll.scrollTop;
-        });
-    },
     fetchBase64,
     fetchText,
     notebookGetAllJson,

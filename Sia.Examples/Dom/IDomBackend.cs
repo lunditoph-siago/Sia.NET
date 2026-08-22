@@ -40,14 +40,20 @@ internal interface IDomBackend : IDisposable
 
     public void AcknowledgeEditorCommand(string cellId, int sequence);
 
+    public void AttachGutterHeights(IDomNode gutter, IDomNode lines, string cellId);
+
+    public void DetachGutterHeights(IDomNode lines);
+
+    public void SetDocumentLines(IDomNode lines, int totalLines);
+
+    public void ScrollLineIntoView(IDomNode lines, double targetTop);
+
     public void SetEditorSelection(
         IDomNode node,
         int anchorLine,
         int anchorColumn,
         int headLine,
         int headColumn);
-
-    public void SyncGutterScroll(IDomNode scroll, IDomNode gutter);
 
     public void PlaceOverlay(
         IDomNode container,
