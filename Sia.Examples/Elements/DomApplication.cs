@@ -30,6 +30,7 @@ internal static class DomApplication
             var app = world.Mount(ExampleApp.Definition, new(library, view));
             world.FlushReactive();
             DomRuntime.Flush();
+            DomRuntime.NotifyAppReady();
 
             NotebookWorkspace? workspace = null;
             BrowserEditorPage? editorPage = null;

@@ -144,5 +144,14 @@ world.Create(HList.From(
         </main>
     </div>
     <div id="overlay-root" aria-live="off"></div>
+    <div id="boot-overlay" class="boot-overlay" role="status" aria-live="polite">
+        <div class="boot-spinner" aria-hidden="true"></div>
+        <p class="boot-message">Loading the Sia.NET runtime…</p>
+        <div class="boot-progress" aria-hidden="true">
+            <div class="boot-progress-fill"></div>
+        </div>
+        <p class="boot-progress-label">&nbsp;</p>
+        <button id="boot-reload" class="boot-reload" type="button" hidden>Reload page</button>
+    </div>
 </body>
 </html>

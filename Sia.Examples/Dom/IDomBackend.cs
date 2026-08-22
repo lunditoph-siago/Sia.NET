@@ -66,6 +66,8 @@ internal interface IDomBackend : IDisposable
 
     public void EnsureVisible(IDomNode container, IDomNode element);
 
+    public void NotifyAppReady() { }
+
     public void ReportError(string message);
 
     public void Flush();

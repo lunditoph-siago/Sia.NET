@@ -1,5 +1,6 @@
 import { dotnet } from './_framework/dotnet.js';
 import './js/app-shell.js';
+import { bootModuleConfig, dismissBootOverlay, showBootError } from './js/boot-progress.js';
 import './js/cell-interactions.js';
 import {
     acknowledgeEditorCommand,
@@ -28,6 +29,7 @@ import {
     waitForEvent,
 } from './js/notebook-runtime.js';
 
+dotnet.withModuleConfig?.(bootModuleConfig);
 const { setModuleImports, runMain, getConfig, getAssemblyExports } = await dotnet.create();
 
 setModuleImports('main.js', {
@@ -76,14 +78,8 @@ setModuleImports('main.js', {
     notebookPut,
     notebookRemove,
     reportError: (message) => console.error(message),
+    appReady: () => dismissBootOverlay(),
 });
-
-function showBootError(message) {
-    const banner = document.createElement('div');
-    banner.className = 'boot-error-banner';
-    banner.textContent = message;
-    document.body.prepend(banner);
-}
 
 async function initializeAssemblyManifest() {
     const config = getConfig();

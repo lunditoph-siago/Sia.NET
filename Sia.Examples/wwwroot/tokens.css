@@ -35,6 +35,7 @@
         --radius-container: 6px;
         --radius-panel: 8px;
         --radius-pill: 999px;
+        --radius-circle: 50%;
 
         --shadow-overlay: 0 8px 24px rgba(0, 0, 0, 0.2);
         --shadow-drawer: 8px 0 24px rgba(0, 0, 0, 0.2);
@@ -50,6 +51,7 @@
         --z-navigation-control: 70;
         --z-drag-ghost: 80;
         --z-overlay-root: 90;
+        --z-boot-overlay: 85;
     }
 
     @media (prefers-color-scheme: dark) {

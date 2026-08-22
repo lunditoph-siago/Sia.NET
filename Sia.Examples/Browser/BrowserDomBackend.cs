@@ -196,6 +196,12 @@ internal sealed class BrowserDomBackend(BrowserMainThread mainThread) : IDomBack
         BrowserInterop.EnsureVisible(Handle(container), Handle(element));
     }
 
+    public void NotifyAppReady()
+    {
+        VerifyAccess();
+        BrowserInterop.AppReady();
+    }
+
     public void ReportError(string message)
     {
         VerifyAccess();
@@ -320,6 +326,9 @@ internal static partial class BrowserInterop
 
     [JSImport("ensureVisible", "main.js")]
     public static partial void EnsureVisible(JSObject container, JSObject element);
+
+    [JSImport("appReady", "main.js")]
+    public static partial void AppReady();
 
     [JSImport("reportError", "main.js")]
     public static partial void ReportError(string message);

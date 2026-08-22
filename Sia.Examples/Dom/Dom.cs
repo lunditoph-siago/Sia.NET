@@ -83,6 +83,8 @@ internal static class DomRuntime
     public static void EnsureVisible(DomElement container, DomElement element)
         => Backend.EnsureVisible(container.Node, element.Node);
 
+    public static void NotifyAppReady() => Backend.NotifyAppReady();
+
     public static void ReportError(string message) => Backend.ReportError(message);
 
     public static void Flush() => Backend.Flush();

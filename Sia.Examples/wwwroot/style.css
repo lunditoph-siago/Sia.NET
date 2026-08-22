@@ -1,4 +1,107 @@
 @layer layout {
+    .boot-overlay {
+        position: fixed;
+        z-index: var(--z-boot-overlay);
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 1rem;
+        padding: 1.5rem;
+        background: var(--color-bg);
+        transition: opacity 0.4s ease;
+
+        &.done {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        &.failed .boot-spinner {
+            border-color: var(--color-danger);
+            border-top-color: var(--color-danger);
+            animation-play-state: paused;
+        }
+
+        &.failed .boot-message {
+            opacity: 1;
+            color: var(--color-danger);
+        }
+    }
+
+    .boot-spinner {
+        width: 2.2rem;
+        height: 2.2rem;
+        border: 2px solid var(--border-subtle);
+        border-top-color: var(--color-accent);
+        border-radius: var(--radius-circle);
+        animation: boot-spin 0.9s linear infinite;
+    }
+
+    .boot-message {
+        margin: 0;
+        opacity: 0.7;
+        color: var(--color-fg);
+        font-size: 0.85rem;
+        text-align: center;
+    }
+
+    .boot-progress {
+        width: min(18rem, 70vw);
+        height: 4px;
+        overflow: hidden;
+        border-radius: var(--radius-pill);
+        background: var(--surface-hover);
+    }
+
+    .boot-progress-fill {
+        width: var(--boot-progress-share, 0%);
+        height: 100%;
+        border-radius: var(--radius-pill);
+        background: var(--color-accent);
+        transition: width 0.2s ease;
+    }
+
+    .boot-progress-label {
+        margin: 0;
+        opacity: 0.55;
+        color: var(--color-fg);
+        font-size: 0.7rem;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .boot-reload {
+        padding: 0.35rem 1rem;
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-control);
+        background: var(--surface-hover);
+        color: var(--color-fg);
+        font: inherit;
+        font-size: 0.8rem;
+        cursor: pointer;
+
+        &:hover {
+            border-color: var(--color-accent);
+            color: var(--color-accent);
+        }
+    }
+
+    @keyframes boot-spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .boot-overlay {
+            transition: none;
+        }
+
+        .boot-spinner {
+            animation-duration: 2.4s;
+        }
+    }
+
     .boot-error-banner {
         flex-shrink: 0;
         padding: 0.5rem 1rem;
@@ -85,7 +188,7 @@
                 right: 0.35rem;
                 bottom: 0;
                 left: 0.35rem;
-                content: "";
+                content: '';
                 height: 1px;
                 background: transparent;
             }
@@ -107,7 +210,7 @@
             opacity: 0.75;
         }
 
-        &[data-sidebar-view="files"] .sidebar-actions {
+        &[data-sidebar-view='files'] .sidebar-actions {
             visibility: hidden;
         }
 
@@ -150,7 +253,7 @@
             }
         }
 
-        .library-folder-toggle[aria-expanded="false"] .folder-caret {
+        .library-folder-toggle[aria-expanded='false'] .folder-caret {
             transform: rotate(-90deg);
         }
 
