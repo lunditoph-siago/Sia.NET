@@ -1,6 +1,7 @@
 using Sia;
 using Sia.Reactive;
 using Sia_Examples.Dom;
+using Sia_Examples.Editor;
 
 namespace Sia_Examples.Notebook;
 
@@ -9,7 +10,7 @@ public sealed class NotebookWorkspace : IAsyncDisposable
     private readonly NotebookSession _session;
     private readonly MetadataReferenceProvider _references;
     private readonly World _world;
-    private readonly INotebookStorage _storage;
+    private readonly IWorkspaceStorage _storage;
     private readonly NotebookLibrary _library;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly HashSet<Task> _operations = [];
@@ -30,7 +31,7 @@ public sealed class NotebookWorkspace : IAsyncDisposable
         MetadataReferenceProvider references,
         NotebookInfo info,
         string? version,
-        INotebookStorage storage,
+        IWorkspaceStorage storage,
         NotebookLibrary library)
     {
         _world = world;
@@ -321,7 +322,7 @@ public sealed class NotebookWorkspace : IAsyncDisposable
         _session.SetTitle(title);
     }
 
-    public async Task<(string? Version, NotebookConflictException? Conflict)>
+    public async Task<(string? Version, WorkspaceConflictException? Conflict)>
         SaveToStorageAsync(bool force = false)
     {
         ThrowIfDisposed();
@@ -331,18 +332,19 @@ public sealed class NotebookWorkspace : IAsyncDisposable
 
         var title = document.Title.Length > 0 ? document.Title : "(untitled)";
         var hasStorageKey = _info.Origin == NotebookOrigin.User && _info.Key.Length > 0;
+        var key = hasStorageKey ? _info.Key : Guid.NewGuid().ToString("N")[..12];
         try {
-            var (key, version) = await _storage.SaveAsync(
-                hasStorageKey ? _info.Key : null,
+            var written = await _storage.WriteFileAsync(
+                NotebookLibrary.PathOf(key),
                 hasStorageKey && !force ? _version : null,
                 xml,
                 _lifetime.Token);
             _info = new NotebookInfo(title, "", key, NotebookOrigin.User);
-            _version = version;
+            _version = written.Version;
             await _library.RefreshAsync(_lifetime.Token);
-            return (version, null);
+            return (written.Version, null);
         }
-        catch (NotebookConflictException conflict) {
+        catch (WorkspaceConflictException conflict) {
             return (null, conflict);
         }
     }
@@ -353,7 +355,7 @@ public sealed class NotebookWorkspace : IAsyncDisposable
         if (!CanDelete) {
             return false;
         }
-        await _storage.DeleteAsync(_info.Key, _version!, _lifetime.Token);
+        await _storage.DeleteEntryAsync(NotebookLibrary.PathOf(_info.Key), _version, _lifetime.Token);
         await _library.RefreshAsync(_lifetime.Token);
         return true;
     }

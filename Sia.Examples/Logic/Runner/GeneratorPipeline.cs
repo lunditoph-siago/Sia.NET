@@ -50,8 +50,6 @@ internal static class GeneratorPipeline
                 assembly = Assembly.Load(new AssemblyName(name));
             }
             catch (FileNotFoundException) {
-                // A declared analyzer failed to load; its package will report
-                // the failure in the packages panel, so skip it here.
                 continue;
             }
             foreach (var type in assembly.GetTypes()) {

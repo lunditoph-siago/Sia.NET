@@ -46,27 +46,6 @@ internal static class ResilientFile
         }
     }
 
-    public static IEnumerable<(string Path, string Content, DateTime LastWriteTimeUtc)> EnumerateReadableFiles(
-        string directory, string searchPattern)
-    {
-        if (!Directory.Exists(directory)) {
-            yield break;
-        }
-        foreach (var path in Directory.EnumerateFiles(directory, searchPattern)) {
-            if (TryReadText(path) is not { } content) {
-                continue;
-            }
-            DateTime lastWriteTimeUtc;
-            try {
-                lastWriteTimeUtc = File.GetLastWriteTimeUtc(path);
-            }
-            catch (Exception error) when (IsTransient(error)) {
-                continue;
-            }
-            yield return (path, content, lastWriteTimeUtc);
-        }
-    }
-
     private static void Retry(Action action)
     {
         for (var attempt = 0; ; attempt++) {

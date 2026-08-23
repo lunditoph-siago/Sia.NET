@@ -1,5 +1,6 @@
 #if BROWSER
 using Sia_Examples.Browser;
+using Sia_Examples.Editor;
 using Sia_Examples.Notebook;
 
 namespace Sia_Examples;
@@ -17,13 +18,16 @@ public static class BrowserApplication
         var library = new NotebookLibrary(storage);
         await library.RefreshAsync();
 
+        var workspaceStorage = new IndexedDbWorkspaceStorage(mainThread);
+
         await DomApplication.RunAsync(
             library,
             mainThread,
             new BrowserDomBackend(mainThread),
             frameworkAssemblies,
             packages,
-            storage);
+            storage,
+            workspaceStorage);
     }
 }
 #endif

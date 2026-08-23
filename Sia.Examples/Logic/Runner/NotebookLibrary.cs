@@ -1,7 +1,13 @@
+using System.Xml;
+using System.Xml.Linq;
+using Sia_Examples.Editor;
+
 namespace Sia_Examples.Notebook;
 
-public sealed class NotebookLibrary(INotebookStorage storage)
+public sealed class NotebookLibrary(IWorkspaceStorage storage)
 {
+    internal const string Extension = ".notebook.xml";
+
     private static readonly IReadOnlyList<NotebookInfo> BuiltIn = [
         new("1. Browser",
             "Run C# and Sia.NET in the browser",
@@ -17,23 +23,41 @@ public sealed class NotebookLibrary(INotebookStorage storage)
             NotebookOrigin.BuiltIn),
     ];
 
-    private readonly INotebookStorage _storage = storage;
+    private readonly IWorkspaceStorage _storage = storage;
     private readonly Dictionary<string, NotebookDocument> _builtInCache = [];
 
     public IReadOnlyList<NotebookInfo> Notebooks { get; private set; } = BuiltIn;
 
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
     {
-        var entries = await _storage.ListAsync(cancellationToken);
-        var user = entries
-            .OrderByDescending(static entry => entry.SavedAt)
-            .Select(static entry => new NotebookInfo(
-                entry.Title.Length > 0 ? entry.Title : "(untitled)",
-                "",
-                entry.Key,
-                NotebookOrigin.User))
-            .ToList();
-        Notebooks = [.. BuiltIn, .. user];
+        var entries = await _storage.ListTreeAsync(cancellationToken);
+        List<(NotebookInfo Info, DateTimeOffset ModifiedAt)> user = [];
+        foreach (var entry in entries) {
+            if (entry.Kind != WorkspaceEntryKind.File
+                || !entry.Path.EndsWith(Extension, StringComparison.Ordinal)) {
+                continue;
+            }
+            if (await _storage.ReadFileAsync(entry.Path, cancellationToken) is not { } content) {
+                continue;
+            }
+            string title;
+            try {
+                title = PeekTitle(content.Content);
+            }
+            catch (XmlException) {
+                continue;
+            }
+            var key = entry.Path[..^Extension.Length];
+            user.Add((
+                new NotebookInfo(title.Length > 0 ? title : "(untitled)", "", key, NotebookOrigin.User),
+                entry.ModifiedAt ?? DateTimeOffset.MinValue));
+        }
+        Notebooks = [
+            .. BuiltIn,
+            .. user
+                .OrderByDescending(static pair => pair.ModifiedAt)
+                .Select(static pair => pair.Info),
+        ];
     }
 
     public async ValueTask<(NotebookDocument Document, string? Version)> LoadAsync(
@@ -43,10 +67,10 @@ public sealed class NotebookLibrary(INotebookStorage storage)
             return (LoadBuiltIn(info), null);
         }
 
-        var loaded = await _storage.LoadAsync(info.Key, cancellationToken)
+        var loaded = await _storage.ReadFileAsync(PathOf(info.Key), cancellationToken)
             ?? throw new InvalidOperationException(
                 $"'{info.Name}' no longer exists in storage. It may have been deleted elsewhere.");
-        return (NotebookDocumentParser.Parse(loaded.Xml), loaded.Version);
+        return (NotebookDocumentParser.Parse(loaded.Content), loaded.Version);
     }
 
     private NotebookDocument LoadBuiltIn(NotebookInfo info)
@@ -63,5 +87,14 @@ public sealed class NotebookLibrary(INotebookStorage storage)
         var document = NotebookDocumentParser.Parse(reader.ReadToEnd());
         _builtInCache[info.Key] = document;
         return document;
+    }
+
+    internal static string PathOf(string key) => key + Extension;
+
+    private static string PeekTitle(string xml)
+    {
+        using var reader = new StringReader(xml);
+        var document = XDocument.Load(reader, LoadOptions.None);
+        return (string?)document.Root?.Attribute("Title") ?? "";
     }
 }

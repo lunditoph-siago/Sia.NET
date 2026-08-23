@@ -367,9 +367,42 @@
         }
 
         .file-tree-folder-name {
+            flex: 1 1 auto;
             overflow: hidden;
             font-weight: 550;
             text-overflow: ellipsis;
+        }
+
+        .file-tree-folder-action {
+            display: grid;
+            place-items: center;
+            flex: 0 0 auto;
+            width: 1.35rem;
+            height: 1.35rem;
+            padding: 0;
+            border: 0;
+            border-radius: var(--radius-small);
+            background: transparent;
+            opacity: 0;
+            color: inherit;
+            font: inherit;
+            font-size: 0.68rem;
+            cursor: pointer;
+
+            &:hover,
+            &:focus-visible {
+                background: var(--surface-hover);
+                opacity: 1;
+            }
+
+            @media (hover: none), (pointer: coarse) {
+                opacity: 0.65;
+            }
+        }
+
+        .file-tree-folder-label:hover .file-tree-folder-action,
+        .file-tree-folder-label:focus-within .file-tree-folder-action {
+            opacity: 0.72;
         }
 
         .file-tree-scope {
@@ -392,8 +425,10 @@
         .file-tree-file {
             display: flex;
             align-items: center;
+            gap: 0.1rem;
             min-width: 0;
             min-height: 1.7rem;
+            padding-right: 0.15rem;
 
             &:hover .file-tree-file-action,
             &:focus-within .file-tree-file-action {

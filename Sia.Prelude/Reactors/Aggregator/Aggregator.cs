@@ -11,8 +11,15 @@ public abstract class AggregatorBase<TId> : ReactorBase<TypeUnion<Sid<TId>>>
     private QuerySubscription _aggregationSubscription;
     private readonly Dictionary<TId, Entity> _aggrs = [];
     private readonly Stack<HashSet<Entity>> _groupPool = new();
+    private readonly List<Entity> _pendingAggregationReleases = [];
 
-    public Aggregation<TId> this[in TId component] => _aggrs[component].Get<Aggregation<TId>>();
+    public Aggregation<TId> this[in TId component]
+    {
+        get {
+            FlushPendingAggregationReleases();
+            return _aggrs[component].Get<Aggregation<TId>>();
+        }
+    }
 
     public override void OnInitialize(World world)
     {
@@ -76,10 +83,14 @@ public abstract class AggregatorBase<TId> : ReactorBase<TypeUnion<Sid<TId>>>
     }
 
     public bool TryGet(in TId id, [MaybeNullWhen(false)] out Entity aggrEntity)
-        => _aggrs.TryGetValue(id, out aggrEntity);
+    {
+        FlushPendingAggregationReleases();
+        return _aggrs.TryGetValue(id, out aggrEntity);
+    }
 
     private bool OnEntityIdChanged(Entity entity, in Sid<TId>.SetValue e)
     {
+        FlushPendingAggregationReleases();
         ref var id = ref entity.Get<Sid<TId>>();
         RemoveFromAggregation(entity, id.Previous!);
         AddToAggregation(entity, id.Value);
@@ -88,12 +99,14 @@ public abstract class AggregatorBase<TId> : ReactorBase<TypeUnion<Sid<TId>>>
 
     protected override void OnEntityAdded(Entity entity)
     {
+        FlushPendingAggregationReleases();
         var id = entity.Get<Sid<TId>>().Value;
         AddToAggregation(entity, id);
     }
 
     protected override void OnEntityRemoved(Entity entity)
     {
+        FlushPendingAggregationReleases();
         var id = entity.Get<Sid<TId>>().Value;
         RemoveFromAggregation(entity, id);
     }
@@ -139,11 +152,34 @@ public abstract class AggregatorBase<TId> : ReactorBase<TypeUnion<Sid<TId>>>
             _aggrs.Remove(id);
             _groupPool.Push(group);
             aggr._group = null;
-            groupEntity.Destroy();
+            ReleaseAggregation(groupEntity);
         }
         else if (aggr.First == entity) {
             aggr.First = group.First();
         }
+    }
+
+    private void ReleaseAggregation(Entity entity)
+    {
+        if (World.Dispatcher.IsSending) {
+            _pendingAggregationReleases.Add(entity);
+            return;
+        }
+        entity.Destroy();
+    }
+
+    private void FlushPendingAggregationReleases()
+    {
+        if (_pendingAggregationReleases.Count == 0 || World.Dispatcher.IsSending) {
+            return;
+        }
+        for (var index = 0; index < _pendingAggregationReleases.Count; index++) {
+            var entity = _pendingAggregationReleases[index];
+            if (entity.IsValid) {
+                entity.Destroy();
+            }
+        }
+        _pendingAggregationReleases.Clear();
     }
 }
 

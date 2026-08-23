@@ -182,6 +182,32 @@ public sealed class BrowserEditorHost : IDisposable
         Commit(next);
     }
 
+    public bool TryGetPosition(out EditorMemento memento)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        var state = State.Value;
+        if (state.Doc.Length == 0 && state.Selection.Main.Head == 0) {
+            memento = default!;
+            return false;
+        }
+        var head = state.Selection.Main.Head;
+        var line = state.Doc.LineAt(head);
+        memento = new EditorMemento(line.Number, head - line.From, _lastScrollTop);
+        return true;
+    }
+
+    public void RestorePosition(EditorMemento memento)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        var state = State.Value;
+        var lineNumber = Math.Clamp(memento.Line, 1, state.Doc.Lines);
+        var line = state.Doc.Line(lineNumber);
+        var head = Math.Clamp(line.From + memento.Column, line.From, line.To);
+        Commit(state.Apply(new() { Selection = EditorSelection.Single(head) }));
+        _lastScrollTop = memento.ScrollTop;
+        _view.ScrollLineIntoView(memento.ScrollTop);
+    }
+
     public void Dispose()
     {
         if (_disposed) {

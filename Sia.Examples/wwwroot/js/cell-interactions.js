@@ -527,3 +527,16 @@ document.addEventListener('keydown', (event) => {
     tabs[targetIndex].focus();
     tabs[targetIndex].click();
 });
+
+document.addEventListener(
+    'wheel',
+    (event) => {
+        const list = event.target.closest?.('.tab-list');
+        if (!list || list.scrollWidth <= list.clientWidth) {
+            return;
+        }
+        list.scrollLeft += event.deltaY !== 0 ? event.deltaY : event.deltaX;
+        event.preventDefault();
+    },
+    { passive: false },
+);

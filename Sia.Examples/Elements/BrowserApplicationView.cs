@@ -1,4 +1,5 @@
 using Sia_Examples.Dom;
+using Sia_Examples.Editor;
 using Sia_Examples.Notebook;
 
 namespace Sia_Examples;
@@ -89,7 +90,7 @@ public sealed class BrowserApplicationView :
         HideConflict();
     }
 
-    public void ShowConflict(NotebookConflictException error)
+    public void ShowConflict(WorkspaceConflictException error)
     {
         _conflictMessage.Text(error.ActualVersion is { } actual
             ? $"Storage changed from {error.ExpectedVersion} to {actual}."

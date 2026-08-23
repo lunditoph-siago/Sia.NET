@@ -68,6 +68,22 @@ public sealed class BrowserEditorRegistry(
         return false;
     }
 
+    public bool TryGetPosition(string cellId, out EditorMemento memento)
+    {
+        if (_editors.TryGetValue(cellId, out var editor)) {
+            return editor.TryGetPosition(out memento);
+        }
+        memento = default!;
+        return false;
+    }
+
+    public void RestorePosition(string cellId, EditorMemento memento)
+    {
+        if (_editors.TryGetValue(cellId, out var editor)) {
+            editor.RestorePosition(memento);
+        }
+    }
+
     public void Remove(string cellId)
     {
         if (_editors.Remove(cellId, out var editor)) {

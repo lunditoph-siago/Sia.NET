@@ -27,6 +27,10 @@ import {
     notebookRemove,
     scheduleEvent,
     waitForEvent,
+    workspaceGetAllJson,
+    workspaceGetJson,
+    workspacePut,
+    workspaceRemove,
 } from './js/notebook-runtime.js';
 
 dotnet.withModuleConfig?.(bootModuleConfig);
@@ -77,6 +81,10 @@ setModuleImports('main.js', {
     notebookGetJson,
     notebookPut,
     notebookRemove,
+    workspaceGetAllJson,
+    workspaceGetJson,
+    workspacePut,
+    workspaceRemove,
     reportError: (message) => console.error(message),
     appReady: () => dismissBootOverlay(),
 });

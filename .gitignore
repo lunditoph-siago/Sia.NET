@@ -34,7 +34,7 @@
 .Spotlight-V100
 .Trashes
 ehthumbs.db
-Thumbs.dgit rm --cachedb
+Thumbs.db
 
 # .NET
 *.swp

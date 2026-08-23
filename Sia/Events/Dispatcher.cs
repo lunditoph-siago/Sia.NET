@@ -11,6 +11,8 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
 
     private int _sendDepth;
 
+    public bool IsSending => _sendDepth != 0;
+
     private readonly List<IEventListener<TTarget>> _globalListeners = [];
     private ArrayBuffer<object> _eventListeners = new();
     private readonly Dictionary<TKey, List<IEventListener<TTarget>>> _targetListeners = [];

@@ -14,7 +14,8 @@ internal static class DomApplication
         IDomBackend backend,
         AssemblyLoader frameworkAssemblies,
         PackageReferenceLoader packages,
-        INotebookStorage storage)
+        IWorkspaceStorage storage,
+        IWorkspaceStorage workspaceStorage)
     {
         ArgumentNullException.ThrowIfNull(library);
         ArgumentNullException.ThrowIfNull(uiThread);
@@ -22,6 +23,7 @@ internal static class DomApplication
         ArgumentNullException.ThrowIfNull(frameworkAssemblies);
         ArgumentNullException.ThrowIfNull(packages);
         ArgumentNullException.ThrowIfNull(storage);
+        ArgumentNullException.ThrowIfNull(workspaceStorage);
 
         DomRuntime.Initialize(backend);
         try {
@@ -135,8 +137,9 @@ internal static class DomApplication
                                     var references = new MetadataReferenceProvider(
                                         frameworkAssemblies,
                                         packages);
-                                    editorPage = new BrowserEditorPage(world, references);
+                                    editorPage = new BrowserEditorPage(world, references, workspaceStorage);
                                     RefreshSidebarSelection();
+                                    await editorPage.InitializeAsync();
                                     break;
                                 }
 
@@ -197,7 +200,7 @@ internal static class DomApplication
                                         view.HideNotebookBar();
                                     }
                                 }
-                                catch (NotebookConflictException error) {
+                                catch (WorkspaceConflictException error) {
                                     view.ShowConflict(error);
                                 }
                                 break;

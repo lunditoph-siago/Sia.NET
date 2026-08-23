@@ -4,6 +4,19 @@ document.getElementById('sidebar-toggle')?.addEventListener('click', () => {
     document.getElementById('app')?.classList.toggle('sidebar-open');
 });
 
+document.addEventListener('keydown', (event) => {
+    if (!document.querySelector('.editor-page')) {
+        return;
+    }
+    if (event.key.toLowerCase() === 's' && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        emit(event.shiftKey ? 'editor-page-save-all' : 'editor-page-save');
+    } else if (event.key.toLowerCase() === 'w' && event.altKey) {
+        event.preventDefault();
+        emit('editor-page-close-active-tab');
+    }
+});
+
 document.getElementById('sidebar')?.addEventListener('click', (event) => {
     if (
         event.target.closest?.('.example-btn, [data-file-tree-open]') &&
@@ -89,12 +102,13 @@ function finishFileTreeRename(input, save) {
     }
     entry.classList.remove('renaming');
     let value = input.value.trim();
-    if (value.toLowerCase().endsWith('.cs')) {
+    if (!input.dataset.fileTreeRenameKeepExtension && value.toLowerCase().endsWith('.cs')) {
         value = value.slice(0, -3).trim();
     }
     const savedValue = input.dataset.savedValue ?? '';
     if (save && value !== savedValue) {
-        emit(`rename-script:${input.dataset.fileTreeRename}:${encodeURIComponent(value)}`);
+        const eventName = input.dataset.fileTreeRenameEvent ?? 'rename-script';
+        emit(`${eventName}:${input.dataset.fileTreeRename}:${encodeURIComponent(value)}`);
     } else {
         input.value = savedValue;
     }
