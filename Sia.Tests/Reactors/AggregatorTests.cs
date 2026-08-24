@@ -46,13 +46,18 @@ public class AggregatorTests
     }
 
     [Fact]
-    public void SettingSidOnTheSoleAggregationMember_ThrowsWhileDestroyingTheEmptiedAggregation()
+    public void SettingSidOnTheSoleAggregationMember_MovesItIntoTheNewAggregation()
     {
         using var world = new World();
-        world.AcquireAddon<Aggregator<ObjectId>>();
+        var aggregator = world.AcquireAddon<Aggregator<ObjectId>>();
         var entity = world.Create(HList.From(Sid.From(new ObjectId(0))));
 
-        Assert.Throws<InvalidOperationException>(() => entity.SetSid(new ObjectId(2)));
+        entity.SetSid(new ObjectId(2));
+
+        Assert.True(aggregator.TryGet(new ObjectId(2), out var aggregationEntity));
+        Assert.Equal(entity, aggregationEntity.Get<Aggregation<ObjectId>>().First);
+        Assert.False(aggregator.TryGet(new ObjectId(0), out _));
+        Assert.Equal(1, world.Query(Matchers.Of<Aggregation<ObjectId>>()).Count);
     }
 
     [Fact]
