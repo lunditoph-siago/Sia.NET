@@ -10,8 +10,12 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
         where UEvent : TEvent;
 
     private int _sendDepth;
+    private List<Action>? _afterSendActions;
+    private bool _flushingAfterSendActions;
 
     public bool IsSending => _sendDepth != 0;
+
+    public int PendingAfterSendActionCount => _afterSendActions?.Count ?? 0;
 
     private readonly List<IEventListener<TTarget>> _globalListeners = [];
     private ArrayBuffer<object> _eventListeners = new();
@@ -159,6 +163,32 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
         _targetListenersPool.Clear();
     }
 
+    public void RunAfterSend(Action action)
+    {
+        if (_sendDepth == 0 && !_flushingAfterSendActions) {
+            action();
+            return;
+        }
+        (_afterSendActions ??= []).Add(action);
+    }
+
+    private void FlushAfterSendActions()
+    {
+        if (_flushingAfterSendActions || _afterSendActions is not { Count: > 0 } actions) {
+            return;
+        }
+        _flushingAfterSendActions = true;
+        try {
+            for (var i = 0; i < actions.Count; i++) {
+                actions[i]();
+            }
+            actions.Clear();
+        }
+        finally {
+            _flushingAfterSendActions = false;
+        }
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void GuardNotSending()
     {
@@ -207,6 +237,9 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
         }
         finally {
             _sendDepth--;
+            if (_sendDepth == 0) {
+                FlushAfterSendActions();
+            }
         }
     }
 
