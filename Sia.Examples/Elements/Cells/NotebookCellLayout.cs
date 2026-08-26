@@ -241,11 +241,13 @@ public static partial class NotebookCellLayout
             return CellToEmptyRegion(state, tabId, targetId);
         }
 
-        if (source?.Id == target.Id && position == CellDropPosition.Center) {
-            return Reorder(state, target, tabId, targetIndex);
-        }
-        if (source?.Id == target.Id && source.TabIds.Length == 1) {
-            return state;
+        if (source is { Id: var sourceId } && sourceId == target.Id) {
+            if (position == CellDropPosition.Center) {
+                return Reorder(state, target, tabId, targetIndex);
+            }
+            if (source.TabIds.Length == 1) {
+                return state;
+            }
         }
 
         var sourceIndex = source?.TabIds.IndexOf(tabId) ?? -1;
