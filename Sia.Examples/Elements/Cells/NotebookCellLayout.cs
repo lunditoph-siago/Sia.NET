@@ -39,7 +39,7 @@ public static partial class NotebookCellLayout
         var ratio = surfaceSplit.Second is CellTabGroup second && second.Id == surface.Id
             ? scriptShare
             : 1 - scriptShare;
-        if (surfaceSplit.Ratio == ratio) {
+        if (Math.Abs(surfaceSplit.Ratio - ratio) < 1e-9) {
             return state;
         }
         return TransformRoots(
