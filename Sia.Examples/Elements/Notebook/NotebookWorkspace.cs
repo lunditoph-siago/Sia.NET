@@ -14,8 +14,8 @@ public sealed class NotebookWorkspace : IAsyncDisposable
     private readonly NotebookLibrary _library;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly HashSet<Task> _operations = [];
-    private BrowserNotebookView _view;
-    private ReactiveMount<NotebookViewProps> _mount;
+    private readonly BrowserNotebookView _view;
+    private readonly ReactiveMount<NotebookViewProps> _mount;
     private NotebookSessionSnapshot _previousSnapshot;
     private NotebookDocument _previousDocument;
     private bool _disposed;
