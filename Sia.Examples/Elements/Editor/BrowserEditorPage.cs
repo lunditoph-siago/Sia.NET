@@ -395,10 +395,8 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             if (choice == CloseDecision.Cancel) {
                 return;
             }
-            if (choice == CloseDecision.Save) {
-                if (!await SaveEntityAsync(entity)) {
-                    return;
-                }
+            if (choice == CloseDecision.Save && !await SaveEntityAsync(entity)) {
+                return;
             }
         }
         FinishCloseTab(entity, tabId, window.Id);

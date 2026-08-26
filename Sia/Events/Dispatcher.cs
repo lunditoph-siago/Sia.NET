@@ -18,7 +18,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
     public int PendingAfterSendActionCount => _afterSendActions?.Count ?? 0;
 
     private readonly List<IEventListener<TTarget>> _globalListeners = [];
-    private ArrayBuffer<object> _eventListeners = new();
+    private readonly ArrayBuffer<object> _eventListeners = new();
     private readonly Dictionary<TKey, List<IEventListener<TTarget>>> _targetListeners = [];
 
     private readonly Stack<List<IEventListener<TTarget>>> _targetListenersPool = new();
