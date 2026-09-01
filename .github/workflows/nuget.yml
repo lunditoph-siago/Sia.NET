@@ -28,10 +28,10 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: 10.x
 
       - name: Restore dependencies
-        run: dotnet restore $SOLUTION
+        run: dotnet restore "$SOLUTION"
 
       - name: Get version from tag
         env:
@@ -45,28 +45,28 @@ jobs:
           echo "VERSION=${TAG_NAME#v}" >> "$GITHUB_ENV"
 
       - name: Build project
-        run: >
-          dotnet build "$SOLUTION"
-          --configuration "$BUILD_CONFIG"
-          -p:Version="$VERSION"
-          --no-restore
+        run: |
+          dotnet build "$SOLUTION" \
+            --configuration "$BUILD_CONFIG" \
+            -p:Version="$VERSION" \
+            --no-restore
 
       - name: Run tests
-        run: >
-          dotnet test "$SOLUTION"
-          --configuration "$BUILD_CONFIG"
-          --no-restore
-          --no-build
-          --verbosity normal
+        run: |
+          dotnet test "$SOLUTION" \
+            --configuration "$BUILD_CONFIG" \
+            --no-restore \
+            --no-build \
+            --verbosity normal
 
       - name: Pack project
-        run: >
-          dotnet pack "$SOLUTION"
-          --configuration "$BUILD_CONFIG"
-          -p:Version="$VERSION"
-          --no-restore
-          --no-build
-          --output "$PACKAGE_OUTPUT_DIRECTORY"
+        run: |
+          dotnet pack "$SOLUTION" \
+            --configuration "$BUILD_CONFIG" \
+            -p:Version="$VERSION" \
+            --no-restore \
+            --no-build \
+            --output "$PACKAGE_OUTPUT_DIRECTORY"
 
       - name: Upload packages
         uses: actions/upload-artifact@v7
@@ -100,7 +100,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: 10.x
 
       - name: Attest packages
         uses: actions/attest@v4
@@ -118,7 +118,7 @@ jobs:
           NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          dotnet nuget push ${PACKAGE_OUTPUT_DIRECTORY}/*.nupkg \
+          dotnet nuget push "$PACKAGE_OUTPUT_DIRECTORY"/*.nupkg \
             --api-key "$NUGET_API_KEY" \
             --source 'https://api.nuget.org/v3/index.json' \
             --skip-duplicate
@@ -128,7 +128,7 @@ jobs:
             --username "${{ github.repository_owner }}" \
             --password "$GITHUB_TOKEN" \
             --store-password-in-clear-text
-          dotnet nuget push ${PACKAGE_OUTPUT_DIRECTORY}/*.nupkg \
+          dotnet nuget push "$PACKAGE_OUTPUT_DIRECTORY"/*.nupkg \
             --api-key "$GITHUB_TOKEN" \
             --source github \
             --skip-duplicate
