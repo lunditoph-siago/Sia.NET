@@ -8,9 +8,16 @@ on:
 permissions:
   contents: read
   packages: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: publish-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build:
+    environment: nuget.org
     env:
       BUILD_CONFIG: 'Release'
       SOLUTION: 'Sia.slnx'
@@ -43,9 +50,20 @@ jobs:
       - name: Pack project
         run: dotnet pack $SOLUTION --configuration $BUILD_CONFIG -p:PackageVersion=$VERSION --no-restore --no-build --output $PACKAGE_OUTPUT_DIRECTORY
 
+      - name: Attest packages
+        uses: actions/attest@v4
+        with:
+          subject-path: '${{ github.workspace }}/output/*.nupkg'
+
+      - name: NuGet login
+        uses: NuGet/login@v1
+        id: nuget-login
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
       - name: Publish packages
         env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           dotnet nuget push ${PACKAGE_OUTPUT_DIRECTORY}/*.nupkg \
