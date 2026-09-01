@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  packages: write
 
 jobs:
   build:
@@ -43,5 +44,21 @@ jobs:
         run: dotnet pack $SOLUTION --configuration $BUILD_CONFIG -p:PackageVersion=$VERSION --no-restore --no-build --output $PACKAGE_OUTPUT_DIRECTORY
 
       - name: Publish packages
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          dotnet nuget push ${PACKAGE_OUTPUT_DIRECTORY}/*.nupkg -k ${{secrets.NUGET_API_KEY}} -s 'https://api.nuget.org/v3/index.json' --skip-duplicate
+          dotnet nuget push ${PACKAGE_OUTPUT_DIRECTORY}/*.nupkg \
+            --api-key "$NUGET_API_KEY" \
+            --source 'https://api.nuget.org/v3/index.json' \
+            --skip-duplicate
+          dotnet nuget add source \
+            "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
+            --name github \
+            --username "${{ github.repository_owner }}" \
+            --password "$GITHUB_TOKEN" \
+            --store-password-in-clear-text
+          dotnet nuget push ${PACKAGE_OUTPUT_DIRECTORY}/*.nupkg \
+            --api-key "$GITHUB_TOKEN" \
+            --source github \
+            --skip-duplicate
