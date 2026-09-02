@@ -84,7 +84,9 @@ public partial class World
 
         var host = (THost)rawHost;
         foreach (var entity in host.UnsafeGetEntitySpan().ToArray()) {
-            host.Release(entity);
+            if (entity.IsValid) {
+                host.Release(entity);
+            }
         }
 
         _hosts.Remove(hostIndex, out var removedHost);
