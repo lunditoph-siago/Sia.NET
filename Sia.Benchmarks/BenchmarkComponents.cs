@@ -1,10 +1,10 @@
 namespace Sia.Benchmarks;
 
-internal readonly struct Position(float x, float y, float z)
+internal struct Position(float x, float y, float z)
 {
-    public readonly float X = x;
-    public readonly float Y = y;
-    public readonly float Z = z;
+    public float X = x;
+    public float Y = y;
+    public float Z = z;
 }
 
 internal readonly record struct Velocity(float X, float Y, float Z);

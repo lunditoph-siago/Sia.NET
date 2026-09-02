@@ -1,13 +1,12 @@
 namespace Sia.Reactors;
 
-using System.Linq;
-
 public sealed class QuerySubscription : IDisposable
 {
     public IReactiveEntityQuery Query { get; }
 
     private readonly EntityHandler _onAdded;
     private readonly EntityHandler _onRemoved;
+    private readonly HashSet<IReactiveEntityHost> _memberHosts = [];
     private bool _disposed;
 
     public QuerySubscription(
@@ -25,6 +24,8 @@ public sealed class QuerySubscription : IDisposable
 
     private void OnHostAdded(IReactiveEntityHost host)
     {
+        _memberHosts.Add(host);
+
         host.OnEntityCreated += _onAdded;
         host.OnEntityReleased += _onRemoved;
         host.OnEntityMovedOut += HandleMovedOut;
@@ -37,14 +38,14 @@ public sealed class QuerySubscription : IDisposable
 
     private void HandleMovedOut(Entity entity, IReactiveEntityHost destination)
     {
-        if (!Query.Hosts.Contains(destination)) {
+        if (!_memberHosts.Contains(destination)) {
             _onRemoved(entity);
         }
     }
 
     private void HandleMovedIn(Entity entity, IReactiveEntityHost source)
     {
-        if (!Query.Hosts.Contains(source)) {
+        if (!_memberHosts.Contains(source)) {
             _onAdded(entity);
         }
     }
@@ -57,11 +58,12 @@ public sealed class QuerySubscription : IDisposable
         _disposed = true;
 
         Query.OnEntityHostAdded -= OnHostAdded;
-        foreach (var host in Query.Hosts) {
+        foreach (var host in _memberHosts) {
             host.OnEntityCreated -= _onAdded;
             host.OnEntityReleased -= _onRemoved;
             host.OnEntityMovedOut -= HandleMovedOut;
             host.OnEntityMovedIn -= HandleMovedIn;
         }
+        _memberHosts.Clear();
     }
 }
