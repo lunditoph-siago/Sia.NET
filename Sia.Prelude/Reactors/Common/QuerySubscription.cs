@@ -46,6 +46,12 @@ public sealed class QuerySubscription : IDisposable
             return;
         }
 
+        foreach (var entity in host.UnsafeGetEntitySpan().ToArray()) {
+            if (entity.IsValid) {
+                _onRemoved(entity);
+            }
+        }
+
         host.OnEntityCreated -= _onAdded;
         host.OnEntityReleased -= _onRemoved;
         host.OnEntityMovedOut -= HandleMovedOut;
