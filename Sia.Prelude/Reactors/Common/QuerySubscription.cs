@@ -6,7 +6,7 @@ public sealed class QuerySubscription : IDisposable
 
     private readonly EntityHandler _onAdded;
     private readonly EntityHandler _onRemoved;
-    private readonly HashSet<IReactiveEntityHost> _memberHosts = [];
+    private readonly List<IReactiveEntityHost> _memberHosts = [];
     private bool _disposed;
 
     public QuerySubscription(
@@ -17,6 +17,7 @@ public sealed class QuerySubscription : IDisposable
         _onRemoved = onRemoved;
 
         Query.OnEntityHostAdded += OnHostAdded;
+        Query.OnEntityHostRemoved += OnHostRemoved;
         foreach (var host in Query.Hosts) {
             OnHostAdded(host);
         }
@@ -24,6 +25,9 @@ public sealed class QuerySubscription : IDisposable
 
     private void OnHostAdded(IReactiveEntityHost host)
     {
+        if (_memberHosts.Contains(host)) {
+            return;
+        }
         _memberHosts.Add(host);
 
         host.OnEntityCreated += _onAdded;
@@ -34,6 +38,18 @@ public sealed class QuerySubscription : IDisposable
         foreach (var entity in host) {
             _onAdded(entity);
         }
+    }
+
+    private void OnHostRemoved(IReactiveEntityHost host)
+    {
+        if (!_memberHosts.Remove(host)) {
+            return;
+        }
+
+        host.OnEntityCreated -= _onAdded;
+        host.OnEntityReleased -= _onRemoved;
+        host.OnEntityMovedOut -= HandleMovedOut;
+        host.OnEntityMovedIn -= HandleMovedIn;
     }
 
     private void HandleMovedOut(Entity entity, IReactiveEntityHost destination)
@@ -58,6 +74,7 @@ public sealed class QuerySubscription : IDisposable
         _disposed = true;
 
         Query.OnEntityHostAdded -= OnHostAdded;
+        Query.OnEntityHostRemoved -= OnHostRemoved;
         foreach (var host in _memberHosts) {
             host.OnEntityCreated -= _onAdded;
             host.OnEntityReleased -= _onRemoved;
