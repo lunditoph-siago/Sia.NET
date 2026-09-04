@@ -20,6 +20,55 @@ public class ReactorHooksInteropTests(QueryTestHelpers helpers) : IClassFixture<
     }
 
     [Fact]
+    public void QuerySubscription_FailedInitialReplayDetachesEveryHandler()
+    {
+        using var world = new World();
+        var existing = world.Create(HList.From(new Marker()));
+        var addedCalls = 0;
+        var removedCalls = 0;
+
+        var error = Assert.Throws<InvalidOperationException>(() => {
+            _ = new QuerySubscription(
+                world.Query<TypeUnion<Marker>>(),
+                _ => {
+                    addedCalls++;
+                    throw new InvalidOperationException("replay failed");
+                },
+                _ => removedCalls++);
+        });
+
+        Assert.Equal("replay failed", error.Message);
+        Assert.Equal(1, addedCalls);
+
+        existing.Destroy();
+        world.Create(HList.From(new Marker()));
+        world.Create(HList.From(new Marker(), new Extra()));
+        Assert.Equal(1, addedCalls);
+        Assert.Equal(0, removedCalls);
+    }
+
+    [Fact]
+    public void QuerySubscription_HostRemovalDetachesBeforeCallbacks()
+    {
+        using var world = new World();
+        world.Create(HList.From(new Marker()));
+        var removedCalls = 0;
+        using var subscription = new QuerySubscription(
+            world.Query<TypeUnion<Marker>>(),
+            _ => { },
+            entity => {
+                removedCalls++;
+                if (removedCalls == 1) {
+                    entity.Destroy();
+                }
+            });
+
+        world.ClearHosts();
+
+        Assert.Equal(1, removedCalls);
+    }
+
+    [Fact]
     public void UseQuery_ReplaysPreExistingEntities_AcrossMultipleArchetypes()
     {
         using var world = new World();

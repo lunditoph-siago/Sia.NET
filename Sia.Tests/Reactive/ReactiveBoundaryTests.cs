@@ -110,6 +110,20 @@ public class ReactiveBoundaryTests(QueryTestHelpers helpers) : IClassFixture<Que
     }
 
     [Fact]
+    public void FailedEffectMountStillAttemptsItsInverse()
+    {
+        using var world = new World();
+        var reconciler = world.AcquireAddon<Reconciler>();
+        var calls = new List<string>();
+
+        var error = Assert.Throws<InvalidOperationException>(
+            () => reconciler.Mount(new FailingMountEffectSpec(calls)));
+
+        Assert.Equal("effect mount failed", error.Message);
+        Assert.Equal(["mount", "unmount"], calls);
+    }
+
+    [Fact]
     public void RapidSuccessiveEitherFlips_WithinASingleFlush_CollapseToOneNetTransition()
     {
         using var world = new World();
@@ -586,6 +600,34 @@ public readonly record struct FailingTeardownEffect(List<string> Calls) : IEffec
         self.Calls.Add("unmount failing");
         throw new InvalidOperationException("teardown failed");
     }
+}
+
+public readonly record struct FailingMountEffect(List<string> Calls)
+    : IEffect<FailingMountEffect>
+{
+    public static void Mount(in FailingMountEffect self)
+    {
+        self.Calls.Add("mount");
+        throw new InvalidOperationException("effect mount failed");
+    }
+
+    public static void Reconcile(
+        in FailingMountEffect previous,
+        in FailingMountEffect next)
+    { }
+
+    public static void Unmount(in FailingMountEffect self)
+        => self.Calls.Add("unmount");
+}
+
+public readonly record struct FailingMountEffectSpec(List<string> Calls)
+    : ISpec<FailingMountEffectSpec, Unit, EffectTerm<FailingMountEffect>>
+{
+    public static EffectTerm<FailingMountEffect> Expand(
+        in FailingMountEffectSpec props,
+        in Unit state,
+        in ExpandContext context)
+        => Term.Effect(new FailingMountEffect(props.Calls));
 }
 
 public readonly record struct FailingTeardownSpec(List<string> Calls, FailingTeardownProbe Probe)

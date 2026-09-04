@@ -16,10 +16,17 @@ public sealed class QuerySubscription : IDisposable
         _onAdded = onAdded;
         _onRemoved = onRemoved;
 
-        Query.OnEntityHostAdded += OnHostAdded;
-        Query.OnEntityHostRemoved += OnHostRemoved;
-        foreach (var host in Query.Hosts) {
-            OnHostAdded(host);
+        try {
+            Query.OnEntityHostAdded += OnHostAdded;
+            Query.OnEntityHostRemoved += OnHostRemoved;
+            foreach (var host in Query.Hosts) {
+                OnHostAdded(host);
+            }
+        }
+        catch (Exception error) {
+            Outcome<Exception>.Failure(error)
+                .Attempt(Dispose)
+                .ThrowFailure();
         }
     }
 
@@ -30,32 +37,37 @@ public sealed class QuerySubscription : IDisposable
         }
         _memberHosts.Add(host);
 
-        host.OnEntityCreated += _onAdded;
-        host.OnEntityReleased += _onRemoved;
-        host.OnEntityMovedOut += HandleMovedOut;
-        host.OnEntityMovedIn += HandleMovedIn;
+        try {
+            host.OnEntityCreated += _onAdded;
+            host.OnEntityReleased += _onRemoved;
+            host.OnEntityMovedOut += HandleMovedOut;
+            host.OnEntityMovedIn += HandleMovedIn;
 
-        foreach (var entity in host) {
-            _onAdded(entity);
+            foreach (var entity in host) {
+                _onAdded(entity);
+            }
+        }
+        catch (Exception error) {
+            _memberHosts.Remove(host);
+            DetachHost(host, Outcome<Exception>.Failure(error)).ThrowFailure();
         }
     }
 
     private void OnHostRemoved(IReactiveEntityHost host)
     {
-        if (!_memberHosts.Remove(host)) {
+        if (!_memberHosts.Contains(host)) {
             return;
         }
 
-        foreach (var entity in host.UnsafeGetEntitySpan().ToArray()) {
+        var entities = host.UnsafeGetEntitySpan().ToArray();
+        _memberHosts.Remove(host);
+        var result = DetachHost(host, Outcome<Exception>.Success);
+        foreach (var entity in entities) {
             if (entity.IsValid) {
-                _onRemoved(entity);
+                result = result.Attempt(() => _onRemoved(entity));
             }
         }
-
-        host.OnEntityCreated -= _onAdded;
-        host.OnEntityReleased -= _onRemoved;
-        host.OnEntityMovedOut -= HandleMovedOut;
-        host.OnEntityMovedIn -= HandleMovedIn;
+        result.ThrowIfFailed();
     }
 
     private void HandleMovedOut(Entity entity, IReactiveEntityHost destination)
@@ -79,14 +91,22 @@ public sealed class QuerySubscription : IDisposable
         }
         _disposed = true;
 
-        Query.OnEntityHostAdded -= OnHostAdded;
-        Query.OnEntityHostRemoved -= OnHostRemoved;
+        var result = Outcome<Exception>.Success
+            .Attempt(() => Query.OnEntityHostAdded -= OnHostAdded)
+            .Attempt(() => Query.OnEntityHostRemoved -= OnHostRemoved);
         foreach (var host in _memberHosts) {
-            host.OnEntityCreated -= _onAdded;
-            host.OnEntityReleased -= _onRemoved;
-            host.OnEntityMovedOut -= HandleMovedOut;
-            host.OnEntityMovedIn -= HandleMovedIn;
+            result = DetachHost(host, result);
         }
         _memberHosts.Clear();
+        result.ThrowIfFailed();
     }
+
+    private Outcome<Exception> DetachHost(
+        IReactiveEntityHost host,
+        Outcome<Exception> result)
+        => result
+            .Attempt(() => host.OnEntityCreated -= _onAdded)
+            .Attempt(() => host.OnEntityReleased -= _onRemoved)
+            .Attempt(() => host.OnEntityMovedOut -= HandleMovedOut)
+            .Attempt(() => host.OnEntityMovedIn -= HandleMovedIn);
 }

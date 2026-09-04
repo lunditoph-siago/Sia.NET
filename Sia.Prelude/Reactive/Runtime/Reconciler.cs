@@ -343,7 +343,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             : throw new InvalidOperationException("Reactive cell factory produced no entity.");
     }
 
-    public void EnqueueDirty(Entity cell)
+    internal void EnqueueDirty(Entity cell)
     {
         if (!cell.IsValid || !cell.ContainsUnchecked<Cell>()) {
             return;
@@ -401,7 +401,13 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
                             var registry = _rebuildQueue[^1];
                             _rebuildQueue.RemoveAt(_rebuildQueue.Count - 1);
                             registry.RebuildQueued = false;
-                            RebuildStage(registry);
+                            try {
+                                RebuildStage(registry);
+                            }
+                            catch {
+                                QueueRebuild(registry);
+                                throw;
+                            }
                             continue;
                         }
                         break;
@@ -517,24 +523,12 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             throw new InvalidOperationException(
                 "Term.System must be declared inside a Term.Schedule subtree.");
         }
-        var instance = new TSystem();
         var entry = new SystemChain.Entry(
             SystemId.For<TSystem>(),
-            () => instance,
+            static () => new TSystem(),
             SystemDescriptorProvider.GetOrDefault(typeof(TSystem)));
-        var runtime = SystemChain.Empty
-            .Add(entry.Id, entry.Creator, entry.Descriptor)
-            .CreateStage(World);
-        Entity slotEntity;
-        try {
-            slotEntity = CreateNode(new SystemNode(registry));
-        }
-        catch (Exception error) {
-            return Outcome<Exception>.Failure(error)
-                .Attempt(runtime.Dispose)
-                .ThrowFailure<Entity>();
-        }
-        registry.Slots.Add(new(slotEntity, ownerCell, slotIndex, entry, runtime));
+        var slotEntity = CreateNode(new SystemNode(registry));
+        registry.Slots.Add(new(slotEntity, ownerCell, slotIndex, entry));
         QueueRebuild(registry);
         return slotEntity;
     }
@@ -756,9 +750,34 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         var planEntries = ImmutableArray.CreateBuilder<SystemChain.Entry>(
             order.Length);
         var runtimes = ImmutableArray.CreateBuilder<SystemStage>(order.Length);
-        foreach (var index in order) {
-            planEntries.Add(entries[index]);
-            runtimes.Add(registry.Slots[index].Runtime);
+        List<(int Index, SystemStage Runtime)>? created = null;
+        try {
+            foreach (var index in order) {
+                var slot = registry.Slots[index];
+                var runtime = slot.Runtime;
+                if (runtime == null) {
+                    runtime = SystemChain.Empty
+                        .Add(slot.Entry.Id, slot.Entry.Creator, slot.Entry.Descriptor)
+                        .CreateStage(World);
+                    registry.Slots[index] = slot with { Runtime = runtime };
+                    (created ??= []).Add((index, runtime));
+                }
+                planEntries.Add(entries[index]);
+                runtimes.Add(runtime);
+            }
+        }
+        catch (Exception error) {
+            var result = Outcome<Exception>.Failure(error);
+            if (created != null) {
+                for (var i = created.Count - 1; i >= 0; i--) {
+                    var item = created[i];
+                    registry.Slots[item.Index] = registry.Slots[item.Index] with {
+                        Runtime = null,
+                    };
+                    result = result.Attempt(item.Runtime.Dispose);
+                }
+            }
+            result.ThrowFailure();
         }
         registry.CurrentPlan = new ExecutionPlan(planEntries.MoveToImmutable());
         registry.RuntimeOrder = runtimes.MoveToImmutable();
@@ -780,7 +799,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         }
         for (var i = registry.Slots.Count - 1; i >= 0; i--) {
             var runtime = registry.Slots[i].Runtime;
-            if (disposed.Add(runtime)) {
+            if (runtime != null && disposed.Add(runtime)) {
                 result = result.Attempt(runtime.Dispose);
             }
         }
