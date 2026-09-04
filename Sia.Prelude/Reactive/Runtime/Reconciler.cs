@@ -171,7 +171,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         _expandingCell = cell;
         ref var data = ref cell.GetUnchecked<Cell>();
         data.States?.BeginExpansion();
-        (data.PendingContextDependencies ??= []).Clear();
+        data.PendingContextDependencies?.Clear();
     }
 
     internal void CompleteExpansion(Entity cell)
@@ -179,23 +179,27 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         try {
             ref var data = ref cell.GetUnchecked<Cell>();
             data.States?.CompleteExpansion();
-            var previous = data.ContextDependencies ??= [];
-            var current = data.PendingContextDependencies ??= [];
+            var previous = data.ContextDependencies;
+            var current = data.PendingContextDependencies;
             var identity = data.Identity.Value;
-            foreach (var scope in previous) {
-                if (!current.Contains(scope)) {
-                    scope.Consumers.Remove(identity);
+            if (previous != null) {
+                foreach (var scope in previous) {
+                    if (current == null || !current.Contains(scope)) {
+                        scope.RemoveConsumer(identity);
+                    }
                 }
             }
-            foreach (var scope in current) {
-                if (!previous.Contains(scope)) {
-                    var slot = new CellSlot(cell);
-                    scope.Consumers[identity] = slot;
+            if (current != null) {
+                foreach (var scope in current) {
+                    if (previous == null || !previous.Contains(scope)) {
+                        scope.AddConsumer(identity, cell);
+                    }
                 }
             }
             (data.ContextDependencies, data.PendingContextDependencies) =
                 (current, previous);
-        } finally {
+        }
+        finally {
             _expandingCell = default;
         }
     }
@@ -606,7 +610,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         _roots.Remove(identity.Value);
         if (data.ContextDependencies is { } dependencies) {
             foreach (var scope in dependencies) {
-                scope.Consumers.Remove(identity.Value);
+                scope.RemoveConsumer(identity.Value);
             }
             dependencies.Clear();
         }

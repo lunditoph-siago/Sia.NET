@@ -1,13 +1,5 @@
 namespace Sia.Reactive;
 
-public sealed class ContextScope(Type contextType, Entity providerSlot, ContextScope? parent)
-{
-    public readonly Type ContextType = contextType;
-    public readonly Entity ProviderSlot = providerSlot;
-    public readonly ContextScope? Parent = parent;
-    internal readonly Dictionary<long, CellSlot> Consumers = [];
-}
-
 public struct ContextNode<TCtx>(TCtx value)
 {
     public TCtx Value = value;
@@ -65,14 +57,7 @@ public readonly record struct ScopeTerm<TCtx, TChildren>(TCtx Value, TChildren C
             scope = node.Scope;
             if (!EqualityComparer<TCtx>.Default.Equals(node.Value, next.Value)) {
                 node.Value = next.Value;
-                foreach (var (identity, consumer) in scope.Consumers.ToArray()) {
-                    if (ctx.Reconciler.Validate(consumer) is { IsValid: true } cell) {
-                        ctx.Reconciler.EnqueueDirty(cell);
-                    }
-                    else {
-                        scope.Consumers.Remove(identity);
-                    }
-                }
+                scope.InvalidateConsumers(ctx.Reconciler);
             }
         }
 
