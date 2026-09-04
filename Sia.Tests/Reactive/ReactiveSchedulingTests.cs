@@ -13,6 +13,24 @@ public class ReactiveSchedulingTests(QueryTestHelpers helpers) : IClassFixture<Q
             => query.ForSlice(static (ref TickCounter counter) => counter.Value++);
     }
 
+    [SiaSystem]
+    [SiaBefore<CyclicSecondSystem>]
+    public sealed class CyclicFirstSystem : SystemBase
+    {
+        public static int InitializeCount;
+
+        public override void Initialize(World world) => InitializeCount++;
+    }
+
+    [SiaSystem]
+    [SiaBefore<CyclicFirstSystem>]
+    public sealed class CyclicSecondSystem : SystemBase
+    {
+        public static int InitializeCount;
+
+        public override void Initialize(World world) => InitializeCount++;
+    }
+
     private readonly record struct ScheduledSpec
         : ISpec<ScheduledSpec, int, ScheduleTerm<TestSchedule, SystemTerm<IncrementSystem>>>
     {
@@ -59,5 +77,35 @@ public class ReactiveSchedulingTests(QueryTestHelpers helpers) : IClassFixture<Q
 
         var output = helpers.FindSingle<ReactiveValue>(world);
         Assert.Equal(7, output.Get<ReactiveValue>().Value);
+    }
+
+    [Fact]
+    public void FailedScheduleRebuildRemainsPendingUntilTheTreeIsCorrected()
+    {
+        using var world = new World();
+        world.AcquireAddon<Reconciler>();
+        CyclicFirstSystem.InitializeCount = 0;
+        CyclicSecondSystem.InitializeCount = 0;
+        var mount = world.Mount(
+            (in bool includeCycle, ref Hooks _) => Reactive.Schedule(
+                default(TestSchedule),
+                Reactive.Group(
+                    Reactive.System<CyclicFirstSystem>(),
+                    Reactive.When(
+                        includeCycle,
+                        Reactive.System<CyclicSecondSystem>()))),
+            false);
+
+        Assert.Equal(1, CyclicFirstSystem.InitializeCount);
+        Assert.Equal(0, CyclicSecondSystem.InitializeCount);
+
+        mount.Update(true);
+        Assert.Throws<SystemCycleException>(world.FlushReactive);
+        Assert.Throws<SystemCycleException>(world.FlushReactive);
+        Assert.Equal(0, CyclicSecondSystem.InitializeCount);
+
+        mount.Update(false);
+        world.FlushReactive();
+        mount.Unmount();
     }
 }

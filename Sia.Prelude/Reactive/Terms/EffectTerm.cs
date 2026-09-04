@@ -23,8 +23,8 @@ public sealed class EffectState<TEffect>(TEffect effect) : IEffectCleanup
 
     public void Mount()
     {
-        TEffect.Mount(_current);
         _mounted = true;
+        TEffect.Mount(_current);
     }
 
     public void Reconcile(in TEffect next)

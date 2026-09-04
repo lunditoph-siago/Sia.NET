@@ -9,7 +9,7 @@ public sealed class ScheduleRegistry(ScheduleLabel label) : ISystemScheduleEntry
         Entity ownerCell,
         int slotIndex,
         SystemChain.Entry entry,
-        SystemStage runtime)
+        SystemStage? runtime = null)
     {
         private readonly EntityReference _slotEntity = new(slotEntity);
         private readonly EntityReference _ownerCell = new(ownerCell);
@@ -18,7 +18,7 @@ public sealed class ScheduleRegistry(ScheduleLabel label) : ISystemScheduleEntry
         internal Entity OwnerCell => _ownerCell.GetOrDefault();
         internal int SlotIndex { get; } = slotIndex;
         internal SystemChain.Entry Entry { get; } = entry;
-        internal SystemStage Runtime { get; } = runtime;
+        internal SystemStage? Runtime { get; init; } = runtime;
     }
 
     public ScheduleLabel Label { get; } = label;
