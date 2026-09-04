@@ -17,6 +17,37 @@ public ref struct Hooks
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public readonly TCtx Use<TCtx>()
+        where TCtx : struct
+    {
+        for (var scope = _cell.GetUnchecked<Cell>().Scope; scope != null; scope = scope.Parent) {
+            if (scope.ContextType != typeof(TCtx)) {
+                continue;
+            }
+            ref var node = ref scope.ProviderSlot.GetUnchecked<ContextNode<TCtx>>();
+            _reconciler.RecordContextDependency(_cell, scope);
+            return node.Value;
+        }
+        throw new InvalidOperationException(
+            $"No provider found for context type {typeof(TCtx)}.");
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public readonly TCtx UseOrDefault<TCtx>(in TCtx fallback = default)
+        where TCtx : struct
+    {
+        for (var scope = _cell.GetUnchecked<Cell>().Scope; scope != null; scope = scope.Parent) {
+            if (scope.ContextType != typeof(TCtx)) {
+                continue;
+            }
+            ref var node = ref scope.ProviderSlot.GetUnchecked<ContextNode<TCtx>>();
+            _reconciler.RecordContextDependency(_cell, scope);
+            return node.Value;
+        }
+        return fallback;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public State<T> UseState<T>(in T initial)
         where T : struct
     {
