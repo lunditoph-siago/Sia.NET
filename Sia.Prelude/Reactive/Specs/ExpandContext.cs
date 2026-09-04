@@ -21,16 +21,5 @@ public readonly ref struct ExpandContext(Reconciler reconciler, Entity cell)
 
     public TCtx Use<TCtx>()
         where TCtx : struct
-    {
-        for (var scope = Cell.GetUnchecked<Cell>().Scope; scope != null; scope = scope.Parent) {
-            if (scope.ContextType != typeof(TCtx)) {
-                continue;
-            }
-            ref var node = ref scope.ProviderSlot.GetUnchecked<ContextNode<TCtx>>();
-            Reconciler.RecordContextDependency(Cell, scope);
-            return node.Value;
-        }
-        throw new InvalidOperationException(
-            $"No provider found for context type {typeof(TCtx)}.");
-    }
+        => ContextLookup.Get<TCtx>(Reconciler, Cell);
 }
