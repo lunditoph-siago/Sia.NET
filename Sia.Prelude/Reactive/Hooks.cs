@@ -17,6 +17,17 @@ public ref struct Hooks
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public readonly TContext UseContext<TContext>()
+        where TContext : struct
+        => ContextLookup.Get<TContext>(_reconciler, _cell);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public readonly TContext UseContextOrDefault<TContext>(
+        scoped in TContext fallback = default)
+        where TContext : struct
+        => ContextLookup.GetOrDefault(_reconciler, _cell, fallback);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public State<T> UseState<T>(in T initial)
         where T : struct
     {
