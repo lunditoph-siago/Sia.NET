@@ -185,15 +185,14 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             if (previous != null) {
                 foreach (var scope in previous) {
                     if (current == null || !current.Contains(scope)) {
-                        scope.Consumers.Remove(identity);
+                        scope.RemoveConsumer(identity);
                     }
                 }
             }
             if (current != null) {
                 foreach (var scope in current) {
                     if (previous == null || !previous.Contains(scope)) {
-                        var slot = new CellSlot(cell);
-                        scope.Consumers[identity] = slot;
+                        scope.AddConsumer(identity, cell);
                     }
                 }
             }
@@ -611,7 +610,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         _roots.Remove(identity.Value);
         if (data.ContextDependencies is { } dependencies) {
             foreach (var scope in dependencies) {
-                scope.Consumers.Remove(identity.Value);
+                scope.RemoveConsumer(identity.Value);
             }
             dependencies.Clear();
         }
