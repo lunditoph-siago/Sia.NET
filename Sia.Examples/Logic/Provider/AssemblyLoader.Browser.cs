@@ -102,7 +102,8 @@ public sealed partial class AssemblyLoader
             _references.Add(name, reference);
             _images.Add(name, image);
             return reference;
-        } finally {
+        }
+        finally {
             _loads.Remove(name);
         }
     }

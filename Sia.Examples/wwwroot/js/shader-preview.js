@@ -6,15 +6,22 @@ const fullscreenVertex = `
 }`;
 
 export function createShaderPreview(containerId, statusId) {
-    return new ShaderPreview(document.getElementById(containerId), document.getElementById(statusId));
+    return new ShaderPreview(
+        document.getElementById(containerId),
+        document.getElementById(statusId),
+    );
 }
-export function setShaderPreviewRevision(owner, revision) { owner.invalidate(revision); }
+export function setShaderPreviewRevision(owner, revision) {
+    owner.invalidate(revision);
+}
 export function showShaderPreview(owner, wgsl, entry, layoutJson, revision, route) {
     return owner.show(wgsl, entry, JSON.parse(layoutJson), revision, route);
 }
-export function disposeShaderPreview(owner) { owner.dispose(); }
+export function disposeShaderPreview(owner) {
+    owner.dispose();
+}
 export function downloadShaderBinary(name, base64) {
-    const bytes = Uint8Array.from(atob(base64), char => char.charCodeAt(0));
+    const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
     const url = URL.createObjectURL(new Blob([bytes], { type: 'application/octet-stream' }));
     const anchor = document.createElement('a');
     anchor.href = url;
@@ -49,14 +56,14 @@ class ShaderPreview {
         this.parameters = [];
         this.resize = new ResizeObserver(() => this.refresh());
         this.resize.observe(this.canvas);
-        this.visibility = new IntersectionObserver(entries => {
+        this.visibility = new IntersectionObserver((entries) => {
             this.visible = entries[0].isIntersecting;
             this.refresh();
         });
         this.visibility.observe(this.canvas);
         this.onVisibility = () => this.refresh();
         document.addEventListener('visibilitychange', this.onVisibility);
-        this.onError = event => {
+        this.onError = (event) => {
             this.stop();
             this.status.textContent = `GPU error: ${event.error.message}`;
         };
@@ -73,18 +80,27 @@ class ShaderPreview {
         if (this.device) return this.device;
         if (this.acquiring) return this.acquiring;
         this.acquiring = (async () => {
-            if (!navigator.gpu) throw new Error('WebGPU is unavailable. Use a supported browser in a secure context.');
+            if (!navigator.gpu)
+                throw new Error(
+                    'WebGPU is unavailable. Use a supported browser in a secure context.',
+                );
             const adapter = await navigator.gpu.requestAdapter();
             if (!adapter) throw new Error('No WebGPU adapter is available.');
             const device = await adapter.requestDevice();
-            if (this.disposed) { device.destroy(); throw new Error('Preview was closed.'); }
+            if (this.disposed) {
+                device.destroy();
+                throw new Error('Preview was closed.');
+            }
             this.context = this.canvas.getContext('webgpu');
-            if (!this.context) { device.destroy(); throw new Error('WebGPU canvas context is unavailable.'); }
+            if (!this.context) {
+                device.destroy();
+                throw new Error('WebGPU canvas context is unavailable.');
+            }
             this.device = device;
             this.configured = false;
             this.format = navigator.gpu.getPreferredCanvasFormat();
             device.addEventListener('uncapturederror', this.onError);
-            device.lost.then(info => {
+            device.lost.then((info) => {
                 if (this.disposed || this.device !== device) return;
                 this.stop();
                 this.buffer?.destroy();
@@ -97,15 +113,21 @@ class ShaderPreview {
             });
             return device;
         })();
-        try { return await this.acquiring; } finally { this.acquiring = null; }
+        try {
+            return await this.acquiring;
+        } finally {
+            this.acquiring = null;
+        }
     }
 
     async show(wgsl, entry, layout, revision, route) {
         const started = performance.now();
         const device = await this.ensureDevice();
         if (this.disposed || revision !== this.revision) return -1;
-        if (layout.bufferSize > device.limits.maxUniformBufferBindingSize
-            || (layout.binding !== null && layout.binding >= device.limits.maxBindingsPerBindGroup)) {
+        if (
+            layout.bufferSize > device.limits.maxUniformBufferBindingSize ||
+            (layout.binding !== null && layout.binding >= device.limits.maxBindingsPerBindGroup)
+        ) {
             throw new Error('Preview parameters exceed the adapter limits.');
         }
         let buffer = null;
@@ -114,24 +136,55 @@ class ShaderPreview {
         try {
             const fragment = device.createShaderModule({ code: wgsl, label: entry });
             const info = await fragment.getCompilationInfo();
-            const errors = info.messages.filter(message => message.type === 'error');
-            if (errors.length) throw new Error(errors.map(message => `WGSL(${message.lineNum},${message.linePos}): ${message.message}`).join('\n'));
+            const errors = info.messages.filter((message) => message.type === 'error');
+            if (errors.length)
+                throw new Error(
+                    errors
+                        .map(
+                            (message) =>
+                                `WGSL(${message.lineNum},${message.linePos}): ${message.message}`,
+                        )
+                        .join('\n'),
+                );
             if (this.disposed || revision !== this.revision) return -1;
-            const vertex = device.createShaderModule({ code: fullscreenVertex, label: 'Fullscreen host' });
-            const groupLayout = layout.binding === null ? null : device.createBindGroupLayout({ entries: [{
-                binding: layout.binding, visibility: GPUShaderStage.FRAGMENT,
-                buffer: { type: 'uniform', minBindingSize: layout.bufferSize },
-            }] });
+            const vertex = device.createShaderModule({
+                code: fullscreenVertex,
+                label: 'Fullscreen host',
+            });
+            const groupLayout =
+                layout.binding === null
+                    ? null
+                    : device.createBindGroupLayout({
+                          entries: [
+                              {
+                                  binding: layout.binding,
+                                  visibility: GPUShaderStage.FRAGMENT,
+                                  buffer: { type: 'uniform', minBindingSize: layout.bufferSize },
+                              },
+                          ],
+                      });
             const pipeline = await device.createRenderPipelineAsync({
-                layout: device.createPipelineLayout({ bindGroupLayouts: groupLayout ? [groupLayout] : [] }),
+                layout: device.createPipelineLayout({
+                    bindGroupLayouts: groupLayout ? [groupLayout] : [],
+                }),
                 vertex: { module: vertex, entryPoint: 'fullscreen' },
-                fragment: { module: fragment, entryPoint: entry, targets: [{ format: this.format }] },
+                fragment: {
+                    module: fragment,
+                    entryPoint: entry,
+                    targets: [{ format: this.format }],
+                },
                 primitive: { topology: 'triangle-list' },
             });
             let bindGroup = null;
             if (groupLayout) {
-                buffer = device.createBuffer({ size: layout.bufferSize, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-                bindGroup = device.createBindGroup({ layout: groupLayout, entries: [{ binding: layout.binding, resource: { buffer } }] });
+                buffer = device.createBuffer({
+                    size: layout.bufferSize,
+                    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+                });
+                bindGroup = device.createBindGroup({
+                    layout: groupLayout,
+                    entries: [{ binding: layout.binding, resource: { buffer } }],
+                });
             }
             const validation = await device.popErrorScope();
             scoped = false;
@@ -164,30 +217,48 @@ class ShaderPreview {
 
     createParameters(parameters) {
         this.controls.replaceChildren();
-        return parameters.map(parameter => {
+        return parameters.map((parameter) => {
             const label = document.createElement('label');
             label.textContent = `${parameter.name} (${parameter.type}) `;
             const source = document.createElement('select');
             source.setAttribute('aria-label', `${parameter.name} source`);
-            for (const [value, text] of [['constant', 'Value'], ['time', 'Time (s)'], ['width', 'Canvas width'], ['height', 'Canvas height']]) {
+            for (const [value, text] of [
+                ['constant', 'Value'],
+                ['time', 'Time (s)'],
+                ['width', 'Canvas width'],
+                ['height', 'Canvas height'],
+            ]) {
                 const option = document.createElement('option');
-                option.value = value; option.textContent = text; source.append(option);
+                option.value = value;
+                option.textContent = text;
+                source.append(option);
             }
             // These are documented sample defaults; binding and offsets come from the compiler.
-            source.value = ['time', 'width', 'height'].includes(parameter.name) ? parameter.name : 'constant';
+            source.value = ['time', 'width', 'height'].includes(parameter.name)
+                ? parameter.name
+                : 'constant';
             const input = document.createElement('input');
-            input.type = 'number'; input.step = parameter.type === 'f32' ? 'any' : '1'; input.value = '0';
+            input.type = 'number';
+            input.step = parameter.type === 'f32' ? 'any' : '1';
+            input.value = '0';
             input.setAttribute('aria-label', `${parameter.name} value`);
-            const changed = () => { input.disabled = source.value !== 'constant'; this.refresh(); };
+            const changed = () => {
+                input.disabled = source.value !== 'constant';
+                this.refresh();
+            };
             source.addEventListener('change', changed);
             input.addEventListener('input', changed);
             input.disabled = source.value !== 'constant';
-            label.append(source, input); this.controls.append(label);
+            label.append(source, input);
+            this.controls.append(label);
             return { ...parameter, source, input };
         });
     }
 
-    stop() { cancelAnimationFrame(this.frame); this.frame = 0; }
+    stop() {
+        cancelAnimationFrame(this.frame);
+        this.frame = 0;
+    }
 
     togglePause() {
         if (!this.paused) this.time += (performance.now() - this.started) / 1000;
@@ -199,15 +270,21 @@ class ShaderPreview {
 
     refresh() {
         this.stop();
-        if (this.disposed || !this.device || !this.pipeline || !this.visible || document.hidden) return;
+        if (this.disposed || !this.device || !this.pipeline || !this.visible || document.hidden)
+            return;
         const rect = this.canvas.getBoundingClientRect();
         if (rect.width <= 0 || rect.height <= 0) return;
         const maximum = this.device.limits.maxTextureDimension2D;
         const width = Math.max(1, Math.min(maximum, Math.round(rect.width * devicePixelRatio)));
         const height = Math.max(1, Math.min(maximum, Math.round(rect.height * devicePixelRatio)));
         if (width !== this.canvas.width || height !== this.canvas.height || !this.configured) {
-            this.canvas.width = width; this.canvas.height = height;
-            this.context.configure({ device: this.device, format: this.format, alphaMode: 'opaque' });
+            this.canvas.width = width;
+            this.canvas.height = height;
+            this.context.configure({
+                device: this.device,
+                format: this.format,
+                alphaMode: 'opaque',
+            });
             this.configured = true;
         }
         this.draw(performance.now());
@@ -219,37 +296,59 @@ class ShaderPreview {
             if (this.buffer) {
                 const view = new DataView(this.uniformBytes);
                 for (const parameter of this.parameters) {
-                    const value = parameter.source.value === 'width' ? this.canvas.width
-                        : parameter.source.value === 'height' ? this.canvas.height
-                        : parameter.source.value === 'time' ? this.time + (this.paused ? 0 : (now - this.started) / 1000)
-                        : parameter.input.value === '' ? NaN : Number(parameter.input.value);
-                    if (!Number.isFinite(value) || (parameter.type === 'f32' && Math.abs(value) > 3.402823466e38)
-                        || (parameter.type === 'u32' && (value < 0 || value > 4294967295))
-                        || (parameter.type === 'i32' && (value < -2147483648 || value > 2147483647))) {
+                    const value =
+                        parameter.source.value === 'width'
+                            ? this.canvas.width
+                            : parameter.source.value === 'height'
+                              ? this.canvas.height
+                              : parameter.source.value === 'time'
+                                ? this.time + (this.paused ? 0 : (now - this.started) / 1000)
+                                : parameter.input.value === ''
+                                  ? NaN
+                                  : Number(parameter.input.value);
+                    if (
+                        !Number.isFinite(value) ||
+                        (parameter.type === 'f32' && Math.abs(value) > 3.402823466e38) ||
+                        (parameter.type === 'u32' && (value < 0 || value > 4294967295)) ||
+                        (parameter.type === 'i32' && (value < -2147483648 || value > 2147483647))
+                    ) {
                         throw new Error(`Invalid ${parameter.type} value for ${parameter.name}`);
                     }
                     if (parameter.type === 'f32') view.setFloat32(parameter.offset, value, true);
-                    else if (parameter.type === 'i32') view.setInt32(parameter.offset, Math.trunc(value), true);
+                    else if (parameter.type === 'i32')
+                        view.setInt32(parameter.offset, Math.trunc(value), true);
                     else view.setUint32(parameter.offset, Math.trunc(value), true);
                 }
                 this.device.queue.writeBuffer(this.buffer, 0, this.uniformBytes);
             }
             const encoder = this.device.createCommandEncoder();
-            const pass = encoder.beginRenderPass({ colorAttachments: [{
-                view: this.context.getCurrentTexture().createView(), clearValue: { r: 0, g: 0, b: 0, a: 1 },
-                loadOp: 'clear', storeOp: 'store',
-            }] });
+            const pass = encoder.beginRenderPass({
+                colorAttachments: [
+                    {
+                        view: this.context.getCurrentTexture().createView(),
+                        clearValue: { r: 0, g: 0, b: 0, a: 1 },
+                        loadOp: 'clear',
+                        storeOp: 'store',
+                    },
+                ],
+            });
             pass.setPipeline(this.pipeline);
             if (this.bindGroup) pass.setBindGroup(0, this.bindGroup);
-            pass.draw(3); pass.end();
+            pass.draw(3);
+            pass.end();
             this.device.queue.submit([encoder.finish()]);
             if (this.drawError) {
                 this.drawError = false;
-                this.status.textContent = this.activeRevision === this.revision ? this.pipelineStatus
-                    : 'Previous preview · compile the current source to update';
+                this.status.textContent =
+                    this.activeRevision === this.revision
+                        ? this.pipelineStatus
+                        : 'Previous preview · compile the current source to update';
             }
-            if (!this.paused && this.parameters.some(parameter => parameter.source.value === 'time')) {
-                this.frame = requestAnimationFrame(time => this.draw(time));
+            if (
+                !this.paused &&
+                this.parameters.some((parameter) => parameter.source.value === 'time')
+            ) {
+                this.frame = requestAnimationFrame((time) => this.draw(time));
             }
         } catch (error) {
             this.stop();
@@ -263,12 +362,14 @@ class ShaderPreview {
         this.disposed = true;
         this.revision++;
         this.stop();
-        this.resize.disconnect(); this.visibility.disconnect();
+        this.resize.disconnect();
+        this.visibility.disconnect();
         document.removeEventListener('visibilitychange', this.onVisibility);
         this.buffer?.destroy();
         if (this.device) {
             this.device.removeEventListener('uncapturederror', this.onError);
-            this.context.unconfigure(); this.device.destroy();
+            this.context.unconfigure();
+            this.device.destroy();
         }
         this.device = this.pipeline = this.buffer = this.bindGroup = null;
         this.container.replaceChildren();

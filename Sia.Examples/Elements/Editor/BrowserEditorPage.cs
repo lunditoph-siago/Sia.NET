@@ -572,7 +572,8 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             _buildStatus
                 .Text(execution.Success ? "Run succeeded" : "Run failed")
                 .ToggleClass("busy", false);
-        } finally {
+        }
+        finally {
             _busy = false;
             if (!_disposed) {
                 _buildStatus.ToggleClass("busy", false);
@@ -638,7 +639,8 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         if (_activeEntity is { } entity && entity.IsValid) {
             var dirty = EditorWorkspace.IsDirty(entity) ? " ●" : string.Empty;
             _activeFileName.Text($"{EditorWorkspace.NameOf(entity)}{dirty}");
-        } else {
+        }
+        else {
             _activeFileName.Text(string.Empty);
         }
         _workspaceStatus.Text(message ?? string.Empty);

@@ -118,7 +118,9 @@ internal sealed class EditorShaderCompiler(MetadataReferenceProvider references)
         var parameters = kernel.Parameters.Select((parameter, index) => new ShaderPreviewParameter(
             parameter.Name,
             parameter.ScalarType switch {
-                SpirvScalarType.Float32 => "f32", SpirvScalarType.Int32 => "i32", SpirvScalarType.UInt32 => "u32",
+                SpirvScalarType.Float32 => "f32",
+                SpirvScalarType.Int32 => "i32",
+                SpirvScalarType.UInt32 => "u32",
                 _ => throw new InvalidDataException("Unsupported preview scalar type: " + parameter.ScalarType),
             }, index * 4)).ToArray();
         if (parameters.Length == 0) {
@@ -129,8 +131,10 @@ internal sealed class EditorShaderCompiler(MetadataReferenceProvider references)
         // Validate the actual lowered WebGPU scalar ABI before publishing host offsets.
         var uniforms = module.Globals.Where(global => global.Binding is not null).ToArray();
         var vectors = (uint)((parameters.Length + 3) / 4);
-        if (uniforms.Length != 1 || uniforms[0] is not { Space: AddressSpace.Uniform,
-            Type: ShaderType.Structure { Members.Count: 1 } structure, Binding: { Group: 0 } binding }
+        if (uniforms.Length != 1 || uniforms[0] is not {
+            Space: AddressSpace.Uniform,
+            Type: ShaderType.Structure { Members.Count: 1 } structure, Binding: { Group: 0 } binding
+        }
             || structure.Members[0].Type != new ShaderType.Array(new ShaderType.Vector(4, ShaderType.U32), vectors)) {
             return Unsupported("Compiled scalar layout does not match the preview's verified WebGPU ABI.");
         }

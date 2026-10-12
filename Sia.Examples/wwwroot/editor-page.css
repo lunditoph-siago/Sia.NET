@@ -316,12 +316,37 @@
         font: inherit;
     }
 
-    .editor-shader-parameters input { width: 6rem; }
-    .editor-shader-actions select { max-width: 16rem; }
-    .editor-shader-status { font-size: 0.75rem; overflow-wrap: anywhere; }
-    .editor-shader-preview { display: flex; flex-direction: column; gap: 0.5rem; }
-    .editor-shader-canvas { width: 100%; height: clamp(120px, 22vh, 280px); background: #101419; }
-    .editor-shader-preview > .btn { align-self: flex-start; }
-    .editor-shader-output { max-height: 360px; overflow: auto; font-size: 0.75rem; white-space: pre; }
-    .editor-shader-artifacts > summary { cursor: pointer; margin-bottom: 0.5rem; }
+    .editor-shader-parameters input {
+        width: 6rem;
+    }
+    .editor-shader-actions select {
+        max-width: 16rem;
+    }
+    .editor-shader-status {
+        font-size: 0.75rem;
+        overflow-wrap: anywhere;
+    }
+    .editor-shader-preview {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    .editor-shader-canvas {
+        width: 100%;
+        height: clamp(120px, 22vh, 280px);
+        background: #101419;
+    }
+    .editor-shader-preview > .btn {
+        align-self: flex-start;
+    }
+    .editor-shader-output {
+        max-height: 360px;
+        overflow: auto;
+        font-size: 0.75rem;
+        white-space: pre;
+    }
+    .editor-shader-artifacts > summary {
+        cursor: pointer;
+        margin-bottom: 0.5rem;
+    }
 }

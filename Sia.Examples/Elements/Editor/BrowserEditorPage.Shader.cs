@@ -124,7 +124,8 @@ internal sealed partial class BrowserEditorPage
             if (_shaderCancellation is not null) {
                 _pendingShaderRequest = request;
                 CancelShaderOperation("New shader job queued · finishing the current phase");
-            } else {
+            }
+            else {
                 _buildStatus.Text("Wait for the workspace build to finish");
             }
             return;
@@ -279,15 +280,18 @@ internal sealed partial class BrowserEditorPage
             _shaderPreviewSnapshot = $"{hash[..8]} · {artifact.QualifiedName}";
             _consoleOutput.Text(_consoleOutput.TextContent() + FormattableString.Invariant($"GPU pipeline: {gpuMilliseconds:F1} ms\n"));
             _buildStatus.Text("Shader preview ready");
-        } catch (OperationCanceledException) when (token.IsCancellationRequested) {
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) {
             if (!_disposed) _buildStatus.Text("Shader job cancelled");
-        } catch (Exception error) {
+        }
+        catch (Exception error) {
             if (CurrentShaderJob(revision)) {
                 _shaderStatus.Text($"Shader failed: {error.Message}" + PreviousShaderPreview());
                 _buildStatus.Text("Shader failed");
                 _consoleOutput.Text(error.ToString()).ToggleClass("output-error", true);
             }
-        } finally {
+        }
+        finally {
             if (!_disposed && token.IsCancellationRequested) _buildStatus.Text("Shader job cancelled");
             cancellation.Dispose();
             _shaderCancellation = null;

@@ -486,7 +486,9 @@ export function attachEditorSurface(cellId, surface) {
     };
 
     const commandSelection = () =>
-        hasPendingCommand() || modelSelectionOnly ? null : (readSelection() ?? readSelectionByDomOrder());
+        hasPendingCommand() || modelSelectionOnly
+            ? null
+            : (readSelection() ?? readSelectionByDomOrder());
     const emitKeyCommand = (key, control, shift, alt) =>
         emitCommand('key', commandSelection(), `${key}:${control}:${shift}:${alt}`);
     const emitTextCommand = (text) =>
@@ -499,7 +501,11 @@ export function attachEditorSurface(cellId, surface) {
 
     const handlers = {
         paste(event) {
-            if (composing || compositionEnding || !event.clipboardData?.types.includes('text/plain')) {
+            if (
+                composing ||
+                compositionEnding ||
+                !event.clipboardData?.types.includes('text/plain')
+            ) {
                 return;
             }
             const text = event.clipboardData.getData('text/plain');

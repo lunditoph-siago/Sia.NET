@@ -144,7 +144,8 @@ public sealed class MetadataReferenceProvider : ICompilationReferenceResolver
         foreach (var name in wanted) {
             if (_packageReferences.TryGetValue(name, out var packageReference)) {
                 result.Add(packageReference);
-            } else if (_assemblies.TryGetLoaded(name, out var frameworkReference)) {
+            }
+            else if (_assemblies.TryGetLoaded(name, out var frameworkReference)) {
                 result.Add(frameworkReference);
             }
         }

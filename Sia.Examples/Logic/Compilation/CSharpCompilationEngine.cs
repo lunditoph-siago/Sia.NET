@@ -100,7 +100,8 @@ internal sealed class CSharpCompilationEngine(ICompilationReferenceResolver refe
                 && sourcesByTree.TryGetValue(tree, out var treeSource)
                 && treeSource.IsUserCode) {
                 source = treeSource;
-            } else if (span.HasMappedPath) {
+            }
+            else if (span.HasMappedPath) {
                 sourcesByPath.TryGetValue(span.Path, out source);
             }
 
