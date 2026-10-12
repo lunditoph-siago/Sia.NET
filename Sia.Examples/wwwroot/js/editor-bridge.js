@@ -168,6 +168,7 @@ export function attachEditorSurface(cellId, surface) {
 
     let nativeEditSnapshot = null;
     let knownSelection;
+    let modelSelectionOnly = false;
     let composing = false;
     let compositionEnding = false;
     let compositionGeneration = 0;
@@ -332,8 +333,9 @@ export function attachEditorSurface(cellId, surface) {
             left.anchorColumn === right.anchorColumn &&
             left.headLineIndex === right.headLineIndex &&
             left.headColumn === right.headColumn);
-    const rememberSelection = (selection) => {
+    const rememberSelection = (selection, rendered = true) => {
         knownSelection = selectionCoordinates(selection);
+        modelSelectionOnly = !rendered;
     };
 
     const emitSelection = () => {
@@ -348,6 +350,7 @@ export function attachEditorSurface(cellId, surface) {
     const reportSelection = () => {
         if (
             selectionSyncPending.has(surface) ||
+            modelSelectionOnly ||
             nativeEditSnapshot ||
             composing ||
             compositionEnding
@@ -482,7 +485,8 @@ export function attachEditorSurface(cellId, surface) {
         }, 20);
     };
 
-    const commandSelection = () => (hasPendingCommand() ? null : readSelection());
+    const commandSelection = () =>
+        hasPendingCommand() || modelSelectionOnly ? null : (readSelection() ?? readSelectionByDomOrder());
     const emitKeyCommand = (key, control, shift, alt) =>
         emitCommand('key', commandSelection(), `${key}:${control}:${shift}:${alt}`);
     const emitTextCommand = (text) =>
@@ -494,6 +498,15 @@ export function attachEditorSurface(cellId, surface) {
     };
 
     const handlers = {
+        paste(event) {
+            if (composing || compositionEnding || !event.clipboardData?.types.includes('text/plain')) {
+                return;
+            }
+            const text = event.clipboardData.getData('text/plain');
+            emitInputCommand(event, () =>
+                emitTextCommand(text.replaceAll('\r\n', '\n').replaceAll('\r', '\n')),
+            );
+        },
         focus() {
             emit(`editor-focus:${cellId}`);
         },
@@ -553,6 +566,7 @@ export function attachEditorSurface(cellId, surface) {
         },
         pointerdown() {
             selectionSyncPending.delete(surface);
+            modelSelectionOnly = false;
         },
         pointerup: reportSelection,
         selectionchange() {
@@ -601,6 +615,7 @@ export function attachEditorSurface(cellId, surface) {
     };
 
     surface.addEventListener('beforeinput', handlers.beforeinput);
+    surface.addEventListener('paste', handlers.paste);
     surface.addEventListener('focus', handlers.focus);
     surface.addEventListener('pointerdown', handlers.pointerdown);
     surface.addEventListener('pointerup', handlers.pointerup);
@@ -627,6 +642,7 @@ export function detachEditorSurface(cellId, surface) {
     selectionSyncPending.delete(surface);
     handlers.dispose();
     surface.removeEventListener('beforeinput', handlers.beforeinput);
+    surface.removeEventListener('paste', handlers.paste);
     surface.removeEventListener('focus', handlers.focus);
     surface.removeEventListener('pointerdown', handlers.pointerdown);
     surface.removeEventListener('pointerup', handlers.pointerup);
@@ -730,11 +746,11 @@ function applyEditorSelection(surface, update) {
 
     const anchorLine = findLine(anchorLineIndex);
     const headLine = findLine(headLineIndex);
+    editorSurfaceHandlers.get(surface)?.rememberSelection(update, Boolean(anchorLine && headLine));
     if (!anchorLine || !headLine) {
         selectionSyncPending.delete(surface);
         return true;
     }
-    editorSurfaceHandlers.get(surface)?.rememberSelection(update);
     if (document.activeElement !== surface) {
         selectionSyncPending.delete(surface);
         return true;
