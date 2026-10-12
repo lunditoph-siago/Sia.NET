@@ -168,6 +168,7 @@
     }
 
     .editor-page-render-output {
+        min-height: 0;
         background: color-mix(in srgb, var(--surface-hover) 42%, transparent);
     }
 
@@ -286,4 +287,41 @@
         align-items: center;
         gap: 0.4rem;
     }
+
+    .editor-shader {
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+        padding: 0.8rem;
+        min-width: 0;
+    }
+
+    .editor-shader-actions,
+    .editor-shader-parameters {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .editor-shader-actions select,
+    .editor-shader-parameters select,
+    .editor-shader-parameters input {
+        max-width: 100%;
+        padding: 0.3rem;
+        border: 1px solid var(--border-subtle);
+        border-radius: 4px;
+        color: var(--color-fg);
+        background: var(--color-bg);
+        font: inherit;
+    }
+
+    .editor-shader-parameters input { width: 6rem; }
+    .editor-shader-actions select { max-width: 16rem; }
+    .editor-shader-status { font-size: 0.75rem; overflow-wrap: anywhere; }
+    .editor-shader-preview { display: flex; flex-direction: column; gap: 0.5rem; }
+    .editor-shader-canvas { width: 100%; height: clamp(120px, 22vh, 280px); background: #101419; }
+    .editor-shader-preview > .btn { align-self: flex-start; }
+    .editor-shader-output { max-height: 360px; overflow: auto; font-size: 0.75rem; white-space: pre; }
+    .editor-shader-artifacts > summary { cursor: pointer; margin-bottom: 0.5rem; }
 }

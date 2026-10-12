@@ -1,6 +1,7 @@
 #if BROWSER
 using System.Collections.Immutable;
 using System.Runtime.InteropServices.JavaScript;
+using System.Runtime.InteropServices;
 using Microsoft.CodeAnalysis;
 using Sia_Examples.Browser;
 
@@ -17,6 +18,7 @@ public sealed partial class AssemblyLoader
         new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Task<MetadataReference>> _loads =
         new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, byte[]> _images = new(StringComparer.OrdinalIgnoreCase);
 
     [JSExport]
     public static Task InitializeAsync(
@@ -94,12 +96,23 @@ public sealed partial class AssemblyLoader
             var image = await _resources.FetchBytesAsync(url);
             _mainThread.VerifyAccess();
 
-            var reference = MetadataReference.CreateFromImage(image, filePath: name);
+            // Reuse the owned image without creating another immutable-array copy.
+            var reference = MetadataReference.CreateFromImage(
+                ImmutableCollectionsMarshal.AsImmutableArray(image), filePath: name);
             _references.Add(name, reference);
+            _images.Add(name, image);
             return reference;
         } finally {
             _loads.Remove(name);
         }
+    }
+
+    internal async ValueTask<ReadOnlyMemory<byte>> GetImageAsync(
+        string name, CancellationToken cancellationToken = default)
+    {
+        await LoadAsync(name, cancellationToken);
+        _mainThread.VerifyAccess();
+        return _images[name];
     }
 
     private readonly record struct AssemblyAsset(string Name, string Url);

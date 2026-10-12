@@ -44,7 +44,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
     private bool _disposed;
     private bool _initialized;
 
-    public BrowserEditorPage(World world, ICompilationReferenceResolver references, IWorkspaceStorage storage)
+    public BrowserEditorPage(World world, MetadataReferenceProvider references, IWorkspaceStorage storage)
     {
         ArgumentNullException.ThrowIfNull(world);
         ArgumentNullException.ThrowIfNull(references);
@@ -52,6 +52,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
 
         _workspace = new(world, storage);
         _compiler = new(references);
+        _shaderCompiler = new(references);
         _container = DomElement.Find("notebook");
         _root = Own(DomElement.Create("section")
             .Class("editor-page")
@@ -71,6 +72,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         actions
             .Append(CreateAction("Build", "editor-page-build", "Compile the workspace"))
             .Append(CreateAction("Run ▶", "editor-page-run", "Compile and run the workspace"))
+            .Append(CreateAction("Shader Example", "editor-shader-example", "Create or open the shader preview example"))
             .Append(CreateAction("Save", "editor-page-save", "Save the active file (Ctrl+S)", secondary: true))
             .Append(CreateAction(
                 "Save All", "editor-page-save-all", "Save every open file (Ctrl+Shift+S)", secondary: true))
@@ -120,6 +122,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             .Class("editor-page-render")
             .Attr("role", "tabpanel"));
         _renderPanel.Append(_renderOutput);
+        InitShaderPanel();
 
         InitDialogs();
 
@@ -172,6 +175,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         var separator = payload.IndexOf(':');
         var eventName = separator < 0 ? payload : payload[..separator];
         var argument = separator < 0 ? string.Empty : payload[(separator + 1)..];
+        if (RouteShader(eventName)) return true;
 
         switch (eventName) {
             case "editor-page-tab":
@@ -269,6 +273,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
                     var handled = _editors.Route(payload);
                     if (handled) {
                         SyncDirtyIndicators();
+                        if (eventName is "text" or "mut" or "key" or "complete") CheckShaderSources();
                     }
                     return handled;
                 }
@@ -282,6 +287,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         }
         _disposed = true;
         _lifetime.Cancel();
+        DisposeShaderPreview();
         foreach (var operation in _operations.ToArray()) {
             await operation;
         }
@@ -384,6 +390,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             return;
         }
         if (window.Kind != CellWindowKind.Script) {
+            if (window.Id == RenderWindowId) DisposeShaderPreview();
             UpdateState(state => NotebookCellLayout.CloseTab(state, tabId));
             return;
         }
@@ -605,6 +612,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         _workspace.SetContent(entity, saved);
         _workspace.Pin(entity);
         RefreshEditorForEntity(entity);
+        CheckShaderSources();
         UpdateChrome("reverted to the saved version");
     }
 
@@ -622,6 +630,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         _diagnostics.Text(string.Empty);
         _consoleOutput.Text(string.Empty).ToggleClass("output-error", false);
         _renderOutput.Text("Render surface · waiting for Notebook.Render(…)");
+        DisposeShaderPreview();
     }
 
     private void UpdateChrome(string? message = null)

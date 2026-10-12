@@ -10,6 +10,7 @@ public sealed partial class AssemblyLoader
     private readonly IReadOnlyDictionary<string, string> _paths;
     private readonly Dictionary<string, MetadataReference> _references =
         new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, byte[]> _images = new(StringComparer.OrdinalIgnoreCase);
 
     public AssemblyLoader(IUiThread mainThread)
     {
@@ -59,6 +60,21 @@ public sealed partial class AssemblyLoader
             }
         }
         return paths;
+    }
+
+    internal ValueTask<ReadOnlyMemory<byte>> GetImageAsync(
+        string name, CancellationToken cancellationToken = default)
+    {
+        _mainThread.VerifyAccess();
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!_images.TryGetValue(name, out var image)) {
+            if (!_paths.TryGetValue(name, out var path)) {
+                throw new KeyNotFoundException($"Assembly '{name}' is not available.");
+            }
+            image = File.ReadAllBytes(path);
+            _images.Add(name, image);
+        }
+        return ValueTask.FromResult<ReadOnlyMemory<byte>>(image);
     }
 }
 #endif

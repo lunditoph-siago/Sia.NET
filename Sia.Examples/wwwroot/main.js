@@ -1,5 +1,7 @@
 import { dotnet } from './_framework/dotnet.js';
 import './js/app-shell.js';
+import { createShaderPreview, setShaderPreviewRevision, showShaderPreview,
+    disposeShaderPreview, downloadShaderBinary } from './js/shader-preview.js';
 import { bootModuleConfig, dismissBootOverlay, showBootError } from './js/boot-progress.js';
 import './js/cell-interactions.js';
 import {
@@ -86,6 +88,11 @@ setModuleImports('main.js', {
     workspacePut,
     workspaceRemove,
     reportError: (message) => console.error(message),
+    createShaderPreview,
+    setShaderPreviewRevision,
+    showShaderPreview,
+    disposeShaderPreview,
+    downloadShaderBinary,
     appReady: () => dismissBootOverlay(),
 });
 

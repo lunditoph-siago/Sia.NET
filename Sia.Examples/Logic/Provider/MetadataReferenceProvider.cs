@@ -26,6 +26,20 @@ public sealed class MetadataReferenceProvider : ICompilationReferenceResolver
     }
 
     public IReadOnlyList<string> AvailableFrameworkAssemblyNames { get; }
+    internal int Version { get; private set; }
+
+    // Shader intrinsics must use the host's exact Core image, not a separately downloaded package.
+    internal async ValueTask<ReadOnlyMemory<byte>> EnsureHostReferenceAsync(
+        string name, CancellationToken cancellationToken = default)
+    {
+        if (_packageReferences.ContainsKey(name)) {
+            throw new InvalidOperationException($"Shader reference '{name}' must use the host version, not a separately loaded package.");
+        }
+        await _assemblies.LoadAsync(name, cancellationToken);
+        var image = await _assemblies.GetImageAsync(name, cancellationToken);
+        if (_declaredAssemblyNames.Add(name)) Version++;
+        return image;
+    }
 
     public async ValueTask<IReadOnlyList<MetadataReference>> GetReferencesAsync(
         string source,
@@ -95,6 +109,7 @@ public sealed class MetadataReferenceProvider : ICompilationReferenceResolver
             DynamicAssemblyRegistry.Register(assembly.Name, assembly.Image);
             _declaredAssemblyNames.Add(assembly.Name);
         }
+        Version++;
         return new(fetch.Package, PackageLoadState.Loaded, null);
     }
 
