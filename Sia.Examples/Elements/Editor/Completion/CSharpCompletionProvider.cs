@@ -18,6 +18,19 @@ public sealed class CSharpCompletionProvider(
         CancellationToken cancellationToken = default)
     {
         position = Math.Clamp(position, 0, source.Length);
+        var metadataReferences = await _references.GetReferencesAsync(
+            $"{NotebookLanguageContext.GlobalUsings}\n{source}",
+            cancellationToken);
+        return await CSharpCompilationEngine.RunRoslynAsync(_references,
+            () => Query(source, position, metadataReferences, cancellationToken), cancellationToken);
+    }
+
+    private static CompletionResult Query(
+        string source,
+        int position,
+        IReadOnlyList<MetadataReference> metadataReferences,
+        CancellationToken cancellationToken)
+    {
         var replacementStart = CompletionIdentifier.FindStart(source, position);
         var prefix = source[replacementStart..position];
         var querySource = BuildQuerySource(source, replacementStart, position);
@@ -31,15 +44,12 @@ public sealed class CSharpCompletionProvider(
             CSharpLanguageOptions.Parse,
             path: "GlobalUsings.g.cs",
             cancellationToken: cancellationToken);
-        var metadataReferences = await _references.GetReferencesAsync(
-            $"{NotebookLanguageContext.GlobalUsings}\n{source}",
-            cancellationToken);
         var compilation = CSharpCompilation.Create(
             "Completion",
             [syntaxTree, globalUsingsTree],
             metadataReferences,
             CSharpLanguageOptions.Library);
-        var root = await syntaxTree.GetRootAsync(cancellationToken);
+        var root = syntaxTree.GetRoot(cancellationToken);
         var semanticModel = compilation.GetSemanticModel(syntaxTree);
         var symbols = GetCandidates(
             source,

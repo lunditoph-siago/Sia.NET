@@ -35,10 +35,19 @@ internal sealed class EditorShaderCompiler(MetadataReferenceProvider references)
     };
 
     public async Task<ShaderCompilation> CompileAsync(
-        IReadOnlyList<EditorProjectCompiler.File> files, CancellationToken cancellationToken)
+        IReadOnlyList<EditorProjectCompiler.File> files, CancellationToken cancellationToken, bool requireEntry = true)
     {
         var clock = Stopwatch.StartNew();
         var intrinsicImage = await references.EnsureHostReferenceAsync("Sia.Spirv.Core", cancellationToken);
+        if (!requireEntry) {
+            // Pipeline code shares these exact host types; namespaces do not reliably name their assemblies.
+            var hostAssemblies = new[] {
+                typeof(EditorShaderCompiler).Assembly.GetName().Name!,
+                "Sia.Prelude", "Sia.Math", "Sia.Window", "Sia.Input", "Sia.RenderGraph", "Sia.Graphics", "Sia.WebGPU",
+            };
+            foreach (var assembly in hostAssemblies)
+                await references.EnsureHostReferenceAsync(assembly, cancellationToken);
+        }
         var sources = files.Select(file => new CSharpSourceDocument(
             file.Id, file.Name, file.Name, file.Source)).ToArray();
         var referenceVersion = ReferenceVersion;
@@ -62,7 +71,7 @@ internal sealed class EditorShaderCompiler(MetadataReferenceProvider references)
                 (diagnostic.IlOffset is { } offset ? $" · IL_{offset:x4}" : "") + $": {diagnostic.Message}",
             diagnostic.Severity.ToString() == "Error" ? NotebookDiagnosticSeverity.Error : NotebookDiagnosticSeverity.Warning,
             null, null, 0, 0)));
-        if (frontend.Kernels.Count == 0) {
+        if (requireEntry && frontend.Kernels.Count == 0) {
             diagnostics.Add(new("SHADER_ENTRY", "No shader entry found. Add a static method with [SpirvFragmentShader], [SpirvVertexShader] or [SpirvKernel].",
                 NotebookDiagnosticSeverity.Error, null, null, 0, 0));
         }
@@ -146,7 +155,7 @@ internal sealed record ShaderCompilation(byte[]? Image, ReadOnlyMemory<byte> Int
     IReadOnlyList<ShaderEntry> Entries, IReadOnlyList<EditorProjectCompiler.DiagnosticInfo> Diagnostics,
     int ReferenceVersion, double CSharpMilliseconds, double AnalysisMilliseconds)
 {
-    public bool Success => Image is not null && Entries.Count > 0
+    public bool Success => Image is not null
         && !Diagnostics.Any(diagnostic => diagnostic.Severity == NotebookDiagnosticSeverity.Error);
 }
 

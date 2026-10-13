@@ -73,6 +73,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             .Append(CreateAction("Build", "editor-page-build", "Compile the workspace"))
             .Append(CreateAction("Run ▶", "editor-page-run", "Compile and run the workspace"))
             .Append(CreateAction("Shader Example", "editor-shader-example", "Create or open the shader preview example"))
+            .Append(CreateAction("Pipeline Example", "editor-pipeline-example", "Create or open the programmable RenderGraph example"))
             .Append(CreateAction("Save", "editor-page-save", "Save the active file (Ctrl+S)", secondary: true))
             .Append(CreateAction(
                 "Save All", "editor-page-save-all", "Save every open file (Ctrl+Shift+S)", secondary: true))

@@ -1,4 +1,5 @@
 using System.Threading;
+using System.Runtime.CompilerServices;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Emit;
@@ -9,6 +10,17 @@ namespace Sia_Examples.Notebook;
 internal sealed class CSharpCompilationEngine(ICompilationReferenceResolver references)
 {
     private readonly ICompilationReferenceResolver _references = references;
+    private static readonly ConditionalWeakTable<ICompilationReferenceResolver, SemaphoreSlim> _roslynWork = new();
+
+    internal static async Task<T> RunRoslynAsync<T>(ICompilationReferenceResolver references,
+        Func<T> work, CancellationToken cancellationToken)
+    {
+        // A resolver's metadata images are shared by completion and Emit; schedule one Roslyn job at a time.
+        var gate = _roslynWork.GetValue(references, static _ => new(1, 1));
+        await gate.WaitAsync(cancellationToken);
+        try { return await Task.Run(work, cancellationToken); }
+        finally { gate.Release(); }
+    }
 
     public async Task<CSharpCompilationOutput> CompileAsync(
         CSharpCompilationRequest request,
@@ -18,12 +30,12 @@ internal sealed class CSharpCompilationEngine(ICompilationReferenceResolver refe
 
         var referenceProbe = string.Join('\n', request.Sources.Select(static source => source.Source));
         var metadata = await _references.GetReferencesAsync(referenceProbe, cancellationToken);
-        var result = await Task.Run(() => Compile(request, metadata, cancellationToken), cancellationToken);
+        var result = await RunRoslynAsync(_references, () => Compile(request, metadata, cancellationToken), cancellationToken);
         if (!result.Success && result.Diagnostics.Any(static diagnostic =>
             diagnostic.Severity == NotebookDiagnosticSeverity.Error
             && diagnostic.Id is "CS0246" or "CS0234" or "CS0012")) {
             metadata = await _references.GetAllReferencesAsync(cancellationToken);
-            result = await Task.Run(() => Compile(request, metadata, cancellationToken), cancellationToken);
+            result = await RunRoslynAsync(_references, () => Compile(request, metadata, cancellationToken), cancellationToken);
         }
         return result;
     }

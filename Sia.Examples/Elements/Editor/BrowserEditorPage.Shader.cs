@@ -27,7 +27,7 @@ internal sealed partial class BrowserEditorPage
     private string? _selectedShaderName;
     private int _shaderRevision;
 
-    private enum ShaderAction { Compile, PreviewWgsl, PreviewSpirv }
+    private enum ShaderAction { Compile, PreviewWgsl, PreviewSpirv, PipelineWgsl, PipelineSpirv }
     private sealed record ShaderRequest(ShaderAction Action, string Folder, string? EntryName);
 
     private void InitShaderPanel()
@@ -46,12 +46,16 @@ internal sealed partial class BrowserEditorPage
             .Append(CreateAction("Compile Shader", "editor-shader-compile", "Compile C# files in the active file's folder as a shader library"))
             .Append(CreateAction("Preview WGSL", "editor-shader-wgsl", "Render the selected fragment shader"))
             .Append(CreateAction("Preview SPIR-V", "editor-shader-spirv", "Render through managed SPIR-V to WGSL translation"))
+            .Append(CreateAction("Run Pipeline", "editor-pipeline-wgsl", "Run the active folder's ReactiveComponent with WGSL shaders"))
+            .Append(CreateAction("Pipeline SPIR-V", "editor-pipeline-spirv", "Run the ReactiveComponent through SPIR-V to WGSL"))
+            .Append(CreateAction("Stop Pipeline", "editor-pipeline-stop", "Release the pipeline session and its ECS world"))
             .Append(CreateAction("Cancel", "editor-shader-cancel", "Cancel the job; an active synchronous phase may finish"));
         _shaderScope = Own(DomElement.Create("div").Class("editor-shader-status")
             .Text("Open a shader file, or create the Shader Example. Compilation includes C# files under its folder."));
         _shaderStatus = Own(DomElement.Create("div").Id("editor-shader-status")
             .Class("editor-shader-status").Attr("role", "status").Text("No GPU preview yet"));
         var preview = Own(DomElement.Create("div").Id("editor-shader-preview").Class("editor-shader-preview"));
+        var pipeline = Own(DomElement.Create("div").Id("editor-pipeline-preview").Class("editor-shader-preview"));
         var artifacts = Own(DomElement.Create("details").Class("editor-shader-artifacts"));
         var summary = Own(DomElement.Create("summary").Text("Compiled shader"));
         var artifactActions = Own(DomElement.Create("div").Class("editor-shader-actions"));
@@ -59,13 +63,21 @@ internal sealed partial class BrowserEditorPage
             .Append(CreateAction("Download .spv", "editor-shader-download", "Download the compiled SPIR-V binary"));
         _shaderOutput = Own(DomElement.Create("pre").Class("editor-shader-output").Text("No compiled shader"));
         artifacts.Append(summary).Append(artifactActions).Append(_shaderOutput);
-        panel.Append(actions).Append(_shaderScope).Append(_shaderStatus).Append(preview).Append(artifacts);
+        panel.Append(actions).Append(_shaderScope).Append(_shaderStatus).Append(preview).Append(pipeline).Append(artifacts);
         _renderPanel.Append(panel);
     }
 
     private bool RouteShader(string eventName)
     {
         switch (eventName) {
+            case "editor-pipeline-example": Track(CreatePipelineExampleAsync()); return true;
+            case "editor-pipeline-wgsl": StartShaderOperation(ShaderAction.PipelineWgsl); return true;
+            case "editor-pipeline-spirv": StartShaderOperation(ShaderAction.PipelineSpirv); return true;
+            case "editor-pipeline-stop":
+                StopPipeline();
+                _shaderStatus.Text("Pipeline stopped");
+                _buildStatus.Text("Pipeline stopped");
+                return true;
             case "editor-shader-example": Track(CreateShaderExampleAsync()); return true;
             case "editor-shader-compile": StartShaderOperation(ShaderAction.Compile); return true;
             case "editor-shader-wgsl": StartShaderOperation(ShaderAction.PreviewWgsl); return true;
@@ -213,15 +225,17 @@ internal sealed partial class BrowserEditorPage
     {
         var token = cancellation.Token;
         try {
+            var pipelineAction = action is ShaderAction.PipelineWgsl or ShaderAction.PipelineSpirv;
             await _workspace.EnsureAllLoadedAsync(token);
             if (!CurrentShaderJob(revision)) return;
             var files = ShaderFiles();
             var hash = ShaderHash(files);
-            var compilationCached = _shaderCompilation is { Success: true } && hash == _shaderSourcesHash;
+            var compilationCached = _shaderCompilation is { Success: true } && hash == _shaderSourcesHash
+                && (pipelineAction || _shaderCompilation.Entries.Count > 0);
             if (!compilationCached) {
                 _shaderSourcesHash = hash;
                 _shaderArtifacts.Clear();
-                var compilation = await _shaderCompiler.CompileAsync(files, token);
+                var compilation = await _shaderCompiler.CompileAsync(files, token, requireEntry: !pipelineAction);
                 if (!CurrentShaderJob(revision)) return;
                 if (compilation.ReferenceVersion != _shaderCompiler.ReferenceVersion) {
                     CancelShaderOperation("References changed · compile again to use the current references");
@@ -237,7 +251,7 @@ internal sealed partial class BrowserEditorPage
                 }
                 _shaderEntry.Text(string.Empty);
                 var selected = compilation.Entries.FirstOrDefault(entry => entry.SelectionKey == _selectedShaderName)
-                    ?? compilation.Entries[0];
+                    ?? compilation.Entries.FirstOrDefault();
                 foreach (var entry in compilation.Entries) {
                     using var option = DomElement.Create("option")
                         .Attr("value", entry.MetadataToken.ToString(CultureInfo.InvariantCulture))
@@ -245,10 +259,16 @@ internal sealed partial class BrowserEditorPage
                     if (entry == selected) option.Attr("selected", "");
                     _shaderEntry.Append(option);
                 }
-                _selectedShaderName = selected.SelectionKey;
+                _selectedShaderName = selected?.SelectionKey;
             }
             var source = _shaderCompilation!;
             if (!source.Success) return;
+            if (pipelineAction && source.Entries.Count == 0) {
+                _buildStatus.Text("Creating programmable pipeline…");
+                DomRuntime.Flush();
+                await RunPipelineAsync(source, action == ShaderAction.PipelineSpirv, revision, token);
+                return;
+            }
             var kernel = source.Entries.FirstOrDefault(entry => entry.SelectionKey == _selectedShaderName) ?? source.Entries[0];
             _selectedShaderName = kernel.SelectionKey;
             _buildStatus.Text("Writing WGSL / SPIR-V…");
@@ -271,12 +291,17 @@ internal sealed partial class BrowserEditorPage
                 _buildStatus.Text("Shader build succeeded");
                 return;
             }
+            if (action is ShaderAction.PipelineWgsl or ShaderAction.PipelineSpirv) {
+                await RunPipelineAsync(source, action == ShaderAction.PipelineSpirv, revision, token);
+                return;
+            }
             _buildStatus.Text("Creating GPU pipeline…");
             DomRuntime.Flush();
             _shaderPreview ??= new("editor-shader-preview", "editor-shader-status");
             _shaderPreview.Invalidate(revision);
             var gpuMilliseconds = await _shaderPreview.ShowAsync(artifact, action == ShaderAction.PreviewSpirv, revision);
             if (!CurrentShaderJob(revision) || gpuMilliseconds < 0) return;
+            StopPipeline(cancelPending: false);
             _shaderPreviewSnapshot = $"{hash[..8]} · {artifact.QualifiedName}";
             _consoleOutput.Text(_consoleOutput.TextContent() + FormattableString.Invariant($"GPU pipeline: {gpuMilliseconds:F1} ms\n"));
             _buildStatus.Text("Shader preview ready");
@@ -320,6 +345,7 @@ internal sealed partial class BrowserEditorPage
 
     private void DisposeShaderPreview()
     {
+        StopPipeline();
         _shaderPreviewSnapshot = null;
         CancelShaderOperation("Preview closed");
         _pendingShaderRequest = null;
