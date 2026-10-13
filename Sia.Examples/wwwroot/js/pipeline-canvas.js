@@ -85,10 +85,9 @@ export function createPipelineCanvas(module, containerId, canvasId, thread) {
     canvas.id = canvasId;
     canvas.tabIndex = 0;
     canvas.setAttribute('aria-label', 'Programmable pipeline canvas');
-    canvas.style.cssText = 'width:100%;height:260px;display:block;touch-action:none';
+    canvas.className = 'editor-shader-canvas';
     container.append(canvas);
     const owner = {
-        id: canvas.id,
         canvas,
         inputs: [],
         abort: new AbortController(),

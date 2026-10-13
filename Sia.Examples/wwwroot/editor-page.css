@@ -335,6 +335,8 @@
         width: 100%;
         height: clamp(120px, 22vh, 280px);
         background: #101419;
+        display: block;
+        touch-action: none;
     }
     .editor-shader-preview > .btn {
         align-self: flex-start;

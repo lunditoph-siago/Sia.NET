@@ -21,7 +21,7 @@ public sealed class CSharpCompletionProvider(
         var metadataReferences = await _references.GetReferencesAsync(
             $"{NotebookLanguageContext.GlobalUsings}\n{source}",
             cancellationToken);
-        return await CSharpCompilationEngine.RunRoslynAsync(_references,
+        return await CSharpCompilationEngine.RunRoslynAsync(
             () => Query(source, position, metadataReferences, cancellationToken), cancellationToken);
     }
 

@@ -100,23 +100,20 @@ internal sealed partial class BrowserEditorPage
         }
     }
 
-    private async Task CreateShaderExampleAsync()
+    private Task CreateShaderExampleAsync()
+        => OpenShaderExampleAsync(ShaderExamples.Folder, ShaderExamples.FileName, ShaderExamples.Source,
+            "Shader example ready · choose an entry and preview");
+
+    private async Task<ShaderArtifact> GetShaderArtifactAsync(ShaderCompilation source, int token,
+        int revision, CancellationToken cancellationToken)
     {
-        SaveEditorSources();
-        if (!_workspace.TryGetEntity(ShaderExamples.Folder, out _)) {
-            await _workspace.CreateFolderAsync("", ShaderExamples.Folder, _lifetime.Token);
+        if (_shaderArtifacts.TryGetValue(token, out var artifact)) return artifact;
+        artifact = await Task.Run(() => EditorShaderCompiler.Write(source, token, cancellationToken), cancellationToken);
+        if (CurrentShaderJob(revision)) {
+            if (_shaderArtifacts.Count >= 8) _shaderArtifacts.Remove(_shaderArtifacts.Keys.First());
+            _shaderArtifacts.Add(token, artifact);
         }
-        var path = ShaderExamples.Folder + "/" + ShaderExamples.FileName;
-        if (!_workspace.TryGetEntity(path, out var file)) {
-            file = await _workspace.CreateFileAsync(ShaderExamples.Folder, ShaderExamples.FileName, _lifetime.Token);
-            _workspace.SetContent(file, ShaderExamples.Source);
-            await _workspace.SaveAsync(file, _lifetime.Token);
-        }
-        if (_disposed) return;
-        RenderExplorer();
-        await OpenEntryAsync(file, pin: true);
-        OpenPanelWindow("render");
-        UpdateChrome("Shader example ready · choose an entry and preview");
+        return artifact;
     }
 
     private void StartShaderOperation(ShaderAction action)
@@ -275,10 +272,8 @@ internal sealed partial class BrowserEditorPage
             DomRuntime.Flush();
             var artifactCached = _shaderArtifacts.TryGetValue(kernel.MetadataToken, out var artifact);
             if (artifact is null) {
-                artifact = await Task.Run(() => EditorShaderCompiler.Write(source, kernel.MetadataToken, token), token);
+                artifact = await GetShaderArtifactAsync(source, kernel.MetadataToken, revision, token);
                 if (!CurrentShaderJob(revision)) return;
-                if (_shaderArtifacts.Count >= 8) _shaderArtifacts.Remove(_shaderArtifacts.Keys.First());
-                _shaderArtifacts.Add(kernel.MetadataToken, artifact);
             }
             if (!CurrentShaderJob(revision)) return;
             _shaderArtifact = artifact;

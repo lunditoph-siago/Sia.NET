@@ -39,15 +39,13 @@ internal sealed class EditorShaderCompiler(MetadataReferenceProvider references)
     {
         var clock = Stopwatch.StartNew();
         var intrinsicImage = await references.EnsureHostReferenceAsync("Sia.Spirv.Core", cancellationToken);
-        if (!requireEntry) {
-            // Pipeline code shares these exact host types; namespaces do not reliably name their assemblies.
-            var hostAssemblies = new[] {
-                typeof(EditorShaderCompiler).Assembly.GetName().Name!,
-                "Sia.Prelude", "Sia.Math", "Sia.Window", "Sia.Input", "Sia.RenderGraph", "Sia.Graphics", "Sia.WebGPU",
-            };
-            foreach (var assembly in hostAssemblies)
-                await references.EnsureHostReferenceAsync(assembly, cancellationToken);
-        }
+        // Every action shares this program cache and the exact host types used by its Render delegate.
+        var hostAssemblies = new[] {
+            typeof(EditorShaderCompiler).Assembly.GetName().Name!,
+            "Sia.Prelude", "Sia.Math", "Sia.Window", "Sia.Input", "Sia.RenderGraph", "Sia.Graphics", "Sia.WebGPU",
+        };
+        foreach (var assembly in hostAssemblies)
+            await references.EnsureHostReferenceAsync(assembly, cancellationToken);
         var sources = files.Select(file => new CSharpSourceDocument(
             file.Id, file.Name, file.Name, file.Source)).ToArray();
         var referenceVersion = ReferenceVersion;

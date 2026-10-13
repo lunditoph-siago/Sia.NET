@@ -50,7 +50,7 @@
           Condition="'$(PkgSia_WebGPU_Native)' != ''" />
 
   <PropertyGroup>
-    <!-- Roslyn and native rendering allocate concurrently; avoid dlmalloc's shared allocation lock. -->
+    <!-- The default allocator stalls during native rendering plus repeated Roslyn compilation. -->
     <EmccExtraLDFlags>$(EmccExtraLDFlags) -sOFFSCREENCANVAS_SUPPORT=1 -sMALLOC=mimalloc</EmccExtraLDFlags>
   </PropertyGroup>
   <ItemGroup>

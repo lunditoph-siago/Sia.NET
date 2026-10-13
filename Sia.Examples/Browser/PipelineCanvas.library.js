@@ -15,12 +15,9 @@ addToLibrary({
                         channel.port1.close();
                         signal.removeEventListener('abort', aborted);
                     };
-                    const received = event => {
-                        cleanup(); resolve();
-                    };
                     const aborted = () => { cleanup(); reject(new Error('Canvas transfer cancelled')); };
                     const timeout = setTimeout(() => { cleanup(); reject(new Error('Canvas transfer timed out')); }, 5000);
-                    channel.port1.onmessage = received;
+                    channel.port1.onmessage = () => { cleanup(); resolve(); };
                     signal.addEventListener('abort', aborted, { once: true });
                     try {
                         const offscreen = canvas.transferControlToOffscreen();
@@ -109,7 +106,6 @@ addToLibrary({
             record.closed = true;
             if (record.device) {
                 record.device.removeEventListener('uncapturederror', record.errorListener);
-                record.device.destroy();
             }
             delete GL.offscreenCanvases[id];
         } else siaEditorCanvasBridge.released.add(id);
