@@ -35,7 +35,7 @@ internal sealed class EditorShaderCompiler(MetadataReferenceProvider references)
     };
 
     public async Task<ShaderCompilation> CompileAsync(
-        IReadOnlyList<EditorProjectCompiler.File> files, CancellationToken cancellationToken, bool requireEntry = true)
+        IReadOnlyList<CSharpSourceDocument> files, CancellationToken cancellationToken, bool requireEntry = true)
     {
         var clock = Stopwatch.StartNew();
         var intrinsicImage = await references.EnsureHostReferenceAsync("Sia.Spirv.Core", cancellationToken);
@@ -46,15 +46,11 @@ internal sealed class EditorShaderCompiler(MetadataReferenceProvider references)
         };
         foreach (var assembly in hostAssemblies)
             await references.EnsureHostReferenceAsync(assembly, cancellationToken);
-        var sources = files.Select(file => new CSharpSourceDocument(
-            file.Id, file.Name, file.Name, file.Source)).ToArray();
         var referenceVersion = ReferenceVersion;
         var output = await _engine.CompileAsync(new(
             $"EditorShader_{Interlocked.Increment(ref _assemblyNumber)}",
-            sources, OutputKind.DynamicallyLinkedLibrary), cancellationToken);
-        var diagnostics = output.Diagnostics.Select(static diagnostic => new EditorProjectCompiler.DiagnosticInfo(
-            diagnostic.Id, diagnostic.Message, diagnostic.Severity, diagnostic.SourceId,
-            diagnostic.SourcePath, diagnostic.Line, diagnostic.Column)).ToList();
+            files, OutputKind.DynamicallyLinkedLibrary), cancellationToken);
+        var diagnostics = output.Diagnostics.ToList();
         var csharpMilliseconds = clock.Elapsed.TotalMilliseconds;
         if (!output.Success) {
             return new(null, intrinsicImage, [], diagnostics, referenceVersion, csharpMilliseconds, 0);
@@ -63,7 +59,7 @@ internal sealed class EditorShaderCompiler(MetadataReferenceProvider references)
         clock.Restart();
         var frontend = await Task.Run(() => new SpirvFrontend().Analyze(image, intrinsicImage), cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
-        diagnostics.AddRange(frontend.Diagnostics.Select(static diagnostic => new EditorProjectCompiler.DiagnosticInfo(
+        diagnostics.AddRange(frontend.Diagnostics.Select(static diagnostic => new CSharpCompilationDiagnostic(
             diagnostic.Id,
             $"IL analysis · {diagnostic.Method}" +
                 (diagnostic.IlOffset is { } offset ? $" · IL_{offset:x4}" : "") + $": {diagnostic.Message}",
@@ -150,7 +146,7 @@ internal sealed class EditorShaderCompiler(MetadataReferenceProvider references)
 }
 
 internal sealed record ShaderCompilation(byte[]? Image, ReadOnlyMemory<byte> Intrinsics,
-    IReadOnlyList<ShaderEntry> Entries, IReadOnlyList<EditorProjectCompiler.DiagnosticInfo> Diagnostics,
+    IReadOnlyList<ShaderEntry> Entries, IReadOnlyList<CSharpCompilationDiagnostic> Diagnostics,
     int ReferenceVersion, double CSharpMilliseconds, double AnalysisMilliseconds)
 {
     public bool Success => Image is not null

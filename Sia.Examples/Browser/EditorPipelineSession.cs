@@ -136,7 +136,10 @@ internal sealed partial class EditorPipelineSession : IDisposable
         if (previous.FramebufferSize != next.FramebufferSize) _world.Send(_window, new WindowEvents.FramebufferResized(next.FramebufferSize));
         if (previous.ContentScale != next.ContentScale) _world.Send(_window, new WindowEvents.ContentScaleChanged(next.ContentScale));
         if (_configured && previous.FramebufferSize == next.FramebufferSize) return;
-        fixed (byte* selector = _selectorUtf8) ResizeCanvas(selector, width, height);
+        fixed (byte* selector = _selectorUtf8) {
+            var result = ResizeCanvas(selector, width, height);
+            if (result != 0) throw new InvalidOperationException($"Canvas resize failed: {result}");
+        }
         Wgpu.ConfigureSurface(_surface, new WGPUSurfaceConfiguration {
             Device = (WGPUDevice*)_device.Handle, Format = WGPUTextureFormat.BGRA8Unorm,
             Usage = WGPUTextureUsage.RenderAttachment, Width = (uint)width, Height = (uint)height,
@@ -251,8 +254,8 @@ internal sealed partial class EditorPipelineSession : IDisposable
     }
     [DllImport("__Internal_emscripten", EntryPoint = "siaEditorCanvasThread")]
     private static extern nuint CanvasThread();
-    [DllImport("__Internal_emscripten", EntryPoint = "siaEditorResizeCanvas")]
-    private static extern unsafe void ResizeCanvas(byte* selector, int width, int height);
+    [DllImport("__Internal_emscripten", EntryPoint = "emscripten_set_canvas_element_size")]
+    private static extern unsafe int ResizeCanvas(byte* selector, int width, int height);
     [DllImport("__Internal_emscripten", EntryPoint = "siaEditorReleaseCanvas")]
     private static extern unsafe void ReleaseCanvas(byte* selector);
     [JSImport("createPipelineCanvas", "main.js")]

@@ -1,8 +1,7 @@
 namespace Sia_Examples.Editor;
 
-internal static class PipelineExample
+internal static class CompilerTemplate
 {
-    public const string Folder = "pipeline";
     public const string Source = """"
         using System;
         using Sia;
@@ -16,7 +15,7 @@ internal static class PipelineExample
         using Sia.Window;
         using Sia_Examples.Editor;
 
-        public static class Pipeline
+        public static class ShaderProgram
         {
             private static readonly RenderGraphPassKey Clear = new("clear");
             private static readonly RenderGraphPassKey Triangle = new("triangle");

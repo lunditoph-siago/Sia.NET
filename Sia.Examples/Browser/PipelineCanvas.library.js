@@ -49,13 +49,6 @@ addToLibrary({
             true,
         );
     },
-    siaEditorResizeCanvas__sig: 'vpii',
-    siaEditorResizeCanvas__deps: ['$GL', '$UTF8ToString'],
-    siaEditorResizeCanvas: (selector, width, height) => {
-        const canvas = GL.offscreenCanvases[UTF8ToString(selector).slice(1)].offscreenCanvas;
-        if (canvas.width !== width) canvas.width = width;
-        if (canvas.height !== height) canvas.height = height;
-    },
     siaEditorObserveDevice__sig: 'vpp',
     siaEditorObserveDevice__deps: ['$GL', '$UTF8ToString', '$WebGPU'],
     siaEditorObserveDevice: (selector, device) => {
