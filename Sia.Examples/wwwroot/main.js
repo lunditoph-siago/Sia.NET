@@ -99,8 +99,8 @@ setModuleImports('main.js', {
     workspacePut,
     workspaceRemove,
     reportError: (message) => console.error(message),
-    createPipelineCanvas: (containerId, canvasId, thread) =>
-        createPipelineCanvas(Module, containerId, canvasId, thread),
+    createPipelineCanvas: (containerId, canvasId, thread, normalCanvas) =>
+        createPipelineCanvas(Module, containerId, canvasId, thread, normalCanvas),
     nextPipelineFrame,
     disposePipelineCanvas,
     waitPipelineCanvas,

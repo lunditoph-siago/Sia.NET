@@ -12,6 +12,7 @@ internal sealed partial class BrowserEditorPage
     private readonly EditorShaderCompiler _shaderCompiler;
     private DomElement _shaderEntry = null!;
     private DomElement _shaderTarget = null!;
+    private DomElement _pipelineCanvas = null!;
     private DomElement _shaderView = null!;
     private DomElement _shaderOutput = null!;
     private DomElement _shaderStatus = null!;
@@ -29,7 +30,7 @@ internal sealed partial class BrowserEditorPage
     private int _shaderRevision;
 
     private enum ShaderAction { Compile, Render }
-    private sealed record ShaderRequest(ShaderAction Action, string Folder, string? EntryName, bool SpirvRoute);
+    private sealed record ShaderRequest(ShaderAction Action, string Folder, string? EntryName, bool SpirvRoute, bool NormalCanvas);
 
     private void InitShaderPanel()
     {
@@ -48,7 +49,13 @@ internal sealed partial class BrowserEditorPage
             using var option = DomElement.Create("option").Attr("value", value).Text(text);
             _shaderTarget.Append(option);
         }
-        actions.Append(_shaderEntry).Append(_shaderTarget)
+        _pipelineCanvas = Own(DomElement.Create("select").Attr("aria-label", "Pipeline canvas")
+            .Attr("title", "Canvas for C# pipelines. Normal canvas reads GPU pixels back; Offscreen presents directly."));
+        foreach (var (value, text) in new[] { ("offscreen", "Offscreen canvas"), ("normal", "Normal canvas · readback") }) {
+            using var option = DomElement.Create("option").Attr("value", value).Text(text);
+            _pipelineCanvas.Append(option);
+        }
+        actions.Append(_shaderEntry).Append(_shaderTarget).Append(_pipelineCanvas)
             .Append(CreateAction("Stop", "editor-shader-stop", "Release the current rendering resources"))
             .Append(CreateAction("Cancel", "editor-shader-cancel", "Cancel the current compiler job"));
         _shaderScope = Own(DomElement.Create("div").Class("editor-shader-status")
@@ -88,7 +95,8 @@ internal sealed partial class BrowserEditorPage
             case "editor-shader-entry":
                 if (_shaderCompilation is { } compilation && int.TryParse(_shaderEntry.Value(), out var token)) {
                     _selectedShaderName = compilation.Entries.Single(entry => entry.MetadataToken == token).SelectionKey;
-                    StartShaderOperation(new ShaderRequest(ShaderAction.Compile, _shaderFolder!, _selectedShaderName, _shaderTarget.Value() == "spirv"));
+                    StartShaderOperation(new ShaderRequest(ShaderAction.Compile, _shaderFolder!, _selectedShaderName,
+                        _shaderTarget.Value() == "spirv", _pipelineCanvas.Value() == "normal"));
                 }
                 return true;
             case "editor-shader-view": RefreshShaderArtifact(); return true;
@@ -119,7 +127,8 @@ internal sealed partial class BrowserEditorPage
             return;
         }
         StartShaderOperation(new ShaderRequest(action,
-            WorkspacePath.Parent(EditorWorkspace.PathOf(active)) ?? "", _selectedShaderName, _shaderTarget.Value() == "spirv"));
+            WorkspacePath.Parent(EditorWorkspace.PathOf(active)) ?? "", _selectedShaderName,
+            _shaderTarget.Value() == "spirv", _pipelineCanvas.Value() == "normal"));
     }
 
     private void StartShaderOperation(ShaderRequest request)
@@ -257,7 +266,7 @@ internal sealed partial class BrowserEditorPage
                 _shaderArtifact = null;
                 _shaderOutput.Text("Compiled C# library · no shader entries");
                 if (request.Action == ShaderAction.Render
-                    && !await TryRunPipelineAsync(source, request.SpirvRoute, revision, token))
+                    && !await TryRunPipelineAsync(source, request.SpirvRoute, request.NormalCanvas, revision, token))
                     throw new InvalidOperationException("Declare a shader entry or public static ReactiveNode Render(in EditorPipelineFrame frame, ref Hooks hooks).");
                 if (request.Action == ShaderAction.Compile) {
                     _shaderStatus.Text("C# library compiled · no shader entries");
@@ -285,7 +294,7 @@ internal sealed partial class BrowserEditorPage
                 _buildStatus.Text("Shader build succeeded");
                 return;
             }
-            if (await TryRunPipelineAsync(source, request.SpirvRoute, revision, token)) return;
+            if (await TryRunPipelineAsync(source, request.SpirvRoute, request.NormalCanvas, revision, token)) return;
             _buildStatus.Text("Creating GPU pipeline…");
             DomRuntime.Flush();
             _shaderPreview ??= new("editor-shader-preview", "editor-shader-status");

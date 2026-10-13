@@ -22,6 +22,7 @@ internal sealed partial class EditorPipelineSession : IDisposable
     private readonly ReactiveComponent<EditorPipelineFrame> _render;
     private readonly Action<string> _status;
     private readonly bool _spirvRoute;
+    private readonly bool _normalCanvas;
     private readonly Entity _window;
     private WgpuHandle<WGPUInstance> _instance;
     private WgpuHandle<WGPUAdapter> _adapter;
@@ -33,19 +34,22 @@ internal sealed partial class EditorPipelineSession : IDisposable
     private int _maxTextureDimension;
     private double _previousTime, _startTime;
     private bool _disposed, _configured;
+    public bool Paused { get; set; }
     private readonly TaskCompletionSource _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private JSObject? _canvas;
     private byte[]? _selectorUtf8;
     private static int _canvasNumber;
     private static readonly RenderGraphTextureKey Output = new("editor.canvas");
+    private readonly List<double> _frameInputs = [];
 
     private EditorPipelineSession(Assembly assembly, IReadOnlyDictionary<int, ShaderArtifact> shaders,
-        ReactiveComponent<EditorPipelineFrame> render, bool spirvRoute, Action<string> status)
+        ReactiveComponent<EditorPipelineFrame> render, bool spirvRoute, bool normalCanvas, Action<string> status)
     {
         _assembly = assembly;
         _shaders = shaders;
         _render = render;
         _spirvRoute = spirvRoute;
+        _normalCanvas = normalCanvas;
         _status = status;
         _window = _world.Create();
         _window.Add(new WindowState(default, default, false));
@@ -53,9 +57,9 @@ internal sealed partial class EditorPipelineSession : IDisposable
 
     public static async Task<EditorPipelineSession> CreateAsync(Assembly assembly,
         IReadOnlyDictionary<int, ShaderArtifact> shaders, ReactiveComponent<EditorPipelineFrame> render,
-        bool spirvRoute, Action<string> status, CancellationToken cancellationToken)
+        bool spirvRoute, bool normalCanvas, Action<string> status, CancellationToken cancellationToken)
     {
-        var session = new EditorPipelineSession(assembly, shaders, render, spirvRoute, status);
+        var session = new EditorPipelineSession(assembly, shaders, render, spirvRoute, normalCanvas, status);
         try {
             await session.InitializeAsync(cancellationToken);
             ObjectDisposedException.ThrowIf(session._disposed, session);
@@ -71,27 +75,43 @@ internal sealed partial class EditorPipelineSession : IDisposable
         var canvasId = "editor-pipeline-canvas-" + Interlocked.Increment(ref _canvasNumber);
         var selector = "#" + canvasId;
         _selectorUtf8 = Encoding.UTF8.GetBytes(selector + "\0");
-        _canvas = CreateCanvas("editor-pipeline-preview", canvasId, checked((int)renderThread));
+        _canvas = CreateCanvas("editor-pipeline-preview", canvasId, checked((int)renderThread), _normalCanvas);
         await WaitCanvas(_canvas).WaitAsync(cancellationToken);
-        _instance = Wgpu.CreateInstance();
-        _surface = Wgpu.CreateCanvasSurface(_instance, selector);
-        _adapter = await Wgpu.RequestAdapterAsync(_instance, cancellationToken);
+        await NextFrame(_canvas).WaitAsync(cancellationToken);
+        await Task.Yield();
         cancellationToken.ThrowIfCancellationRequested();
-        _device = await Wgpu.RequestDeviceAsync(_adapter, cancellationToken);
+        _instance = Wgpu.CreateInstance();
+        if (!_normalCanvas) _surface = Wgpu.CreateCanvasSurface(_instance, selector);
+        _adapter = await AwaitGpuAsync(Wgpu.RequestAdapterAsync(_instance, cancellationToken), cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        _device = await AwaitGpuAsync(Wgpu.RequestDeviceAsync(_adapter, cancellationToken), cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         _queue = Wgpu.GetQueue(_device);
-        _maxTextureDimension = checked((int)Wgpu.GetLimits(_device).MaxTextureDimension2D);
+        var limits = Wgpu.GetLimits(_device);
+        _maxTextureDimension = checked((int)limits.MaxTextureDimension2D);
+        _maxReadbackBytes = limits.MaxBufferSize;
         _graph = _world.ConfigureWgpuRenderGraph(_device, _queue);
         ObserveGpuDevice();
         _ = RunFramesAsync();
         await _ready.Task.WaitAsync(cancellationToken);
-        _status($"{(_spirvRoute ? "SPIR-V → WGSL" : "WGSL")} · programmable pipeline running");
+        _status($"{(_spirvRoute ? "SPIR-V → WGSL" : "WGSL")} · {(_normalCanvas ? "Normal canvas" : "Offscreen canvas")} · programmable pipeline running");
+    }
+
+    private async Task<T> AwaitGpuAsync<T>(Task<T> request, CancellationToken cancellationToken)
+    {
+        do {
+            await NextFrame(_canvas!).WaitAsync(cancellationToken);
+            await Task.Yield();
+            cancellationToken.ThrowIfCancellationRequested();
+        } while (!request.IsCompleted);
+        return request.GetAwaiter().GetResult();
     }
 
     private ReactiveNode Render(in EditorPipelineFrame frame, ref Hooks hooks)
     {
         hooks.UseImportedRenderGraphTexture(frame.Graph, Output,
-            new("Canvas", RenderGraphTextureFormat.BGRA8Unorm, (uint)frame.Width, (uint)frame.Height,
+            new("Canvas", _normalCanvas ? RenderGraphTextureFormat.RGBA8Unorm : RenderGraphTextureFormat.BGRA8Unorm,
+                (uint)frame.Width, (uint)frame.Height,
                 usage: RenderGraphTextureUsage.RenderAttachment));
         return _render(in frame, ref hooks);
     }
@@ -103,12 +123,13 @@ internal sealed partial class EditorPipelineSession : IDisposable
         var width = Math.Clamp((int)Math.Round(cssWidth * scale), 1, _maxTextureDimension);
         var height = Math.Clamp((int)Math.Round(cssHeight * scale), 1, _maxTextureDimension);
         Resize(width, height, cssWidth, cssHeight, scale);
-        var surfaceTexture = Wgpu.AcquireSurfaceTexture(_surface);
-        if (!surfaceTexture.HasTexture) throw new InvalidOperationException($"Canvas acquisition failed: {surfaceTexture.Status}");
+        var surfaceTexture = _normalCanvas ? default : Wgpu.AcquireSurfaceTexture(_surface);
+        if (!_normalCanvas && !surfaceTexture.HasTexture)
+            throw new InvalidOperationException($"Canvas acquisition failed: {surfaceTexture.Status}");
         try {
             if (_startTime == 0) _startTime = milliseconds;
             var frame = new EditorPipelineFrame(_world, _window, _graph, _device, _queue,
-                Output, WGPUTextureFormat.BGRA8Unorm, width, height,
+                Output, _normalCanvas ? WGPUTextureFormat.RGBA8Unorm : WGPUTextureFormat.BGRA8Unorm, width, height,
                 (milliseconds - _startTime) / 1000, _previousTime == 0 ? 0 : (milliseconds - _previousTime) / 1000) {
                 Assembly = _assembly, Shaders = _shaders, SpirvRoute = _spirvRoute,
             };
@@ -118,10 +139,9 @@ internal sealed partial class EditorPipelineSession : IDisposable
             for (var i = 0; i + 4 < inputs.Length; i += 5)
                 Input((int)inputs[i], inputs[i + 1], inputs[i + 2], (int)inputs[i + 3], (int)inputs[i + 4]);
             _world.FlushReactive();
-            using var binding = _graph.BindImportedTexture(Output, surfaceTexture.Texture);
+            using var binding = _graph.BindImportedTexture(Output, _normalCanvas ? _outputTexture : surfaceTexture.Texture);
             _world.ExecuteWgpuRenderGraph();
-            Wgpu.PresentSurfaceOrThrow(_surface);
-            ValidateFirstFrame();
+            if (!_normalCanvas) Wgpu.PresentSurfaceOrThrow(_surface);
         }
         finally { Wgpu.Release(ref surfaceTexture); }
     }
@@ -136,6 +156,11 @@ internal sealed partial class EditorPipelineSession : IDisposable
         if (previous.FramebufferSize != next.FramebufferSize) _world.Send(_window, new WindowEvents.FramebufferResized(next.FramebufferSize));
         if (previous.ContentScale != next.ContentScale) _world.Send(_window, new WindowEvents.ContentScaleChanged(next.ContentScale));
         if (_configured && previous.FramebufferSize == next.FramebufferSize) return;
+        if (_normalCanvas) {
+            ResizeReadback(width, height);
+            _configured = true;
+            return;
+        }
         fixed (byte* selector = _selectorUtf8) {
             var result = ResizeCanvas(selector, width, height);
             if (result != 0) throw new InvalidOperationException($"Canvas resize failed: {result}");
@@ -183,7 +208,8 @@ internal sealed partial class EditorPipelineSession : IDisposable
             try { _world.Dispose(); }
             finally {
                 try {
-                    if (_configured) Wgpu.UnconfigureSurface(_surface);
+                    if (_configured && !_normalCanvas) Wgpu.UnconfigureSurface(_surface);
+                    ReleaseReadback();
                     if (canvas is not null) ReleaseCanvasMapping();
                     if (!_device.IsNull) Wgpu.DestroyDevice(_device);
                 }
@@ -238,7 +264,19 @@ internal sealed partial class EditorPipelineSession : IDisposable
                 await Task.Yield();
                 if (_disposed) return;
                 var frame = JsonSerializer.Deserialize<double[]>(packet)!;
-                Frame(frame[0], frame[1], frame[2], frame[3], frame.AsSpan(4));
+                for (var i = 4; i < frame.Length; i++) _frameInputs.Add(frame[i]);
+                if (Paused) continue;
+                if (_normalCanvas) {
+                    CheckGpuError();
+                    // Keep browser event delivery alive while the GPU mapping is pending.
+                    if (!CompleteReadback()) continue;
+                    Frame(frame[0], frame[1], frame[2], frame[3], CollectionsMarshal.AsSpan(_frameInputs));
+                    BeginReadback();
+                }
+                else Frame(frame[0], frame[1], frame[2], frame[3], CollectionsMarshal.AsSpan(_frameInputs));
+                _frameInputs.Clear();
+                if (_disposed) return;
+                ValidateFirstFrame();
             }
         }
         catch (Exception error) {
@@ -250,16 +288,16 @@ internal sealed partial class EditorPipelineSession : IDisposable
     }
     private unsafe void ReleaseCanvasMapping()
     {
-        fixed (byte* selector = _selectorUtf8) ReleaseCanvas(selector);
+        fixed (byte* selector = _selectorUtf8) ReleaseCanvas(selector, _normalCanvas ? 0 : 1);
     }
     [DllImport("__Internal_emscripten", EntryPoint = "siaEditorCanvasThread")]
     private static extern nuint CanvasThread();
     [DllImport("__Internal_emscripten", EntryPoint = "emscripten_set_canvas_element_size")]
     private static extern unsafe int ResizeCanvas(byte* selector, int width, int height);
     [DllImport("__Internal_emscripten", EntryPoint = "siaEditorReleaseCanvas")]
-    private static extern unsafe void ReleaseCanvas(byte* selector);
+    private static extern unsafe void ReleaseCanvas(byte* selector, int offscreen);
     [JSImport("createPipelineCanvas", "main.js")]
-    private static partial JSObject CreateCanvas(string containerId, string canvasId, int thread);
+    private static partial JSObject CreateCanvas(string containerId, string canvasId, int thread, bool normalCanvas);
     [JSImport("waitPipelineCanvas", "main.js")]
     [return: JSMarshalAs<JSType.Promise<JSType.Void>>]
     private static partial Task WaitCanvas(JSObject canvas);

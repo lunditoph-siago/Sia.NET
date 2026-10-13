@@ -12,7 +12,8 @@ internal sealed partial class BrowserEditorPage
     private (ShaderCompilation Source, Assembly Assembly)? _pipelineProgram;
 #endif
 
-    private async Task<bool> TryRunPipelineAsync(ShaderCompilation source, bool spirvRoute, int revision, CancellationToken token)
+    private async Task<bool> TryRunPipelineAsync(ShaderCompilation source, bool spirvRoute, bool normalCanvas,
+        int revision, CancellationToken token)
     {
 #if BROWSER
         if (_pipelineProgram is not { } program || !ReferenceEquals(source, program.Source)) {
@@ -34,10 +35,13 @@ internal sealed partial class BrowserEditorPage
             artifacts.Add(entry.MetadataToken, shader);
         }
         var render = methods[0].CreateDelegate<ReactiveComponent<EditorPipelineFrame>>();
-        var session = await EditorPipelineSession.CreateAsync(assembly, artifacts, render, spirvRoute, message => {
-            if (!_disposed && revision == _shaderRevision) { _shaderStatus.Text(message); DomRuntime.Flush(); }
-        }, token);
+        var previous = _pipeline;
+        if (previous is not null) previous.Paused = true;
+        EditorPipelineSession? session = null;
         try {
+            session = await EditorPipelineSession.CreateAsync(assembly, artifacts, render, spirvRoute, normalCanvas, message => {
+                if (!_disposed && revision == _shaderRevision) { _shaderStatus.Text(message); DomRuntime.Flush(); }
+            }, token);
             if (!CurrentShaderJob(revision)) return true;
             StopPipeline(cancelPending: false);
             _pipeline = session;
@@ -48,7 +52,8 @@ internal sealed partial class BrowserEditorPage
             _buildStatus.Text("Programmable pipeline running");
         }
         finally {
-            if (!ReferenceEquals(_pipeline, session)) session.Dispose();
+            if (previous is not null) previous.Paused = false;
+            if (session is not null && !ReferenceEquals(_pipeline, session)) session.Dispose();
         }
         return true;
 #else

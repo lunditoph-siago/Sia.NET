@@ -78,7 +78,8 @@ const inputKinds = {
     keyup: 8,
     text: 9,
 };
-export function createPipelineCanvas(module, containerId, canvasId, thread) {
+const normalCanvases = new Map();
+export function createPipelineCanvas(module, containerId, canvasId, thread, normalCanvas) {
     const container = document.getElementById(containerId);
     if (!container) throw new Error('Pipeline panel is closed');
     const canvas = document.createElement('canvas');
@@ -97,8 +98,15 @@ export function createPipelineCanvas(module, containerId, canvasId, thread) {
         raf: 0,
     };
     try {
-        owner.ready = module.siaEditorTransferCanvas(canvas, thread, owner.abort.signal);
+        if (normalCanvas) {
+            owner.context = canvas.getContext('2d', { alpha: false });
+            if (!owner.context) throw new Error('Ordinary canvas context is unavailable');
+            normalCanvases.set(canvasId, owner);
+            owner.ready = module.siaEditorReadbackCanvas(canvas, thread, owner.abort.signal, presentPipelinePixels);
+        } else owner.ready = module.siaEditorTransferCanvas(canvas, thread, owner.abort.signal);
     } catch (error) {
+        normalCanvases.delete(canvasId);
+        owner.abort.abort();
         canvas.remove();
         throw error;
     }
@@ -171,6 +179,18 @@ export function createPipelineCanvas(module, containerId, canvasId, thread) {
 export function waitPipelineCanvas(owner) {
     return owner.ready;
 }
+export function presentPipelinePixels(selector, pixels, width, height) {
+    const owner = normalCanvases.get(selector.slice(1));
+    if (!owner || owner.stopped) return;
+    if (owner.canvas.width !== width || owner.canvas.height !== height) {
+        owner.canvas.width = width;
+        owner.canvas.height = height;
+        owner.image = new ImageData(width, height);
+    }
+    owner.image ??= new ImageData(width, height);
+    owner.image.data.set(pixels);
+    owner.context.putImageData(owner.image, 0, 0);
+}
 export function nextPipelineFrame(owner) {
     return new Promise((resolve, reject) => {
         if (owner.stopped) {
@@ -203,10 +223,13 @@ export function nextPipelineFrame(owner) {
 export function disposePipelineCanvas(owner) {
     if (owner.stopped) return;
     owner.stopped = true;
+    normalCanvases.delete(owner.canvas.id);
     cancelAnimationFrame(owner.raf);
     owner.abort.abort();
     owner.canvas.remove();
     owner.rejectFrame?.(new Error('Pipeline stopped'));
     owner.rejectFrame = null;
     owner.inputs = [];
+    owner.image = null;
+    owner.context = null;
 }
