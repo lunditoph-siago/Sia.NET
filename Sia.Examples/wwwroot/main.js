@@ -4,7 +4,6 @@ import {
     createPipelineCanvas,
     nextPipelineFrame,
     disposePipelineCanvas,
-    waitPipelineCanvas,
 } from './js/pipeline-canvas.js';
 import {
     createShaderPreview,
@@ -46,8 +45,9 @@ import {
     workspaceRemove,
 } from './js/notebook-runtime.js';
 
+dotnet.withConfig({ pthreadPoolInitialSize: 8, pthreadPoolUnusedSize: 0 });
 dotnet.withModuleConfig?.(bootModuleConfig);
-const { Module, setModuleImports, runMain, getConfig, getAssemblyExports } = await dotnet.create();
+const { setModuleImports, runMain, getConfig, getAssemblyExports } = await dotnet.create();
 
 setModuleImports('main.js', {
     find: (id) => document.getElementById(id),
@@ -99,11 +99,9 @@ setModuleImports('main.js', {
     workspacePut,
     workspaceRemove,
     reportError: (message) => console.error(message),
-    createPipelineCanvas: (containerId, canvasId, thread, normalCanvas) =>
-        createPipelineCanvas(Module, containerId, canvasId, thread, normalCanvas),
+    createPipelineCanvas,
     nextPipelineFrame,
     disposePipelineCanvas,
-    waitPipelineCanvas,
     createShaderPreview,
     setShaderPreviewRevision,
     showShaderPreview,

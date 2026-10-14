@@ -1,8 +1,8 @@
 #if BROWSER
 using System.Reflection;
-using System.Text;
 using System.Text.Json;
 using Sia;
+using Sia.Graphics;
 using Sia.Graphics.Reactive;
 using Sia.Input;
 using Sia.Reactive;
@@ -28,16 +28,15 @@ internal sealed partial class EditorPipelineSession : IDisposable
     private WgpuHandle<WGPUAdapter> _adapter;
     private WgpuHandle<WGPUDevice> _device;
     private WgpuHandle<WGPUQueue> _queue;
-    private WgpuHandle<WGPUSurface> _surface;
+    private WgpuRenderTarget? _target;
     private WgpuRenderGraphRegistry? _graph;
     private ReactiveMount<EditorPipelineFrame> _mount;
     private int _maxTextureDimension;
     private double _previousTime, _startTime;
-    private bool _disposed, _configured;
+    private bool _disposed;
     public bool Paused { get; set; }
     private readonly TaskCompletionSource _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private JSObject? _canvas;
-    private byte[]? _selectorUtf8;
     private static int _canvasNumber;
     private static readonly RenderGraphTextureKey Output = new("editor.canvas");
     private readonly List<double> _frameInputs = [];
@@ -71,17 +70,12 @@ internal sealed partial class EditorPipelineSession : IDisposable
     private async Task InitializeAsync(CancellationToken cancellationToken)
     {
         _status("Creating programmable pipeline…");
-        var renderThread = CanvasThread();
         var canvasId = "editor-pipeline-canvas-" + Interlocked.Increment(ref _canvasNumber);
-        var selector = "#" + canvasId;
-        _selectorUtf8 = Encoding.UTF8.GetBytes(selector + "\0");
-        _canvas = CreateCanvas("editor-pipeline-preview", canvasId, checked((int)renderThread), _normalCanvas);
-        await WaitCanvas(_canvas).WaitAsync(cancellationToken);
+        _canvas = CreateCanvas("editor-pipeline-preview", canvasId);
         await NextFrame(_canvas).WaitAsync(cancellationToken);
         await Task.Yield();
         cancellationToken.ThrowIfCancellationRequested();
         _instance = Wgpu.CreateInstance();
-        if (!_normalCanvas) _surface = Wgpu.CreateCanvasSurface(_instance, selector);
         _adapter = await AwaitGpuAsync(Wgpu.RequestAdapterAsync(_instance, cancellationToken), cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         _device = await AwaitGpuAsync(Wgpu.RequestDeviceAsync(_adapter, cancellationToken), cancellationToken);
@@ -89,9 +83,11 @@ internal sealed partial class EditorPipelineSession : IDisposable
         _queue = Wgpu.GetQueue(_device);
         var limits = Wgpu.GetLimits(_device);
         _maxTextureDimension = checked((int)limits.MaxTextureDimension2D);
-        _maxReadbackBytes = limits.MaxBufferSize;
         _graph = _world.ConfigureWgpuRenderGraph(_device, _queue);
-        ObserveGpuDevice();
+        _status("Connecting canvas…");
+        _target = await WgpuRenderTarget.FromCanvasAsync(_instance, _device, _queue, canvasId,
+            _normalCanvas ? WgpuCanvasPresentation.Readback : WgpuCanvasPresentation.Direct, cancellationToken);
+        _status("Rendering first frame…");
         _ = RunFramesAsync();
         await _ready.Task.WaitAsync(cancellationToken);
         _status($"{(_spirvRoute ? "SPIR-V → WGSL" : "WGSL")} · {(_normalCanvas ? "Normal canvas" : "Offscreen canvas")} · programmable pipeline running");
@@ -110,43 +106,45 @@ internal sealed partial class EditorPipelineSession : IDisposable
     private ReactiveNode Render(in EditorPipelineFrame frame, ref Hooks hooks)
     {
         hooks.UseImportedRenderGraphTexture(frame.Graph, Output,
-            new("Canvas", _normalCanvas ? RenderGraphTextureFormat.RGBA8Unorm : RenderGraphTextureFormat.BGRA8Unorm,
+            new("Canvas", frame.Format == WGPUTextureFormat.RGBA8Unorm ? RenderGraphTextureFormat.RGBA8Unorm : RenderGraphTextureFormat.BGRA8Unorm,
                 (uint)frame.Width, (uint)frame.Height,
                 usage: RenderGraphTextureUsage.RenderAttachment));
         return _render(in frame, ref hooks);
     }
 
-    private void Frame(double milliseconds, double cssWidth, double cssHeight, double scale, ReadOnlySpan<double> inputs)
+    private unsafe bool Frame(double milliseconds, double cssWidth, double cssHeight, double scale, ReadOnlySpan<double> inputs)
     {
-        if (_disposed || _graph is null) return;
-        CheckGpuError();
+        if (_disposed || _graph is null) return false;
         var width = Math.Clamp((int)Math.Round(cssWidth * scale), 1, _maxTextureDimension);
         var height = Math.Clamp((int)Math.Round(cssHeight * scale), 1, _maxTextureDimension);
-        Resize(width, height, cssWidth, cssHeight, scale);
-        var surfaceTexture = _normalCanvas ? default : Wgpu.AcquireSurfaceTexture(_surface);
-        if (!_normalCanvas && !surfaceTexture.HasTexture)
-            throw new InvalidOperationException($"Canvas acquisition failed: {surfaceTexture.Status}");
-        try {
-            if (_startTime == 0) _startTime = milliseconds;
-            var frame = new EditorPipelineFrame(_world, _window, _graph, _device, _queue,
-                Output, _normalCanvas ? WGPUTextureFormat.RGBA8Unorm : WGPUTextureFormat.BGRA8Unorm, width, height,
-                (milliseconds - _startTime) / 1000, _previousTime == 0 ? 0 : (milliseconds - _previousTime) / 1000) {
-                Assembly = _assembly, Shaders = _shaders, SpirvRoute = _spirvRoute,
-            };
-            _previousTime = milliseconds;
-            if (_mount.IsMounted) _mount.Update(in frame);
-            else _mount = _world.Mount<EditorPipelineFrame>(Render, in frame);
-            for (var i = 0; i + 4 < inputs.Length; i += 5)
-                Input((int)inputs[i], inputs[i + 1], inputs[i + 2], (int)inputs[i + 3], (int)inputs[i + 4]);
-            _world.FlushReactive();
-            using var binding = _graph.BindImportedTexture(Output, _normalCanvas ? _outputTexture : surfaceTexture.Texture);
-            _world.ExecuteWgpuRenderGraph();
-            if (!_normalCanvas) Wgpu.PresentSurfaceOrThrow(_surface);
+        if (!_target!.TryAcquireFrame(width, height, out var output)) return false;
+        using (output) {
+            var validate = _firstFrameValidation is null;
+            if (validate) WgpuUnsafe.wgpuDevicePushErrorScope((WGPUDevice*)_device.Handle, WGPUErrorFilter.Validation);
+            try {
+                UpdateWindow(width, height, cssWidth, cssHeight, scale);
+                if (_startTime == 0) _startTime = milliseconds;
+                var frame = new EditorPipelineFrame(_world, _window, _graph, _device, _queue,
+                    Output, output.Format, output.Width, output.Height,
+                    (milliseconds - _startTime) / 1000, _previousTime == 0 ? 0 : (milliseconds - _previousTime) / 1000) {
+                    Assembly = _assembly, Shaders = _shaders, SpirvRoute = _spirvRoute,
+                };
+                _previousTime = milliseconds;
+                if (_mount.IsMounted) _mount.Update(in frame);
+                else _mount = _world.Mount<EditorPipelineFrame>(Render, in frame);
+                for (var i = 0; i + 4 < inputs.Length; i += 5)
+                    Input((int)inputs[i], inputs[i + 1], inputs[i + 2], (int)inputs[i + 3], (int)inputs[i + 4]);
+                _world.FlushReactive();
+                using var binding = _graph.BindImportedTexture(Output, output.Texture);
+                _world.ExecuteWgpuRenderGraph();
+                output.Present();
+            }
+            finally { if (validate) _firstFrameValidation = EndFirstFrameValidation(); }
         }
-        finally { Wgpu.Release(ref surfaceTexture); }
+        return true;
     }
 
-    private unsafe void Resize(int width, int height, double cssWidth, double cssHeight, double scale)
+    private void UpdateWindow(int width, int height, double cssWidth, double cssHeight, double scale)
     {
         var previous = _window.Get<WindowState>();
         var next = new WindowState(new((int)cssWidth, (int)cssHeight), new(width, height), false,
@@ -155,22 +153,6 @@ internal sealed partial class EditorPipelineSession : IDisposable
         if (previous.Size != next.Size) _world.Send(_window, new WindowEvents.Resized(next.Size));
         if (previous.FramebufferSize != next.FramebufferSize) _world.Send(_window, new WindowEvents.FramebufferResized(next.FramebufferSize));
         if (previous.ContentScale != next.ContentScale) _world.Send(_window, new WindowEvents.ContentScaleChanged(next.ContentScale));
-        if (_configured && previous.FramebufferSize == next.FramebufferSize) return;
-        if (_normalCanvas) {
-            ResizeReadback(width, height);
-            _configured = true;
-            return;
-        }
-        fixed (byte* selector = _selectorUtf8) {
-            var result = ResizeCanvas(selector, width, height);
-            if (result != 0) throw new InvalidOperationException($"Canvas resize failed: {result}");
-        }
-        Wgpu.ConfigureSurface(_surface, new WGPUSurfaceConfiguration {
-            Device = (WGPUDevice*)_device.Handle, Format = WGPUTextureFormat.BGRA8Unorm,
-            Usage = WGPUTextureUsage.RenderAttachment, Width = (uint)width, Height = (uint)height,
-            AlphaMode = WGPUCompositeAlphaMode.Opaque, PresentMode = WGPUPresentMode.Fifo,
-        });
-        _configured = true;
     }
 
     private void Input(int kind, double x, double y, int code, int modifiers)
@@ -208,16 +190,13 @@ internal sealed partial class EditorPipelineSession : IDisposable
             try { _world.Dispose(); }
             finally {
                 try {
-                    if (_configured && !_normalCanvas) Wgpu.UnconfigureSurface(_surface);
-                    ReleaseReadback();
-                    if (canvas is not null) ReleaseCanvasMapping();
+                    _target?.Dispose();
                     if (!_device.IsNull) Wgpu.DestroyDevice(_device);
                 }
                 finally {
                     Wgpu.Release(ref _queue);
                     Wgpu.Release(ref _device);
                     Wgpu.Release(ref _adapter);
-                    Wgpu.Release(ref _surface);
                     Wgpu.Release(ref _instance);
                     canvas?.Dispose();
                 }
@@ -225,36 +204,6 @@ internal sealed partial class EditorPipelineSession : IDisposable
         }
     }
 
-    private unsafe void ValidateFirstFrame()
-    {
-        if (_ready.Task.IsCompleted) return;
-        fixed (byte* selector = _selectorUtf8) {
-            if (_graph!.ExecutionCount == 1) ValidateFrame(selector);
-            if (FrameValidated(selector) != 0) _ready.TrySetResult();
-        }
-    }
-    [DllImport("__Internal_emscripten", EntryPoint = "siaEditorValidateFrame")]
-    private static extern unsafe void ValidateFrame(byte* selector);
-    [DllImport("__Internal_emscripten", EntryPoint = "siaEditorFrameValidated")]
-    private static extern unsafe int FrameValidated(byte* selector);
-    private unsafe void ObserveGpuDevice()
-    {
-        fixed (byte* selector = _selectorUtf8) ObserveDevice(selector, _device.Handle);
-    }
-    private unsafe void CheckGpuError()
-    {
-        nint error;
-        fixed (byte* selector = _selectorUtf8) error = DeviceError(selector);
-        if (error == 0) return;
-        try { throw new InvalidOperationException(Marshal.PtrToStringUTF8(error)); }
-        finally { Free(error); }
-    }
-    [DllImport("__Internal_emscripten", EntryPoint = "siaEditorObserveDevice")]
-    private static extern unsafe void ObserveDevice(byte* selector, nint device);
-    [DllImport("__Internal_emscripten", EntryPoint = "siaEditorDeviceError")]
-    private static extern unsafe nint DeviceError(byte* selector);
-    [DllImport("__Internal_emscripten", EntryPoint = "siaEditorFree")]
-    private static extern void Free(nint pointer);
     private async Task RunFramesAsync()
     {
         try {
@@ -266,17 +215,13 @@ internal sealed partial class EditorPipelineSession : IDisposable
                 var frame = JsonSerializer.Deserialize<double[]>(packet)!;
                 for (var i = 4; i < frame.Length; i++) _frameInputs.Add(frame[i]);
                 if (Paused) continue;
-                if (_normalCanvas) {
-                    CheckGpuError();
-                    // Keep browser event delivery alive while the GPU mapping is pending.
-                    if (!CompleteReadback()) continue;
-                    Frame(frame[0], frame[1], frame[2], frame[3], CollectionsMarshal.AsSpan(_frameInputs));
-                    BeginReadback();
-                }
-                else Frame(frame[0], frame[1], frame[2], frame[3], CollectionsMarshal.AsSpan(_frameInputs));
+                if (!Frame(frame[0], frame[1], frame[2], frame[3], CollectionsMarshal.AsSpan(_frameInputs))) continue;
                 _frameInputs.Clear();
                 if (_disposed) return;
-                ValidateFirstFrame();
+                if (_firstFrameValidation is { IsCompleted: true } validation) {
+                    validation.GetAwaiter().GetResult();
+                    _ready.TrySetResult();
+                }
             }
         }
         catch (Exception error) {
@@ -286,21 +231,8 @@ internal sealed partial class EditorPipelineSession : IDisposable
             finally { Dispose(); }
         }
     }
-    private unsafe void ReleaseCanvasMapping()
-    {
-        fixed (byte* selector = _selectorUtf8) ReleaseCanvas(selector, _normalCanvas ? 0 : 1);
-    }
-    [DllImport("__Internal_emscripten", EntryPoint = "siaEditorCanvasThread")]
-    private static extern nuint CanvasThread();
-    [DllImport("__Internal_emscripten", EntryPoint = "emscripten_set_canvas_element_size")]
-    private static extern unsafe int ResizeCanvas(byte* selector, int width, int height);
-    [DllImport("__Internal_emscripten", EntryPoint = "siaEditorReleaseCanvas")]
-    private static extern unsafe void ReleaseCanvas(byte* selector, int offscreen);
     [JSImport("createPipelineCanvas", "main.js")]
-    private static partial JSObject CreateCanvas(string containerId, string canvasId, int thread, bool normalCanvas);
-    [JSImport("waitPipelineCanvas", "main.js")]
-    [return: JSMarshalAs<JSType.Promise<JSType.Void>>]
-    private static partial Task WaitCanvas(JSObject canvas);
+    private static partial JSObject CreateCanvas(string containerId, string canvasId);
     [JSImport("nextPipelineFrame", "main.js")]
     [return: JSMarshalAs<JSType.Promise<JSType.String>>]
     private static partial Task<string> NextFrame(JSObject canvas);
