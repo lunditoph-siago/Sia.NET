@@ -1,3 +1,5 @@
+import { UniformBinding } from './uniform-inspector.js';
+
 const fullscreenVertex = `
 @vertex fn fullscreen(@builtin(vertex_index) index: u32) -> @builtin(position) vec4<f32> {
     let x = f32((index << 1u) & 2u);
@@ -5,10 +7,11 @@ const fullscreenVertex = `
     return vec4<f32>(x * 2.0 - 1.0, y * 2.0 - 1.0, 0.0, 1.0);
 }`;
 
-export function createShaderPreview(containerId, statusId) {
+export function createShaderPreview(containerId, statusId, inspector) {
     return new ShaderPreview(
         document.getElementById(containerId),
         document.getElementById(statusId),
+        inspector,
     );
 }
 export function setShaderPreviewRevision(owner, revision) {
@@ -31,20 +34,19 @@ export function downloadShaderBinary(name, base64) {
 }
 
 class ShaderPreview {
-    constructor(container, status) {
+    constructor(container, status, inspector) {
         this.container = container;
         this.status = status;
         this.canvas = document.createElement('canvas');
         this.canvas.className = 'editor-shader-canvas';
         this.canvas.setAttribute('aria-label', 'Shader preview');
-        this.controls = document.createElement('div');
-        this.controls.className = 'editor-shader-parameters';
+        this.inspector = inspector;
         this.pause = document.createElement('button');
         this.pause.className = 'btn';
         this.pause.textContent = 'Pause';
         this.pause.type = 'button';
         this.pause.addEventListener('click', () => this.togglePause());
-        container.append(this.canvas, this.pause, this.controls);
+        container.append(this.canvas, this.pause);
         this.disposed = false;
         this.revision = 0;
         this.visible = false;
@@ -131,6 +133,7 @@ class ShaderPreview {
             throw new Error('Preview parameters exceed the adapter limits.');
         }
         let buffer = null;
+        let binding = null;
         let scoped = true;
         device.pushErrorScope('validation');
         try {
@@ -190,6 +193,14 @@ class ShaderPreview {
             scoped = false;
             if (validation) throw new Error(validation.message);
             if (this.disposed || revision !== this.revision || this.device !== device) return -1;
+            binding = new UniformBinding(this.inspector);
+            binding.configure(layout.parameters.map(parameter => {
+                const min = parameter.type === 'f32' ? parameter.min : Math.ceil(parameter.min ?? -2147483648);
+                const max = parameter.type === 'f32' ? parameter.max : Math.floor(parameter.max ?? 4294967295);
+                return { ...parameter, key: `${entry}/${parameter.name}`,
+                    values: [Math.min(max ?? Infinity, Math.max(min ?? -Infinity, 0))], sources: true,
+                    source: ['time', 'width', 'height'].includes(parameter.name) ? parameter.name : 'constant' };
+            }));
             // Only a complete, current pipeline can take ownership of the live preview.
             this.stop();
             const oldBuffer = this.buffer;
@@ -198,7 +209,12 @@ class ShaderPreview {
             buffer = null;
             this.bindGroup = bindGroup;
             this.uniformBytes = new ArrayBuffer(layout.bufferSize);
-            this.parameters = this.createParameters(layout.parameters);
+            this.binding?.dispose();
+            this.binding = binding;
+            binding = null;
+            this.parameters = this.binding.fields;
+            this.binding.changed = () => this.refresh();
+            this.binding.activate();
             this.activeRevision = revision;
             this.time = 0;
             this.started = performance.now();
@@ -212,47 +228,8 @@ class ShaderPreview {
         } finally {
             if (scoped) await device.popErrorScope();
             buffer?.destroy();
+            binding?.dispose();
         }
-    }
-
-    createParameters(parameters) {
-        this.controls.replaceChildren();
-        return parameters.map((parameter) => {
-            const label = document.createElement('label');
-            label.textContent = `${parameter.name} (${parameter.type}) `;
-            const source = document.createElement('select');
-            source.setAttribute('aria-label', `${parameter.name} source`);
-            for (const [value, text] of [
-                ['constant', 'Value'],
-                ['time', 'Time (s)'],
-                ['width', 'Canvas width'],
-                ['height', 'Canvas height'],
-            ]) {
-                const option = document.createElement('option');
-                option.value = value;
-                option.textContent = text;
-                source.append(option);
-            }
-            // These are documented sample defaults; binding and offsets come from the compiler.
-            source.value = ['time', 'width', 'height'].includes(parameter.name)
-                ? parameter.name
-                : 'constant';
-            const input = document.createElement('input');
-            input.type = 'number';
-            input.step = parameter.type === 'f32' ? 'any' : '1';
-            input.value = '0';
-            input.setAttribute('aria-label', `${parameter.name} value`);
-            const changed = () => {
-                input.disabled = source.value !== 'constant';
-                this.refresh();
-            };
-            source.addEventListener('change', changed);
-            input.addEventListener('input', changed);
-            input.disabled = source.value !== 'constant';
-            label.append(source, input);
-            this.controls.append(label);
-            return { ...parameter, source, input };
-        });
     }
 
     stop() {
@@ -297,18 +274,11 @@ class ShaderPreview {
                 const view = new DataView(this.uniformBytes);
                 for (const parameter of this.parameters) {
                     const value =
-                        parameter.source.value === 'width'
-                            ? this.canvas.width
-                            : parameter.source.value === 'height'
-                              ? this.canvas.height
-                              : parameter.source.value === 'time'
-                                ? this.time + (this.paused ? 0 : (now - this.started) / 1000)
-                                : parameter.input.value === ''
-                                  ? NaN
-                                  : Number(parameter.input.value);
+                        this.binding.sample(parameter,
+                            this.time + (this.paused ? 0 : (now - this.started) / 1000), this.canvas.width, this.canvas.height);
                     if (
                         !Number.isFinite(value) ||
-                        (parameter.type === 'f32' && Math.abs(value) > 3.402823466e38) ||
+                        (parameter.type === 'f32' && Math.abs(value) > 3.4028234663852886e38) ||
                         (parameter.type === 'u32' && (value < 0 || value > 4294967295)) ||
                         (parameter.type === 'i32' && (value < -2147483648 || value > 2147483647))
                     ) {
@@ -346,7 +316,7 @@ class ShaderPreview {
             }
             if (
                 !this.paused &&
-                this.parameters.some((parameter) => parameter.source.value === 'time')
+                this.parameters.some((parameter) => parameter.source === 'time')
             ) {
                 this.frame = requestAnimationFrame((time) => this.draw(time));
             }
@@ -366,6 +336,7 @@ class ShaderPreview {
         this.visibility.disconnect();
         document.removeEventListener('visibilitychange', this.onVisibility);
         this.buffer?.destroy();
+        this.binding?.dispose();
         if (this.device) {
             this.device.removeEventListener('uncapturederror', this.onError);
             this.context.unconfigure();

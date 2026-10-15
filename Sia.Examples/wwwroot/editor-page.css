@@ -301,8 +301,7 @@
         min-width: 0;
     }
 
-    .editor-shader-actions,
-    .editor-shader-parameters {
+    .editor-shader-actions {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
@@ -310,8 +309,8 @@
     }
 
     .editor-shader-actions select,
-    .editor-shader-parameters select,
-    .editor-shader-parameters input {
+    .editor-uniform-popup select,
+    .editor-uniform-popup input {
         max-width: 100%;
         padding: 0.3rem;
         border: 1px solid var(--border-subtle);
@@ -321,9 +320,39 @@
         font: inherit;
     }
 
-    .editor-shader-parameters input {
+    .editor-uniform-popup input[type='number'] {
         width: 6rem;
     }
+    .editor-uniform-popup {
+        margin: 0;
+        padding: 0.75rem;
+        width: min(25rem, calc(100vw - 2rem));
+        max-height: calc(100vh - 2rem);
+        overflow: auto;
+        border: 1px solid var(--border-control);
+        border-radius: var(--radius-control);
+        color: var(--color-fg);
+        background: var(--color-bg);
+        box-shadow: 0 8px 32px #0004;
+        font: inherit;
+        font-size: 0.8rem;
+    }
+    .editor-uniform-popup header,
+    .editor-uniform-fields fieldset {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.4rem;
+    }
+    .editor-uniform-popup header strong { margin-right: auto; }
+    .editor-uniform-fields fieldset {
+        margin: 0.6rem 0 0;
+        padding: 0.5rem;
+        border: 1px solid var(--border-subtle);
+        min-width: 0;
+    }
+    .editor-uniform-error { color: var(--color-danger); }
+    .editor-uniform-error:empty { display: none; }
     .editor-shader-actions select {
         max-width: 16rem;
     }

@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Sia.Spirv;
 using Sia.Spirv.Compiler;
@@ -49,7 +50,7 @@ internal sealed class EditorShaderCompiler(MetadataReferenceProvider references)
         var referenceVersion = ReferenceVersion;
         var output = await _engine.CompileAsync(new(
             $"EditorShader_{Interlocked.Increment(ref _assemblyNumber)}",
-            files, OutputKind.DynamicallyLinkedLibrary), cancellationToken);
+            files, SelectOutputKind: ChooseOutputKind), cancellationToken);
         var diagnostics = output.Diagnostics.ToList();
         var csharpMilliseconds = clock.Elapsed.TotalMilliseconds;
         if (!output.Success) {
@@ -74,6 +75,33 @@ internal sealed class EditorShaderCompiler(MetadataReferenceProvider references)
         return new(image, intrinsicImage, entries, diagnostics, referenceVersion, csharpMilliseconds, clock.Elapsed.TotalMilliseconds);
     }
 
+    private static OutputKind ChooseOutputKind(Compilation compilation, CancellationToken cancellationToken)
+    {
+        var renderType = compilation.GetTypeByMetadataName("Sia.Reactive.ReactiveNode");
+        var frameType = compilation.GetTypeByMetadataName("Sia_Examples.Editor.EditorPipelineFrame");
+        var hooksType = compilation.GetTypeByMetadataName("Sia.Reactive.Hooks");
+        var hasRender = compilation.GetSymbolsWithName("Render", SymbolFilter.Member, cancellationToken)
+            .OfType<IMethodSymbol>().Any(method => method.IsStatic && !method.IsAbstract && !method.IsGenericMethod
+                && method.DeclaredAccessibility == Accessibility.Public
+                && IsExported(method.ContainingType)
+                && SymbolEqualityComparer.Default.Equals(method.ReturnType, renderType)
+                && method.Parameters is [{ RefKind: RefKind.In } frame, { RefKind: RefKind.Ref } hooks]
+                && SymbolEqualityComparer.Default.Equals(frame.Type, frameType)
+                && SymbolEqualityComparer.Default.Equals(hooks.Type, hooksType));
+        var hasTopLevel = compilation.SyntaxTrees.Any(tree => tree.GetRoot(cancellationToken).ChildNodes()
+            .Any(node => node is Microsoft.CodeAnalysis.CSharp.Syntax.GlobalStatementSyntax));
+        return hasRender && !hasTopLevel || compilation.GetEntryPoint(cancellationToken) is null
+            && !compilation.GetDiagnostics(cancellationToken).Any(diagnostic => diagnostic.Id == "CS0017")
+            ? OutputKind.DynamicallyLinkedLibrary : OutputKind.ConsoleApplication;
+    }
+
+    private static bool IsExported(INamedTypeSymbol type)
+    {
+        for (var current = type; current is not null; current = current.ContainingType)
+            if (current.DeclaredAccessibility != Accessibility.Public || current.IsGenericType) return false;
+        return true;
+    }
+
     internal static ShaderArtifact Write(ShaderCompilation compilation, int token, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -95,12 +123,12 @@ internal sealed class EditorShaderCompiler(MetadataReferenceProvider references)
         var translated = ShaderTranslator.SpirvToWgsl(spirv, Target);
         cancellationToken.ThrowIfCancellationRequested();
         var entryName = module.Functions.Single(function => function.Stage is not null).Name;
-        var preview = DescribePreview(kernel, module);
+        var preview = DescribePreview(kernel, module, compilation.Program.ManifestModule.ResolveMethod(token)!.GetParameters());
         return new(kernel.QualifiedName, entryName, wgsl, spirv, translated, preview,
             lowering, wgslMilliseconds, spirvMilliseconds, clock.Elapsed.TotalMilliseconds);
     }
 
-    private static ShaderPreviewLayout DescribePreview(ShaderEntry kernel, Sia.Spirv.Compiler.Translation.IR.Module module)
+    private static ShaderPreviewLayout DescribePreview(ShaderEntry kernel, Sia.Spirv.Compiler.Translation.IR.Module module, ParameterInfo[] metadata)
     {
         ShaderPreviewLayout Unsupported(string reason) => new(null, 0, [], reason);
         if (kernel.Stage != SpirvShaderStage.Fragment) {
@@ -125,7 +153,11 @@ internal sealed class EditorShaderCompiler(MetadataReferenceProvider references)
                 SpirvScalarType.Int32 => "i32",
                 SpirvScalarType.UInt32 => "u32",
                 _ => throw new InvalidDataException("Unsupported preview scalar type: " + parameter.ScalarType),
-            }, index * 4)).ToArray();
+            }, index * 4, metadata[index].GetCustomAttribute<RangeAttribute>()?.Minimum,
+            metadata[index].GetCustomAttribute<RangeAttribute>()?.Maximum)).ToArray();
+        if (parameters.Any(parameter => parameter.Min is { } min && parameter.Max is { } max
+            && (!double.IsFinite(min) || !double.IsFinite(max) || min >= max)))
+            return Unsupported("Parameter ranges must have finite, increasing bounds.");
         if (parameters.Length == 0) {
             return module.Globals.Any(global => global.Binding is not null)
                 ? Unsupported("Shader declares resources that the preview cannot supply.")
@@ -149,6 +181,8 @@ internal sealed record ShaderCompilation(byte[]? Image, ReadOnlyMemory<byte> Int
     IReadOnlyList<ShaderEntry> Entries, IReadOnlyList<CSharpCompilationDiagnostic> Diagnostics,
     int ReferenceVersion, double CSharpMilliseconds, double AnalysisMilliseconds)
 {
+    private readonly Lazy<Assembly> _program = new(() => Assembly.Load(Image!));
+    public Assembly Program => _program.Value;
     public bool Success => Image is not null
         && !Diagnostics.Any(diagnostic => diagnostic.Severity == NotebookDiagnosticSeverity.Error);
 }
@@ -163,7 +197,7 @@ internal sealed record ShaderEntry(string QualifiedName, string Name, int Metada
         string.Join(", ", Parameters.Select(static parameter => $"{parameter.ScalarType} {parameter.Name}")) + ")";
 }
 
-internal sealed record ShaderPreviewParameter(string Name, string Type, int Offset);
+internal sealed record ShaderPreviewParameter(string Name, string Type, int Offset, double? Min, double? Max);
 internal sealed record ShaderPreviewLayout(uint? Binding, int BufferSize,
     IReadOnlyList<ShaderPreviewParameter> Parameters, string? UnsupportedReason);
 internal sealed record ShaderArtifact(string QualifiedName, string EntryName, string Wgsl, byte[] Spirv,

@@ -22,11 +22,20 @@ internal static class CompilerTemplate
             private readonly record struct Controls(bool Triangle, float X, float Y);
             private readonly record struct InputCapture(Entity Window, State<Controls> State);
             private readonly record struct GpuDependencies(WgpuHandle<WGPUDevice> Device, WGPUTextureFormat Format, DrawResources Draw, string Shader);
+            private struct Material
+            {
+                [ColorAttribute] public float4 Tint;
+                [Range(0, 2)] public float Exposure;
+                public bool Animate;
+            }
 
             // The editor mounts this existing ReactiveComponent delegate in its own ECS world.
             public static ReactiveNode Render(in EditorPipelineFrame frame, ref Hooks hooks)
             {
                 var state = hooks.UseState(new Controls(true, 0.5f, 0.5f));
+                var material = hooks.UseUniforms(in frame, "Material", new Material {
+                    Tint = new float4(1, 1, 1, 1), Exposure = 1, Animate = true,
+                });
                 var input = new InputCapture(frame.Window, state);
                 hooks.UseEvent<InputEvents.MouseMoved, InputCapture>(input,
                     static (Entity target, in InputEvents.MouseMoved e, in InputCapture c) => {
@@ -45,6 +54,7 @@ internal static class CompilerTemplate
                 var draw = hooks.UseRef(static () => new DrawResources()).Value;
                 draw.Frame = frame;
                 draw.Controls = state.Value;
+                draw.Material = material;
                 hooks.UseRenderGraphPass(frame.Graph, Clear, "Animated clear", frame.Output, DeclareClear);
                 hooks.UseWgpuRenderGraphPassHandler(frame.Graph, Clear, draw.Clear);
                 return Reactive.When(state.Value.Triangle, Reactive.Component<EditorPipelineFrame>(Overlay, in frame));
@@ -78,11 +88,13 @@ internal static class CompilerTemplate
             {
                 public EditorPipelineFrame Frame;
                 public Controls Controls;
+                public Material Material;
                 private WgpuHandle<WGPURenderPipeline> _pipeline;
 
                 public void Clear(WgpuReactiveRenderGraphPassContext pass)
                 {
-                    var color = new float3(Controls.X, Controls.Y, 0.5f + 0.5f * math.sin((float)Frame.Elapsed));
+                    var blue = Material.Animate ? 0.5f + 0.5f * math.sin((float)Frame.Elapsed) : 0.5f;
+                    var color = new float3(Controls.X * Material.Tint.x, Controls.Y * Material.Tint.y, blue * Material.Tint.z) * Material.Exposure;
                     pass.GetOrBeginRenderPass(new WgpuReactiveRenderGraphColorAttachment(Frame.Output, WGPULoadOp.Clear,
                         ClearValue: new WGPUColor { R = color.x, G = color.y, B = color.z, A = 1 }));
                 }

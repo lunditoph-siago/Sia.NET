@@ -13,10 +13,10 @@ internal sealed partial class EditorShaderPreview : IDisposable
 #endif
     private bool _disposed;
 
-    public EditorShaderPreview(string containerId, string statusId)
+    public EditorShaderPreview(string containerId, string statusId, EditorUniformInspector inspector)
     {
 #if BROWSER
-        _handle = Create(containerId, statusId);
+        _handle = Create(containerId, statusId, inspector.Handle);
 #endif
     }
 
@@ -59,7 +59,7 @@ internal sealed partial class EditorShaderPreview : IDisposable
 
 #if BROWSER
     [JSImport("createShaderPreview", "main.js")]
-    private static partial JSObject Create(string containerId, string statusId);
+    private static partial JSObject Create(string containerId, string statusId, JSObject inspector);
     [JSImport("setShaderPreviewRevision", "main.js")]
     private static partial void SetRevision(JSObject owner, int revision);
     [JSImport("showShaderPreview", "main.js")]

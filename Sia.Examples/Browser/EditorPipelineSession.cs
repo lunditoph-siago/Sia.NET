@@ -9,6 +9,7 @@ using Sia.Reactive;
 using Sia.RenderGraph;
 using Sia.WebGPU;
 using Sia.Window;
+using Sia_Examples.Notebook;
 using System.Runtime.InteropServices.JavaScript;
 using System.Runtime.InteropServices;
 
@@ -40,9 +41,12 @@ internal sealed partial class EditorPipelineSession : IDisposable
     private static int _canvasNumber;
     private static readonly RenderGraphTextureKey Output = new("editor.canvas");
     private readonly List<double> _frameInputs = [];
+    private readonly EditorUniformSession _uniforms;
+    private readonly ProgramConsole _console;
 
     private EditorPipelineSession(Assembly assembly, IReadOnlyDictionary<int, ShaderArtifact> shaders,
-        ReactiveComponent<EditorPipelineFrame> render, bool spirvRoute, bool normalCanvas, Action<string> status)
+        ReactiveComponent<EditorPipelineFrame> render, bool spirvRoute, bool normalCanvas, Action<string> status,
+        EditorUniformInspector inspector, ProgramConsole console)
     {
         _assembly = assembly;
         _shaders = shaders;
@@ -50,15 +54,17 @@ internal sealed partial class EditorPipelineSession : IDisposable
         _spirvRoute = spirvRoute;
         _normalCanvas = normalCanvas;
         _status = status;
+        _uniforms = new(inspector);
+        _console = console;
         _window = _world.Create();
         _window.Add(new WindowState(default, default, false));
     }
 
     public static async Task<EditorPipelineSession> CreateAsync(Assembly assembly,
         IReadOnlyDictionary<int, ShaderArtifact> shaders, ReactiveComponent<EditorPipelineFrame> render,
-        bool spirvRoute, bool normalCanvas, Action<string> status, CancellationToken cancellationToken)
+        bool spirvRoute, bool normalCanvas, Action<string> status, EditorUniformInspector inspector, ProgramConsole console, CancellationToken cancellationToken)
     {
-        var session = new EditorPipelineSession(assembly, shaders, render, spirvRoute, normalCanvas, status);
+        var session = new EditorPipelineSession(assembly, shaders, render, spirvRoute, normalCanvas, status, inspector, console);
         try {
             await session.InitializeAsync(cancellationToken);
             ObjectDisposedException.ThrowIf(session._disposed, session);
@@ -66,6 +72,8 @@ internal sealed partial class EditorPipelineSession : IDisposable
         }
         catch { session.Dispose(); throw; }
     }
+
+    public void ActivateUniforms() => _uniforms.Activate();
 
     private async Task InitializeAsync(CancellationToken cancellationToken)
     {
@@ -127,7 +135,7 @@ internal sealed partial class EditorPipelineSession : IDisposable
                 var frame = new EditorPipelineFrame(_world, _window, _graph, _device, _queue,
                     Output, output.Format, output.Width, output.Height,
                     (milliseconds - _startTime) / 1000, _previousTime == 0 ? 0 : (milliseconds - _previousTime) / 1000) {
-                    Assembly = _assembly, Shaders = _shaders, SpirvRoute = _spirvRoute,
+                    Assembly = _assembly, Shaders = _shaders, SpirvRoute = _spirvRoute, Uniforms = _uniforms,
                 };
                 _previousTime = milliseconds;
                 if (_mount.IsMounted) _mount.Update(in frame);
@@ -135,6 +143,7 @@ internal sealed partial class EditorPipelineSession : IDisposable
                 for (var i = 0; i + 4 < inputs.Length; i += 5)
                     Input((int)inputs[i], inputs[i + 1], inputs[i + 2], (int)inputs[i + 3], (int)inputs[i + 4]);
                 _world.FlushReactive();
+                _uniforms.Sync();
                 using var binding = _graph.BindImportedTexture(Output, output.Texture);
                 _world.ExecuteWgpuRenderGraph();
                 output.Present();
@@ -176,6 +185,7 @@ internal sealed partial class EditorPipelineSession : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        using var capture = _console.Capture();
         _ready.TrySetCanceled();
         var canvas = _canvas;
         _canvas = null;
@@ -190,6 +200,7 @@ internal sealed partial class EditorPipelineSession : IDisposable
             try { _world.Dispose(); }
             finally {
                 try {
+                    _uniforms.Dispose();
                     _target?.Dispose();
                     if (!_device.IsNull) Wgpu.DestroyDevice(_device);
                 }
@@ -199,6 +210,7 @@ internal sealed partial class EditorPipelineSession : IDisposable
                     Wgpu.Release(ref _adapter);
                     Wgpu.Release(ref _instance);
                     canvas?.Dispose();
+                    _console.Dispose();
                 }
             }
         }
@@ -215,6 +227,7 @@ internal sealed partial class EditorPipelineSession : IDisposable
                 var frame = JsonSerializer.Deserialize<double[]>(packet)!;
                 for (var i = 4; i < frame.Length; i++) _frameInputs.Add(frame[i]);
                 if (Paused) continue;
+                _uniforms.ApplyEdits();
                 if (!Frame(frame[0], frame[1], frame[2], frame[3], CollectionsMarshal.AsSpan(_frameInputs))) continue;
                 _frameInputs.Clear();
                 if (_disposed) return;

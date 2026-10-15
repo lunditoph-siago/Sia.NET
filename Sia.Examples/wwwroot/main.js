@@ -1,6 +1,10 @@
 import { dotnet } from './_framework/dotnet.js';
 import './js/app-shell.js';
 import {
+    createUniformInspector, disposeUniformInspector, createUniformBinding,
+    configureUniformBinding, activateUniformBinding, readUniformEdits, disposeUniformBinding,
+} from './js/uniform-inspector.js';
+import {
     createPipelineCanvas,
     nextPipelineFrame,
     disposePipelineCanvas,
@@ -99,6 +103,8 @@ setModuleImports('main.js', {
     workspacePut,
     workspaceRemove,
     reportError: (message) => console.error(message),
+    createUniformInspector, disposeUniformInspector, createUniformBinding,
+    configureUniformBinding, activateUniformBinding, readUniformEdits, disposeUniformBinding,
     createPipelineCanvas,
     nextPipelineFrame,
     disposePipelineCanvas,

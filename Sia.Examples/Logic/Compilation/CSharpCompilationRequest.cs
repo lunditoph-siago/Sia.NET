@@ -5,4 +5,5 @@ namespace Sia_Examples.Notebook;
 internal sealed record CSharpCompilationRequest(
     string AssemblyName,
     IReadOnlyList<CSharpSourceDocument> Sources,
-    OutputKind OutputKind = OutputKind.ConsoleApplication);
+    OutputKind OutputKind = Microsoft.CodeAnalysis.OutputKind.ConsoleApplication,
+    Func<Compilation, CancellationToken, OutputKind>? SelectOutputKind = null);

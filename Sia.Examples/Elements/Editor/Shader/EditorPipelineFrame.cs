@@ -16,6 +16,7 @@ public readonly record struct EditorPipelineFrame(
     internal Assembly? Assembly { get; init; }
     internal IReadOnlyDictionary<int, ShaderArtifact>? Shaders { get; init; }
     internal bool SpirvRoute { get; init; }
+    internal EditorUniformSession? Uniforms { get; init; }
 
     /// <summary>Gets the compiled entry from this run's immutable C# image; never executes shader IL.</summary>
     public (string Source, string Entry) Shader(Delegate entry)

@@ -9,21 +9,16 @@ internal sealed partial class BrowserEditorPage
 {
 #if BROWSER
     private EditorPipelineSession? _pipeline;
-    private (ShaderCompilation Source, Assembly Assembly)? _pipelineProgram;
 #endif
 
     private async Task<bool> TryRunPipelineAsync(ShaderCompilation source, bool spirvRoute, bool normalCanvas,
         int revision, CancellationToken token)
     {
 #if BROWSER
-        if (_pipelineProgram is not { } program || !ReferenceEquals(source, program.Source)) {
-            program = (source, Assembly.Load(source.Image!));
-            _pipelineProgram = program;
-        }
-        var assembly = program.Assembly;
-        var methods = assembly.GetExportedTypes().SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Static))
-            .Where(method => method.Name == "Render" && method.ReturnType == typeof(ReactiveNode)
-                && method.GetParameters() is [{ ParameterType: var frame }, { ParameterType: var hooks }]
+        var assembly = source.Program;
+        var methods = assembly.GetExportedTypes().SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly))
+            .Where(method => method.Name == "Render" && !method.IsAbstract && !method.ContainsGenericParameters && method.ReturnType == typeof(ReactiveNode)
+                && method.GetParameters() is [{ ParameterType: var frame, IsIn: true, IsOut: false }, { ParameterType: var hooks, IsIn: false, IsOut: false }]
                 && hooks == typeof(Hooks).MakeByRefType() && frame == typeof(EditorPipelineFrame).MakeByRefType()).ToArray();
         if (methods.Length == 0) return false;
         if (methods.Length != 1)
@@ -35,16 +30,26 @@ internal sealed partial class BrowserEditorPage
             artifacts.Add(entry.MetadataToken, shader);
         }
         var render = methods[0].CreateDelegate<ReactiveComponent<EditorPipelineFrame>>();
+        OpenPanelWindow("render");
+        DomRuntime.Flush();
         var previous = _pipeline;
         if (previous is not null) previous.Paused = true;
         EditorPipelineSession? session = null;
+        var console = new ProgramConsole();
         try {
+            using var capture = console.Capture();
             session = await EditorPipelineSession.CreateAsync(assembly, artifacts, render, spirvRoute, normalCanvas, message => {
                 if (!_disposed && revision == _shaderRevision) { _shaderStatus.Text(message); DomRuntime.Flush(); }
-            }, token);
+            }, _uniformInspector!, console, token);
             if (!CurrentShaderJob(revision)) return true;
             StopPipeline(cancelPending: false);
             _pipeline = session;
+            session.ActivateUniforms();
+            SetProgramConsole(console);
+            _shaderArtifact = source.Entries.FirstOrDefault(entry => entry.SelectionKey == _selectedShaderName) is { } selected
+                ? artifacts[selected.MetadataToken] : null;
+            if (_shaderArtifact is null) _shaderOutput.Text("Compiled C# · no shader entries");
+            else RefreshShaderArtifact();
             _shaderPreview?.Dispose();
             _shaderPreview = null;
             _shaderPreviewSnapshot = null;
@@ -53,7 +58,10 @@ internal sealed partial class BrowserEditorPage
         }
         finally {
             if (previous is not null) previous.Paused = false;
-            if (session is not null && !ReferenceEquals(_pipeline, session)) session.Dispose();
+            if (session is null || !ReferenceEquals(_pipeline, session)) {
+                session?.Dispose();
+                console.Dispose();
+            }
         }
         return true;
 #else

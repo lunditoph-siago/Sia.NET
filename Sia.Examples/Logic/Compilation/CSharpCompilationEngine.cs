@@ -75,6 +75,9 @@ internal sealed class CSharpCompilationEngine(ICompilationReferenceResolver refe
             out var generatorDiagnostics,
             cancellationToken);
 
+        if (request.SelectOutputKind is { } selectOutputKind)
+            expanded = expanded.WithOptions(expanded.Options.WithOutputKind(selectOutputKind(expanded, cancellationToken)));
+
         using var stream = new MemoryStream();
         var emitResult = expanded.Emit(stream, cancellationToken: cancellationToken);
         var diagnostics = BuildDiagnostics(

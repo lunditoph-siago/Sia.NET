@@ -25,6 +25,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
     private readonly DomElement _buildStatus;
     private readonly DomElement _diagnostics;
     private readonly DomElement _consoleOutput;
+    private readonly DomElement _programOutput;
     private readonly DomElement _renderOutput;
     private readonly DomElement _consolePanel;
     private readonly DomElement _renderPanel;
@@ -69,7 +70,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         var actions = Own(DomElement.Create("div").Class("editor-page-actions"));
         actions
             .Append(CreateAction("Compile", "editor-shader-compile", "Compile the active folder to WGSL and SPIR-V"))
-            .Append(CreateAction("Render", "editor-shader-render", "Render the compiled shader or programmable pipeline"))
+            .Append(CreateAction("Run", "editor-shader-run", "Run Render, Main or a fragment preview from the active folder"))
             .Append(CreateAction("Save", "editor-page-save", "Save the active file (Ctrl+S)", secondary: true))
             .Append(CreateAction(
                 "Save All", "editor-page-save-all", "Save every open file (Ctrl+Shift+S)", secondary: true))
@@ -111,7 +112,9 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         _consolePanel = Own(DomElement.Create("div")
             .Class("editor-page-console")
             .Attr("role", "tabpanel"));
-        _consolePanel.Append(_diagnostics).Append(_consoleOutput);
+        _programOutput = Own(DomElement.Create("pre").Class("editor-page-console-output").Class("editor-program-output")
+            .Attr("aria-label", "Program Console"));
+        _consolePanel.Append(_diagnostics).Append(_consoleOutput).Append(_programOutput);
         _renderOutput = Own(DomElement.Create("pre")
             .Class("editor-page-render-output")
             .Text("Compile C# to inspect WGSL and SPIR-V, then render the result"));
@@ -130,6 +133,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             .Append(statusbar)
             .Append(_layoutRevision);
         _container.Text(string.Empty).Append(_root);
+        _uniformInspector = new();
 
         _editors = new(world, references);
         _state = CreateLayoutState();
@@ -138,6 +142,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
 
         ActivateFilesSidebarTab();
         RenderExplorer();
+        Track(PumpProgramConsoleAsync());
     }
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
@@ -280,6 +285,9 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         _disposed = true;
         _lifetime.Cancel();
         DisposeShaderPreview();
+        _uniformInspector?.Dispose();
+        _uniformInspector = null;
+        _programConsole?.Dispose();
         foreach (var operation in _operations.ToArray()) {
             await operation;
         }
@@ -551,6 +559,8 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
     {
         _diagnostics.Text(string.Empty);
         _consoleOutput.Text(string.Empty).ToggleClass("output-error", false);
+        _programConsole?.Clear();
+        _programOutput.Text(string.Empty).ToggleClass("output-error", false);
         _renderOutput.Text("Compile C# to inspect WGSL and SPIR-V, then render the result");
         DisposeShaderPreview();
     }
