@@ -32,9 +32,16 @@ public static class CSharpHighlighter
         return result;
     }
 
-    public static string CssClass(string classification) => "tok-" + classification
-        .Replace(" ", "-", StringComparison.Ordinal)
-        .ToLowerInvariant();
+    public static string CssClass(string classification) => classification switch {
+        CSharpHighlightClass.Comment => "tok-comment",
+        CSharpHighlightClass.Identifier => "tok-identifier",
+        CSharpHighlightClass.Keyword => "tok-keyword",
+        CSharpHighlightClass.NumericLiteral => "tok-numeric-literal",
+        CSharpHighlightClass.Operator => "tok-operator",
+        CSharpHighlightClass.Punctuation => "tok-punctuation",
+        CSharpHighlightClass.StringLiteral => "tok-string-literal",
+        _ => "tok-" + classification.Replace(" ", "-", StringComparison.Ordinal).ToLowerInvariant(),
+    };
 
     private static string? Classify(SyntaxKind kind, string valueText)
     {
