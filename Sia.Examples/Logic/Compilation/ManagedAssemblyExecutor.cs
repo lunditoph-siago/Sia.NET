@@ -42,7 +42,7 @@ internal static class ManagedAssemblyExecutor
         }
         catch (Exception error) {
             var inner = error is TargetInvocationException { InnerException: { } captured } ? captured : error;
-            Console.Error.WriteLine(inner);
+            System.Console.Error.WriteLine(inner);
             success = false;
         }
         var snapshot = console.Snapshot();

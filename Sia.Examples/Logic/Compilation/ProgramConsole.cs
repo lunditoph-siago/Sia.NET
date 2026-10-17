@@ -14,8 +14,8 @@ internal sealed class ProgramConsole(int capacity = 65536) : IDisposable
 
     static ProgramConsole()
     {
-        Console.SetOut(new Router(Console.Out, false));
-        Console.SetError(new Router(Console.Error, true));
+        System.Console.SetOut(new Router(System.Console.Out, false));
+        System.Console.SetError(new Router(System.Console.Error, true));
     }
 
     public IDisposable Capture()
