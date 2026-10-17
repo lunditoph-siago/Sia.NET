@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace Sia_Examples.Editor;
@@ -13,19 +14,30 @@ public static class CharUtil
         if (string.IsNullOrEmpty(text)) {
             return position;
         }
+        position = Math.Clamp(position, 0, text.Length);
         if (forward) {
-            var next = position + 1;
-            while (next < text.Length && char.IsLowSurrogate(text[next])) {
-                next++;
+            if (position + 1 < text.Length && text[position] <= '\x7f' && text[position + 1] <= '\x7f') {
+                return position + (text[position] == '\r' && text[position + 1] == '\n' ? 2 : 1);
             }
-            return Math.Min(next, text.Length);
+            return position + StringInfo.GetNextTextElementLength(text.AsSpan(position));
+        }
+        if (position == 0) {
+            return 0;
         }
 
         var previous = position - 1;
-        while (previous > 0 && char.IsLowSurrogate(text[previous])) {
+        while (previous > 0) {
+            if (text[previous - 1] <= '\x7f' && text[previous] <= '\x7f'
+                && !(text[previous - 1] == '\r' && text[previous] == '\n')) {
+                break;
+            }
             previous--;
         }
-        return Math.Max(previous, 0);
+        for (var next = previous; next < position;) {
+            previous = next;
+            next += StringInfo.GetNextTextElementLength(text.AsSpan(next));
+        }
+        return previous;
     }
 
     public static bool IsWordChar(char value)

@@ -12,34 +12,40 @@ internal static class ManagedAssemblyExecutor
     public static async Task<NotebookExecuteResult> ExecuteAsync(byte[] assemblyImage)
     {
         await _executionGate.WaitAsync();
-        var stdOut = new StringWriter();
-        var stdErr = new StringWriter();
-        var originalOut = global::System.Console.Out;
-        var originalErr = global::System.Console.Error;
-        global::System.Console.SetOut(stdOut);
-        global::System.Console.SetError(stdErr);
         try {
             var assembly = Assembly.Load(assemblyImage);
             DynamicAssemblyRegistry.Register(assembly.GetName().Name!, assembly);
-            var entryPoint = assembly.EntryPoint
+            using var console = new ProgramConsole(int.MaxValue);
+            return await ExecuteAsync(assembly, console);
+        }
+        catch (Exception error) { return new(false, "", error.ToString()); }
+        finally { _executionGate.Release(); }
+    }
+
+    internal static async Task<NotebookExecuteResult> ExecuteAsync(Assembly assembly, ProgramConsole console)
+    {
+        using var capture = console.Capture();
+        var success = true;
+        try {
+            var entry = assembly.EntryPoint
                 ?? throw new InvalidOperationException("No entry point found in the compiled program.");
-            var result = entryPoint.Invoke(null, [Array.Empty<string>()]);
-            if (result is Task task) {
-                await task;
+            if (entry.Name == "<Main>") {
+                var asyncEntry = entry.DeclaringType!.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
+                    .SingleOrDefault(method => method.Name is "Main" or "<Main>$"
+                        && typeof(Task).IsAssignableFrom(method.ReturnType)
+                        && method.GetParameters().Select(parameter => parameter.ParameterType)
+                            .SequenceEqual(entry.GetParameters().Select(parameter => parameter.ParameterType)));
+                entry = asyncEntry ?? entry;
             }
-            return new(true, stdOut.ToString(), stdErr.ToString());
+            var result = entry.Invoke(null, entry.GetParameters().Length == 0 ? null : [Array.Empty<string>()]);
+            if (result is Task task) await task;
         }
-        catch (Exception e) {
-            var inner = e is TargetInvocationException { InnerException: { } captured } ? captured : e;
-            stdErr.WriteLine(inner.ToString());
-            return new(false, stdOut.ToString(), stdErr.ToString());
+        catch (Exception error) {
+            var inner = error is TargetInvocationException { InnerException: { } captured } ? captured : error;
+            System.Console.Error.WriteLine(inner);
+            success = false;
         }
-        finally {
-            global::System.Console.SetOut(originalOut);
-            global::System.Console.SetError(originalErr);
-            stdOut.Dispose();
-            stdErr.Dispose();
-            _executionGate.Release();
-        }
+        var snapshot = console.Snapshot();
+        return new(success, snapshot.Output, snapshot.Error);
     }
 }

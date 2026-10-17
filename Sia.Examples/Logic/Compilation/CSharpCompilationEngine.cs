@@ -9,6 +9,15 @@ namespace Sia_Examples.Notebook;
 internal sealed class CSharpCompilationEngine(ICompilationReferenceResolver references)
 {
     private readonly ICompilationReferenceResolver _references = references;
+    private static readonly SemaphoreSlim _roslynWork = new(1, 1);
+
+    internal static async Task<T> RunRoslynAsync<T>(Func<T> work, CancellationToken cancellationToken)
+    {
+        // Completion and Emit share metadata; all compilations also share the generator pipeline.
+        await _roslynWork.WaitAsync(cancellationToken);
+        try { return await Task.Run(work, cancellationToken); }
+        finally { _roslynWork.Release(); }
+    }
 
     public async Task<CSharpCompilationOutput> CompileAsync(
         CSharpCompilationRequest request,
@@ -16,6 +25,23 @@ internal sealed class CSharpCompilationEngine(ICompilationReferenceResolver refe
     {
         ArgumentNullException.ThrowIfNull(request);
 
+        var referenceProbe = string.Join('\n', request.Sources.Select(static source => source.Source));
+        var metadata = await _references.GetReferencesAsync(referenceProbe, cancellationToken);
+        var result = await RunRoslynAsync(() => Compile(request, metadata, cancellationToken), cancellationToken);
+        if (!result.Success && result.Diagnostics.Any(static diagnostic =>
+            diagnostic.Severity == NotebookDiagnosticSeverity.Error
+            && diagnostic.Id is "CS0246" or "CS0234" or "CS0012")) {
+            metadata = await _references.GetAllReferencesAsync(cancellationToken);
+            result = await RunRoslynAsync(() => Compile(request, metadata, cancellationToken), cancellationToken);
+        }
+        return result;
+    }
+
+    private static CSharpCompilationOutput Compile(
+        CSharpCompilationRequest request,
+        IReadOnlyList<MetadataReference> references,
+        CancellationToken cancellationToken = default)
+    {
         var trees = request.Sources.Select(source => new SourceTree(
             source,
             CSharpSyntaxTree.ParseText(
@@ -23,13 +49,7 @@ internal sealed class CSharpCompilationEngine(ICompilationReferenceResolver refe
                 CSharpLanguageOptions.Parse,
                 source.Path,
                 cancellationToken))).ToArray();
-        var referenceProbe = string.Join('\n', request.Sources.Select(static source => source.Source));
-        var metadata = await _references.GetReferencesAsync(referenceProbe, cancellationToken);
-        var result = Emit(request, trees, metadata, cancellationToken);
-        if (!result.EmitResult.Success && HasMissingReferenceDiagnostics(result.EmitResult.Diagnostics)) {
-            metadata = await _references.GetAllReferencesAsync(cancellationToken);
-            result = Emit(request, trees, metadata, cancellationToken);
-        }
+        var result = Emit(request, trees, references, cancellationToken);
 
         return result.EmitResult.Success
             ? new(true, result.Image, result.Diagnostics)
@@ -46,11 +66,17 @@ internal sealed class CSharpCompilationEngine(ICompilationReferenceResolver refe
             request.AssemblyName,
             [.. trees.Select(static source => source.Tree)],
             references,
-            CSharpLanguageOptions.ConsoleApplication);
+            request.OutputKind == OutputKind.DynamicallyLinkedLibrary
+                ? CSharpLanguageOptions.Library
+                : CSharpLanguageOptions.ConsoleApplication);
         var expanded = GeneratorPipeline.Run(
             compilation,
             CSharpLanguageOptions.Parse,
-            out var generatorDiagnostics);
+            out var generatorDiagnostics,
+            cancellationToken);
+
+        if (request.SelectOutputKind is { } selectOutputKind)
+            expanded = expanded.WithOptions(expanded.Options.WithOutputKind(selectOutputKind(expanded, cancellationToken)));
 
         using var stream = new MemoryStream();
         var emitResult = expanded.Emit(stream, cancellationToken: cancellationToken);
@@ -86,7 +112,8 @@ internal sealed class CSharpCompilationEngine(ICompilationReferenceResolver refe
                 && sourcesByTree.TryGetValue(tree, out var treeSource)
                 && treeSource.IsUserCode) {
                 source = treeSource;
-            } else if (span.HasMappedPath) {
+            }
+            else if (span.HasMappedPath) {
                 sourcesByPath.TryGetValue(span.Path, out source);
             }
 
@@ -105,10 +132,6 @@ internal sealed class CSharpCompilationEngine(ICompilationReferenceResolver refe
         }
         return results;
     }
-
-    private static bool HasMissingReferenceDiagnostics(IEnumerable<Diagnostic> diagnostics)
-        => diagnostics.Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error
-            && diagnostic.Id is "CS0246" or "CS0234" or "CS0012");
 
     private sealed record SourceTree(CSharpSourceDocument Source, SyntaxTree Tree);
 

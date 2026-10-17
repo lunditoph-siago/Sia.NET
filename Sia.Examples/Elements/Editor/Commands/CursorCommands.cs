@@ -138,10 +138,7 @@ public static class CursorCommands
             currentLine.Number + lineOffset,
             1,
             state.Doc.Lines));
-        var column = Math.Min(
-            range.GoalColumn ?? (range.Head - currentLine.From),
-            targetLine.Length);
-        return EditorSelection.Cursor(targetLine.From + column, 0, null, column);
+        return AtColumn(state, range, targetLine);
     }
 
     private static bool SetSelection(CommandTarget target, EditorSelection selection)
@@ -185,10 +182,15 @@ public static class CursorCommands
         }
 
         var targetLine = state.Doc.Line(lineNumber);
-        var column = Math.Min(
-            range.GoalColumn ?? (range.Head - line.From),
-            targetLine.Length);
-        return EditorSelection.Cursor(targetLine.From + column, 0, null, column);
+        return AtColumn(state, range, targetLine);
     }
 
+    private static SelectionRange AtColumn(EditorState state, SelectionRange range, Line targetLine)
+    {
+        var line = state.Doc.LineAt(range.Head);
+        var goal = range.GoalColumn
+            ?? ColumnUtil.CountColumn(line.Text, EditorState.TabSize, range.Head - line.From);
+        var column = ColumnUtil.FindColumn(targetLine.Text, goal, EditorState.TabSize);
+        return EditorSelection.Cursor(targetLine.From + column, 0, null, goal);
+    }
 }

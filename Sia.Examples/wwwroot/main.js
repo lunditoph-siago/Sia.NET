@@ -1,5 +1,21 @@
 import { dotnet } from './_framework/dotnet.js';
 import './js/app-shell.js';
+import {
+    createUniformInspector, disposeUniformInspector, createUniformBinding,
+    configureUniformBinding, activateUniformBinding, readUniformEdits, disposeUniformBinding,
+} from './js/uniform-inspector.js';
+import {
+    createPipelineCanvas,
+    nextPipelineFrame,
+    disposePipelineCanvas,
+} from './js/pipeline-canvas.js';
+import {
+    createShaderPreview,
+    setShaderPreviewRevision,
+    showShaderPreview,
+    disposeShaderPreview,
+    downloadShaderBinary,
+} from './js/shader-preview.js';
 import { bootModuleConfig, dismissBootOverlay, showBootError } from './js/boot-progress.js';
 import './js/cell-interactions.js';
 import {
@@ -33,6 +49,7 @@ import {
     workspaceRemove,
 } from './js/notebook-runtime.js';
 
+dotnet.withConfig({ pthreadPoolInitialSize: 8, pthreadPoolUnusedSize: 0 });
 dotnet.withModuleConfig?.(bootModuleConfig);
 const { setModuleImports, runMain, getConfig, getAssemblyExports } = await dotnet.create();
 
@@ -86,6 +103,16 @@ setModuleImports('main.js', {
     workspacePut,
     workspaceRemove,
     reportError: (message) => console.error(message),
+    createUniformInspector, disposeUniformInspector, createUniformBinding,
+    configureUniformBinding, activateUniformBinding, readUniformEdits, disposeUniformBinding,
+    createPipelineCanvas,
+    nextPipelineFrame,
+    disposePipelineCanvas,
+    createShaderPreview,
+    setShaderPreviewRevision,
+    showShaderPreview,
+    disposeShaderPreview,
+    downloadShaderBinary,
     appReady: () => dismissBootOverlay(),
 });
 

@@ -14,7 +14,8 @@ internal static class GeneratorPipeline
     public static Compilation Run(
         CSharpCompilation compilation,
         CSharpParseOptions parseOptions,
-        out ImmutableArray<Diagnostic> diagnostics)
+        out ImmutableArray<Diagnostic> diagnostics,
+        CancellationToken cancellationToken = default)
     {
         var version = DynamicAssemblyRegistry.Version;
         if (Volatile.Read(ref _discoveredVersion) != version) {
@@ -26,7 +27,7 @@ internal static class GeneratorPipeline
             _generators,
             parseOptions: parseOptions);
         driver.RunGeneratorsAndUpdateCompilation(
-            compilation, out var updated, out diagnostics);
+            compilation, out var updated, out diagnostics, cancellationToken);
         return updated;
     }
 

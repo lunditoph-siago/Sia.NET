@@ -86,7 +86,7 @@ public abstract class Text : IEquatable<Text>, IEnumerable<string>
             return Empty;
         }
         return lines.Length <= TextConstants.Branch
-            ? new TextLeaf(lines)
+            ? new TextLeaf([.. lines])
             : TextNode.From([.. TextLeaf.Split(lines, [])]);
     }
 

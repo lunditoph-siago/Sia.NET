@@ -14,7 +14,7 @@ public sealed class RangeSet<T>
 
     public static RangeSet<T> Of(IEnumerable<Range<T>> ranges, bool sort = false)
     {
-        var values = ranges as Range<T>[] ?? [.. ranges];
+        var values = ranges.ToArray();
         if (sort) {
             Array.Sort(values, static (left, right) => left.From != right.From
                 ? left.From.CompareTo(right.From)
