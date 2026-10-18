@@ -407,8 +407,8 @@ export function attachEditorSurface(cellId, surface, restoreFocus) {
         if (
             !anchorLine ||
             !headLine ||
-            anchorLine.parentNode !== surface ||
-            headLine.parentNode !== surface
+            !surface.contains(anchorLine) ||
+            !surface.contains(headLine)
         ) {
             return null;
         }

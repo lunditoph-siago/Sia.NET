@@ -169,7 +169,7 @@ internal sealed partial class BrowserEditorPage
         _diagnostics.Text(string.Empty);
         _consoleOutput.Text("Compiling C#…").ToggleClass("output-error", false);
         _buildStatus.Text("Compiling C#…").ToggleClass("busy", true);
-        if (request.Action == ShaderAction.Compile) OpenPanelWindow("render");
+        if (request.Action == ShaderAction.Compile) OpenPanelWindow("console");
         _shaderScope.Text($"Source: {(folder.Length == 0 ? "workspace root" : folder)}/*.cs · C# program");
         DomRuntime.Flush();
         Track(BuildShaderAsync(request, revision, _shaderCancellation));
@@ -256,7 +256,7 @@ internal sealed partial class BrowserEditorPage
                 RenderDiagnostics(compilation.Diagnostics);
                 if (!compilation.Success) {
                     _shaderStatus.Text("C# / IL analysis failed · see Diagnostics" + PreviousShaderPreview());
-                    _buildStatus.Text("Shader build failed");
+                    _buildStatus.Text("C# compilation failed");
                     OpenPanelWindow("console");
                     return;
                 }
@@ -307,8 +307,8 @@ internal sealed partial class BrowserEditorPage
             _consoleOutput.Text(FormattableString.Invariant(
                 $"Compiled snapshot timings (ms) · source {(compilationCached ? "cached" : "new")} · artifact {(artifactCached ? "cached" : "new")}\nC# + references: {source.CSharpMilliseconds:F1}\nIL analysis: {source.AnalysisMilliseconds:F1}\nLowering: {artifact.LoweringMilliseconds:F1}\nWGSL: {artifact.WgslMilliseconds:F1}\nSPIR-V: {artifact.SpirvMilliseconds:F1}\nSPIR-V → WGSL: {artifact.TranslationMilliseconds:F1}\nWGSL: {artifact.Wgsl.Length} chars · SPIR-V: {artifact.Spirv.Length} bytes\n"));
             if (request.Action == ShaderAction.Compile) {
-                _shaderStatus.Text((artifact.Preview.UnsupportedReason ?? "Shader compiled · select a target and Run") + PreviousShaderPreview());
-                _buildStatus.Text("Shader build succeeded");
+                _shaderStatus.Text("Shaders compiled · Run a C# RenderGraph pipeline, or preview a compatible fragment entry" + PreviousShaderPreview());
+                _buildStatus.Text("Compilation succeeded");
                 return;
             }
             _buildStatus.Text("Creating GPU pipeline…");

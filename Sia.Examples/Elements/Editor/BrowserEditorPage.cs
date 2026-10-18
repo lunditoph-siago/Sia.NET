@@ -56,13 +56,13 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         _container = DomElement.Find("notebook");
         _root = Own(DomElement.Create("section")
             .Class("editor-page")
-            .Attr("aria-label", "Sia shader compiler"));
+            .Attr("aria-label", "Sia C# Editor Lab"));
 
         var titlebar = Own(DomElement.Create("header").Class("editor-page-titlebar"));
         var title = Own(DomElement.Create("div").Class("editor-page-title"));
         var brand = Own(DomElement.Create("span")
             .Class("editor-page-brand")
-            .Text("Sia.NET · Shader Compiler"));
+            .Text("Sia.NET · Editor Lab"));
         _buildStatus = Own(DomElement.Create("span")
             .Class("editor-page-build-status")
             .Attr("role", "status")
@@ -70,8 +70,8 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         title.Append(brand).Append(_buildStatus);
         var actions = Own(DomElement.Create("div").Class("editor-page-actions"));
         actions
-            .Append(CreateAction("Compile", "editor-shader-compile", "Compile the active folder to WGSL and SPIR-V"))
-            .Append(CreateAction("Run", "editor-shader-run", "Run Render, Main or a fragment preview from the active folder"))
+            .Append(CreateAction("Compile", "editor-shader-compile", "Compile C# and inspect shader artifacts when present"))
+            .Append(CreateAction("Run", "editor-shader-run", "Run the C# program or programmable RenderGraph from the active folder"))
             .Append(CreateAction("Save", "editor-page-save", "Save the active file (Ctrl+S)", secondary: true))
             .Append(CreateAction(
                 "Save All", "editor-page-save-all", "Save every open file (Ctrl+Shift+S)", secondary: true))
@@ -162,13 +162,13 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             .SelectMany(EnumerateFilesUnder)
             .FirstOrDefault();
         if (initial != default && generation == _activationGeneration) {
-            await OpenEntryAsync(initial, pin: true, showRender: true);
+            await OpenEntryAsync(initial, pin: true, showConsole: true);
         }
         if (_disposed) {
             return;
         }
         _buildStatus.Text("Ready");
-        OpenPanelWindow("render");
+        OpenPanelWindow("console");
         UpdateChrome();
     }
 
@@ -355,7 +355,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         await OpenEntryAsync(entity, pin);
     }
 
-    private async Task OpenEntryAsync(Entity entity, bool pin, bool showRender = false)
+    private async Task OpenEntryAsync(Entity entity, bool pin, bool showConsole = false)
     {
         if (!entity.IsValid || EditorWorkspace.IsFolder(entity)) {
             return;
@@ -370,7 +370,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         _activeEntity = entity;
         UpdateState(state => {
             var opened = NotebookCellLayout.OpenTabIntoHome(state, TabIdFor(entity));
-            return showRender ? NotebookCellLayout.OpenWindow(opened, RenderWindowId) : opened;
+            return showConsole ? NotebookCellLayout.OpenWindow(opened, ConsoleWindowId) : opened;
         });
         RefreshExplorerSelection();
     }

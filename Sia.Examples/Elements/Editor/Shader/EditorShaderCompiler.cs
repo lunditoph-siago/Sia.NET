@@ -120,7 +120,7 @@ internal sealed class EditorShaderCompiler(MetadataReferenceProvider references)
         var spirvMilliseconds = clock.Elapsed.TotalMilliseconds;
         cancellationToken.ThrowIfCancellationRequested();
         clock.Restart();
-        var translated = ShaderTranslator.SpirvToWgsl(spirv, Target);
+        var translated = ShaderTranslator.SpirvToWgsl(spirv, Target, new(AdjustCoordinateSpace: false));
         cancellationToken.ThrowIfCancellationRequested();
         var entryName = module.Functions.Single(function => function.Stage is not null).Name;
         var preview = DescribePreview(kernel, module, compilation.Program.ManifestModule.ResolveMethod(token)!.GetParameters());
@@ -132,7 +132,7 @@ internal sealed class EditorShaderCompiler(MetadataReferenceProvider references)
     {
         ShaderPreviewLayout Unsupported(string reason) => new(null, 0, [], reason);
         if (kernel.Stage != SpirvShaderStage.Fragment) {
-            return Unsupported("Canvas preview requires a fragment entry. Vertex and compute artifacts can still be inspected.");
+            return Unsupported("The fragment shortcut requires a fragment entry. Use C# Render(in EditorPipelineFrame, ref Hooks) to supply vertex shaders, meshes or compute passes.");
         }
         if (kernel.Parameters.Any(parameter => parameter.Kind != SpirvKernelParameterKind.PushConstant)) {
             return Unsupported("Preview currently accepts scalar parameters only; textures, storage and explicit stage-input structs need a resource provider.");
