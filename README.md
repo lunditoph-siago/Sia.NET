@@ -1,44 +1,44 @@
 # Sia.NET
 
 [![Build](https://img.shields.io/github/actions/workflow/status/lunditoph-siago/Sia.NET/test.yml?branch=master&event=push&label=Build&labelColor=343b45)](https://github.com/lunditoph-siago/Sia.NET/actions/workflows/test.yml?query=branch%3Amaster)
-[![License: BSD](https://img.shields.io/badge/License-BSD-737d8c?labelColor=343b45)](LICENSE)
+[![License: BSD](https://img.shields.io/badge/License-BSD-8250df?labelColor=343b45)](LICENSE)
 [![Playground: Live](https://img.shields.io/badge/Playground-Live-2386c8?labelColor=343b45)](https://lunditoph-siago.github.io/Sia.NET/)
 
-**A reactive entity component system for .NET.**
-Typed components and queries, composable systems, and generated change events.
+Sia.NET is a reactive entity component system for .NET. Generated component views
+connect typed data to event-driven systems: change a value, and the systems that
+observe it can respond.
 
-**[Open the Playground →](https://lunditoph-siago.github.io/Sia.NET/)**
-Edit and run the guided C# examples in your browser, with no local installation.
-Choose **Open Editor Lab** for C# programs and programmable WebGPU rendering with
-WGSL/SPIR-V output.
+## Quick start
 
-## Get started
-
-In a .NET 10 or later project:
+Add Sia and its source generator to a .NET 10 or later project:
 
 ```bash
 dotnet add package Sia
 dotnet add package Sia.CodeGenerators
 ```
 
+Here, changing a player's health triggers a system on the next stage tick:
+
 ```csharp
 using Sia;
 
 using var world = new World();
-world.Create(HList.From(new Position(0, 0), new Velocity(2, 1)));
+var player = world.Create(HList.From(new Health(100)));
 
-foreach (var entity in world.Query(Matchers.Of<Position, Velocity>())) {
-    var position = new Position.View(entity, world);
-    ref readonly var velocity = ref entity.Get<Velocity>();
-    position.X += velocity.X;
-    position.Y += velocity.Y;
-    Console.WriteLine(entity.Get<Position>());
-}
+using var stage = SystemChain.Empty
+    .Add((ref Health health) => Console.WriteLine($"Health: {health.Value}"),
+        trigger: EventUnion.Of<Health.SetValue>())
+    .CreateStage(world);
 
-public partial record struct Position([Sia] float X, [Sia] float Y);
-public readonly record struct Velocity(float X, float Y);
+new Health.View(player, world) { Value = 75 };
+stage.Tick();
+
+public partial record struct Health([Sia] int Value);
 ```
 
-Generated views write back to components and dispatch change events. Explore
-systems, events and `Sia.Prelude` reactive hooks in the Playground's built-in
-notebooks.
+The generated view publishes the change; the stage processes it and prints
+`Health: 75`.
+
+The [Playground](https://lunditoph-siago.github.io/Sia.NET/) lets you edit and run
+the C# examples in your browser, from ECS fundamentals to reactive systems.
+Its Editor Lab also supports C# programs and programmable WebGPU rendering.
