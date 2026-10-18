@@ -161,7 +161,6 @@
         position: relative;
         min-height: 1.5em;
         padding-inline-start: var(--editor-line-gutter-width);
-        box-sizing: border-box;
 
         &::before {
             content: attr(data-number);
@@ -170,7 +169,6 @@
             top: 0;
             bottom: 0;
             width: var(--editor-line-gutter-width);
-            box-sizing: border-box;
             padding: 0 6px 0 2px;
             border-inline-end: 1px solid var(--color-border);
             color: var(--color-text-dim);
