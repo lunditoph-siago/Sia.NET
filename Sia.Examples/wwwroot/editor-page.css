@@ -34,6 +34,22 @@
                 min-height: 2rem;
             }
         }
+
+        .cell-group:has(> .editor-render-tools[role='toolbar']) {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            grid-template-rows: auto minmax(0, 1fr);
+
+            > .cell-tabs {
+                grid-column: 1;
+                grid-row: 1;
+            }
+
+            > .group-content {
+                grid-column: 1 / -1;
+                grid-row: 2;
+            }
+        }
     }
 
     .editor-page-titlebar {
@@ -173,6 +189,38 @@
         }
     }
 
+    .editor-render-tools {
+        display: flex;
+        grid-column: 2;
+        grid-row: 1;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0 0.5rem;
+        border-bottom: 1px solid var(--border-subtle);
+        background: var(--surface-chrome);
+
+        > span:empty {
+            display: none;
+        }
+
+        .icon-btn {
+            width: 2rem;
+            height: 2rem;
+
+            &:disabled {
+                opacity: 0.4;
+                cursor: default;
+            }
+        }
+
+        @media (pointer: coarse), (max-width: 720px) {
+            .icon-btn {
+                width: 2.5rem;
+                height: 2.5rem;
+            }
+        }
+    }
+
     .editor-page-editor,
     .editor-page-console,
     .editor-page-render {
@@ -200,8 +248,15 @@
 
     .editor-page-console,
     .editor-page-render {
-        overflow: auto;
         background: var(--color-bg);
+    }
+
+    .editor-page-console {
+        overflow: auto;
+    }
+
+    .editor-page-render {
+        overflow: hidden;
     }
 
     .editor-page-diagnostics {
@@ -467,9 +522,7 @@
     .editor-shader {
         display: flex;
         flex-direction: column;
-        gap: 0.6rem;
         height: 100%;
-        padding: 0.4rem;
         min-width: 0;
         min-height: 0;
         overflow: hidden;
@@ -724,14 +777,9 @@
         flex: 1;
         flex-direction: column;
         min-height: 0;
-        gap: 0.5rem;
 
         &:empty {
             display: none;
-        }
-
-        > .btn {
-            align-self: flex-start;
         }
 
         > canvas + canvas {

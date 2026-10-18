@@ -147,12 +147,27 @@ class UniformInspector {
         this.resize = new ResizeObserver(() => this.place());
         this.button = document.createElement('button');
         this.button.type = 'button';
-        this.button.className = 'btn';
-        this.button.textContent = 'Uniforms';
+        this.button.className = 'icon-btn';
+        this.button.setAttribute('aria-label', 'Uniforms');
+        this.button.setAttribute('aria-haspopup', 'dialog');
+        const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        icon.setAttribute('viewBox', '0 0 24 24');
+        icon.setAttribute('width', '20');
+        icon.setAttribute('height', '20');
+        icon.setAttribute('fill', 'none');
+        icon.setAttribute('stroke', 'currentColor');
+        icon.setAttribute('stroke-width', '1.4');
+        icon.setAttribute('stroke-linecap', 'round');
+        icon.setAttribute('aria-hidden', 'true');
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', 'M4 7h6m4 0h6M4 17h10m4 0h2M10 4v6m4 4v6');
+        icon.append(path);
+        this.button.append(icon);
         this.panel = document.createElement('section');
         this.panel.className = 'editor-uniform-popup';
         this.panel.id = containerId + '-panel';
         this.button.setAttribute('aria-controls', this.panel.id);
+        this.button.setAttribute('popovertarget', this.panel.id);
         this.button.setAttribute('aria-expanded', 'false');
         this.panel.popover = 'auto';
         this.panel.setAttribute('role', 'dialog');
@@ -190,7 +205,6 @@ class UniformInspector {
             this.button.setAttribute('aria-expanded', String(this.panel.matches(':popover-open')));
             this.place();
         };
-        this.button.addEventListener('click', () => { this.panel.togglePopover(); sync(); });
         this.panel.addEventListener('toggle', sync);
         const place = () => this.place();
         window.addEventListener('resize', place, { signal: this.abort.signal });
@@ -200,15 +214,21 @@ class UniformInspector {
         this.render();
     }
     place() {
-        const root = this.button.closest('.editor-shader');
-        if (!root) { this.panel.hidePopover(); return; }
+        const root = this.surface;
+        if (!root?.isConnected) {
+            if (root) delete root.dataset.uniformPlacement;
+            this.panel.hidePopover();
+            return;
+        }
         if (!this.panel.matches(':popover-open')) { delete root.dataset.uniformPlacement; return; }
         const viewport = window.visualViewport;
         const left = (viewport?.offsetLeft ?? 0) + 8, top = (viewport?.offsetTop ?? 0) + 8;
         const right = left + (viewport?.width ?? window.innerWidth) - 16;
         const bottom = top + (viewport?.height ?? window.innerHeight) - 16;
         const bounds = root.getBoundingClientRect();
-        const above = Math.max(0, Math.min(bottom, bounds.top - 8) - top);
+        const header = this.button.closest('.editor-render-tools')?.getBoundingClientRect();
+        const upperEdge = Math.min(bounds.top, header?.top ?? bounds.top);
+        const above = Math.max(0, Math.min(bottom, upperEdge - 8) - top);
         const below = Math.max(0, bottom - Math.max(top, bounds.bottom + 8));
         const placement = bounds.width >= 640 && right - left >= 640 && bounds.left >= left - 8 && bounds.right <= right + 8 ? 'rail'
             : above >= 160 ? 'above' : below >= 160 ? 'below' : 'stack';
@@ -223,17 +243,19 @@ class UniformInspector {
         this.panel.style.width = `${width}px`;
         this.panel.style.maxHeight = `${height}px`;
         this.panel.style.left = `${Math.max(left, Math.min(right - width, reserved ? space.left : bounds.right - width))}px`;
-        this.panel.style.top = `${placement === 'above' ? Math.min(bottom, bounds.top - 8) - Math.min(height, this.panel.offsetHeight) : y}px`;
+        this.panel.style.top = `${placement === 'above' ? Math.min(bottom, upperEdge - 8) - Math.min(height, this.panel.offsetHeight) : y}px`;
     }
     render() {
         const container = document.getElementById(this.containerId);
         if (container && this.button.parentElement !== container) container.append(this.button);
         this.resize.disconnect();
-        if (container) this.resize.observe(container.closest('.editor-page-render') ?? container);
+        this.surface = document.getElementById(container?.dataset.renderSurface) ?? this.surface;
+        if (this.surface) this.resize.observe(this.surface);
         this.resize.observe(this.panel);
         this.body.replaceChildren();
         const fields = this.active?.fields ?? [];
         this.button.disabled = fields.length === 0;
+        this.button.title = fields.length ? 'Edit uniform parameters' : 'No editable uniform parameters';
         if (!fields.length) this.panel.hidePopover();
         const groups = new Map();
         for (const field of fields) {
@@ -380,7 +402,7 @@ class UniformInspector {
         return row;
     }
     dispose() {
-        const root = this.button.closest('.editor-shader');
+        const root = this.surface;
         if (root) delete root.dataset.uniformPlacement;
         this.active?.dispose();
         this.abort.abort();

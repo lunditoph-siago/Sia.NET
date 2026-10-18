@@ -39,7 +39,7 @@ internal sealed partial class BrowserEditorPage
             using var capture = console.Capture();
             session = await EditorPipelineSession.CreateAsync(assembly, artifacts, render, message => {
                 if (!_disposed && (revision == _shaderRevision || session is not null && ReferenceEquals(_pipeline, session))) {
-                    _shaderStatus.Text(message);
+                    SetBuildStatus(message);
                     DomRuntime.Flush();
                 }
             }, _uniformInspector!, console, token);
@@ -55,7 +55,6 @@ internal sealed partial class BrowserEditorPage
             _shaderPreview?.Dispose();
             _shaderPreview = null;
             _shaderPreviewSnapshot = $"{_shaderSourcesHash![..8]} · C# pipeline";
-            SetBuildStatus("Programmable pipeline running");
         }
         finally {
             if (previous is not null) previous.Paused = false;

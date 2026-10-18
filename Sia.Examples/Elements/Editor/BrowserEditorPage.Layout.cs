@@ -195,6 +195,7 @@ internal sealed partial class BrowserEditorPage
                     _consolePanel.Remove();
                     break;
                 case RenderWindowId:
+                    _layoutRevision.Append(_renderTools);
                     _renderPanel.Remove();
                     break;
             default:
@@ -252,6 +253,7 @@ internal sealed partial class BrowserEditorPage
                 groupView.Content.Append(_consolePanel);
                 break;
             case RenderWindowId:
+                groupView.Root.InsertBefore(_renderTools, groupView.Content);
                 groupView.Content.Append(_renderPanel);
                 break;
             default:
