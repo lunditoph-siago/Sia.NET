@@ -84,6 +84,17 @@ public sealed partial class BrowserEditorHost : IDisposable
 
     public string Source => ReadSource(State.Value.Doc);
 
+    internal (int Line, int Column, int Selected) CursorPosition
+    {
+        get {
+            var state = State.Value;
+            var head = state.Selection.Main.Head;
+            var line = state.Doc.LineAt(head);
+            return (line.Number, head - line.From + 1,
+                state.Selection.Ranges.Sum(static range => range.To - range.From));
+        }
+    }
+
     private string ReadSource(Text document)
     {
         if (!ReferenceEquals(_sourceDocument, document)) {

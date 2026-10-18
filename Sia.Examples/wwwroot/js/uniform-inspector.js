@@ -195,23 +195,42 @@ class UniformInspector {
         const place = () => this.place();
         window.addEventListener('resize', place, { signal: this.abort.signal });
         window.addEventListener('scroll', place, { capture: true, signal: this.abort.signal });
+        window.visualViewport?.addEventListener('resize', place, { signal: this.abort.signal });
+        window.visualViewport?.addEventListener('scroll', place, { signal: this.abort.signal });
         this.render();
     }
     place() {
-        if (!this.panel.matches(':popover-open')) return;
+        const root = this.button.closest('.editor-shader');
+        if (!root) { this.panel.hidePopover(); return; }
+        if (!this.panel.matches(':popover-open')) { delete root.dataset.uniformPlacement; return; }
+        const viewport = window.visualViewport;
+        const left = (viewport?.offsetLeft ?? 0) + 8, top = (viewport?.offsetTop ?? 0) + 8;
+        const right = left + (viewport?.width ?? window.innerWidth) - 16;
+        const bottom = top + (viewport?.height ?? window.innerHeight) - 16;
+        const bounds = root.getBoundingClientRect();
+        const above = Math.max(0, Math.min(bottom, bounds.top - 8) - top);
+        const below = Math.max(0, bottom - Math.max(top, bounds.bottom + 8));
+        const placement = bounds.width >= 640 && right - left >= 640 && bounds.left >= left - 8 && bounds.right <= right + 8 ? 'rail'
+            : above >= 160 ? 'above' : below >= 160 ? 'below' : 'stack';
+        root.dataset.uniformPlacement = placement;
         const space = document.getElementById('editor-uniform-space')?.getBoundingClientRect();
-        if (!space?.width) { this.panel.hidePopover(); return; }
-        const bounds = document.querySelector('.editor-page-workbench').getBoundingClientRect();
-        this.panel.style.width = `${space.width}px`;
-        this.panel.style.maxHeight = `${Math.max(0, Math.min(space.height, bounds.height - 16))}px`;
-        this.panel.style.left = `${space.left}px`;
-        this.panel.style.top = `${Math.max(bounds.top + 8, Math.min(space.top, bounds.bottom - this.panel.offsetHeight - 8))}px`;
+        const reserved = placement === 'rail' || placement === 'stack';
+        if (reserved && (!space?.width || !space.height)) { this.panel.hidePopover(); return; }
+        const width = Math.min(reserved ? space.width : Math.min(400, bounds.width), right - left);
+        const y = reserved ? Math.max(top, space.top) : placement === 'above' ? top : Math.max(top, bounds.bottom + 8);
+        const height = reserved ? Math.min(space.bottom, bottom) - y : Math.min(320, placement === 'above' ? above : below);
+        if (width <= 0 || height <= 0) { this.panel.hidePopover(); return; }
+        this.panel.style.width = `${width}px`;
+        this.panel.style.maxHeight = `${height}px`;
+        this.panel.style.left = `${Math.max(left, Math.min(right - width, reserved ? space.left : bounds.right - width))}px`;
+        this.panel.style.top = `${placement === 'above' ? Math.min(bottom, bounds.top - 8) - Math.min(height, this.panel.offsetHeight) : y}px`;
     }
     render() {
         const container = document.getElementById(this.containerId);
         if (container && this.button.parentElement !== container) container.append(this.button);
         this.resize.disconnect();
         if (container) this.resize.observe(container.closest('.editor-page-render') ?? container);
+        this.resize.observe(this.panel);
         this.body.replaceChildren();
         const fields = this.active?.fields ?? [];
         this.button.disabled = fields.length === 0;
@@ -361,6 +380,8 @@ class UniformInspector {
         return row;
     }
     dispose() {
+        const root = this.button.closest('.editor-shader');
+        if (root) delete root.dataset.uniformPlacement;
         this.active?.dispose();
         this.abort.abort();
         this.resize.disconnect();

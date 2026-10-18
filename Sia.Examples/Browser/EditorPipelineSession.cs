@@ -22,8 +22,7 @@ internal sealed partial class EditorPipelineSession : IDisposable
     private readonly IReadOnlyDictionary<int, ShaderArtifact> _shaders;
     private readonly ReactiveComponent<EditorPipelineFrame> _render;
     private readonly Action<string> _status;
-    private readonly bool _spirvRoute;
-    private readonly bool _normalCanvas;
+    private bool _normalCanvas;
     private readonly Entity _window;
     private WgpuHandle<WGPUInstance> _instance;
     private WgpuHandle<WGPUAdapter> _adapter;
@@ -45,14 +44,12 @@ internal sealed partial class EditorPipelineSession : IDisposable
     private readonly ProgramConsole _console;
 
     private EditorPipelineSession(Assembly assembly, IReadOnlyDictionary<int, ShaderArtifact> shaders,
-        ReactiveComponent<EditorPipelineFrame> render, bool spirvRoute, bool normalCanvas, Action<string> status,
+        ReactiveComponent<EditorPipelineFrame> render, Action<string> status,
         EditorUniformInspector inspector, ProgramConsole console)
     {
         _assembly = assembly;
         _shaders = shaders;
         _render = render;
-        _spirvRoute = spirvRoute;
-        _normalCanvas = normalCanvas;
         _status = status;
         _uniforms = new(inspector);
         _console = console;
@@ -62,9 +59,9 @@ internal sealed partial class EditorPipelineSession : IDisposable
 
     public static async Task<EditorPipelineSession> CreateAsync(Assembly assembly,
         IReadOnlyDictionary<int, ShaderArtifact> shaders, ReactiveComponent<EditorPipelineFrame> render,
-        bool spirvRoute, bool normalCanvas, Action<string> status, EditorUniformInspector inspector, ProgramConsole console, CancellationToken cancellationToken)
+        Action<string> status, EditorUniformInspector inspector, ProgramConsole console, CancellationToken cancellationToken)
     {
-        var session = new EditorPipelineSession(assembly, shaders, render, spirvRoute, normalCanvas, status, inspector, console);
+        var session = new EditorPipelineSession(assembly, shaders, render, status, inspector, console);
         try {
             await session.InitializeAsync(cancellationToken);
             ObjectDisposedException.ThrowIf(session._disposed, session);
@@ -93,12 +90,34 @@ internal sealed partial class EditorPipelineSession : IDisposable
         _maxTextureDimension = checked((int)limits.MaxTextureDimension2D);
         _graph = _world.ConfigureWgpuRenderGraph(_device, _queue);
         _status("Connecting canvas…");
-        _target = await WgpuRenderTarget.FromCanvasAsync(_instance, _device, _queue, canvasId,
-            _normalCanvas ? WgpuCanvasPresentation.Readback : WgpuCanvasPresentation.Direct, cancellationToken);
+        try {
+            _target = await WgpuRenderTarget.FromCanvasAsync(_instance, _device, _queue, canvasId,
+                WgpuCanvasPresentation.Direct, cancellationToken);
+        }
+        catch (Exception directError) when (directError is WgpuException or TimeoutException or InvalidOperationException or PlatformNotSupportedException) {
+            cancellationToken.ThrowIfCancellationRequested();
+            _status("Offscreen canvas unavailable · trying normal canvas…");
+            StopCanvas(_canvas);
+            _canvas.Dispose();
+            _canvas = null;
+            try {
+                canvasId = "editor-pipeline-canvas-" + Interlocked.Increment(ref _canvasNumber);
+                _canvas = CreateCanvas("editor-pipeline-preview", canvasId);
+                await NextFrame(_canvas).WaitAsync(cancellationToken);
+                await Task.Yield();
+                _target = await WgpuRenderTarget.FromCanvasAsync(_instance, _device, _queue, canvasId,
+                    WgpuCanvasPresentation.Readback, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+            catch (Exception readbackError) {
+                throw new AggregateException("Both Offscreen and normal canvas initialization failed.", directError, readbackError);
+            }
+            _normalCanvas = true;
+        }
         _status("Rendering first frame…");
         _ = RunFramesAsync();
         await _ready.Task.WaitAsync(cancellationToken);
-        _status($"{(_spirvRoute ? "SPIR-V → WGSL" : "WGSL")} · {(_normalCanvas ? "Normal canvas" : "Offscreen canvas")} · programmable pipeline running");
+        _status($"WGSL · {(_normalCanvas ? "Normal canvas (fallback)" : "Offscreen canvas")} · programmable pipeline running");
     }
 
     private async Task<WgpuHandle<WGPUAdapter>> RequestAdapterAsync(CancellationToken cancellationToken)
@@ -156,7 +175,7 @@ internal sealed partial class EditorPipelineSession : IDisposable
                 var frame = new EditorPipelineFrame(_world, _window, _graph, _device, _queue,
                     Output, output.Format, output.Width, output.Height,
                     (milliseconds - _startTime) / 1000, _previousTime == 0 ? 0 : (milliseconds - _previousTime) / 1000) {
-                    Assembly = _assembly, Shaders = _shaders, SpirvRoute = _spirvRoute, Uniforms = _uniforms,
+                    Assembly = _assembly, Shaders = _shaders, Uniforms = _uniforms,
                 };
                 _previousTime = milliseconds;
                 if (_mount.IsMounted) _mount.Update(in frame);

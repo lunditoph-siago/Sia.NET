@@ -96,7 +96,32 @@ class ShaderPreview {
                 device.destroy();
                 throw new Error('Preview was closed.');
             }
-            this.context = this.canvas.getContext('webgpu');
+            if (!this.surface) {
+                try {
+                    this.surface = this.canvas.transferControlToOffscreen();
+                    this.context = this.surface.getContext('webgpu');
+                    if (!this.context) throw new Error('Offscreen WebGPU context is unavailable.');
+                    this.presentation = 'Offscreen canvas';
+                } catch (offscreenError) {
+                    const canvas = this.canvas.cloneNode();
+                    this.resize.unobserve(this.canvas);
+                    this.visibility.unobserve(this.canvas);
+                    this.canvas.replaceWith(canvas);
+                    this.canvas = canvas;
+                    this.surface = canvas;
+                    try {
+                        this.context = canvas.getContext('webgpu');
+                        if (!this.context) throw new Error('WebGPU canvas context is unavailable.');
+                    } catch (canvasError) {
+                        device.destroy();
+                        this.surface = null;
+                        throw new AggregateError([offscreenError, canvasError], 'Both Offscreen and normal canvas initialization failed.');
+                    }
+                    this.resize.observe(canvas);
+                    this.visibility.observe(canvas);
+                    this.presentation = 'Normal canvas (fallback)';
+                }
+            }
             if (!this.context) {
                 device.destroy();
                 throw new Error('WebGPU canvas context is unavailable.');
@@ -223,7 +248,7 @@ class ShaderPreview {
             this.started = performance.now();
             oldBuffer?.destroy();
             const milliseconds = performance.now() - started;
-            this.pipelineStatus = `${route} · ${entry} · GPU pipeline ${milliseconds.toFixed(1)} ms`;
+            this.pipelineStatus = `${route} · ${this.presentation} · ${entry} · GPU pipeline ${milliseconds.toFixed(1)} ms`;
             this.drawError = false;
             this.status.textContent = this.pipelineStatus;
             this.refresh();
@@ -258,9 +283,9 @@ class ShaderPreview {
         const scale = Math.min(devicePixelRatio || 1, 1, maximum / Math.max(rect.width, rect.height));
         const width = Math.max(1, Math.min(maximum, Math.round(rect.width * scale)));
         const height = Math.max(1, Math.min(maximum, Math.round(rect.height * scale)));
-        if (width !== this.canvas.width || height !== this.canvas.height || !this.configured) {
-            this.canvas.width = width;
-            this.canvas.height = height;
+        if (width !== this.surface.width || height !== this.surface.height || !this.configured) {
+            this.surface.width = width;
+            this.surface.height = height;
             this.context.configure({
                 device: this.device,
                 format: this.format,
@@ -279,7 +304,7 @@ class ShaderPreview {
                 for (const parameter of this.parameters) {
                     const value =
                         this.binding.sample(parameter,
-                            this.time + (this.paused ? 0 : (now - this.started) / 1000), this.canvas.width, this.canvas.height);
+                            this.time + (this.paused ? 0 : (now - this.started) / 1000), this.surface.width, this.surface.height);
                     if (
                         !Number.isFinite(value) ||
                         (parameter.type === 'f32' && Math.abs(value) > 3.4028234663852886e38) ||

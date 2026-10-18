@@ -15,7 +15,6 @@ public readonly record struct EditorPipelineFrame(
 {
     internal Assembly? Assembly { get; init; }
     internal IReadOnlyDictionary<int, ShaderArtifact>? Shaders { get; init; }
-    internal bool SpirvRoute { get; init; }
     internal EditorUniformSession? Uniforms { get; init; }
 
     /// <summary>Gets the compiled entry from this run's immutable C# image; never executes shader IL.</summary>
@@ -26,6 +25,6 @@ public readonly record struct EditorPipelineFrame(
             || !Shaders.TryGetValue(entry.Method.MetadataToken, out var shader)) {
             throw new ArgumentException("Use a shader delegate declared in the current pipeline source.", nameof(entry));
         }
-        return (SpirvRoute ? shader.TranslatedWgsl : shader.Wgsl, shader.EntryName);
+        return (shader.Wgsl, shader.EntryName);
     }
 }

@@ -112,6 +112,16 @@ public sealed class BrowserEditorRegistry(
         return false;
     }
 
+    internal bool TryGetCursorPosition(string cellId, out (int Line, int Column, int Selected) position)
+    {
+        if (_editors.TryGetValue(cellId, out var entry)) {
+            position = entry.Editor.CursorPosition;
+            return true;
+        }
+        position = default;
+        return false;
+    }
+
     public void RestorePosition(string cellId, EditorMemento memento)
     {
         if (_editors.TryGetValue(cellId, out var entry)) {

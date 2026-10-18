@@ -146,9 +146,7 @@ internal sealed partial class BrowserEditorPage
             return false;
         }
         catch (WorkspaceConflictException error) {
-            _consoleOutput.Text(
-                $"Could not save '{name}': {error.Message}\n").ToggleClass(
-                "output-error", true);
+            ShowOperationError($"Could not save '{name}': {error.Message}", error);
             return false;
         }
     }
@@ -176,6 +174,8 @@ internal sealed partial class BrowserEditorPage
         var untitled = _workspace.OpenFiles().Where(static e => e.Contains<UntitledFile>() && EditorWorkspace.IsDirty(e)).ToArray();
         var failures = await _workspace.SaveAllAsync(_lifetime.Token);
         ApplyLayout();
+        if (failures.Count != 0) ShowOperationError($"Could not save {failures.Count} file(s)",
+            new AggregateException(failures.Select(static failure => failure.Error)));
         UpdateChrome(failures.Count == 0 && untitled.Length == 0
             ? "saved all"
             : $"saved · {failures.Count} failed, {untitled.Length} untitled file(s) need Save As");
@@ -247,7 +247,7 @@ internal sealed partial class BrowserEditorPage
             saved = await _workspace.SaveAsAsync(entity, path, _lifetime.Token);
         }
         catch (Exception error) when (error is WorkspaceEntryExistsException or ArgumentException) {
-            _consoleOutput.Text($"Could not save as '{path}': {error.Message}\n").ToggleClass("output-error", true);
+            ShowOperationError($"Could not save as '{path}': {error.Message}", error);
             return;
         }
         if (_disposed) {
