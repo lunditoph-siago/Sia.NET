@@ -1,6 +1,7 @@
 import { dotnet } from './_framework/dotnet.js';
 import { configureRuntimeWorkers } from './js/runtime-workers.js';
 import './js/app-shell.js';
+import { startNavigation, isCurrentNavigation, commitNavigation, holdNavigation, stopNavigation, showNotFound } from './js/navigation.js';
 import {
     createUniformInspector, disposeUniformInspector, createUniformBinding,
     configureUniformBinding, activateUniformBinding, readUniformEdits, disposeUniformBinding,
@@ -60,6 +61,8 @@ import {
     workspaceRemove,
     workspaceRename,
 } from './js/notebook-runtime.js';
+
+document.querySelector('base').href = new URL('./', import.meta.url).href;
 
 dotnet.withConfig({ pthreadPoolInitialSize: 8, pthreadPoolUnusedSize: 0 });
 dotnet.withModuleConfig?.(bootModuleConfig);
@@ -222,6 +225,7 @@ function applyDomBatch(handles, tags, values, writes, completingScope = null) {
 }
 
 const domImports = {
+    startNavigation, isCurrentNavigation, commitNavigation, holdNavigation, stopNavigation, showNotFound,
     applyDomBatch,
     find: (id) => document.getElementById(id),
     tryFind: (id) => document.getElementById(id),

@@ -19,6 +19,11 @@ public static class BrowserApplication
         await library.RefreshAsync();
 
         var workspaceStorage = new IndexedDbWorkspaceStorage(mainThread);
+        using var navigation = new BrowserNavigation();
+        if (ApplicationRoute.Resolve(navigation.InitialPath, library.Notebooks) is null) {
+            BrowserNavigation.ShowNotFound();
+            return;
+        }
 
         await DomApplication.RunAsync(
             library,
@@ -27,7 +32,8 @@ public static class BrowserApplication
             frameworkAssemblies,
             packages,
             storage,
-            workspaceStorage);
+            workspaceStorage,
+            navigation);
     }
 }
 #endif
