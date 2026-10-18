@@ -98,13 +98,7 @@ internal sealed partial class BrowserEditorPage
             case "editor-shader-run": StartShaderOperation(ShaderAction.Run); return true;
             case "editor-shader-stop":
                 if (_runningMain) { _buildStatus.Text("Main is still running · arbitrary C# execution cannot be interrupted"); return true; }
-                StopPipeline();
-                _shaderPreview?.Dispose();
-                _shaderPreview = null;
-                _shaderPreviewSnapshot = null;
-                _shaderStatus.Text("Rendering stopped");
-                _buildStatus.Text("Rendering stopped");
-                UpdateCompileAction();
+                StopRendering();
                 return true;
             case "editor-shader-cancel":
                 if (_runningMain) { _buildStatus.Text("Main is still running · arbitrary C# execution cannot be interrupted"); return true; }
@@ -285,7 +279,7 @@ internal sealed partial class BrowserEditorPage
             if (!compilationCached) {
                 _shaderSourcesHash = hash;
                 _shaderArtifacts.Clear();
-                var compilation = await _shaderCompiler.CompileAsync(files, token, requireEntry: false);
+                var compilation = await _shaderCompiler.CompileAsync(files, token);
                 if (!CurrentShaderJob(revision)) return;
                 if (compilation.ReferenceVersion != _shaderCompiler.ReferenceVersion) {
                     CancelShaderOperation("References changed · compile again to use the current references");
@@ -401,14 +395,23 @@ internal sealed partial class BrowserEditorPage
         });
     }
 
-    private void DisposeShaderPreview()
+    private void StopRendering()
     {
-        StopPipeline();
         _shaderPreviewSnapshot = null;
         CancelShaderOperation("Preview closed");
         _pendingShaderRequest = null;
-        _shaderPreview?.Dispose();
-        _shaderPreview = null;
-        UpdateCompileAction();
+        try { StopPipeline(cancelPending: false); }
+        finally {
+            var preview = _shaderPreview;
+            _shaderPreview = null;
+            try { preview?.Dispose(); }
+            finally {
+                if (!_disposed && !_runningMain) {
+                    _shaderStatus.Text("Rendering stopped");
+                    _buildStatus.Text("Rendering stopped");
+                    UpdateCompileAction();
+                }
+            }
+        }
     }
 }

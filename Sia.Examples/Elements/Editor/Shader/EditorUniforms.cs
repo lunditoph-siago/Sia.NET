@@ -169,8 +169,11 @@ internal sealed class UniformField(string name, string type, FieldInfo[] path, i
     public object Write(object value, double[] numbers)
     {
         if (numbers.Length != Components) throw new InvalidDataException("Uniform component count changed.");
+        var minimum = Type == "f32" && Minimum is { } min ? (double)(float)min : Minimum;
+        var maximum = Type == "f32" && Maximum is { } max ? (double)(float)max : Maximum;
         foreach (var number in numbers) {
-            if (!double.IsFinite(number) || number < Minimum || number > Maximum
+            var represented = Type == "f32" ? (double)(float)number : number;
+            if (!double.IsFinite(number) || represented < minimum || represented > maximum
                 || Type == "f32" && Math.Abs(number) > float.MaxValue
                 || Type == "i32" && (number < int.MinValue || number > int.MaxValue || number != Math.Truncate(number))
                 || Type == "u32" && (number < 0 || number > uint.MaxValue || number != Math.Truncate(number))

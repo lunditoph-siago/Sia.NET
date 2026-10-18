@@ -267,7 +267,7 @@ export function attachGutterHeights(gutter, lines, cellId) {
         if (state.report) {
             return;
         }
-        const report = { frame: 0, timer: 0, run: null };
+        const report = { frame: 0, timer: 0 };
         state.report = report;
         const run = () => {
             if (!isCurrent() || state.report !== report) return;
@@ -286,7 +286,6 @@ export function attachGutterHeights(gutter, lines, cellId) {
             applyScrollRestore(state);
             reportMeasurement(state);
         };
-        report.run = run;
         report.frame = requestAnimationFrame(run);
         report.timer = setTimeout(run, 50);
     };

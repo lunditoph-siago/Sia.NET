@@ -36,7 +36,7 @@ internal sealed class EditorShaderCompiler(MetadataReferenceProvider references)
     };
 
     public async Task<ShaderCompilation> CompileAsync(
-        IReadOnlyList<CSharpSourceDocument> files, CancellationToken cancellationToken, bool requireEntry = true)
+        IReadOnlyList<CSharpSourceDocument> files, CancellationToken cancellationToken)
     {
         var clock = Stopwatch.StartNew();
         var intrinsicImage = await references.EnsureHostReferenceAsync("Sia.Spirv.Core", cancellationToken);
@@ -66,10 +66,6 @@ internal sealed class EditorShaderCompiler(MetadataReferenceProvider references)
                 (diagnostic.IlOffset is { } offset ? $" · IL_{offset:x4}" : "") + $": {diagnostic.Message}",
             diagnostic.Severity.ToString() == "Error" ? NotebookDiagnosticSeverity.Error : NotebookDiagnosticSeverity.Warning,
             null, null, 0, 0)));
-        if (requireEntry && frontend.Kernels.Count == 0) {
-            diagnostics.Add(new("SHADER_ENTRY", "No shader entry found. Add a static method with [SpirvFragmentShader], [SpirvVertexShader] or [SpirvKernel].",
-                NotebookDiagnosticSeverity.Error, null, null, 0, 0));
-        }
         var entries = frontend.Kernels.Select(static kernel => new ShaderEntry(
             kernel.QualifiedName, kernel.Name, kernel.MetadataToken, kernel.Stage, kernel.Parameters)).ToArray();
         return new(image, intrinsicImage, entries, diagnostics, referenceVersion, csharpMilliseconds, clock.Elapsed.TotalMilliseconds);

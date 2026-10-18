@@ -196,12 +196,6 @@
         min-height: 0;
     }
 
-    .editor-page-editor .editor-gutter {
-        position: sticky;
-        z-index: var(--z-sticky-content);
-        left: 0;
-    }
-
     .editor-page-statusbar {
         display: flex;
         grid-column: 1;

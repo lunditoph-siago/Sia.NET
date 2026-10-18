@@ -81,8 +81,9 @@ internal static class DomApplication
                 if (editorPage is null) {
                     return;
                 }
-                await editorPage.DisposeAsync();
+                var closing = editorPage;
                 editorPage = null;
+                await closing.DisposeAsync();
             }
 
             void RefreshSidebarSelection()

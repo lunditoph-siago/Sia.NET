@@ -32,12 +32,8 @@ function sameRow(a, b) {
 }
 
 function removeRow(owner, identity, row) {
-    const failures = [];
-    for (const node of [row.content, row.gutter]) {
-        try { node?.remove(); } catch (error) { failures.push(error); }
-    }
-    if (!failures.length) owner.rows.delete(identity);
-    else throw new AggregateError(failures, 'Could not release editor row.');
+    row.content?.remove();
+    owner.rows.delete(identity);
 }
 
 function clearRows(owner) {
@@ -106,7 +102,7 @@ function renderRows(owner, rows, identities, active, force) {
                 const view = rows[n];
                 let row = owner.rows.get(view.identity);
                 if (!row) {
-                    row = { content: null, gutter: null, view: null };
+                    row = { content: null, view: null };
                     owner.rows.set(view.identity, row);
                     acquired.push([view.identity, row]);
                     row.content = document.createElement('div');

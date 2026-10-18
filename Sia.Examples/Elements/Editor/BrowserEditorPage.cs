@@ -296,27 +296,36 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             return;
         }
         _disposed = true;
-        _lifetime.Cancel();
-        CancelCloseDialog();
-        DisposeShaderPreview();
-        _uniformInspector?.Dispose();
+        List<Exception>? failures = null;
+        void Release(Action action)
+        {
+            try { action(); }
+            catch (Exception error) { (failures ??= []).Add(error); }
+        }
+        Release(_lifetime.Cancel);
+        Release(CancelCloseDialog);
+        Release(StopRendering);
+        Release(() => _uniformInspector?.Dispose());
         _uniformInspector = null;
-        _programConsole?.Dispose();
+        Release(() => _programConsole?.Dispose());
         foreach (var operation in _operations.ToArray()) {
-            await operation;
+            try { await operation; }
+            catch (Exception error) { (failures ??= []).Add(error); }
         }
-        _editors.Dispose();
-        DisposeSurfaces();
-        DisposeLayoutViews();
-        DisposeExplorer();
-        RestoreExplorerSidebarTab();
-        _workspace.Dispose();
-        _root.Remove();
+        Release(_editors.Dispose);
+        Release(DisposeSurfaces);
+        Release(DisposeLayoutViews);
+        Release(DisposeExplorer);
+        Release(RestoreExplorerSidebarTab);
+        Release(_workspace.Dispose);
+        Release(() => _root.Remove());
         for (var index = _ownedElements.Count - 1; index >= 0; index--) {
-            _ownedElements[index].Dispose();
+            Release(_ownedElements[index].Dispose);
         }
-        _container.Dispose();
-        _lifetime.Dispose();
+        Release(_container.Dispose);
+        Release(_lifetime.Dispose);
+        if (failures is { Count: 1 }) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failures[0]).Throw();
+        if (failures is not null) throw new AggregateException(failures);
     }
 
     private string KeyFor(Entity entity)
@@ -419,7 +428,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             return;
         }
         if (window.Kind != CellWindowKind.Script) {
-            if (window.Id == RenderWindowId) DisposeShaderPreview();
+            if (window.Id == RenderWindowId) StopRendering();
             UpdateState(state => NotebookCellLayout.CloseTab(state, tabId));
             return;
         }
@@ -624,7 +633,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         _programConsole?.Clear();
         _programOutput.Text(string.Empty).ToggleClass("output-error", false);
         _renderOutput.Text("Compile C# to inspect WGSL and SPIR-V, then render the result");
-        DisposeShaderPreview();
+        StopRendering();
     }
 
     private void UpdateChrome(string? message = null)

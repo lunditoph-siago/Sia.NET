@@ -116,30 +116,6 @@
     }
 
     .editor-lines {
-        display: grid;
-        grid-template-rows: subgrid;
-        grid-row: 1 / -1;
-    }
-
-    .editor-gutter {
-        grid-column: 1;
-        border-right: 1px solid var(--color-border);
-        background: var(--color-bg-secondary);
-        color: var(--color-text-dim);
-        text-align: right;
-        user-select: none;
-    }
-
-    .editor-gutter-line {
-        padding: 0 6px 0 2px;
-
-        &.active {
-            color: var(--color-text);
-            font-weight: 600;
-        }
-    }
-
-    .editor-lines {
         --editor-line-gutter-width: max(var(--editor-gutter-width), calc(var(--editor-line-digits, 1) * 1ch + 9px));
         display: block;
         background: linear-gradient(to right, var(--color-bg-secondary) var(--editor-line-gutter-width), transparent var(--editor-line-gutter-width));
@@ -193,10 +169,6 @@
         overflow: hidden;
         pointer-events: none;
         user-select: none;
-
-        &:last-child {
-            grid-row: -2 / -1;
-        }
     }
 
     .completion-popup {
