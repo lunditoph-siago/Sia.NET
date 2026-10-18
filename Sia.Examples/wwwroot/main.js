@@ -163,7 +163,7 @@ function applyDomBatch(handles, tags, values, writes, completingScope = null) {
         let next = 0;
         for (let index = 0; index < tags.length; index++) {
             if (!tags[index]) continue;
-            nodes[index] = tags[index] === '#text' ? document.createTextNode('') : document.createElement(tags[index]);
+            nodes[index] = tags[index] === '#text' ? document.createTextNode('') : domImports.create(tags[index]);
             created[next++] = nodes[index];
         }
         for (const offset of offsets) {
@@ -225,7 +225,9 @@ const domImports = {
     applyDomBatch,
     find: (id) => document.getElementById(id),
     tryFind: (id) => document.getElementById(id),
-    create: (tagName) => document.createElement(tagName),
+    create: (tagName) => tagName === 'svg' || tagName === 'path'
+        ? document.createElementNS('http://www.w3.org/2000/svg', tagName)
+        : document.createElement(tagName),
     createText: (value) => document.createTextNode(value),
     setText: (element, value) =>
         writeEditorDom(() => {

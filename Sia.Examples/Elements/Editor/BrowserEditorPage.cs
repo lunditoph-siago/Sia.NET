@@ -726,10 +726,28 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             .Text(label));
 
     private DomElement CreateIconAction(string label, string payload)
-        => Own(DomElement.Create("button").Class("icon-btn").Class("editor-action")
+    {
+        var button = Own(DomElement.Create("button").Class("icon-btn").Class("editor-action")
             .Attr("type", "button").Attr("aria-label", label).Attr("title", label)
-            .On("click", payload))
-            .Append(Own(DomElement.Create("span").Class("editor-action-icon").Attr("aria-hidden", "true")));
+            .On("click", payload));
+        var icons = label == "Run"
+            ? new[] { ("run", "M8 4.5 20 12 8 19.5Z"), ("stop", "M6.5 6.5h11v11h-11Z") }
+            : new[] {
+                ("compile", "m10.5 4.5 2.5-2.5 9 9-2.5 2.5-3.5-3.5-9.5 9.5a2.12 2.12 0 0 1-3-3l9.5-9.5ZM5.5 14.5l3 3"),
+                ("cancel", "m6 6 12 12M6 18 18 6"),
+            };
+        foreach (var (name, path) in icons) {
+            var svg = Own(DomElement.Create("svg").Class("editor-action-icon")
+                .Attr("data-icon", name).Attr("viewBox", "0 0 24 24")
+                .Attr("width", "20").Attr("height", "20").Attr("fill", "none")
+                .Attr("stroke", "currentColor").Attr("stroke-width", "1.4")
+                .Attr("stroke-linecap", "round").Attr("stroke-linejoin", "round")
+                .Attr("aria-hidden", "true").Attr("focusable", "false"));
+            svg.Append(Own(DomElement.Create("path").Attr("d", path)));
+            button.Append(svg);
+        }
+        return button;
+    }
 
     private void ShowCompilationDetails(bool show)
     {
