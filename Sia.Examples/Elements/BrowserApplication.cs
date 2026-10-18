@@ -19,6 +19,7 @@ public static class BrowserApplication
         await library.RefreshAsync();
 
         var workspaceStorage = new IndexedDbWorkspaceStorage(mainThread);
+        using var navigation = new BrowserNavigation();
 
         await DomApplication.RunAsync(
             library,
@@ -27,7 +28,8 @@ public static class BrowserApplication
             frameworkAssemblies,
             packages,
             storage,
-            workspaceStorage);
+            workspaceStorage,
+            navigation);
     }
 }
 #endif

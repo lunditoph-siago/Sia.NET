@@ -1,6 +1,7 @@
 import { dotnet } from './_framework/dotnet.js';
 import { configureRuntimeWorkers } from './js/runtime-workers.js';
 import './js/app-shell.js';
+import { startNavigation, isCurrentNavigation, commitNavigation, holdNavigation, stopNavigation } from './js/navigation.js';
 import {
     createUniformInspector, disposeUniformInspector, createUniformBinding,
     configureUniformBinding, activateUniformBinding, readUniformEdits, disposeUniformBinding,
@@ -222,6 +223,7 @@ function applyDomBatch(handles, tags, values, writes, completingScope = null) {
 }
 
 const domImports = {
+    startNavigation, isCurrentNavigation, commitNavigation, holdNavigation, stopNavigation,
     applyDomBatch,
     find: (id) => document.getElementById(id),
     tryFind: (id) => document.getElementById(id),
