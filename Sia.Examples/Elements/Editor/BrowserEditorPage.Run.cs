@@ -48,8 +48,7 @@ internal sealed partial class BrowserEditorPage
         SetProgramConsole(console);
         _runningMain = true;
         UpdateActions();
-        SetBuildStatus("Main running");
-        _shaderStatus.Text("Running C# entry point · Console output is independent of rendering");
+        SetBuildStatus("Main running · Console output is independent of rendering");
         OpenPanelWindow("console");
         DomRuntime.Flush();
         try {
@@ -57,8 +56,7 @@ internal sealed partial class BrowserEditorPage
             var result = await execution.WaitAsync(_lifetime.Token);
             if (!_disposed && revision == _shaderRevision) {
                 RefreshProgramConsole();
-                SetBuildStatus(result.Success ? "Program completed" : "Program failed");
-                _shaderStatus.Text(result.Success ? "C# entry point completed" : "C# entry point failed · see Console");
+                SetBuildStatus(result.Success ? "Program completed" : "Program failed · see Console");
             }
         }
         finally { _runningMain = false; console.Dispose(); }

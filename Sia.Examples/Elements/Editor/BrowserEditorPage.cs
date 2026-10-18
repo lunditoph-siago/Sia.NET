@@ -67,6 +67,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
 
         var titlebar = Own(DomElement.Create("header").Class("editor-page-titlebar"));
         _buildStatus = Own(DomElement.Create("span")
+            .Id("editor-page-status")
             .Class("editor-page-build-status")
             .Attr("role", "status")
             .Text("Loading workspace…"));
@@ -145,6 +146,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             .Append(statusbar)
             .Append(_layoutRevision);
         _container.Text(string.Empty).Append(_root);
+        _layoutRevision.Append(_renderTools);
         _uniformInspector = new();
 
         _editors = new(world, references);

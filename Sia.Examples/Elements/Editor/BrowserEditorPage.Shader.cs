@@ -14,7 +14,7 @@ internal sealed partial class BrowserEditorPage
     private DomElement _shaderEntry = null!;
     private DomElement _shaderView = null!;
     private DomElement _shaderOutput = null!;
-    private DomElement _shaderStatus = null!;
+    private DomElement _renderTools = null!;
     private DomElement _shaderScope = null!;
     private DomElement _shaderArtifactActions = null!;
     private EditorShaderPreview? _shaderPreview;
@@ -35,8 +35,12 @@ internal sealed partial class BrowserEditorPage
 
     private void InitShaderPanel()
     {
-        var panel = Own(DomElement.Create("section").Class("editor-shader"));
-        var actions = Own(DomElement.Create("div").Class("editor-shader-actions"));
+        var panel = Own(DomElement.Create("section").Id("editor-render-surface").Class("editor-shader"));
+        _renderTools = Own(DomElement.Create("div").Class("editor-render-tools")
+            .Attr("role", "toolbar").Attr("aria-label", "Render controls"));
+        _renderTools.Append(Own(DomElement.Create("span").Id("editor-uniform-inspector")
+            .Attr("data-render-surface", "editor-render-surface")))
+            .Append(Own(DomElement.Create("span").Id("editor-preview-actions")));
         _shaderEntry = Own(DomElement.Create("select").Attr("aria-label", "Shader entry")
             .On("change", "editor-shader-entry"));
         _shaderView = Own(DomElement.Create("select").Attr("aria-label", "Shader artifact")
@@ -45,11 +49,8 @@ internal sealed partial class BrowserEditorPage
             using var option = DomElement.Create("option").Attr("value", value).Text(text);
             _shaderView.Append(option);
         }
-        actions.Append(Own(DomElement.Create("span").Id("editor-uniform-inspector")));
         _shaderScope = Own(DomElement.Create("div").Class("editor-shader-status")
             .Text("Compilation includes C# files under the active file’s folder."));
-        _shaderStatus = Own(DomElement.Create("div").Id("editor-shader-status")
-            .Class("editor-shader-status").Attr("role", "status").Text("No GPU preview yet"));
         var preview = Own(DomElement.Create("div").Id("editor-shader-preview").Class("editor-shader-preview"));
         var pipeline = Own(DomElement.Create("div").Id("editor-pipeline-preview").Class("editor-shader-preview"));
         var stage = Own(DomElement.Create("div").Class("editor-shader-stage"));
@@ -71,7 +72,7 @@ internal sealed partial class BrowserEditorPage
             .Class("editor-compilation-details").Class("hidden")).Append(_compilationOutput);
         _compilationPanel.Append(_shaderScope).Append(_shaderArtifactActions).Append(_shaderOutput)
             .Append(_compilationDetailsToggle).Append(_compilationDetails);
-        panel.Append(actions).Append(stage).Append(_shaderStatus);
+        panel.Append(stage);
         _renderPanel.Append(panel);
     }
 
@@ -264,13 +265,13 @@ internal sealed partial class BrowserEditorPage
     private void CancelShaderOperation(string message)
     {
         if (_runningMain && !_disposed) {
-            _shaderStatus.Text("Main continues using its compiled snapshot · source changes apply to the next Run");
+            SetBuildStatus("Main continues using its compiled snapshot · source changes apply to the next Run");
             return;
         }
         ++_shaderRevision;
         _shaderCancellation?.Cancel();
         _shaderPreview?.Invalidate(_shaderRevision);
-        _shaderStatus.Text(message + PreviousShaderPreview());
+        SetBuildStatus(message + PreviousShaderPreview());
         UpdateActions();
     }
 
@@ -310,8 +311,7 @@ internal sealed partial class BrowserEditorPage
                 _shaderCompilation = compilation;
                 RenderDiagnostics(compilation.Diagnostics);
                 if (!compilation.Success) {
-                    _shaderStatus.Text("C# / IL analysis failed · see Compilation" + PreviousShaderPreview());
-                    SetBuildStatus("C# compilation failed");
+                    SetBuildStatus("C# compilation failed · see Compilation" + PreviousShaderPreview());
                     OpenPanelWindow("compilation");
                     return;
                 }
@@ -344,8 +344,7 @@ internal sealed partial class BrowserEditorPage
                 _shaderOutput.Text("Compiled C# · no shader entries");
                 if (request.Action == ShaderAction.Run)
                     throw new InvalidOperationException("No runnable entry. Declare Render(in EditorPipelineFrame, ref Hooks), a standard Main/top-level program, or a fragment shader.");
-                _shaderStatus.Text("C# compiled · no shader entries" + PreviousShaderPreview());
-                SetBuildStatus("Compilation succeeded");
+                SetBuildStatus("Compilation succeeded · no shader entries" + PreviousShaderPreview());
                 return;
             }
             var kernel = source.Entries.FirstOrDefault(entry => entry.SelectionKey == _selectedShaderName) ?? source.Entries[0];
@@ -364,31 +363,28 @@ internal sealed partial class BrowserEditorPage
             _compilationOutput.Text(FormattableString.Invariant(
                 $"Compiled snapshot timings (ms) · source {(compilationCached ? "cached" : "new")} · artifact {(artifactCached ? "cached" : "new")}\nC# + references: {source.CSharpMilliseconds:F1}\nIL analysis: {source.AnalysisMilliseconds:F1}\nLowering: {artifact.LoweringMilliseconds:F1}\nWGSL: {artifact.WgslMilliseconds:F1}\nSPIR-V: {artifact.SpirvMilliseconds:F1}\nSPIR-V → WGSL: {artifact.TranslationMilliseconds:F1}\nWGSL: {artifact.Wgsl.Length} chars · SPIR-V: {artifact.Spirv.Length} bytes\n"));
             if (request.Action == ShaderAction.Compile) {
-                _shaderStatus.Text(_shaderPreviewSnapshot is null
+                SetBuildStatus(_shaderPreviewSnapshot is null
                     ? "Shaders compiled · Run to render"
                     : "Compilation succeeded" + PreviousShaderPreview());
-                SetBuildStatus("Compilation succeeded");
                 return;
             }
             SetBuildStatus("Creating GPU pipeline…");
             OpenPanelWindow("render");
             DomRuntime.Flush();
-            _shaderPreview ??= new("editor-shader-preview", "editor-shader-status", _uniformInspector!);
+            _shaderPreview ??= new("editor-shader-preview", "editor-page-status", _uniformInspector!);
             _shaderPreview.Invalidate(revision);
             var gpuMilliseconds = await _shaderPreview.ShowAsync(artifact, revision);
             if (!CurrentShaderJob(revision) || gpuMilliseconds < 0) return;
             StopPipeline(cancelPending: false);
             _shaderPreviewSnapshot = $"{hash[..8]} · {artifact.QualifiedName}";
             _compilationOutput.Text(_compilationOutput.TextContent() + FormattableString.Invariant($"GPU pipeline: {gpuMilliseconds:F1} ms\n"));
-            SetBuildStatus("Shader preview ready");
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) {
             if (!_disposed) SetBuildStatus("Shader job cancelled");
         }
         catch (Exception error) {
             if (CurrentShaderJob(revision)) {
-                _shaderStatus.Text($"Shader failed: {error.Message}" + PreviousShaderPreview());
-                ShowOperationError($"Run / compile failed: {error.Message}", error);
+                ShowOperationError($"Run / compile failed: {error.Message}" + PreviousShaderPreview(), error);
             }
         }
         finally {
@@ -436,7 +432,6 @@ internal sealed partial class BrowserEditorPage
             try { preview?.Dispose(); }
             finally {
                 if (!_disposed && !_runningMain) {
-                    _shaderStatus.Text("Rendering stopped");
                     SetBuildStatus("Rendering stopped");
                     UpdateActions();
                 }

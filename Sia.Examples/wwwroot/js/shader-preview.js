@@ -44,11 +44,28 @@ class ShaderPreview {
         this.canvas.setAttribute('aria-label', 'Shader preview');
         this.inspector = inspector;
         this.pause = document.createElement('button');
-        this.pause.className = 'btn';
-        this.pause.textContent = 'Pause';
+        this.pause.className = 'icon-btn';
+        this.pause.setAttribute('aria-label', 'Pause preview');
+        this.pause.title = 'Pause preview';
         this.pause.type = 'button';
+        this.pause.disabled = true;
+        const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        icon.setAttribute('viewBox', '0 0 24 24');
+        icon.setAttribute('width', '20');
+        icon.setAttribute('height', '20');
+        icon.setAttribute('fill', 'none');
+        icon.setAttribute('stroke', 'currentColor');
+        icon.setAttribute('stroke-width', '1.4');
+        icon.setAttribute('stroke-linecap', 'round');
+        icon.setAttribute('stroke-linejoin', 'round');
+        icon.setAttribute('aria-hidden', 'true');
+        this.pausePath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        this.pausePath.setAttribute('d', 'M8 5v14M16 5v14');
+        icon.append(this.pausePath);
+        this.pause.append(icon);
         this.pause.addEventListener('click', () => this.togglePause());
-        container.append(this.canvas, this.pause);
+        document.getElementById('editor-preview-actions').append(this.pause);
+        container.append(this.canvas);
         this.disposed = false;
         this.revision = 0;
         this.visible = false;
@@ -69,15 +86,21 @@ class ShaderPreview {
         document.addEventListener('visibilitychange', this.onVisibility);
         this.onError = (event) => {
             this.stop();
-            this.status.textContent = `GPU error: ${event.error.message}`;
+            this.pause.disabled = true;
+            this.setStatus(`GPU error: ${event.error.message}`);
         };
+    }
+
+    setStatus(message) {
+        this.status.textContent = message;
+        this.status.title = message;
     }
 
     invalidate(revision) {
         this.revision = revision;
-        this.status.textContent = this.pipeline
+        this.setStatus(this.pipeline
             ? 'Previous preview · compile the current source to update'
-            : 'Compile and preview a fragment shader';
+            : 'Compile and preview a fragment shader');
     }
 
     async ensureDevice() {
@@ -136,10 +159,11 @@ class ShaderPreview {
                 this.buffer?.destroy();
                 this.buffer = null;
                 this.pipeline = null;
+                this.pause.disabled = true;
                 this.device = null;
                 this.context.unconfigure();
                 this.configured = false;
-                this.status.textContent = `Device lost: ${info.message || info.reason}. Preview again to retry.`;
+                this.setStatus(`Device lost: ${info.message || info.reason}. Preview again to retry.`);
             });
             return device;
         })();
@@ -233,6 +257,7 @@ class ShaderPreview {
             this.stop();
             const oldBuffer = this.buffer;
             this.pipeline = pipeline;
+            this.pause.disabled = false;
             this.buffer = buffer;
             buffer = null;
             this.bindGroup = bindGroup;
@@ -250,7 +275,7 @@ class ShaderPreview {
             const milliseconds = performance.now() - started;
             this.pipelineStatus = `${route} · ${this.presentation} · ${entry} · GPU pipeline ${milliseconds.toFixed(1)} ms`;
             this.drawError = false;
-            this.status.textContent = this.pipelineStatus;
+            this.setStatus(this.pipelineStatus);
             this.refresh();
             return milliseconds;
         } finally {
@@ -266,10 +291,15 @@ class ShaderPreview {
     }
 
     togglePause() {
+        if (this.pause.disabled) return;
         if (!this.paused) this.time += (performance.now() - this.started) / 1000;
         this.started = performance.now();
         this.paused = !this.paused;
-        this.pause.textContent = this.paused ? 'Resume' : 'Pause';
+        const action = this.paused ? 'Resume preview' : 'Pause preview';
+        this.pause.setAttribute('aria-label', action);
+        this.pause.title = action;
+        this.pausePath.setAttribute('d', this.paused ? 'M8 4.5 20 12 8 19.5Z' : 'M8 5v14M16 5v14');
+        this.setStatus(this.paused ? 'Preview paused' : this.pipelineStatus);
         this.refresh();
     }
 
@@ -338,10 +368,11 @@ class ShaderPreview {
             this.device.queue.submit([encoder.finish()]);
             if (this.drawError) {
                 this.drawError = false;
-                this.status.textContent =
+                this.pause.disabled = false;
+                this.setStatus(
                     this.activeRevision === this.revision
                         ? this.pipelineStatus
-                        : 'Previous preview · compile the current source to update';
+                        : 'Previous preview · compile the current source to update');
             }
             if (
                 !this.paused &&
@@ -352,7 +383,8 @@ class ShaderPreview {
         } catch (error) {
             this.stop();
             this.drawError = true;
-            this.status.textContent = `Preview failed: ${error.message}`;
+            this.pause.disabled = true;
+            this.setStatus(`Preview failed: ${error.message}`);
         }
     }
 
@@ -372,6 +404,7 @@ class ShaderPreview {
             this.device.destroy();
         }
         this.device = this.pipeline = this.buffer = this.bindGroup = null;
+        this.pause.remove();
         this.container.replaceChildren();
     }
 }
