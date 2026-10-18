@@ -10,6 +10,19 @@ class BrowserNavigation {
     stopped = false;
 
     constructor() {
+        const entry = new URL(location.href);
+        const path = entry.searchParams.get('__path');
+        if (path) {
+            let requested;
+            try { requested = new URL(path, this.base); } catch {}
+            if (requested?.origin === this.base.origin && !requested.username && !requested.password
+                && requested.pathname.startsWith(this.base.pathname)) {
+                history.replaceState(history.state, '', requested);
+            } else {
+                entry.searchParams.delete('__path');
+                history.replaceState(history.state, '', entry);
+            }
+        }
         this.position = this.readPosition() ?? 0;
         this.accepted = this.position;
         this.stamp();
@@ -137,4 +150,10 @@ export function holdNavigation(ticket) {
 export function stopNavigation() {
     navigation?.dispose();
     navigation = null;
+}
+
+export function showNotFound() {
+    const target = new URL('404.html', navigation.base);
+    target.searchParams.set('path', location.pathname + location.search + location.hash);
+    location.replace(target);
 }

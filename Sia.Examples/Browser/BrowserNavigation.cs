@@ -14,6 +14,9 @@ internal sealed partial class BrowserNavigation : IApplicationNavigation
         => CommitCoreAsync(path, ticket, replace);
     public void Dispose() => Stop();
 
+    [JSImport("showNotFound", "main.js")]
+    internal static partial void ShowNotFound();
+
     [JSImport("startNavigation", "main.js")]
     private static partial string Start();
 
