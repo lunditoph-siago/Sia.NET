@@ -37,32 +37,39 @@ internal static class DomApplication
 
             NotebookWorkspace? workspace = null;
             BrowserEditorPage? editorPage = null;
-            NavigationRequest? pendingNavigation = null;
-            object? navigationOwner = null;
+            NavigationAttempt? pendingNavigation = null;
             long navigationGeneration = 0;
             var quitting = false;
 
             object? CurrentOwner() => (object?)workspace ?? editorPage;
 
-            (string Content, bool Dirty) CaptureNavigationState()
-                => workspace?.CaptureNavigationState()
+            ApplicationRoute CurrentPage() => (editorPage, workspace?.Info) switch {
+                (not null, _) => new(Destination.Editor),
+                (_, { Key.Length: 0 }) => new(Destination.NewNotebook),
+                (_, { } info) => new(Destination.Notebook, info),
+                _ => new(Destination.Home),
+            };
+
+            NavigationState CaptureNavigationState()
+            {
+                var (content, dirty) = workspace?.CaptureNavigationState()
                     ?? editorPage?.CaptureNavigationState()
                     ?? (string.Empty, false);
+                return new(CurrentPage(), content, dirty);
+            }
 
             void ClearNavigation()
             {
                 pendingNavigation = null;
-                navigationOwner = null;
                 view.HideConflict();
             }
 
-            async Task PromptNavigationAsync(NavigationRequest request, object? owner, string? error = null)
+            async Task PromptNavigationAsync(NavigationEvent request, object? owner, string? error = null)
             {
                 if (navigation is not null) await navigation.HoldAsync(request.HistoryTicket);
                 if (navigation?.IsCurrent(request.HistoryTicket) == false) return;
-                pendingNavigation = request;
-                navigationOwner = owner;
                 var generation = ++navigationGeneration;
+                pendingNavigation = new(request, owner, generation);
                 view.ShowNotice(
                     error ?? "There are unsaved changes. Save before leaving?",
                     ("Save", $"navigation-save:{generation}"),
@@ -99,14 +106,7 @@ internal static class DomApplication
             }
 
             Task CommitCurrentRouteAsync(bool replace = false, int ticket = 0)
-            {
-                var route = editorPage is not null ? new ApplicationRoute(Destination.Editor)
-                    : workspace is not null ? workspace.Info.Key.Length == 0
-                        ? new ApplicationRoute(Destination.NewNotebook)
-                        : new ApplicationRoute(Destination.Notebook, workspace.Info)
-                    : new ApplicationRoute(Destination.Home);
-                return navigation?.CommitAsync(route.Path, ticket, replace) ?? Task.CompletedTask;
-            }
+                => navigation?.CommitAsync(CurrentPage().Path, ticket, replace) ?? Task.CompletedTask;
 
             async Task NavigatePathAsync(string path, int ticket = 0, bool replace = false)
             {
@@ -122,28 +122,25 @@ internal static class DomApplication
                 }
             }
 
-            async Task NavigateAsync(NavigationRequest request, bool discard = false)
+            async Task NavigateAsync(NavigationEvent request)
             {
                 if (navigation?.IsCurrent(request.HistoryTicket) == false) return;
-                if (!request.Reload && (request.Target == Destination.Notebook
-                    && workspace is not null && request.Info is { } current
-                    && workspace.Info.Key == current.Key && workspace.Info.Origin == current.Origin
-                    || request.Target == Destination.Editor && editorPage is not null)) {
+                var owner = CurrentOwner();
+                var before = CaptureNavigationState();
+                var transition = ApplicationNavigation.Update(before, request);
+                if (transition.Effect == NavigationEffect.Stay) {
                     ClearNavigation();
                     await CommitCurrentRouteAsync(request.Replace, request.HistoryTicket);
                     return;
                 }
 
-                var owner = CurrentOwner();
-                var before = CaptureNavigationState();
-                if (before.Dirty && !discard) {
+                if (transition.Effect == NavigationEffect.Confirm) {
                     await PromptNavigationAsync(request, owner);
                     return;
                 }
 
-                pendingNavigation = request;
-                navigationOwner = owner;
                 var generation = ++navigationGeneration;
+                pendingNavigation = new(request, owner, generation);
                 NotebookDocument? document = null;
                 string? version = null;
                 try {
@@ -164,36 +161,43 @@ internal static class DomApplication
                     || navigation?.IsCurrent(request.HistoryTicket) == false) {
                     return;
                 }
-                var after = CaptureNavigationState();
-                if (after.Dirty && (!discard || after.Content != before.Content)) {
+                var loaded = ApplicationNavigation.Update(CaptureNavigationState(), request with { Before = before });
+                if (loaded.Effect == NavigationEffect.Confirm) {
                     await PromptNavigationAsync(request, owner);
                     return;
                 }
+                if (loaded.Effect == NavigationEffect.Open) {
+                    await ShowPageAsync(loaded.Page, document, version);
+                } else {
+                    ClearNavigation();
+                }
+                if (!quitting) await CommitCurrentRouteAsync(request.Replace, request.HistoryTicket);
+            }
 
+            async Task ShowPageAsync(ApplicationRoute page, NotebookDocument? document, string? version)
+            {
                 ClearNavigation();
                 view.HideNotebookBar();
                 await CloseEditorPageAsync();
                 await CloseWorkspaceAsync();
-                if (request.Target == Destination.Quit) {
+                if (page.Target == Destination.Quit) {
                     quitting = true;
                     return;
                 }
-                if (request.Target == Destination.Home) {
+                if (page.Target == Destination.Home) {
                     RefreshSidebarSelection();
-                    await CommitCurrentRouteAsync(request.Replace, request.HistoryTicket);
                     return;
                 }
                 var references = new MetadataReferenceProvider(
                     frameworkAssemblies,
                     packages);
-                if (request.Target == Destination.Editor) {
+                if (page.Target == Destination.Editor) {
                     editorPage = new BrowserEditorPage(world, references, workspaceStorage);
                     RefreshSidebarSelection();
                     await editorPage.InitializeAsync();
-                    await CommitCurrentRouteAsync(request.Replace, request.HistoryTicket);
                     return;
                 }
-                var info = request.Info ?? new NotebookInfo("Untitled", "", "", NotebookOrigin.User);
+                var info = page.Info ?? new NotebookInfo("Untitled", "", "", NotebookOrigin.User);
                 workspace = new(
                     world,
                     uiThread,
@@ -203,13 +207,12 @@ internal static class DomApplication
                     version,
                     storage,
                     library);
-                if (request.Target == Destination.NewNotebook) {
+                if (page.Target == Destination.NewNotebook) {
                     workspace.InsertSection(null, "Notes");
                 }
                 RefreshSidebarSelection();
                 view.ShowNotebookBar(info, version);
                 await workspace.InitializeAsync();
-                await CommitCurrentRouteAsync(request.Replace, request.HistoryTicket);
             }
 
             try {
@@ -259,10 +262,10 @@ internal static class DomApplication
                             case "navigation-discard":
                             case "navigation-cancel":
                             case "navigation-retry": {
-                                    if (pendingNavigation is not { } request
+                                    if (pendingNavigation is not { Request: var request, Owner: var owner, Generation: var expected }
                                         || !long.TryParse(argument, out var generation)
-                                        || generation != navigationGeneration
-                                        || !ReferenceEquals(navigationOwner, CurrentOwner())
+                                        || generation != expected
+                                        || !ReferenceEquals(owner, CurrentOwner())
                                         || navigation?.IsCurrent(request.HistoryTicket) == false) {
                                         break;
                                     }
@@ -294,7 +297,7 @@ internal static class DomApplication
                                             break;
                                         }
                                     }
-                                    await NavigateAsync(request, discard: eventName == "navigation-discard");
+                                    await NavigateAsync(request with { Discard = eventName == "navigation-discard" });
                                     break;
                                 }
 
@@ -370,7 +373,7 @@ internal static class DomApplication
                                 }
 
                             case "resolve-conflict-reload" when workspace is not null:
-                                await NavigateAsync(new(Destination.Notebook, workspace.Info, Reload: true), discard: true);
+                                await NavigateAsync(new(Destination.Notebook, workspace.Info, Reload: true, Discard: true));
                                 break;
 
                             case "insert-cell" when workspace is not null:
@@ -497,9 +500,7 @@ internal static class DomApplication
         return -1;
     }
 
-    private sealed record NavigationRequest(
-        Destination Target, NotebookInfo? Info = null, bool Reload = false,
-        int HistoryTicket = 0, bool Replace = false);
+    private sealed record NavigationAttempt(NavigationEvent Request, object? Owner, long Generation);
 
     private static (string EventName, string Argument) Split(string payload)
     {

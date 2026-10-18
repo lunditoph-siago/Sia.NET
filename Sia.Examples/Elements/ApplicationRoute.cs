@@ -16,19 +16,20 @@ internal sealed record ApplicationRoute(ApplicationDestination Target, NotebookI
 
     public static ApplicationRoute? Resolve(string path, IReadOnlyList<NotebookInfo> notebooks)
     {
-        path = path.Trim('/');
-        if (path.Length == 0 || path == "index.html") return new(ApplicationDestination.Home);
-        if (path == "editor") return new(ApplicationDestination.Editor);
-        if (path == "new") return new(ApplicationDestination.NewNotebook);
-        var userKey = path.StartsWith("notebooks/", StringComparison.Ordinal)
-            ? Uri.UnescapeDataString(path[10..]) : null;
-        foreach (var info in notebooks) {
-            var route = new ApplicationRoute(ApplicationDestination.Notebook, info);
-            if (info.Origin == NotebookOrigin.User
-                ? userKey == info.Key
-                : path == route.Path) return route;
-        }
-        return null;
+        var normalized = path.Trim('/');
+        var userKey = normalized.StartsWith("notebooks/", StringComparison.Ordinal)
+            ? Uri.UnescapeDataString(normalized[10..]) : null;
+        return normalized.Split('/') switch {
+            [""] or ["index.html"] => new(ApplicationDestination.Home),
+            ["editor"] => new(ApplicationDestination.Editor),
+            ["new"] => new(ApplicationDestination.NewNotebook),
+            ["notebooks", _, ..] => notebooks
+                .Select(static info => new ApplicationRoute(ApplicationDestination.Notebook, info))
+                .FirstOrDefault(route => route.Info!.Origin == NotebookOrigin.User
+                    ? userKey == route.Info.Key
+                    : normalized == route.Path),
+            _ => null,
+        };
     }
 
     private static string BuiltInPath(string key) => key switch {
