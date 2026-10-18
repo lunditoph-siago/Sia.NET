@@ -61,7 +61,10 @@ public sealed class EditorHeightOracle(bool lineWrapping)
         double lineLength,
         IReadOnlyList<double> knownHeights)
     {
-        var changed = Math.Abs(lineHeight - LineHeight) > 0.3 || LineWrapping != lineWrapping;
+        var changed = Math.Abs(lineHeight - LineHeight) > 0.3
+            || Math.Abs(charWidth - CharWidth) > 0.01
+            || lineWrapping && Math.Abs(lineLength - LineLength) > 0.01
+            || LineWrapping != lineWrapping;
         LineWrapping = lineWrapping;
         LineHeight = lineHeight;
         CharWidth = charWidth;

@@ -24,6 +24,9 @@ public sealed class SelectionRange : IEquatable<SelectionRange>
 
     public bool Empty => From == To;
 
+    internal SelectionRange Clamp(int length)
+        => To <= length ? this : new(Math.Min(From, length), Math.Min(To, length), _flags, GoalColumn);
+
     public int Assoc => (_flags & SelFlag.AssocBefore) != 0
         ? -1
         : (_flags & SelFlag.AssocAfter) != 0

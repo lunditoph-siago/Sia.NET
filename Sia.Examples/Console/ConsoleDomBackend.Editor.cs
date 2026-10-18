@@ -19,11 +19,36 @@ internal sealed partial class ConsoleDomBackend
         }
         target.Attributes.Remove("data-editor");
         target.Classes.Remove("editor-surface");
+        _editorSequences.Remove(cellId);
+        for (var remaining = _pendingEditorEvents.Count; remaining > 0; remaining--) {
+            var command = _pendingEditorEvents.Dequeue();
+            if (!ReferenceEquals(command.Surface, target)) {
+                _pendingEditorEvents.Enqueue(command);
+            }
+        }
+        if (ReferenceEquals(_editingSurface, target)) {
+            ExitEditor();
+        }
         MarkChanged();
     }
 
     public void AcknowledgeEditorCommand(string cellId, int sequence)
     {
+    }
+
+    public void ResolveEditorClipboard(string cellId, int requestId, string? text)
+    {
+    }
+
+    public void PrepareEditorReconciliation(IDomNode node, int sequence)
+    {
+        _ = AsNode(node);
+    }
+
+    public string TakeEditorInput(IDomNode node, bool sourceBoundary)
+    {
+        _ = AsNode(node);
+        return string.Empty;
     }
 
     public void AttachGutterHeights(IDomNode gutter, IDomNode lines, string cellId)
@@ -42,7 +67,13 @@ internal sealed partial class ConsoleDomBackend
         _ = AsNode(lines);
     }
 
-    public void ScrollLineIntoView(IDomNode lines, double targetTop)
+    public EditorScrollPosition? ReadEditorScrollPosition(IDomNode lines)
+    {
+        _ = AsNode(lines);
+        return null;
+    }
+
+    public void RestoreEditorScroll(IDomNode lines, int generation, EditorScrollPosition position)
     {
         _ = AsNode(lines);
     }
@@ -52,7 +83,8 @@ internal sealed partial class ConsoleDomBackend
         int anchorLine,
         int anchorColumn,
         int headLine,
-        int headColumn)
+        int headColumn,
+        bool reveal)
     {
         SetAttribute(
             node,

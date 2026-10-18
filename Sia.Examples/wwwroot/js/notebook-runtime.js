@@ -1,22 +1,74 @@
 const events = [];
 const waiters = [];
+const barriers = new Map();
+let activeBarrier;
 const resourceRequests = new Map();
 const scheduledEvents = new Map();
 
-export function emit(payload) {
-    const waiter = waiters.shift();
-    if (waiter) {
-        waiter(payload);
+export function emit(payload, coalesceKey) {
+    const previous = events.at(-1);
+    if (coalesceKey !== undefined && previous?.coalesceKey === coalesceKey) {
+        previous.payload = payload;
     } else {
-        events.push(payload);
+        events.push({ payload, coalesceKey });
+    }
+    flushEvents();
+}
+
+export function emitBarrier(payload, key) {
+    if (barriers.has(key)) throw new Error('Duplicate event barrier.');
+    barriers.set(key, { released: false });
+    events.push({ payload, barrier: key });
+    flushEvents();
+}
+
+export function resolveBarrier(key, followup) {
+    const barrier = barriers.get(key);
+    if (!barrier || barrier.released) return;
+    barrier.released = true;
+    barrier.followup = followup;
+    if (activeBarrier === key) {
+        activeBarrier = undefined;
+        barriers.delete(key);
+        events.unshift({ payload: followup });
+        flushEvents();
+    }
+}
+
+function takeEvent() {
+    if (activeBarrier || !events.length) return undefined;
+    const event = events.shift();
+    if (event.barrier) {
+        const barrier = barriers.get(event.barrier);
+        if (barrier.released) {
+            barriers.delete(event.barrier);
+            events.unshift({ payload: barrier.followup });
+        } else activeBarrier = event.barrier;
+    }
+    return event.payload;
+}
+
+function flushEvents() {
+    while (waiters.length) {
+        const payload = takeEvent();
+        if (payload === undefined) break;
+        waiters.shift()(payload);
     }
 }
 
 export function waitForEvent() {
-    const event = events.shift();
+    const event = takeEvent();
     return event === undefined
         ? new Promise((resolve) => waiters.push(resolve))
         : Promise.resolve(event);
+}
+
+export function takeEventBatch(prefix) {
+    const batch = [];
+    while (!activeBarrier && events[0]?.payload.startsWith(prefix)) {
+        batch.push(takeEvent());
+    }
+    return batch;
 }
 
 export function scheduleEvent(key, payload, delayMilliseconds) {
@@ -175,10 +227,71 @@ export async function workspaceGetJson(path) {
     return record ? JSON.stringify(record) : null;
 }
 
-export async function workspacePut(path, kind, content, modifiedAt) {
-    await withWorkspaceStore('readwrite', (store) => store.put({ path, kind, content, modifiedAt }));
+export async function workspacePut(path, kind, content, modifiedAt, expected = null, compare = false) {
+    const record = { path, kind, content, modifiedAt, version: crypto.randomUUID() };
+    let written = false;
+    await withWorkspaceStore('readwrite', (store) => {
+        const request = store.get(path);
+        request.addEventListener('success', () => {
+            const current = request.result;
+            if (!compare || (expected === null
+                ? current === undefined
+                : JSON.stringify(current) === expected)) {
+                store.put(record);
+                written = true;
+            }
+        });
+        return request;
+    });
+    return written ? JSON.stringify(record) : null;
 }
 
-export async function workspaceRemove(path) {
-    await withWorkspaceStore('readwrite', (store) => store.delete(path));
+export async function workspaceRemove(path, expected = null, compare = false) {
+    let removed = false;
+    let current;
+    await withWorkspaceStore('readwrite', (store) => {
+        const request = store.getAll();
+        request.addEventListener('success', () => {
+            const records = request.result;
+            const target = records.find((record) => record.path === path);
+            if (compare && JSON.stringify(target) !== expected) {
+                current = target;
+                return;
+            }
+            for (const record of records) {
+                if (record.path === path || record.path.startsWith(path + '/')) {
+                    store.delete(record.path);
+                    removed = true;
+                }
+            }
+        });
+        return request;
+    });
+    return JSON.stringify({ removed, current });
+}
+
+export async function workspaceRename(oldPath, newPath) {
+    if (oldPath === newPath) return 0;
+    let result = 1;
+    await withWorkspaceStore('readwrite', (store) => {
+        const request = store.getAll();
+        request.addEventListener('success', () => {
+            const records = request.result;
+            const moved = records.filter((record) =>
+                record.path === oldPath || record.path.startsWith(oldPath + '/'));
+            if (moved.length === 0) return;
+            if (records.some((record) =>
+                record.path === newPath || record.path.startsWith(newPath + '/'))) {
+                result = 2;
+                return;
+            }
+            for (const record of moved) {
+                store.put({ ...record, path: newPath + record.path.slice(oldPath.length) });
+                store.delete(record.path);
+            }
+            result = 0;
+        });
+        return request;
+    });
+    return result;
 }

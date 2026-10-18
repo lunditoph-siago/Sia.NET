@@ -15,8 +15,9 @@ public sealed class EditorHeightMapGap(int length, bool isSingleLine = false) : 
         if (oracle.LineWrapping) {
             var totalPerLine = Math.Min(Height, oracle.LineHeight * lines);
             perLine = totalPerLine / lines;
-            if (Length > lines + 1) {
-                perChar = (Height - totalPerLine) / (Length - lines - 1);
+            var textLength = Length - lines + 1;
+            if (textLength > 0) {
+                perChar = (Height - totalPerLine) / textLength;
             }
         } else {
             perLine = Height / lines;
@@ -28,13 +29,19 @@ public sealed class EditorHeightMapGap(int length, bool isSingleLine = false) : 
     {
         var (firstLine, lastLine, perLine, perChar) = HeightMetrics(oracle, offset);
         if (oracle.LineWrapping) {
-            var guess = offset + (height < oracle.LineHeight
-                ? 0
-                : (int)Math.Round(Math.Max(0, Math.Min(1, (height - top) / Height)) * Length));
-            var line = oracle.Doc.LineAt(guess);
-            var lineHeight = perLine + line.Length * perChar;
-            var lineTop = Math.Max(top, height - lineHeight / 2);
-            return new EditorBlockInfo(line.From, line.Length, lineTop, lineHeight);
+            var low = firstLine;
+            var high = lastLine;
+            while (low < high) {
+                var middle = low + (high - low + 1) / 2;
+                var line = oracle.Doc.Line(middle);
+                var linesAbove = middle - firstLine;
+                var lineHeight = perLine + line.Length * perChar;
+                var lineTop = top + perLine * linesAbove + perChar * (line.From - offset - linesAbove);
+                lineTop = Math.Max(top, Math.Min(lineTop, top + Height - lineHeight));
+                if (lineTop > height) high = middle - 1;
+                else low = middle;
+            }
+            return LineAt(oracle.Doc.Line(low).From, QueryType.ByPos, oracle, top, offset);
         }
         var lineIndex = Math.Max(0, Math.Min(lastLine - firstLine, (int)Math.Floor((height - top) / perLine)));
         var target = oracle.Doc.Line(firstLine + lineIndex);

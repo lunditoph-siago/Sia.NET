@@ -41,8 +41,7 @@ public sealed partial class IndexedDbWorkspaceStorage(BrowserMainThread mainThre
         }
         var record = JsonSerializer.Deserialize<RawRecord>(json, JsonOptions)!;
         return record.Kind == WorkspaceEntryKind.File.ToString().ToLowerInvariant()
-            ? new WorkspaceFileContent(
-                record.Content ?? string.Empty, WorkspaceVersioning.ComputeVersion(record.Content ?? string.Empty))
+            ? new WorkspaceFileContent(record.Content ?? string.Empty, VersionOf(record))
             : null;
     }
 
@@ -52,36 +51,39 @@ public sealed partial class IndexedDbWorkspaceStorage(BrowserMainThread mainThre
     {
         mainThread.VerifyAccess();
         var normalized = WorkspacePath.Normalize(path);
-        await CheckVersionAsync(normalized, expectedVersion);
+        var previous = await CheckVersionAsync(normalized, expectedVersion);
         cancellationToken.ThrowIfCancellationRequested();
 
-        await PutAsync(normalized, "file", content, DateTimeOffset.UtcNow.ToString("O"));
+        var written = await PutAsync(
+            normalized, "file", content, DateTimeOffset.UtcNow.ToString("O"), previous, expectedVersion is not null);
         mainThread.VerifyAccess();
-        return new WorkspaceFileContent(content, WorkspaceVersioning.ComputeVersion(content));
+        if (written is null) {
+            var actual = await ReadFileAsync(normalized, cancellationToken);
+            throw new WorkspaceConflictException(normalized, expectedVersion, actual?.Version);
+        }
+        var record = JsonSerializer.Deserialize<RawRecord>(written, JsonOptions)!;
+        return new WorkspaceFileContent(record.Content ?? string.Empty, VersionOf(record));
     }
 
-    public async ValueTask CreateFileAsync(
+    public ValueTask CreateFileAsync(
         string path, string content, CancellationToken cancellationToken = default)
-    {
-        mainThread.VerifyAccess();
-        var normalized = WorkspacePath.Normalize(path);
-        await EnsureAbsentAsync(normalized);
-        cancellationToken.ThrowIfCancellationRequested();
+        => CreateEntryAsync(path, "file", content, cancellationToken);
 
-        await PutAsync(normalized, "file", content, DateTimeOffset.UtcNow.ToString("O"));
-        mainThread.VerifyAccess();
-    }
-
-    public async ValueTask CreateFolderAsync(
+    public ValueTask CreateFolderAsync(
         string path, CancellationToken cancellationToken = default)
+        => CreateEntryAsync(path, "folder", string.Empty, cancellationToken);
+
+    private async ValueTask CreateEntryAsync(
+        string path, string kind, string content, CancellationToken cancellationToken)
     {
         mainThread.VerifyAccess();
         var normalized = WorkspacePath.Normalize(path);
-        await EnsureAbsentAsync(normalized);
         cancellationToken.ThrowIfCancellationRequested();
-
-        await PutAsync(normalized, "folder", string.Empty, DateTimeOffset.UtcNow.ToString("O"));
+        var written = await PutAsync(normalized, kind, content, DateTimeOffset.UtcNow.ToString("O"), null, true);
         mainThread.VerifyAccess();
+        if (written is null) {
+            throw new WorkspaceEntryExistsException(normalized);
+        }
     }
 
     public async ValueTask DeleteEntryAsync(
@@ -89,24 +91,20 @@ public sealed partial class IndexedDbWorkspaceStorage(BrowserMainThread mainThre
     {
         mainThread.VerifyAccess();
         var normalized = WorkspacePath.Normalize(path);
-        await CheckVersionAsync(normalized, expectedVersion);
-        var existing = await ListRecordsAsync();
-        mainThread.VerifyAccess();
+        var previous = await CheckVersionAsync(normalized, expectedVersion);
         cancellationToken.ThrowIfCancellationRequested();
 
-        var removed = false;
-        foreach (var record in existing) {
-            if (WorkspacePath.EqualsPath(record.Path, normalized)
-                || WorkspacePath.IsDescendantOf(record.Path, normalized)) {
-                await RemoveAsync(record.Path);
-                removed = true;
+        var result = JsonSerializer.Deserialize<RemovalResult>(
+            await RemoveAsync(normalized, previous, expectedVersion is not null), JsonOptions)!;
+        mainThread.VerifyAccess();
+        if (!result.Removed) {
+            if (expectedVersion is { } expected) {
+                var actual = result.Current is { Kind: "file" } current ? VersionOf(current) : null;
+                throw new WorkspaceConflictException(normalized, expected, actual);
             }
-        }
-        if (!removed) {
             throw new InvalidOperationException(
                 $"No entry named '{normalized}' exists in the workspace.");
         }
-        mainThread.VerifyAccess();
     }
 
     public async ValueTask RenameEntryAsync(
@@ -118,63 +116,34 @@ public sealed partial class IndexedDbWorkspaceStorage(BrowserMainThread mainThre
         if (WorkspacePath.EqualsPath(oldNormalized, newNormalized)) {
             return;
         }
-        var existing = await ListRecordsAsync();
-        mainThread.VerifyAccess();
         cancellationToken.ThrowIfCancellationRequested();
-
-        var moved = false;
-        foreach (var record in existing) {
-            if (WorkspacePath.EqualsPath(record.Path, newNormalized)
-                || WorkspacePath.IsDescendantOf(record.Path, newNormalized)) {
-                throw new WorkspaceEntryExistsException(newNormalized);
-            }
-            if (WorkspacePath.EqualsPath(record.Path, oldNormalized)
-                || WorkspacePath.IsDescendantOf(record.Path, oldNormalized)) {
-                var target = newNormalized + record.Path[oldNormalized.Length..];
-                await PutAsync(
-                    target, record.Kind, record.Content ?? string.Empty,
-                    record.ModifiedAt ?? DateTimeOffset.UtcNow.ToString("O"));
-                await RemoveAsync(record.Path);
-                moved = true;
-            }
-        }
-        if (!moved) {
+        var result = await RenameAsync(oldNormalized, newNormalized);
+        mainThread.VerifyAccess();
+        if (result == 1) {
             throw new InvalidOperationException(
                 $"No entry named '{oldNormalized}' exists in the workspace.");
         }
-        mainThread.VerifyAccess();
+        if (result == 2) {
+            throw new WorkspaceEntryExistsException(newNormalized);
+        }
     }
 
-    private async Task CheckVersionAsync(string path, string? expectedVersion)
+    private async Task<string?> CheckVersionAsync(string path, string? expectedVersion)
     {
         if (expectedVersion is not { } expected) {
-            return;
+            return null;
         }
         var json = await GetJsonAsync(path);
-        var actual = json is null || IsFolderRecord(json)
-            ? null
-            : WorkspaceVersioning.ComputeVersion(
-                JsonSerializer.Deserialize<RawRecord>(json, JsonOptions)!.Content ?? string.Empty);
+        var record = json is null ? null : JsonSerializer.Deserialize<RawRecord>(json, JsonOptions);
+        var actual = record is { Kind: "file" } ? VersionOf(record) : null;
         if (actual != expected) {
             throw new WorkspaceConflictException(path, expected, actual);
         }
+        return json;
     }
 
-    private async Task EnsureAbsentAsync(string path)
-    {
-        if (await GetJsonAsync(path) is not null) {
-            throw new WorkspaceEntryExistsException(path);
-        }
-    }
-
-    private bool IsFolderRecord(string json)
-        => JsonSerializer.Deserialize<RawRecord>(json, JsonOptions)!.Kind == "folder";
-
-    private async Task<List<RawRecord>> ListRecordsAsync()
-    {
-        var json = await GetAllJsonAsync();
-        return [.. JsonSerializer.Deserialize<RawRecord[]>(json, JsonOptions) ?? []];
-    }
+    private static string VersionOf(RawRecord record)
+        => record.Version ?? WorkspaceVersioning.ComputeVersion(record.Content ?? string.Empty);
 
     private static WorkspaceStorageEntry Describe(RawRecord record)
         => record.Kind == "folder"
@@ -182,10 +151,12 @@ public sealed partial class IndexedDbWorkspaceStorage(BrowserMainThread mainThre
             : new(
                 record.Path,
                 WorkspaceEntryKind.File,
-                WorkspaceVersioning.ComputeVersion(record.Content ?? string.Empty),
+                VersionOf(record),
                 record.ModifiedAt is { } modifiedAt ? DateTimeOffset.Parse(modifiedAt) : null);
 
-    private sealed record RawRecord(string Path, string Kind, string? Content, string? ModifiedAt);
+    private sealed record RawRecord(string Path, string Kind, string? Content, string? ModifiedAt, string? Version = null);
+
+    private sealed record RemovalResult(bool Removed, RawRecord? Current);
 
     [JSImport("workspaceGetAllJson", "main.js")]
     [return: JSMarshalAs<JSType.Promise<JSType.String>>]
@@ -196,11 +167,16 @@ public sealed partial class IndexedDbWorkspaceStorage(BrowserMainThread mainThre
     private static partial Task<string?> GetJsonAsync(string path);
 
     [JSImport("workspacePut", "main.js")]
-    [return: JSMarshalAs<JSType.Promise<JSType.Void>>]
-    private static partial Task PutAsync(string path, string kind, string content, string modifiedAt);
+    [return: JSMarshalAs<JSType.Promise<JSType.String>>]
+    private static partial Task<string?> PutAsync(
+        string path, string kind, string content, string modifiedAt, string? expected, bool compare);
 
     [JSImport("workspaceRemove", "main.js")]
-    [return: JSMarshalAs<JSType.Promise<JSType.Void>>]
-    private static partial Task RemoveAsync(string path);
+    [return: JSMarshalAs<JSType.Promise<JSType.String>>]
+    private static partial Task<string> RemoveAsync(string path, string? expected, bool compare);
+
+    [JSImport("workspaceRename", "main.js")]
+    [return: JSMarshalAs<JSType.Promise<JSType.Number>>]
+    private static partial Task<int> RenameAsync(string oldPath, string newPath);
 }
 #endif

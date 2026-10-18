@@ -19,7 +19,7 @@ internal sealed partial class ConsoleDomBackend
         ThrowIfDisposed();
         while (true) {
             if (_pendingEditorEvents.Count > 0) {
-                return _pendingEditorEvents.Dequeue()();
+                return ReadPendingEditorEvent();
             }
 
             using var pending = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -40,7 +40,7 @@ internal sealed partial class ConsoleDomBackend
             if (_editMode != EditMode.None && HandleEditorKey(key)) {
                 Flush();
                 if (_pendingEditorEvents.Count > 0) {
-                    return _pendingEditorEvents.Dequeue()();
+                    return ReadPendingEditorEvent();
                 }
                 continue;
             }

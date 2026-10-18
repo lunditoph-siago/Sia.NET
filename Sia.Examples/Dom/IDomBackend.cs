@@ -2,6 +2,8 @@ namespace Sia_Examples.Dom;
 
 internal interface IDomBackend : IDisposable
 {
+    public bool SupportsNativeInput { get; }
+
     public IDomNode Find(string id);
 
     public IDomNode? TryFind(string id);
@@ -10,7 +12,13 @@ internal interface IDomBackend : IDisposable
 
     public IDomNode CreateText(string value);
 
+    public void BeginUpdate(IDomNode node) => SetAttribute(node, "data-editor-updating", "true");
+
+    public void EndUpdate(IDomNode node) => SetAttribute(node, "data-editor-updating", "false");
+
     public void SetText(IDomNode node, string value);
+
+    public void SetTextRuns(IDomNode node, IReadOnlyList<DomTextRun> runs);
 
     public string GetText(IDomNode node);
 
@@ -40,20 +48,29 @@ internal interface IDomBackend : IDisposable
 
     public void AcknowledgeEditorCommand(string cellId, int sequence);
 
+    public void ResolveEditorClipboard(string cellId, int requestId, string? text);
+
+    public void PrepareEditorReconciliation(IDomNode node, int sequence);
+
+    public string TakeEditorInput(IDomNode node, bool sourceBoundary);
+
     public void AttachGutterHeights(IDomNode gutter, IDomNode lines, string cellId);
 
     public void DetachGutterHeights(IDomNode lines);
 
     public void SetDocumentLines(IDomNode lines, int totalLines);
 
-    public void ScrollLineIntoView(IDomNode lines, double targetTop);
+    public EditorScrollPosition? ReadEditorScrollPosition(IDomNode lines);
+
+    public void RestoreEditorScroll(IDomNode lines, int generation, EditorScrollPosition position);
 
     public void SetEditorSelection(
         IDomNode node,
         int anchorLine,
         int anchorColumn,
         int headLine,
-        int headColumn);
+        int headColumn,
+        bool reveal);
 
     public void PlaceOverlay(
         IDomNode container,

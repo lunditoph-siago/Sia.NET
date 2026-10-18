@@ -173,6 +173,10 @@ internal sealed partial class BrowserEditorPage
             return;
         }
         await _workspace.RenameAsync(entity, name, _lifetime.Token);
+        if (_disposed || !entity.IsValid) {
+            return;
+        }
+        ApplyLayout();
         RenderExplorer();
         UpdateChrome();
     }
@@ -187,12 +191,16 @@ internal sealed partial class BrowserEditorPage
         } else {
             return;
         }
+        var activation = folder ? _activationGeneration : ++_activationGeneration;
         var name = ReserveDefaultName(folderPath, folder);
         var created = folder
             ? await _workspace.CreateFolderAsync(folderPath, name, _lifetime.Token)
             : await _workspace.CreateFileAsync(folderPath, name, _lifetime.Token);
+        if (_disposed) {
+            return;
+        }
         RenderExplorer();
-        if (!folder) {
+        if (!folder && created.IsValid && activation == _activationGeneration) {
             await OpenEntryAsync(created, pin: true);
         }
     }

@@ -1,10 +1,11 @@
 using System.Globalization;
 
 using Sia_Examples.Dom;
+using Sia_Examples.Editor;
 
 namespace Sia_Examples.Notebook;
 
-public sealed class BrowserCellWorkspaceView(DomElement floatingLayer) : IDisposable
+public sealed class BrowserCellWorkspaceView(DomElement floatingLayer, BrowserEditorRegistry editors) : IDisposable
 {
     private readonly Dictionary<string, DomElement> _regions = [];
     private readonly Dictionary<string, BrowserCellWindowView> _windows = [];
@@ -16,6 +17,7 @@ public sealed class BrowserCellWorkspaceView(DomElement floatingLayer) : IDispos
     private readonly Dictionary<string, DomElement> _floatingHosts = [];
     private readonly Dictionary<string, string> _regionShapes = [];
     private readonly Dictionary<string, string> _floatingShapes = [];
+    private readonly Dictionary<string, EditorMemento> _mementos = [];
     private bool _disposed;
 
     public void RegisterRegion(string regionId, string cellId, DomElement root)
@@ -39,7 +41,9 @@ public sealed class BrowserCellWorkspaceView(DomElement floatingLayer) : IDispos
         if (_tabHeaders.Remove(tabId, out var header)) {
             header.Dispose();
         }
-        _windows.Remove(windowId);
+        if (_windows.Remove(windowId, out var window)) {
+            _mementos.Remove(window.Window.SourceId);
+        }
     }
 
     public void UnregisterRegion(string regionId)
@@ -117,6 +121,7 @@ public sealed class BrowserCellWorkspaceView(DomElement floatingLayer) : IDispos
         }
         _regions.Clear();
         _windows.Clear();
+        _mementos.Clear();
         floatingLayer.Remove();
         floatingLayer.Dispose();
     }
@@ -230,6 +235,19 @@ public sealed class BrowserCellWorkspaceView(DomElement floatingLayer) : IDispos
 
     private void DetachGroup(GroupView groupView)
     {
+        if (groupView.ActiveWindowId is { } windowId
+            && _windows.TryGetValue(windowId, out var window)) {
+            if (!_disposed && window.Window.Kind == CellWindowKind.Script) {
+                var sourceId = window.Window.SourceId;
+                editors.SynchronizeNativeInput(sourceId);
+                if (editors.TryGetPosition(sourceId, out var memento)) {
+                    _mementos[sourceId] = memento;
+                }
+            }
+            window.Toolbar?.Remove();
+            window.Content.Remove();
+        }
+        groupView.ActiveWindowId = null;
         foreach (var tabId in groupView.MountedTabs) {
             if (_tabHeaders.TryGetValue(tabId, out var header)) {
                 header.Root.Remove();
@@ -239,12 +257,6 @@ public sealed class BrowserCellWorkspaceView(DomElement floatingLayer) : IDispos
         groupView.Adder?.Remove();
         groupView.Adder?.Dispose();
         groupView.Adder = null;
-        if (groupView.ActiveWindowId is { } windowId
-            && _windows.TryGetValue(windowId, out var window)) {
-            window.Toolbar?.Remove();
-            window.Content.Remove();
-        }
-        groupView.ActiveWindowId = null;
         groupView.Signature = null;
     }
 
@@ -288,6 +300,12 @@ public sealed class BrowserCellWorkspaceView(DomElement floatingLayer) : IDispos
             .Attr("aria-labelledby", activeTab.Id)
             .Attr("aria-hidden", "false");
         groupView.Content.Append(activeWindow.Content);
+        if (activeWindow.Window.Kind == CellWindowKind.Script
+            && _mementos.TryGetValue(activeWindow.Window.SourceId, out var memento)
+            && editors.TryGetSource(activeWindow.Window.SourceId, out _)) {
+            editors.RestorePosition(activeWindow.Window.SourceId, memento);
+            _mementos[activeWindow.Window.SourceId] = memento with { History = null };
+        }
         groupView.ActiveWindowId = activeWindow.Window.Id;
         groupView.Signature = CellLayoutDom.BuildGroupSignature(group);
     }

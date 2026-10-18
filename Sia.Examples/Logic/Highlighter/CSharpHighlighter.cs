@@ -5,11 +5,16 @@ namespace Sia_Examples.Notebook;
 public static class CSharpHighlighter
 {
     public static IReadOnlyList<HighlightRun> Classify(string source)
+        => Classify(source, default);
+
+    internal static IReadOnlyList<HighlightRun> Classify(string source, CancellationToken cancellationToken)
     {
-        var root = CSharpSyntaxTree.ParseText(source).GetRoot();
+        cancellationToken.ThrowIfCancellationRequested();
+        var root = CSharpSyntaxTree.ParseText(source, cancellationToken: cancellationToken).GetRoot(cancellationToken);
         List<HighlightRun> result = [];
 
         foreach (var trivia in root.DescendantTrivia(descendIntoTrivia: true)) {
+            cancellationToken.ThrowIfCancellationRequested();
             if (trivia.Kind() is SyntaxKind.SingleLineCommentTrivia
                 or SyntaxKind.MultiLineCommentTrivia
                 or SyntaxKind.SingleLineDocumentationCommentTrivia
@@ -22,6 +27,7 @@ public static class CSharpHighlighter
         }
 
         foreach (var token in root.DescendantTokens()) {
+            cancellationToken.ThrowIfCancellationRequested();
             if (token.Span.Length == 0 || Classify(token.Kind(), token.ValueText) is not { } classification) {
                 continue;
             }
@@ -29,12 +35,20 @@ public static class CSharpHighlighter
         }
 
         result.Sort(static (left, right) => left.Start.CompareTo(right.Start));
+        cancellationToken.ThrowIfCancellationRequested();
         return result;
     }
 
-    public static string CssClass(string classification) => "tok-" + classification
-        .Replace(" ", "-", StringComparison.Ordinal)
-        .ToLowerInvariant();
+    public static string CssClass(string classification) => classification switch {
+        CSharpHighlightClass.Comment => "tok-comment",
+        CSharpHighlightClass.Identifier => "tok-identifier",
+        CSharpHighlightClass.Keyword => "tok-keyword",
+        CSharpHighlightClass.NumericLiteral => "tok-numeric-literal",
+        CSharpHighlightClass.Operator => "tok-operator",
+        CSharpHighlightClass.Punctuation => "tok-punctuation",
+        CSharpHighlightClass.StringLiteral => "tok-string-literal",
+        _ => "tok-" + classification.Replace(" ", "-", StringComparison.Ordinal).ToLowerInvariant(),
+    };
 
     private static string? Classify(SyntaxKind kind, string valueText)
     {

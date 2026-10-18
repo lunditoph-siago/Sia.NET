@@ -23,6 +23,7 @@ public sealed class NotebookWorkspace : IAsyncDisposable
     private NotebookInfo _info;
 
     private string? _version;
+    private string _savedContent;
 
     public NotebookWorkspace(
         World world,
@@ -40,6 +41,7 @@ public sealed class NotebookWorkspace : IAsyncDisposable
         _library = library;
         _info = info;
         _version = version;
+        _savedContent = NotebookDocumentSerializer.Write(document);
         _session = new(mainThread, document, references);
         var cellState = NotebookCellState.Create(document);
         _view = new(world, document, references, cellState);
@@ -58,6 +60,25 @@ public sealed class NotebookWorkspace : IAsyncDisposable
 
     public bool CanDelete
         => _info.Origin == NotebookOrigin.User && _info.Key.Length > 0;
+
+    internal (string Content, bool Dirty) CaptureNavigationState()
+    {
+        ThrowIfDisposed();
+        var document = _session.ToDocument();
+        var sections = document.Sections.Select(section => section with {
+            Blocks = section.Blocks.Select(block => block switch {
+                CodeCellBlock { Editable: true } cell => cell with {
+                    Scripts = cell.Scripts.Select(script => {
+                        _view.Editors.SynchronizeNativeInput(script.Id);
+                        return script with { InitialSource = _view.Editors.GetSource(script.Id) };
+                    }).ToArray(),
+                },
+                var other => other,
+            }).ToArray(),
+        }).ToArray();
+        var content = NotebookDocumentSerializer.Write(document with { Sections = sections });
+        return (content, content != _savedContent);
+    }
 
     public async Task InitializeAsync()
     {
@@ -187,6 +208,7 @@ public sealed class NotebookWorkspace : IAsyncDisposable
     public void Save(string cellId)
     {
         ThrowIfDisposed();
+        _view.Editors.SynchronizeNativeInput(cellId);
         _session.UpdateCellSource(
             cellId,
             _view.Editors.GetSource(cellId),
@@ -210,10 +232,12 @@ public sealed class NotebookWorkspace : IAsyncDisposable
         _view.UpdateCellScope(cellId, value);
     }
 
-    public void BeginEditorEdit(string cellId)
+    public void BeginEditorEdit(string bindingId)
     {
         ThrowIfDisposed();
-        _view.BeginEditorEdit(cellId);
+        if (_view.Editors.TryResolveCellId(bindingId, out var cellId)) {
+            _view.BeginEditorEdit(cellId);
+        }
     }
 
     public void InsertCell(string afterBlockId)
@@ -341,6 +365,7 @@ public sealed class NotebookWorkspace : IAsyncDisposable
                 _lifetime.Token);
             _info = new NotebookInfo(title, "", key, NotebookOrigin.User);
             _version = written.Version;
+            _savedContent = xml;
             await _library.RefreshAsync(_lifetime.Token);
             return (written.Version, null);
         }
@@ -380,14 +405,14 @@ public sealed class NotebookWorkspace : IAsyncDisposable
         ThrowIfDisposed();
         var first = payload.IndexOf(':');
         var second = first < 0 ? -1 : payload.IndexOf(':', first + 1);
-        var cellId = first >= 0 && second > first
+        var bindingId = first >= 0 && second > first
             ? payload[(first + 1)..second]
             : string.Empty;
-        _view.Editors.TryGetSource(cellId, out var before);
+        if (!_view.Editors.TryResolveCellId(bindingId, out var cellId)) {
+            return false;
+        }
         var handled = _view.Editors.Route(payload);
-        if (handled
-            && _view.Editors.TryGetSource(cellId, out var after)
-            && before != after) {
+        if (handled && payload[..first] is "input" or "text" or "mut" or "key" or "complete") {
             _view.UpdateEditorDirty(cellId);
         }
         return handled;
@@ -420,6 +445,7 @@ public sealed class NotebookWorkspace : IAsyncDisposable
             if (!_session.IsScriptEditable(script.Id)) {
                 continue;
             }
+            _view.Editors.SynchronizeNativeInput(script.Id);
             var source = _view.Editors.GetSource(script.Id);
             if (source != _session.GetState(script.Id).Source) {
                 _session.UpdateCellSource(

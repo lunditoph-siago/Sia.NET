@@ -1,4 +1,5 @@
 using Sia.Reactive;
+using Sia_Examples.Dom;
 
 namespace Sia_Examples.Editor;
 
@@ -30,7 +31,9 @@ public static partial class EditorViewComponent
                     state.Value.Decorations,
                     state.Value.LineIdentities,
                     state.Value.LineUpdate,
-                    viewport.Value)),
+                    DomRuntime.Backend.SupportsNativeInput
+                        ? EditorViewport.All(state.Value.Doc.Length)
+                        : viewport.Value)),
             RenderActiveLine(new(
                 props.View,
                 new(state.Value.LineIdentities.Values[headLine.Number - 1]))),

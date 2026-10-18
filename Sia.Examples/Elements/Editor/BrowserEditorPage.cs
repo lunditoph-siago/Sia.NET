@@ -17,15 +17,16 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
 
     private readonly EditorWorkspace _workspace;
     private readonly BrowserEditorRegistry _editors;
-    private readonly EditorProjectCompiler _compiler;
     private readonly DomElement _container;
     private readonly DomElement _root;
     private readonly DomElement _workbench;
     private readonly DomElement _activeFileName;
     private readonly DomElement _workspaceStatus;
     private readonly DomElement _buildStatus;
+    private readonly DomElement _compileAction;
     private readonly DomElement _diagnostics;
     private readonly DomElement _consoleOutput;
+    private readonly DomElement _programOutput;
     private readonly DomElement _renderOutput;
     private readonly DomElement _consolePanel;
     private readonly DomElement _renderPanel;
@@ -40,51 +41,50 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
 
     private NotebookCellState _state;
     private Entity? _activeEntity;
+    private long _activationGeneration;
     private bool _busy;
     private bool _disposed;
     private bool _initialized;
 
-    public BrowserEditorPage(World world, ICompilationReferenceResolver references, IWorkspaceStorage storage)
+    public BrowserEditorPage(World world, MetadataReferenceProvider references, IWorkspaceStorage storage)
     {
         ArgumentNullException.ThrowIfNull(world);
         ArgumentNullException.ThrowIfNull(references);
         ArgumentNullException.ThrowIfNull(storage);
 
         _workspace = new(world, storage);
-        _compiler = new(references);
+        _shaderCompiler = new(references);
         _container = DomElement.Find("notebook");
         _root = Own(DomElement.Create("section")
             .Class("editor-page")
-            .Attr("aria-label", "Standalone Sia editor"));
+            .Attr("aria-label", "Sia C# Editor Lab"));
 
         var titlebar = Own(DomElement.Create("header").Class("editor-page-titlebar"));
-        var title = Own(DomElement.Create("div").Class("editor-page-title"));
-        var brand = Own(DomElement.Create("span")
-            .Class("editor-page-brand")
-            .Text("Sia.NET · Editor Lab"));
         _buildStatus = Own(DomElement.Create("span")
             .Class("editor-page-build-status")
             .Attr("role", "status")
             .Text("Loading workspace…"));
-        title.Append(brand).Append(_buildStatus);
+        var menus = Own(DomElement.Create("nav").Class("editor-page-menus").Attr("aria-label", "Editor commands"));
+        CreateMenu(menus, "File", [
+            ("New File", "editor-page-new-file", "Open a new untitled file"),
+            ("Save", "editor-page-save", "Save the active file (Ctrl+S)"),
+            ("Save All", "editor-page-save-all", "Save every open file (Ctrl+Shift+S)"),
+            ("Save As…", "editor-page-save-as-begin", "Save the active file under a new path"),
+            ("Revert", "editor-page-revert", "Discard unsaved edits in the active file"),
+        ]);
+        CreateMenu(menus, "View", [
+            ("Console", "editor-page-open:console", "Open Console and diagnostics"),
+            ("Render", "editor-page-open:render", "Open the Render window"),
+            ("Clear Output", "editor-page-clear", "Clear Console and Render output"),
+        ]);
         var actions = Own(DomElement.Create("div").Class("editor-page-actions"));
+        _compileAction = CreateAction("Compile", "editor-compile-action", "Compile C# and inspect shader artifacts when present")
+            .Attr("aria-disabled", "false");
         actions
-            .Append(CreateAction("Build", "editor-page-build", "Compile the workspace"))
-            .Append(CreateAction("Run ▶", "editor-page-run", "Compile and run the workspace"))
-            .Append(CreateAction("Save", "editor-page-save", "Save the active file (Ctrl+S)", secondary: true))
-            .Append(CreateAction(
-                "Save All", "editor-page-save-all", "Save every open file (Ctrl+Shift+S)", secondary: true))
-            .Append(CreateAction("Save As…", "editor-page-save-as-begin", "Save the active file under a new path", secondary: true))
-            .Append(CreateAction("Revert", "editor-page-revert", "Discard unsaved edits in the active file", secondary: true))
-            .Append(CreateAction("New File", "editor-page-new-file", "Open a new untitled file", secondary: true))
-            .Append(CreateAction(
-                "Console", "editor-page-open:console", "Open the Console window", secondary: true))
-            .Append(CreateAction(
-                "Render", "editor-page-open:render", "Open the Render window", secondary: true))
-            .Append(CreateAction(
-                "Clear", "editor-page-clear", "Clear Console and Render output", secondary: true))
+            .Append(CreateAction("Run", "editor-shader-run", "Run the C# program or programmable RenderGraph from the active folder"))
+            .Append(_compileAction)
             .Append(CreateAction("Close", "editor-page-home", "Return to the examples home"));
-        titlebar.Append(title).Append(actions);
+        titlebar.Append(menus).Append(actions);
 
         _workbench = Own(DomElement.Create("div")
             .Class("editor-page-workbench")
@@ -96,8 +96,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         var statusbar = Own(DomElement.Create("footer").Class("editor-page-statusbar"));
         _activeFileName = Own(DomElement.Create("span"));
         _workspaceStatus = Own(DomElement.Create("span"));
-        var runtime = Own(DomElement.Create("span").Text("C# workspace · browser-wasm"));
-        statusbar.Append(_activeFileName).Append(_workspaceStatus).Append(runtime);
+        statusbar.Append(_activeFileName).Append(_workspaceStatus).Append(_buildStatus);
 
         _layoutRevision = Own(DomElement.Create("div")
             .Class("floating-layer")
@@ -108,18 +107,20 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         _diagnostics = Own(DomElement.Create("div").Class("editor-page-diagnostics"));
         _consoleOutput = Own(DomElement.Create("pre")
             .Class("editor-page-console-output")
-            .Text("Build or run the workspace to see output."));
+            .Text("Compile the active folder to see diagnostics and timings."));
         _consolePanel = Own(DomElement.Create("div")
             .Class("editor-page-console")
             .Attr("role", "tabpanel"));
-        _consolePanel.Append(_diagnostics).Append(_consoleOutput);
+        _programOutput = Own(DomElement.Create("pre").Class("editor-page-console-output").Class("editor-program-output")
+            .Attr("aria-label", "Program Console"));
+        _consolePanel.Append(_diagnostics).Append(_consoleOutput).Append(_programOutput);
         _renderOutput = Own(DomElement.Create("pre")
             .Class("editor-page-render-output")
-            .Text("Render surface · waiting for Notebook.Render(…)"));
+            .Text("Compile C# to inspect WGSL and SPIR-V, then render the result"));
         _renderPanel = Own(DomElement.Create("div")
             .Class("editor-page-render")
             .Attr("role", "tabpanel"));
-        _renderPanel.Append(_renderOutput);
+        InitShaderPanel();
 
         InitDialogs();
 
@@ -130,6 +131,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             .Append(statusbar)
             .Append(_layoutRevision);
         _container.Text(string.Empty).Append(_root);
+        _uniformInspector = new();
 
         _editors = new(world, references);
         _state = CreateLayoutState();
@@ -138,6 +140,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
 
         ActivateFilesSidebarTab();
         RenderExplorer();
+        Track(PumpProgramConsoleAsync());
     }
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
@@ -146,6 +149,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             return;
         }
         _initialized = true;
+        var generation = _activationGeneration;
         await _workspace.InitializeAsync(cancellationToken);
         if (_disposed) {
             return;
@@ -154,10 +158,14 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         var initial = _workspace.RootEntries
             .SelectMany(EnumerateFilesUnder)
             .FirstOrDefault();
-        if (initial != default) {
-            await OpenEntryAsync(initial, pin: true);
+        if (initial != default && generation == _activationGeneration) {
+            await OpenEntryAsync(initial, pin: true, showConsole: true);
+        }
+        if (_disposed) {
+            return;
         }
         _buildStatus.Text("Ready");
+        OpenPanelWindow("console");
         UpdateChrome();
     }
 
@@ -172,6 +180,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         var separator = payload.IndexOf(':');
         var eventName = separator < 0 ? payload : payload[..separator];
         var argument = separator < 0 ? string.Empty : payload[(separator + 1)..];
+        if (RouteShader(eventName)) return true;
 
         switch (eventName) {
             case "editor-page-tab":
@@ -186,12 +195,6 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             case "editor-page-open":
                 OpenPanelWindow(argument);
                 return true;
-            case "editor-page-build":
-                StartOperation(run: false);
-                return true;
-            case "editor-page-run":
-                StartOperation(run: true);
-                return true;
             case "editor-page-clear":
                 ClearOutput();
                 return true;
@@ -205,10 +208,10 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
                 BeginSaveAs();
                 return true;
             case "editor-page-save-as-commit":
-                Track(CommitSaveAsAsync());
+                Track(CommitSaveAsAsync(argument));
                 return true;
             case "editor-page-save-as-cancel":
-                CancelSaveAs();
+                CancelDialog(argument);
                 return true;
             case "editor-page-revert":
                 RevertActiveFile();
@@ -237,19 +240,19 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
                 BeginDelete(argument);
                 return true;
             case "editor-page-dialog-save":
-                ResolveCloseDialog(CloseDecision.Save);
+                ResolveCloseDialog(CloseDecision.Save, argument);
                 return true;
             case "editor-page-dialog-dont-save":
-                ResolveCloseDialog(CloseDecision.DontSave);
+                ResolveCloseDialog(CloseDecision.DontSave, argument);
                 return true;
             case "editor-page-dialog-cancel":
-                CancelCloseDialog();
+                CancelDialog(argument);
                 return true;
             case "editor-page-dialog-delete-confirm":
-                Track(ConfirmDeleteAsync());
+                Track(ConfirmDeleteAsync(argument));
                 return true;
             case "editor-page-dialog-delete-cancel":
-                CancelDeleteDialog();
+                CancelDialog(argument);
                 return true;
             case "cell":
                 CellMove(argument);
@@ -264,11 +267,23 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
                 CellNormalize(argument);
                 return true;
             case "editor-focus":
-                return SurfaceIds.Contains(argument);
+                if (!_editors.TryResolveCellId(argument, out var groupId)
+                    || !_editorEntities.TryGetValue(groupId, out var focused)
+                    || !focused.IsValid || !focused.Contains<OpenEditorFile>()) {
+                    return false;
+                }
+                if (_activeEntity != focused) {
+                    ++_activationGeneration;
+                    _activeEntity = focused;
+                    UpdateChrome();
+                    RefreshExplorerSelection();
+                }
+                return true;
             default: {
                     var handled = _editors.Route(payload);
-                    if (handled) {
+                    if (handled && eventName is "input" or "text" or "mut" or "key" or "complete") {
                         SyncDirtyIndicators();
+                        CheckShaderSources();
                     }
                     return handled;
                 }
@@ -281,22 +296,36 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             return;
         }
         _disposed = true;
-        _lifetime.Cancel();
+        List<Exception>? failures = null;
+        void Release(Action action)
+        {
+            try { action(); }
+            catch (Exception error) { (failures ??= []).Add(error); }
+        }
+        Release(_lifetime.Cancel);
+        Release(CancelCloseDialog);
+        Release(StopRendering);
+        Release(() => _uniformInspector?.Dispose());
+        _uniformInspector = null;
+        Release(() => _programConsole?.Dispose());
         foreach (var operation in _operations.ToArray()) {
-            await operation;
+            try { await operation; }
+            catch (Exception error) { (failures ??= []).Add(error); }
         }
-        _editors.Dispose();
-        DisposeSurfaces();
-        DisposeLayoutViews();
-        DisposeExplorer();
-        RestoreExplorerSidebarTab();
-        _workspace.Dispose();
-        _root.Remove();
+        Release(_editors.Dispose);
+        Release(DisposeSurfaces);
+        Release(DisposeLayoutViews);
+        Release(DisposeExplorer);
+        Release(RestoreExplorerSidebarTab);
+        Release(_workspace.Dispose);
+        Release(() => _root.Remove());
         for (var index = _ownedElements.Count - 1; index >= 0; index--) {
-            _ownedElements[index].Dispose();
+            Release(_ownedElements[index].Dispose);
         }
-        _container.Dispose();
-        _lifetime.Dispose();
+        Release(_container.Dispose);
+        Release(_lifetime.Dispose);
+        if (failures is { Count: 1 }) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failures[0]).Throw();
+        if (failures is not null) throw new AggregateException(failures);
     }
 
     private string KeyFor(Entity entity)
@@ -314,6 +343,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
 
     private void Forget(Entity entity)
     {
+        _mementos.Remove(entity);
         if (_entryKeys.Remove(entity, out var key)) {
             _entriesByKey.Remove(key);
         }
@@ -331,18 +361,23 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         await OpenEntryAsync(entity, pin);
     }
 
-    private async Task OpenEntryAsync(Entity entity, bool pin)
+    private async Task OpenEntryAsync(Entity entity, bool pin, bool showConsole = false)
     {
         if (!entity.IsValid || EditorWorkspace.IsFolder(entity)) {
             return;
         }
-        await _workspace.OpenFileAsync(entity, pin, _lifetime.Token);
-        if (_disposed) {
+        var generation = ++_activationGeneration;
+        if (!await _workspace.EnsureContentLoadedAsync(entity, _lifetime.Token)
+            || _disposed || generation != _activationGeneration) {
             return;
         }
+        await _workspace.OpenFileAsync(entity, pin, _lifetime.Token);
         EnsureFileWindow(entity);
         _activeEntity = entity;
-        UpdateState(state => NotebookCellLayout.OpenTabIntoHome(state, TabIdFor(entity)));
+        UpdateState(state => {
+            var opened = NotebookCellLayout.OpenTabIntoHome(state, TabIdFor(entity));
+            return showConsole ? NotebookCellLayout.OpenWindow(opened, ConsoleWindowId) : opened;
+        });
         RefreshExplorerSelection();
     }
 
@@ -351,6 +386,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         if (!_state.Tabs.TryGetValue(tabId, out var tab)) {
             return;
         }
+        ++_activationGeneration;
         var window = _state.Windows[tab.WindowId];
         if (window.Kind == CellWindowKind.Script && TryResolve(window.SourceId, out var entity)) {
             _activeEntity = entity;
@@ -373,9 +409,17 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
     }
 
     private string? FindActiveTabId()
-        => NotebookCellLayout.EnumerateGroups(_state)
-            .Select(static group => group.ActiveTabId)
-            .FirstOrDefault(id => _state.Tabs.ContainsKey(id));
+    {
+        var active = NotebookCellLayout.EnumerateGroups(_state)
+            .Select(static group => group.ActiveTabId).ToArray();
+        if (_activeEntity is { } entity && entity.IsValid) {
+            var tabId = TabIdFor(entity);
+            if (active.Contains(tabId)) {
+                return tabId;
+            }
+        }
+        return active.FirstOrDefault(id => _state.Tabs.ContainsKey(id));
+    }
 
     private async Task CloseTabAsync(string tabId)
     {
@@ -384,26 +428,45 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             return;
         }
         if (window.Kind != CellWindowKind.Script) {
+            if (window.Id == RenderWindowId) StopRendering();
             UpdateState(state => NotebookCellLayout.CloseTab(state, tabId));
             return;
         }
         if (!TryResolve(window.SourceId, out var entity) || !entity.IsValid) {
             return;
         }
-        if (EditorWorkspace.IsDirty(entity)) {
-            var choice = await RequestCloseDecisionAsync(entity);
-            if (choice == CloseDecision.Cancel) {
+        while (IsCurrentTab(entity, tab)) {
+            SaveEditorSources(synchronizeNativeInput: true);
+            if (!EditorWorkspace.IsDirty(entity)) {
+                break;
+            }
+            var (choice, content) = await RequestCloseDecisionAsync(entity);
+            if (!IsCurrentTab(entity, tab) || choice == CloseDecision.Cancel) {
                 return;
             }
-            if (choice == CloseDecision.Save && !await SaveEntityAsync(entity)) {
-                return;
+            SaveEditorSources(synchronizeNativeInput: true);
+            if (choice == CloseDecision.DontSave) {
+                if (entity.Get<WorkspaceFile>().Content == content) {
+                    break;
+                }
+            } else {
+                if (!await SaveEntityAsync(entity) || !IsCurrentTab(entity, tab)) {
+                    return;
+                }
             }
         }
-        FinishCloseTab(entity, tabId, window.Id);
+        if (IsCurrentTab(entity, tab)) {
+            FinishCloseTab(entity, tabId, window.Id);
+        }
     }
+
+    private bool IsCurrentTab(Entity entity, CellTab tab)
+        => !_disposed && entity.IsValid
+            && _state.Tabs.TryGetValue(tab.Id, out var current) && ReferenceEquals(current, tab);
 
     private void FinishCloseTab(Entity entity, string tabId, string windowId)
     {
+        CancelDialog(entity);
         var destroyed = _workspace.CloseFile(entity);
         _state = NotebookCellLayout.CloseTab(_state, tabId);
         _state = _state with {
@@ -411,13 +474,27 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             Tabs = _state.Tabs.Remove(tabId),
         };
         if (_activeEntity == entity) {
+            ++_activationGeneration;
             _activeEntity = null;
+            foreach (var group in NotebookCellLayout.EnumerateGroups(_state)) {
+                if (_state.Tabs.TryGetValue(group.ActiveTabId, out var active)
+                    && _state.Windows.TryGetValue(active.WindowId, out var next)
+                    && next.Kind == CellWindowKind.Script
+                    && TryResolve(next.SourceId, out var remaining)
+                    && remaining.IsValid && remaining.Contains<OpenEditorFile>()) {
+                    _activeEntity = remaining;
+                    break;
+                }
+            }
         }
         if (destroyed) {
             Forget(entity);
             RenderExplorer();
         }
         ApplyLayout();
+        if (_mementos.TryGetValue(entity, out var position)) {
+            _mementos[entity] = position with { History = null };
+        }
         UpdateChrome();
         RefreshExplorerSelection();
     }
@@ -504,92 +581,22 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             state => NotebookCellLayout.NormalizeFloatingHosts(state, viewportWidth, viewportHeight));
     }
 
-    private void StartOperation(bool run)
-    {
-        if (_busy) {
-            return;
-        }
-        SaveEditorSources();
-        _busy = true;
-        UpdateState(state => NotebookCellLayout.OpenWindow(state, ConsoleWindowId));
-        _buildStatus.Text(run ? "Building to run…" : "Building…").ToggleClass("busy", true);
-        _diagnostics.Text(string.Empty);
-        _consoleOutput.Text(run ? "Building workspace before execution…" : "Building C# workspace…");
-        DomRuntime.Flush();
-        Track(BuildAsync(run));
-    }
-
-    private async Task BuildAsync(bool run)
-    {
-        try {
-            await _workspace.EnsureAllLoadedAsync(_lifetime.Token);
-            if (_disposed) {
-                return;
-            }
-            var files = _workspace.AllFiles()
-                .Select(entity => new EditorProjectCompiler.File(
-                    KeyFor(entity), EditorWorkspace.NameOf(entity), entity.Get<WorkspaceFile>().Content))
-                .ToArray();
-            var result = await _compiler.CompileAsync(files, _lifetime.Token);
-            if (_lifetime.IsCancellationRequested) {
-                return;
-            }
-            RenderDiagnostics(result.Diagnostics);
-            if (!result.Success) {
-                _buildStatus.Text("Build failed").ToggleClass("busy", false);
-                _consoleOutput.Text($"Build failed with {ErrorCount(result.Diagnostics)} error(s).\n");
-                return;
-            }
-            if (!run) {
-                _buildStatus.Text("Build succeeded").ToggleClass("busy", false);
-                _consoleOutput.Text($"Build succeeded · {files.Length} C# files\n");
-                return;
-            }
-
-            _buildStatus.Text("Running…").ToggleClass("busy", true);
-            _consoleOutput.Text("Running workspace…\n");
-            DomRuntime.Flush();
-            var execution = await EditorProjectCompiler.ExecuteAsync(result.AssemblyImage!);
-            if (_lifetime.IsCancellationRequested) {
-                return;
-            }
-            _consoleOutput
-                .Text(execution.StandardOutput + execution.StandardError)
-                .ToggleClass("output-error", execution.StandardError.Length > 0);
-            _renderOutput.Text(execution.RenderRequested
-                ? execution.RenderOutput
-                : "Render surface · run completed without Notebook.Render(…)");
-            if (execution.RenderRequested) {
-                UpdateState(state => NotebookCellLayout.OpenWindow(state, RenderWindowId));
-            }
-            _buildStatus
-                .Text(execution.Success ? "Run succeeded" : "Run failed")
-                .ToggleClass("busy", false);
-        } finally {
-            _busy = false;
-            if (!_disposed) {
-                _buildStatus.ToggleClass("busy", false);
-                DomRuntime.Flush();
-            }
-        }
-    }
-
-    private void RenderDiagnostics(IReadOnlyList<EditorProjectCompiler.DiagnosticInfo> diagnostics)
+    private void RenderDiagnostics(IReadOnlyList<CSharpCompilationDiagnostic> diagnostics)
     {
         _diagnostics.Text(string.Empty);
         foreach (var diagnostic in diagnostics) {
-            var location = diagnostic.FileName is null
+            var location = diagnostic.SourcePath is null
                 ? string.Empty
-                : $"{diagnostic.FileName}({diagnostic.Line},{diagnostic.Column}): ";
+                : $"{diagnostic.SourcePath}({diagnostic.Line},{diagnostic.Column}): ";
             var text = $"{location}{diagnostic.Severity.ToString().ToLowerInvariant()} "
                 + $"{diagnostic.Id}: {diagnostic.Message}";
-            using var line = DomElement.Create(diagnostic.FileId is null ? "div" : "button")
+            using var line = DomElement.Create(diagnostic.SourceId is null ? "div" : "button")
                 .Class("editor-page-diagnostic")
                 .Class(diagnostic.Severity == NotebookDiagnosticSeverity.Error
                     ? "diagnostic-error"
                     : "diagnostic-warning")
                 .Text(text);
-            if (diagnostic.FileId is { } fileId) {
+            if (diagnostic.SourceId is { } fileId) {
                 line.Attr("type", "button").On("click", $"editor-page-tree-open:{fileId}");
             }
             _diagnostics.Append(line);
@@ -605,11 +612,13 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         _workspace.SetContent(entity, saved);
         _workspace.Pin(entity);
         RefreshEditorForEntity(entity);
+        CheckShaderSources();
         UpdateChrome("reverted to the saved version");
     }
 
     private async Task CreateUntitledAsync()
     {
+        ++_activationGeneration;
         var entity = _workspace.CreateUntitled();
         EnsureFileWindow(entity);
         _activeEntity = entity;
@@ -621,7 +630,10 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
     {
         _diagnostics.Text(string.Empty);
         _consoleOutput.Text(string.Empty).ToggleClass("output-error", false);
-        _renderOutput.Text("Render surface · waiting for Notebook.Render(…)");
+        _programConsole?.Clear();
+        _programOutput.Text(string.Empty).ToggleClass("output-error", false);
+        _renderOutput.Text("Compile C# to inspect WGSL and SPIR-V, then render the result");
+        StopRendering();
     }
 
     private void UpdateChrome(string? message = null)
@@ -629,22 +641,31 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         if (_activeEntity is { } entity && entity.IsValid) {
             var dirty = EditorWorkspace.IsDirty(entity) ? " ●" : string.Empty;
             _activeFileName.Text($"{EditorWorkspace.NameOf(entity)}{dirty}");
-        } else {
+        }
+        else {
             _activeFileName.Text(string.Empty);
         }
         _workspaceStatus.Text(message ?? string.Empty);
     }
 
-    private DomElement CreateAction(string label, string payload, string title, bool secondary = false)
+    private void CreateMenu(DomElement parent, string label, (string Label, string Payload, string Title)[] items)
     {
-        var action = Own(DomElement.Create("button")
+        var host = Own(DomElement.Create("details").Class("menu-toggle"));
+        var summary = Own(DomElement.Create("summary").Class("btn").Attr("aria-label", label).Text(label));
+        var menu = Own(DomElement.Create("div").Class("menu-popover").Class("editor-page-menu"));
+        foreach (var (text, payload, title) in items) {
+            menu.Append(CreateAction(text, payload, title).Class("menu-item"));
+        }
+        parent.Append(host.Append(summary).Append(menu));
+    }
+
+    private DomElement CreateAction(string label, string payload, string title)
+        => Own(DomElement.Create("button")
             .Class("btn")
             .Attr("type", "button")
             .Attr("title", title)
             .On("click", payload)
             .Text(label));
-        return secondary ? action.Class("editor-page-secondary-action") : action;
-    }
 
     private DomElement Own(DomElement element)
     {
@@ -682,9 +703,6 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         await operation;
         _operations.Remove(operation);
     }
-
-    private static int ErrorCount(IReadOnlyList<EditorProjectCompiler.DiagnosticInfo> diagnostics)
-        => diagnostics.Count(static diagnostic => diagnostic.Severity == NotebookDiagnosticSeverity.Error);
 
     private static IReadOnlyList<HighlightRun> HighlightsFor(string source)
         => source.Length <= HighlightLimit ? CSharpHighlighter.Classify(source) : [];

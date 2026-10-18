@@ -4,7 +4,7 @@ namespace Sia_Examples.Console;
 internal sealed partial class ConsoleDomBackend
 {
     private readonly Dictionary<string, int> _editorSequences = [];
-    private readonly Queue<Func<string>> _pendingEditorEvents = new();
+    private readonly Queue<(ConsoleDomNode Surface, string BindingId, int Sequence, string EventType, string Arguments)> _pendingEditorEvents = new();
     private EditMode _editMode = EditMode.None;
     private ConsoleDomNode? _editingSurface;
     private string? _pendingPrefix;
@@ -164,21 +164,25 @@ internal sealed partial class ConsoleDomBackend
     }
 
     private void EnqueueEditorKey(string key, bool control, bool shift)
-        => _pendingEditorEvents.Enqueue(() =>
-            $"key:{_editingSurface!.Attributes["data-editor"]}:{NextSequence()}:"
-            + $"{CurrentSelectionArguments()}:{key}:{control}:{shift}:false");
+        => EnqueueEditorCommand("key", $"{key}:{control}:{shift}:false");
 
     private void EnqueueEditorText(string text)
-        => _pendingEditorEvents.Enqueue(() =>
-            $"text:{_editingSurface!.Attributes["data-editor"]}:{NextSequence()}:"
-            + $"{CurrentSelectionArguments()}:{Uri.EscapeDataString(text)}");
+        => EnqueueEditorCommand("text", Uri.EscapeDataString(text));
 
-    private int NextSequence()
+    private void EnqueueEditorCommand(string eventType, string arguments)
     {
-        var cellId = _editingSurface!.Attributes["data-editor"];
-        var next = _editorSequences.GetValueOrDefault(cellId) + 1;
-        _editorSequences[cellId] = next;
-        return next;
+        var surface = _editingSurface!;
+        var bindingId = surface.Attributes["data-editor"];
+        var sequence = _editorSequences.GetValueOrDefault(bindingId) + 1;
+        _editorSequences[bindingId] = sequence;
+        _pendingEditorEvents.Enqueue((surface, bindingId, sequence, eventType, arguments));
+    }
+
+    private string ReadPendingEditorEvent()
+    {
+        var command = _pendingEditorEvents.Dequeue();
+        var selection = command.Surface.Attributes.GetValueOrDefault("data-selection", "0:0:0:0");
+        return $"{command.EventType}:{command.BindingId}:{command.Sequence}:{selection}:{command.Arguments}";
     }
 
     private string CurrentSelectionArguments()

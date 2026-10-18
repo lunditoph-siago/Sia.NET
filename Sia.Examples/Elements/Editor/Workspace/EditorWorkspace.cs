@@ -88,7 +88,9 @@ public sealed class EditorWorkspace(World world, IWorkspaceStorage storage) : ID
     public async ValueTask<Entity> OpenFileAsync(
         Entity fileEntity, bool pin, CancellationToken cancellationToken = default)
     {
-        await EnsureContentLoadedAsync(fileEntity, cancellationToken);
+        if (!await EnsureContentLoadedAsync(fileEntity, cancellationToken)) {
+            throw new InvalidOperationException("The file is no longer available.");
+        }
         if (!fileEntity.Contains<OpenEditorFile>()) {
             fileEntity.Add<OpenEditorFile>();
         }
@@ -138,6 +140,9 @@ public sealed class EditorWorkspace(World world, IWorkspaceStorage storage) : ID
         if (fileEntity.Contains<OpenEditorFile>()) {
             fileEntity.Remove<OpenEditorFile>();
         }
+        var saved = fileEntity.Get<WorkspaceFile>().SavedContent;
+        fileEntity.Execute(new WorkspaceFile.SetContent(saved));
+        _loadedContent.Remove(fileEntity);
         return false;
     }
 
@@ -149,10 +154,25 @@ public sealed class EditorWorkspace(World world, IWorkspaceStorage storage) : ID
         var file = fileEntity.Get<WorkspaceFile>();
         var path = fileEntity.Get<Sid<string>>().Value;
         var written = await _storage.WriteFileAsync(path, file.Version, file.Content, cancellationToken);
+        if (!fileEntity.IsValid || fileEntity.Contains<UntitledFile>()
+            || fileEntity.Get<WorkspaceFile>().Version != file.Version) {
+            return;
+        }
+        var currentPath = PathOf(fileEntity);
+        if (currentPath != path
+            && (await _storage.ReadFileAsync(currentPath, cancellationToken))?.Version != written.Version) {
+            return;
+        }
+        if (!fileEntity.IsValid || PathOf(fileEntity) != currentPath
+            || fileEntity.Get<WorkspaceFile>().Version != file.Version) {
+            return;
+        }
         ref var current = ref fileEntity.Get<WorkspaceFile>();
         current.SavedContent = written.Content;
         current.Version = written.Version;
-        _loadedContent.Add(fileEntity);
+        if (fileEntity.Contains<OpenEditorFile>()) {
+            _loadedContent.Add(fileEntity);
+        }
     }
 
     public async ValueTask<IReadOnlyList<(Entity Entity, Exception Error)>> SaveAllAsync(
@@ -189,7 +209,7 @@ public sealed class EditorWorkspace(World world, IWorkspaceStorage storage) : ID
         var written = await _storage.ReadFileAsync(normalized, cancellationToken)
             ?? throw new InvalidOperationException($"'{normalized}' could not be read back after being saved.");
 
-        if (!wasUntitled) {
+        if (!wasUntitled || !fileEntity.IsValid || !fileEntity.Contains<UntitledFile>()) {
             return AttachOrUpdateFile(normalized, written);
         }
 
@@ -214,11 +234,9 @@ public sealed class EditorWorkspace(World world, IWorkspaceStorage storage) : ID
     {
         var path = WorkspacePath.Normalize(WorkspacePath.Combine(folderPath, name));
         await _storage.CreateFileAsync(path, string.Empty, cancellationToken);
-        var entity = EnsureFileEntity(path, WorkspaceVersioning.ComputeVersion(string.Empty));
-        ref var file = ref entity.Get<WorkspaceFile>();
-        file.SavedContent = string.Empty;
-        _loadedContent.Add(entity);
-        return entity;
+        var written = await _storage.ReadFileAsync(path, cancellationToken)
+            ?? throw new InvalidOperationException($"'{path}' could not be read back after being created.");
+        return AttachOrUpdateFile(path, written);
     }
 
     public async ValueTask<Entity> CreateFolderAsync(
@@ -248,10 +266,38 @@ public sealed class EditorWorkspace(World world, IWorkspaceStorage storage) : ID
 
     public async ValueTask DeleteAsync(Entity entity, CancellationToken cancellationToken = default)
     {
+        await DeleteEntryAsync(entity, cancellationToken);
+        RemoveEntry(entity);
+    }
+
+    internal ValueTask DeleteEntryAsync(Entity entity, CancellationToken cancellationToken)
+        => _storage.DeleteEntryAsync(PathOf(entity), cancellationToken: cancellationToken);
+
+    internal void RetainDeletedDraft(Entity entity)
+    {
+        Pin(entity);
+        entity.Remove<Node<WorkspaceTreeTag>>();
+        var number = ++_untitledCounter;
+        entity.SetSid(UntitledKey(number));
+        entity.Execute(new WorkspaceEntry.SetName($"Untitled-{number.ToString(System.Globalization.CultureInfo.InvariantCulture)}"));
+        entity.Add<UntitledFile>();
+        ref var file = ref entity.Get<WorkspaceFile>();
+        file.SavedContent = string.Empty;
+        file.Version = string.Empty;
+        _untitledEntities.Add(entity);
+        _loadedContent.Add(entity);
+    }
+
+    internal void RemoveEntry(Entity entity)
+    {
         var path = PathOf(entity);
-        await _storage.DeleteEntryAsync(path, cancellationToken: cancellationToken);
         if (_previewEntity == entity) {
             _previewEntity = null;
+        }
+        foreach (var file in AllFiles()) {
+            if (file == entity || WorkspacePath.IsDescendantOf(PathOf(file), path)) {
+                _loadedContent.Remove(file);
+            }
         }
         _loadedContent.Remove(entity);
         entity.Destroy();
@@ -287,16 +333,24 @@ public sealed class EditorWorkspace(World world, IWorkspaceStorage storage) : ID
         _previewEntity = null;
     }
 
-    private async ValueTask EnsureContentLoadedAsync(Entity fileEntity, CancellationToken cancellationToken)
+    internal async ValueTask<bool> EnsureContentLoadedAsync(Entity fileEntity, CancellationToken cancellationToken)
     {
+        if (!fileEntity.IsValid) {
+            return false;
+        }
         if (_loadedContent.Contains(fileEntity) || fileEntity.Contains<UntitledFile>()) {
-            return;
+            return true;
         }
         var path = PathOf(fileEntity);
         var content = await _storage.ReadFileAsync(path, cancellationToken);
+        if (!fileEntity.IsValid || PathOf(fileEntity) != path) {
+            return false;
+        }
+        if (_loadedContent.Contains(fileEntity)) {
+            return true;
+        }
         if (content is null) {
-            _loadedContent.Add(fileEntity);
-            return;
+            throw new FileNotFoundException($"'{path}' no longer exists in the workspace.", path);
         }
         if (fileEntity.Get<WorkspaceFile>().Content != content.Content) {
             fileEntity.Execute(new WorkspaceFile.SetContent(content.Content));
@@ -305,6 +359,7 @@ public sealed class EditorWorkspace(World world, IWorkspaceStorage storage) : ID
         file.SavedContent = content.Content;
         file.Version = content.Version;
         _loadedContent.Add(fileEntity);
+        return true;
     }
 
     private Entity AttachOrUpdateFile(string path, WorkspaceFileContent written)

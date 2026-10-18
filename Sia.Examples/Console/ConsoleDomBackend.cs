@@ -12,6 +12,8 @@ internal sealed partial class ConsoleDomBackend : IDomBackend
     private readonly ConsoleDomNode _notebook;
     private bool _disposed;
 
+    public bool SupportsNativeInput => false;
+
     public ConsoleDomBackend(IConsoleTerminal terminal)
     {
         _terminal = terminal;
@@ -60,6 +62,25 @@ internal sealed partial class ConsoleDomBackend : IDomBackend
     }
 
     public string GetText(IDomNode node) => AsNode(node).TextContent();
+
+    public void SetTextRuns(IDomNode node, IReadOnlyList<DomTextRun> runs)
+    {
+        var target = AsNode(node);
+        foreach (var child in target.Children) {
+            child.Parent = null;
+        }
+        target.Children.Clear();
+        target.Text = string.Empty;
+        foreach (var run in runs) {
+            var child = run.ClassName is null ? NewText(run.Text) : NewNode("span");
+            if (run.ClassName is { } className) {
+                child.Text = run.Text;
+                child.Classes.Add(className);
+            }
+            AppendRaw(target, child);
+        }
+        MarkChanged();
+    }
 
     public string GetValue(IDomNode node)
     {

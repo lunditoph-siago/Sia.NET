@@ -1,7 +1,7 @@
 namespace Sia_Examples.Editor;
 
 public interface IEditorView :
-    IRenderHost<EditorLineView>,
+    IRenderHost<EditorLinesView>,
     IRenderHost<EditorActiveLineView>,
     IRenderHost<EditorSelectionView>,
     IRenderHost<EditorStatusView>,
@@ -9,10 +9,6 @@ public interface IEditorView :
     IDisposable
 {
     public void SuppressNextSelectionUpdate();
-
-    public void PreserveNativeEdit(int lineIdentity);
-
-    public void ScrollLineIntoView(double targetTop);
 
     public void SetSpacerHeights(double beforePx, double afterPx);
 }

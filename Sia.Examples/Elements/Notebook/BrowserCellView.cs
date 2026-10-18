@@ -97,7 +97,7 @@ public sealed class BrowserCellView : IDisposable
     public void DiscardChanges(string scriptId)
     {
         if (_scriptsById.TryGetValue(scriptId, out var pane)) {
-            pane.DiscardChanges();
+            pane.DiscardChanges(_editors);
         }
     }
 
@@ -351,10 +351,10 @@ public sealed class BrowserCellView : IDisposable
             _scopeSummary.Text(ScopeLabel(value));
         }
 
-        public void DiscardChanges()
+        public void DiscardChanges(BrowserEditorRegistry editors)
         {
             if (_editor is not null && Current is { } current) {
-                _editor.Update(current.Source, current.Highlights);
+                _editor = editors.Update(ScriptId, current.Source, current.Highlights);
             }
             EndEditing();
         }
@@ -381,8 +381,9 @@ public sealed class BrowserCellView : IDisposable
                 || previous.Value.Highlights != state.Highlights) {
                 if (Cell.Editable) {
                     _editor ??= editors.Add(_code, ScriptId, state.Source, state.Highlights);
-                    if (previous is not null) {
-                        _editor.Update(state.Source, state.Highlights);
+                    if (previous is not null
+                        && (previous.Value.Source != state.Source || _editor.Source == state.Source)) {
+                        _editor = editors.Update(ScriptId, state.Source, state.Highlights);
                     }
                 } else {
                     RenderHighlightedCode(_code, state.Source, state.Highlights);
