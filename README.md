@@ -1,179 +1,44 @@
 # Sia.NET
 
-[![Live Playground](https://img.shields.io/badge/%E2%96%B6_live_playground-Sia.NET-2ea44f)](https://lunditoph-siago.github.io/Sia.NET/)
-[![Build Status](https://github.com/lunditoph-siago/Sia.NET/actions/workflows/nuget.yml/badge.svg?event=push)](https://github.com/lunditoph-siago/Sia.NET/actions/workflows/nuget.yml)
-[![NuGet Downloads](https://img.shields.io/nuget/dt/Sia)](https://www.nuget.org/packages/Sia)
+[![Build](https://img.shields.io/github/actions/workflow/status/lunditoph-siago/Sia.NET/test.yml?branch=master&event=push&label=Build&labelColor=343b45)](https://github.com/lunditoph-siago/Sia.NET/actions/workflows/test.yml?query=branch%3Amaster)
+[![License: BSD](https://img.shields.io/badge/License-BSD-737d8c?labelColor=343b45)](LICENSE)
+[![Playground: Live](https://img.shields.io/badge/Playground-Live-2386c8?labelColor=343b45)](https://lunditoph-siago.github.io/Sia.NET/)
 
-A modern, reactive ECS framework for .NET.
+**A reactive entity component system for .NET.**
+Typed components and queries, composable systems, and generated change events.
 
-**[▶ Try Sia without installing anything](https://lunditoph-siago.github.io/Sia.NET/)**
-— open the playground, edit the C#, hit Run.
+**[Open the Playground →](https://lunditoph-siago.github.io/Sia.NET/)**
+Edit and run the guided C# examples in your browser, with no local installation.
+Choose **Open Editor Lab** for C# programs and programmable WebGPU rendering with
+WGSL/SPIR-V output.
 
-## Getting started
+## Get started
+
+In a .NET 10 or later project:
 
 ```bash
 dotnet add package Sia
 dotnet add package Sia.CodeGenerators
 ```
 
-## Example
-
 ```csharp
-namespace Sia_Examples;
-
-using System.Numerics;
 using Sia;
 
-public static partial class Example1_HealthDamage
-{
-    public class Game : IAddon
-    {
-        public float DeltaTime { get; private set; }
-        public float Time { get; private set; }
+using var world = new World();
+world.Create(HList.From(new Position(0, 0), new Velocity(2, 1)));
 
-        public void BeginFrame(float deltaTime)
-        {
-            DeltaTime = deltaTime;
-            Time += deltaTime;
-        }
-    }
-
-    public partial record struct Transform(
-        [Sia] Vector2 Position,
-        [Sia] float Angle);
-
-    public partial record struct Health(
-        [Sia] float Value,
-        [Sia] float Debuff)
-    {
-        public Health() : this(100, 0) {}
-
-        public readonly record struct Damage(float Value) : ICommand
-        {
-            public void Execute(World world, Entity target)
-                => new View(target, world).Value -= Value;
-        }
-    }
-
-    public class HealthUpdateSystem() : SystemBase(
-        Matchers.Of<Health>())
-    {
-        public override void Execute(WorldContext context, IEntityQuery query)
-        {
-            var game = context.World.GetAddon<Game>();
-
-            foreach (var entity in query) {
-                ref var health = ref entity.Get<Health>();
-                if (health.Debuff != 0) {
-                    entity.Execute(new Health.Damage(health.Debuff * game.DeltaTime));
-                }
-            }
-        }
-    }
-
-    public class DeathSystem() : SystemBase(
-        Matchers.Of<Health>())
-    {
-        public override void Execute(WorldContext context, IEntityQuery query)
-        {
-            // faster than foreach
-            query.ForSlice((Entity entity, ref Health health) => {
-                if (health.Value <= 0) {
-                    entity.Destroy();
-                    Console.WriteLine("Dead!");
-                }
-            });
-        }
-    }
-
-    public class HealthSystems() : SystemBase(
-        SystemChain.Empty
-            .Add<HealthUpdateSystem>()
-            .Add<DeathSystem>());
-
-    public class LocationDamageSystem() : SystemBase(
-        Matchers.Of<Transform, Health>(),
-        EventUnion.Of<WorldEvents.Add<Health>, Transform.SetPosition>())
-    {
-        public override void Execute(WorldContext context, IEntityQuery query)
-        {
-            foreach (var entity in query) {
-                var pos = entity.Get<Transform>().Position;
-                var health = new Health.View(entity);
-
-                if (pos.X == 1 && pos.Y == 1) {
-                    entity.Execute(new Health.Damage(10));
-                }
-                if (pos.X == 1 && pos.Y == 2) {
-                    health.Debuff = 100;
-                }
-            }
-        }
-    }
-
-    public class GameplaySystems() : SystemBase(
-        SystemChain.Empty
-            .Add<LocationDamageSystem>());
-
-    public class MonitorSystems() : SystemBase(
-        SystemChain.Empty
-            .Add((ref Health health) => Console.WriteLine("Damage: HP " + health.Value),
-                trigger: EventUnion.Of<Health.Damage>())
-            .Add((ref Health health) => Console.WriteLine("Set Debuff: " + health.Debuff),
-                trigger: EventUnion.Of<Health.SetDebuff>())
-            .Add((ref Transform transform) => Console.WriteLine("Position: " + transform.Position)));
-
-    public static class Player
-    {
-        public static Entity Create(World world)
-            => world.Create(HList.From(
-                new Transform(),
-                new Health()
-            ));
-
-        public static Entity Create(World world, Vector2 position)
-            => world.Create(HList.From(
-                new Transform {
-                    Position = position
-                },
-                new Health()
-            ));
-    }
-
-    public static void Run(World world)
-    {
-        var game = world.AcquireAddon<Game>();
-
-        var stage = SystemChain.Empty
-            .Add<HealthSystems>()
-            .Add<GameplaySystems>()
-            .Add<MonitorSystems>()
-            .CreateStage(world);
-
-        var player = Player.Create(world, new(1, 1));
-        game.BeginFrame(0.5f);
-        stage.Tick();
-
-        var trans = new Transform.View(player) {
-            Position = new(1, 2)
-        };
-        game.BeginFrame(0.5f);
-        stage.Tick();
-        trans.Position = new(1, 3);
-
-        game.BeginFrame(0.5f);
-        stage.Tick();
-
-        game.BeginFrame(0.5f);
-        stage.Tick();
-
-        game.BeginFrame(0.5f);
-        stage.Tick();
-
-        game.BeginFrame(0.5f); // player dead
-        stage.Tick();
-
-        stage.Dispose();
-    }
+foreach (var entity in world.Query(Matchers.Of<Position, Velocity>())) {
+    var position = new Position.View(entity, world);
+    ref readonly var velocity = ref entity.Get<Velocity>();
+    position.X += velocity.X;
+    position.Y += velocity.Y;
+    Console.WriteLine(entity.Get<Position>());
 }
+
+public partial record struct Position([Sia] float X, [Sia] float Y);
+public readonly record struct Velocity(float X, float Y);
 ```
+
+Generated views write back to components and dispatch change events. Explore
+systems, events and `Sia.Prelude` reactive hooks in the Playground's built-in
+notebooks.
