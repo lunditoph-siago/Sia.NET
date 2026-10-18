@@ -67,6 +67,16 @@
 
     .editor-page-actions,
     .editor-page-menus {
+        .editor-files-toggle {
+            display: none;
+
+            @media (max-width: 899px) {
+                display: inline-grid;
+                min-width: 2.75rem;
+                min-height: 2.75rem;
+            }
+        }
+
         display: flex;
         flex: 0 1 auto;
         align-items: center;
