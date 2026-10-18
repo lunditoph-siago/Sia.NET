@@ -70,18 +70,20 @@ internal sealed partial class EditorUniformSession : IDisposable
     {
 #if BROWSER
         var json = Read(_binding);
-        if (json.Length == 0) return;
-        var edits = JsonSerializer.Deserialize<Dictionary<string, double[]>>(json)!;
-        foreach (var registration in _registrations.Values) {
-            object value = registration.Read();
-            var changed = false;
-            foreach (var field in registration.Fields) {
-                if (!edits.TryGetValue(registration.Key(field), out var numbers)) continue;
-                value = field.Write(value, numbers);
-                changed = true;
+        if (json.Length > 0) {
+            var edits = JsonSerializer.Deserialize<Dictionary<string, double[]>>(json)!;
+            foreach (var registration in _registrations.Values) {
+                object value = registration.Read();
+                var changed = false;
+                foreach (var field in registration.Fields) {
+                    if (!edits.TryGetValue(registration.Key(field), out var numbers)) continue;
+                    value = field.Write(value, numbers);
+                    changed = true;
+                }
+                if (changed) registration.Write(value);
             }
-            if (changed) registration.Write(value);
         }
+        ApplyImageEdits();
 #endif
     }
 
@@ -95,7 +97,7 @@ internal sealed partial class EditorUniformSession : IDisposable
             type = field.Type, values = field.Read(registration.Read()), color = field.Color,
             min = field.Minimum, max = field.Maximum,
         }));
-        Configure(_binding, JsonSerializer.Serialize(fields, JsonOptions));
+        Configure(_binding, JsonSerializer.Serialize(fields.Cast<object>().Concat(ImageFields()), JsonOptions));
 #endif
     }
 
@@ -109,6 +111,7 @@ internal sealed partial class EditorUniformSession : IDisposable
 
     public void Dispose()
     {
+        _images.Clear();
 #if BROWSER
         Release(_binding);
         _binding.Dispose();
@@ -209,8 +212,8 @@ internal sealed class UniformField(string name, string type, FieldInfo[] path, i
                 if (field.IsInitOnly) throw new ArgumentException($"Uniform field {name + field.Name} must be mutable.");
                 var path = prefix.Append(field).ToArray();
                 var fieldName = name + field.Name;
-                var range = field.GetCustomAttribute<RangeAttribute>();
-                var color = field.IsDefined(typeof(ColorAttribute));
+                var range = field.GetCustomAttribute<Sia.RangeAttribute>();
+                var color = field.IsDefined(typeof(Sia.ColorAttribute));
                 if (range is not null && (!double.IsFinite(range.Minimum) || !double.IsFinite(range.Maximum) || range.Minimum >= range.Maximum))
                     throw new ArgumentException($"Invalid range for {fieldName}.");
                 var scalar = Scalar(field.FieldType);
