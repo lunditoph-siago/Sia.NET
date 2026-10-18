@@ -26,6 +26,11 @@ internal sealed partial class BrowserEditorPage
             "M13 3H5v18h14V9Zm0 0v6h6M8 14h8m-4-4v8");
         AppendExplorerTool(tools, "New folder in workspace", "editor-page-tree-new-folder:",
             "M3 7V5h7l2 2h9v13H3Zm5 7h8m-4-4v8");
+        var close = Explorer(DomElement.Create("button").Class("icon-btn").Class("sidebar-dismiss")
+            .Attr("type", "button").Attr("data-sidebar-dismiss", string.Empty)
+            .Attr("aria-label", "Close sidebar").Attr("title", "Close sidebar"));
+        AppendExplorerIcon(close, "m6 6 12 12M18 6 6 18");
+        tools.Append(close);
         _explorerRoot.Append(tools);
 
         var roots = _workspace.RootEntries;
@@ -284,17 +289,19 @@ internal sealed partial class BrowserEditorPage
         return element;
     }
 
-    private void ActivateFilesSidebarTab()
+    private void ActivateWorkspaceSidebar()
     {
         using var sidebar = DomElement.TryFind("sidebar");
-        sidebar?.Attr("data-sidebar-view", "files");
+        sidebar?.Attr("data-sidebar-view", "workspace");
         SetSidebarTab("sidebar-explorer-tab", active: false);
-        SetSidebarTab("sidebar-files-tab", active: true);
+        SetSidebarTab("sidebar-files-tab", active: false);
         SetSidebarPanel("sidebar-explorer", hidden: true);
         SetSidebarPanel("sidebar-files", hidden: false);
+        using var files = DomElement.TryFind("sidebar-files");
+        files?.Attr("role", "region").Attr("aria-label", "Workspace files").Attr("aria-labelledby", string.Empty);
     }
 
-    private void RestoreExplorerSidebarTab()
+    private void RestoreExampleSidebar()
     {
         using var sidebar = DomElement.TryFind("sidebar");
         sidebar?.Attr("data-sidebar-view", "explorer");
@@ -302,6 +309,8 @@ internal sealed partial class BrowserEditorPage
         SetSidebarTab("sidebar-files-tab", active: false);
         SetSidebarPanel("sidebar-explorer", hidden: false);
         SetSidebarPanel("sidebar-files", hidden: true);
+        using var files = DomElement.TryFind("sidebar-files");
+        files?.Attr("role", "tabpanel").Attr("aria-label", string.Empty).Attr("aria-labelledby", "sidebar-files-tab");
     }
 
     private static void SetSidebarTab(string id, bool active)

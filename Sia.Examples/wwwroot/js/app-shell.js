@@ -30,7 +30,8 @@ document.addEventListener('click', (event) => {
         syncSidebar();
         if (document.getElementById('app')?.classList.contains('sidebar-open')) {
             if (toggle.hasAttribute('data-sidebar-toggle')) selectSidebarView('files');
-            document.querySelector('#sidebar [aria-current="true"], #sidebar .sidebar-tab.active')?.focus();
+            if (document.getElementById('sidebar')?.dataset.sidebarView === 'workspace') focusWorkspaceFiles();
+            else document.querySelector('#sidebar .sidebar-tab.active')?.focus();
         }
     } else if (compactSidebar.matches && document.getElementById('app')?.classList.contains('sidebar-open')) {
         if (event.target.closest?.('[data-sidebar-dismiss]')) closeSidebar(true);
@@ -72,6 +73,7 @@ const sidebarTabs = [...document.querySelectorAll('[data-sidebar-tab]')];
 
 function selectSidebarView(view, focus = false) {
     const sidebar = document.getElementById('sidebar');
+    if (sidebar?.dataset.sidebarView === 'workspace') return;
     if (!sidebar || !sidebarTabs.some((tab) => tab.dataset.sidebarTab === view)) {
         return;
     }
@@ -250,6 +252,23 @@ document.getElementById('sidebar')?.addEventListener('keydown', (event) => {
     }
 });
 
+function fileTreeEntries() {
+    return [...fileTreeRoot.querySelectorAll('.file-tree-file-open, .file-tree-folder-label')]
+        .filter((entry) => {
+            for (let parent = entry.parentElement.closest('details'); parent;
+                parent = parent.parentElement.closest('details')) {
+                if (!parent.open && parent.querySelector(':scope > summary') !== entry) return false;
+            }
+            return !entry.closest('.renaming');
+        });
+}
+
+function focusWorkspaceFiles() {
+    const entries = fileTreeEntries();
+    const active = entries.find((entry) => entry.getAttribute('aria-current') === 'true');
+    (active ?? entries[0] ?? fileTreeRoot.querySelector('.file-tree-tools button'))?.focus();
+}
+
 fileTreeRoot.addEventListener('keydown', (event) => {
     const target = event.target.closest?.('.file-tree-file-open, .file-tree-folder-label');
     if (!target || event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return;
@@ -259,14 +278,7 @@ fileTreeRoot.addEventListener('keydown', (event) => {
         return;
     }
     const folder = target.matches('.file-tree-folder-label') ? target.parentElement : null;
-    const entries = [...fileTreeRoot.querySelectorAll('.file-tree-file-open, .file-tree-folder-label')]
-        .filter((entry) => {
-            for (let parent = entry.parentElement.closest('details'); parent;
-                parent = parent.parentElement.closest('details')) {
-                if (!parent.open && parent.querySelector(':scope > summary') !== entry) return false;
-            }
-            return !entry.closest('.renaming');
-        });
+    const entries = fileTreeEntries();
     const index = entries.indexOf(target);
     let next;
     if (event.key === 'ArrowDown') next = entries[Math.min(index + 1, entries.length - 1)];
