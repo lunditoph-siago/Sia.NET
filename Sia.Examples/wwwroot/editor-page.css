@@ -53,16 +53,12 @@
     }
 
     .editor-page-build-status {
-        flex: 0 0 auto;
-        color: var(--color-success);
-        font-size: 0.68rem;
-
-        &.busy {
-            color: var(--color-warning);
-        }
+        margin-left: auto;
+        color: var(--color-muted);
     }
 
-    .editor-page-actions {
+    .editor-page-actions,
+    .editor-page-menus {
         display: flex;
         flex: 0 1 auto;
         align-items: center;
@@ -73,6 +69,14 @@
 
     .editor-page-actions .btn {
         white-space: nowrap;
+    }
+
+    .editor-page-menus > .menu-toggle > summary {
+        border-color: transparent;
+    }
+
+    .editor-page-menu .menu-item {
+        grid-template-columns: minmax(0, 1fr);
     }
 
     .editor-page-workbench {
@@ -90,6 +94,16 @@
     .editor-page-workbench .cell-split {
         min-height: 0;
         overflow: hidden;
+    }
+
+    .editor-page-workbench .cell-split > .split-child:not(.collapsed) {
+        display: flex;
+        flex: var(--cell-split-share, 1) 1 0;
+    }
+
+    .editor-page-workbench .split-child > .cell-group {
+        display: flex;
+        flex: 1 1 0;
     }
 
     .editor-page-workbench .group-content {
@@ -210,8 +224,8 @@
         min-width: 0;
         padding: 0 0.65rem;
         overflow: hidden;
-        border-top: 1px solid color-mix(in srgb, var(--color-accent) 55%, var(--border-subtle));
-        background: color-mix(in srgb, var(--color-accent) 18%, var(--color-bg));
+        border-top: 1px solid var(--border-subtle);
+        background: var(--surface-subtle);
         font-size: 0.65rem;
         white-space: nowrap;
     }
@@ -221,23 +235,9 @@
         text-overflow: ellipsis;
     }
 
-    @media (max-width: 820px) {
-        .editor-page-secondary-action {
-            display: none;
-        }
-    }
-
     @media (max-width: 600px) {
         .editor-page-brand {
             display: none;
-        }
-
-        .editor-page-build-status {
-            display: none;
-        }
-
-        .editor-page-titlebar {
-            justify-content: flex-end;
         }
     }
 
@@ -308,6 +308,36 @@
         gap: 0.5rem;
     }
 
+    .editor-render-options > summary {
+        cursor: pointer;
+        font-size: 0.75rem;
+    }
+
+    .editor-render-options[open] .editor-shader-actions {
+        margin-top: 0.5rem;
+    }
+
+    .editor-shader-stage {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+
+    .editor-shader-surfaces {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .editor-uniform-space {
+        display: none;
+        flex: 0 0 min(21rem, 45%);
+        height: min(24rem, 50vh);
+    }
+
+    .editor-shader:has(#editor-uniform-inspector [aria-expanded='true']) .editor-uniform-space {
+        display: block;
+    }
+
     .editor-shader-actions select,
     .editor-uniform-popup select,
     .editor-uniform-popup input {
@@ -324,6 +354,7 @@
         width: 6rem;
     }
     .editor-uniform-popup {
+        box-sizing: border-box;
         margin: 0;
         padding: 0.75rem;
         width: min(25rem, calc(100vw - 2rem));

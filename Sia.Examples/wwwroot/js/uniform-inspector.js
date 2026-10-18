@@ -93,6 +93,7 @@ class UniformInspector {
         this.active = null;
         this.containerId = containerId;
         this.abort = new AbortController();
+        this.resize = new ResizeObserver(() => this.place());
         this.button = document.createElement('button');
         this.button.type = 'button';
         this.button.className = 'btn';
@@ -128,8 +129,12 @@ class UniformInspector {
         this.body.className = 'editor-uniform-fields';
         this.panel.append(header, this.body);
         document.body.append(this.panel);
-        this.button.addEventListener('click', () => { this.panel.togglePopover(); this.place(); });
-        this.panel.addEventListener('toggle', () => this.button.setAttribute('aria-expanded', String(this.panel.matches(':popover-open'))));
+        const sync = () => {
+            this.button.setAttribute('aria-expanded', String(this.panel.matches(':popover-open')));
+            this.place();
+        };
+        this.button.addEventListener('click', () => { this.panel.togglePopover(); sync(); });
+        this.panel.addEventListener('toggle', sync);
         const place = () => this.place();
         window.addEventListener('resize', place, { signal: this.abort.signal });
         window.addEventListener('scroll', place, { capture: true, signal: this.abort.signal });
@@ -137,14 +142,19 @@ class UniformInspector {
     }
     place() {
         if (!this.panel.matches(':popover-open')) return;
-        const anchor = this.button.getBoundingClientRect();
-        const width = this.panel.offsetWidth, height = this.panel.offsetHeight;
-        this.panel.style.left = `${Math.max(8, Math.min(anchor.right - width, innerWidth - width - 8))}px`;
-        this.panel.style.top = `${Math.max(8, Math.min(anchor.bottom + 6, innerHeight - height - 8))}px`;
+        const space = document.getElementById('editor-uniform-space')?.getBoundingClientRect();
+        if (!space?.width) { this.panel.hidePopover(); return; }
+        const bounds = document.querySelector('.editor-page-workbench').getBoundingClientRect();
+        this.panel.style.width = `${space.width}px`;
+        this.panel.style.maxHeight = `${Math.max(0, Math.min(space.height, bounds.height - 16))}px`;
+        this.panel.style.left = `${space.left}px`;
+        this.panel.style.top = `${Math.max(bounds.top + 8, Math.min(space.top, bounds.bottom - this.panel.offsetHeight - 8))}px`;
     }
     render() {
         const container = document.getElementById(this.containerId);
         if (container && this.button.parentElement !== container) container.append(this.button);
+        this.resize.disconnect();
+        if (container) this.resize.observe(container.closest('.editor-page-render') ?? container);
         this.body.replaceChildren();
         const fields = this.active?.fields ?? [];
         this.button.disabled = fields.length === 0;
@@ -229,6 +239,7 @@ class UniformInspector {
     }
     dispose() {
         this.abort.abort();
+        this.resize.disconnect();
         this.panel.remove();
         this.button.remove();
         this.active = null;

@@ -56,24 +56,32 @@ internal sealed partial class BrowserEditorPage
             using var option = DomElement.Create("option").Attr("value", value).Text(text);
             _pipelineCanvas.Append(option);
         }
-        actions.Append(_shaderEntry).Append(_shaderTarget).Append(_pipelineCanvas)
-            .Append(Own(DomElement.Create("span").Id("editor-uniform-inspector")))
-            .Append(CreateAction("Stop", "editor-shader-stop", "Release the current rendering resources"))
-            .Append(CreateAction("Cancel", "editor-shader-cancel", "Cancel the current compiler job"));
+        var options = Own(DomElement.Create("details").Class("editor-render-options"));
+        options.Append(Own(DomElement.Create("summary").Text("Render options")));
+        var settings = Own(DomElement.Create("div").Class("editor-shader-actions"));
+        settings.Append(_shaderEntry).Append(_shaderTarget).Append(_pipelineCanvas);
+        options.Append(settings);
+        actions.Append(options).Append(Own(DomElement.Create("span").Id("editor-uniform-inspector")));
         _shaderScope = Own(DomElement.Create("div").Class("editor-shader-status")
             .Text("Compilation includes C# files under the active file’s folder."));
         _shaderStatus = Own(DomElement.Create("div").Id("editor-shader-status")
             .Class("editor-shader-status").Attr("role", "status").Text("No GPU preview yet"));
         var preview = Own(DomElement.Create("div").Id("editor-shader-preview").Class("editor-shader-preview"));
         var pipeline = Own(DomElement.Create("div").Id("editor-pipeline-preview").Class("editor-shader-preview"));
+        var stage = Own(DomElement.Create("div").Class("editor-shader-stage"));
+        var surfaces = Own(DomElement.Create("div").Class("editor-shader-surfaces"));
+        surfaces.Append(preview).Append(pipeline);
+        stage.Append(surfaces).Append(Own(DomElement.Create("div").Id("editor-uniform-space")
+            .Class("editor-uniform-space").Attr("aria-hidden", "true")));
         var artifacts = Own(DomElement.Create("details").Class("editor-shader-artifacts"));
         var summary = Own(DomElement.Create("summary").Text("Compiled shader"));
         var artifactActions = Own(DomElement.Create("div").Class("editor-shader-actions"));
         artifactActions.Append(_shaderView)
             .Append(CreateAction("Download .spv", "editor-shader-download", "Download the compiled SPIR-V binary"));
         _shaderOutput = Own(DomElement.Create("pre").Class("editor-shader-output").Text("No compiled shader"));
-        artifacts.Append(summary).Append(artifactActions).Append(_shaderOutput);
-        panel.Append(actions).Append(_shaderScope).Append(_shaderStatus).Append(preview).Append(pipeline).Append(artifacts);
+        artifacts.Append(summary).Append(_renderOutput).Append(_shaderScope).Append(_shaderStatus)
+            .Append(artifactActions).Append(_shaderOutput);
+        panel.Append(actions).Append(stage).Append(artifacts);
         _renderPanel.Append(panel);
     }
 

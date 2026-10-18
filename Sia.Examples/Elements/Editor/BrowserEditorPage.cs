@@ -67,23 +67,29 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             .Class("editor-page-build-status")
             .Attr("role", "status")
             .Text("Loading workspace…"));
-        title.Append(brand).Append(_buildStatus);
+        title.Append(brand);
+        var menus = Own(DomElement.Create("nav").Class("editor-page-menus").Attr("aria-label", "Editor commands"));
+        CreateMenu(menus, "File", [
+            ("New File", "editor-page-new-file", "Open a new untitled file"),
+            ("Save", "editor-page-save", "Save the active file (Ctrl+S)"),
+            ("Save All", "editor-page-save-all", "Save every open file (Ctrl+Shift+S)"),
+            ("Save As…", "editor-page-save-as-begin", "Save the active file under a new path"),
+            ("Revert", "editor-page-revert", "Discard unsaved edits in the active file"),
+        ]);
+        CreateMenu(menus, "Build", [
+            ("Compile", "editor-shader-compile", "Compile C# and inspect shader artifacts when present"),
+            ("Cancel Compilation", "editor-shader-cancel", "Cancel the current compiler job"),
+            ("Stop Rendering", "editor-shader-stop", "Release the current rendering resources"),
+        ]);
+        CreateMenu(menus, "View", [
+            ("Console", "editor-page-open:console", "Open Console and diagnostics"),
+            ("Render", "editor-page-open:render", "Open the Render window"),
+            ("Clear Output", "editor-page-clear", "Clear Console and Render output"),
+        ]);
+        title.Append(menus);
         var actions = Own(DomElement.Create("div").Class("editor-page-actions"));
         actions
-            .Append(CreateAction("Compile", "editor-shader-compile", "Compile C# and inspect shader artifacts when present"))
             .Append(CreateAction("Run", "editor-shader-run", "Run the C# program or programmable RenderGraph from the active folder"))
-            .Append(CreateAction("Save", "editor-page-save", "Save the active file (Ctrl+S)", secondary: true))
-            .Append(CreateAction(
-                "Save All", "editor-page-save-all", "Save every open file (Ctrl+Shift+S)", secondary: true))
-            .Append(CreateAction("Save As…", "editor-page-save-as-begin", "Save the active file under a new path", secondary: true))
-            .Append(CreateAction("Revert", "editor-page-revert", "Discard unsaved edits in the active file", secondary: true))
-            .Append(CreateAction("New File", "editor-page-new-file", "Open a new untitled file", secondary: true))
-            .Append(CreateAction(
-                "Diagnostics", "editor-page-open:console", "Open the Console window", secondary: true))
-            .Append(CreateAction(
-                "Outputs", "editor-page-open:render", "Open the Render window", secondary: true))
-            .Append(CreateAction(
-                "Clear", "editor-page-clear", "Clear Console and Render output", secondary: true))
             .Append(CreateAction("Close", "editor-page-home", "Return to the examples home"));
         titlebar.Append(title).Append(actions);
 
@@ -97,8 +103,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         var statusbar = Own(DomElement.Create("footer").Class("editor-page-statusbar"));
         _activeFileName = Own(DomElement.Create("span"));
         _workspaceStatus = Own(DomElement.Create("span"));
-        var runtime = Own(DomElement.Create("span").Text("C# workspace · browser-wasm"));
-        statusbar.Append(_activeFileName).Append(_workspaceStatus).Append(runtime);
+        statusbar.Append(_activeFileName).Append(_workspaceStatus).Append(_buildStatus);
 
         _layoutRevision = Own(DomElement.Create("div")
             .Class("floating-layer")
@@ -122,7 +127,6 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         _renderPanel = Own(DomElement.Create("div")
             .Class("editor-page-render")
             .Attr("role", "tabpanel"));
-        _renderPanel.Append(_renderOutput);
         InitShaderPanel();
 
         InitDialogs();
@@ -642,16 +646,24 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         _workspaceStatus.Text(message ?? string.Empty);
     }
 
-    private DomElement CreateAction(string label, string payload, string title, bool secondary = false)
+    private void CreateMenu(DomElement parent, string label, (string Label, string Payload, string Title)[] items)
     {
-        var action = Own(DomElement.Create("button")
+        var host = Own(DomElement.Create("details").Class("menu-toggle"));
+        var summary = Own(DomElement.Create("summary").Class("btn").Attr("aria-label", label).Text(label));
+        var menu = Own(DomElement.Create("div").Class("menu-popover").Class("editor-page-menu"));
+        foreach (var (text, payload, title) in items) {
+            menu.Append(CreateAction(text, payload, title).Class("menu-item"));
+        }
+        parent.Append(host.Append(summary).Append(menu));
+    }
+
+    private DomElement CreateAction(string label, string payload, string title)
+        => Own(DomElement.Create("button")
             .Class("btn")
             .Attr("type", "button")
             .Attr("title", title)
             .On("click", payload)
             .Text(label));
-        return secondary ? action.Class("editor-page-secondary-action") : action;
-    }
 
     private DomElement Own(DomElement element)
     {
