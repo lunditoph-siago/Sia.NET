@@ -165,7 +165,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         UpdateChrome();
         UpdateActions();
 
-        ActivateFilesSidebarTab();
+        ActivateWorkspaceSidebar();
         RenderExplorer();
         Track(PumpProgramConsoleAsync());
     }
@@ -346,7 +346,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         Release(DisposeSurfaces);
         Release(DisposeLayoutViews);
         Release(DisposeExplorer);
-        Release(RestoreExplorerSidebarTab);
+        Release(RestoreExampleSidebar);
         Release(_workspace.Dispose);
         Release(() => _root.Remove());
         for (var index = _ownedElements.Count - 1; index >= 0; index--) {

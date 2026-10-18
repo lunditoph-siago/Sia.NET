@@ -163,6 +163,10 @@
             letter-spacing: 0.08em;
         }
 
+        &[data-sidebar-view='workspace'] > .sidebar-heading {
+            display: none;
+        }
+
         .sidebar-tabs {
             display: flex;
             align-items: stretch;
