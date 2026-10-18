@@ -47,6 +47,7 @@ internal sealed partial class BrowserEditorPage
         var console = new ProgramConsole();
         SetProgramConsole(console);
         _runningMain = true;
+        UpdateCompileAction();
         _buildStatus.Text("Main running");
         _shaderStatus.Text("Running C# entry point · Console output is independent of rendering");
         OpenPanelWindow("console");

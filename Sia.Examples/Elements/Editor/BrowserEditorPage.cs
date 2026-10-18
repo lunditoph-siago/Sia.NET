@@ -23,6 +23,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
     private readonly DomElement _activeFileName;
     private readonly DomElement _workspaceStatus;
     private readonly DomElement _buildStatus;
+    private readonly DomElement _compileAction;
     private readonly DomElement _diagnostics;
     private readonly DomElement _consoleOutput;
     private readonly DomElement _programOutput;
@@ -59,15 +60,10 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             .Attr("aria-label", "Sia C# Editor Lab"));
 
         var titlebar = Own(DomElement.Create("header").Class("editor-page-titlebar"));
-        var title = Own(DomElement.Create("div").Class("editor-page-title"));
-        var brand = Own(DomElement.Create("span")
-            .Class("editor-page-brand")
-            .Text("Sia.NET · Editor Lab"));
         _buildStatus = Own(DomElement.Create("span")
             .Class("editor-page-build-status")
             .Attr("role", "status")
             .Text("Loading workspace…"));
-        title.Append(brand);
         var menus = Own(DomElement.Create("nav").Class("editor-page-menus").Attr("aria-label", "Editor commands"));
         CreateMenu(menus, "File", [
             ("New File", "editor-page-new-file", "Open a new untitled file"),
@@ -76,22 +72,19 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             ("Save As…", "editor-page-save-as-begin", "Save the active file under a new path"),
             ("Revert", "editor-page-revert", "Discard unsaved edits in the active file"),
         ]);
-        CreateMenu(menus, "Build", [
-            ("Compile", "editor-shader-compile", "Compile C# and inspect shader artifacts when present"),
-            ("Cancel Compilation", "editor-shader-cancel", "Cancel the current compiler job"),
-            ("Stop Rendering", "editor-shader-stop", "Release the current rendering resources"),
-        ]);
         CreateMenu(menus, "View", [
             ("Console", "editor-page-open:console", "Open Console and diagnostics"),
             ("Render", "editor-page-open:render", "Open the Render window"),
             ("Clear Output", "editor-page-clear", "Clear Console and Render output"),
         ]);
-        title.Append(menus);
         var actions = Own(DomElement.Create("div").Class("editor-page-actions"));
+        _compileAction = CreateAction("Compile", "editor-compile-action", "Compile C# and inspect shader artifacts when present")
+            .Attr("aria-disabled", "false");
         actions
             .Append(CreateAction("Run", "editor-shader-run", "Run the C# program or programmable RenderGraph from the active folder"))
+            .Append(_compileAction)
             .Append(CreateAction("Close", "editor-page-home", "Return to the examples home"));
-        titlebar.Append(title).Append(actions);
+        titlebar.Append(menus).Append(actions);
 
         _workbench = Own(DomElement.Create("div")
             .Class("editor-page-workbench")

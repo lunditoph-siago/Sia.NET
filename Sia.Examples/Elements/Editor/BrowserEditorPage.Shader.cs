@@ -88,6 +88,12 @@ internal sealed partial class BrowserEditorPage
     private bool RouteShader(string eventName)
     {
         switch (eventName) {
+            case "editor-compile-action": {
+                    var action = CompileActionState();
+                    if (!action.Disabled) return RouteShader(action.Command);
+                    _buildStatus.Text(action.Title);
+                    return true;
+                }
             case "editor-shader-compile": StartShaderOperation(ShaderAction.Compile); return true;
             case "editor-shader-run": StartShaderOperation(ShaderAction.Run); return true;
             case "editor-shader-stop":
@@ -98,6 +104,7 @@ internal sealed partial class BrowserEditorPage
                 _shaderPreviewSnapshot = null;
                 _shaderStatus.Text("Rendering stopped");
                 _buildStatus.Text("Rendering stopped");
+                UpdateCompileAction();
                 return true;
             case "editor-shader-cancel":
                 if (_runningMain) { _buildStatus.Text("Main is still running · arbitrary C# execution cannot be interrupted"); return true; }
@@ -117,6 +124,28 @@ internal sealed partial class BrowserEditorPage
                 return true;
             default: return false;
         }
+    }
+
+    private (string Label, string Command, string Title, bool Disabled) CompileActionState()
+    {
+        if (_runningMain) return ("Compile", "editor-shader-compile", "Main is running · arbitrary C# execution cannot be interrupted", true);
+        if (_shaderCancellation is { } job) return ("Cancel", "editor-shader-cancel",
+            job.IsCancellationRequested ? "Cancellation requested · waiting for the current phase" : "Cancel the current compiler job", job.IsCancellationRequested);
+        var rendering = _shaderPreview is not null;
+#if BROWSER
+        rendering |= _pipeline is not null;
+#endif
+        return rendering
+            ? ("Stop", "editor-shader-stop", "Release the current rendering resources", false)
+            : ("Compile", "editor-shader-compile", "Compile C# and inspect shader artifacts when present", false);
+    }
+
+    private void UpdateCompileAction()
+    {
+        if (_disposed) return;
+        var action = CompileActionState();
+        _compileAction.Text(action.Label).Attr("title", action.Title)
+            .Attr("aria-disabled", action.Disabled ? "true" : "false");
     }
 
     private async Task<ShaderArtifact> GetShaderArtifactAsync(ShaderCompilation source, int token,
@@ -172,6 +201,7 @@ internal sealed partial class BrowserEditorPage
         CheckShaderSources();
         _busy = true;
         _shaderCancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        UpdateCompileAction();
         var revision = ++_shaderRevision;
         _shaderPreview?.Invalidate(revision);
         _diagnostics.Text(string.Empty);
@@ -230,6 +260,7 @@ internal sealed partial class BrowserEditorPage
         _shaderCancellation?.Cancel();
         _shaderPreview?.Invalidate(_shaderRevision);
         _shaderStatus.Text(message + PreviousShaderPreview());
+        UpdateCompileAction();
     }
 
     private string PreviousShaderPreview() => _shaderPreviewSnapshot is { } snapshot
@@ -349,6 +380,7 @@ internal sealed partial class BrowserEditorPage
             _busy = false;
             if (!_disposed) {
                 _buildStatus.ToggleClass("busy", false);
+                UpdateCompileAction();
                 DomRuntime.Flush();
                 if (_pendingShaderRequest is { } next) {
                     _pendingShaderRequest = null;
@@ -377,5 +409,6 @@ internal sealed partial class BrowserEditorPage
         _pendingShaderRequest = null;
         _shaderPreview?.Dispose();
         _shaderPreview = null;
+        UpdateCompileAction();
     }
 }

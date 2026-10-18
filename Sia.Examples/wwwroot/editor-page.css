@@ -35,23 +35,6 @@
         background: var(--surface-subtle);
     }
 
-    .editor-page-brand {
-        overflow: hidden;
-        opacity: 0.78;
-        font-size: 0.72rem;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    .editor-page-title {
-        display: flex;
-        flex: 1 1 0;
-        align-items: center;
-        gap: 0.75rem;
-        min-width: 0;
-        overflow: hidden;
-    }
-
     .editor-page-build-status {
         margin-left: auto;
         color: var(--color-muted);
@@ -69,6 +52,11 @@
 
     .editor-page-actions .btn {
         white-space: nowrap;
+    }
+
+    .editor-page-actions .btn[aria-disabled='true'] {
+        opacity: 0.5;
+        cursor: wait;
     }
 
     .editor-page-menus > .menu-toggle > summary {
@@ -233,12 +221,6 @@
     .editor-page-statusbar > span {
         overflow: hidden;
         text-overflow: ellipsis;
-    }
-
-    @media (max-width: 600px) {
-        .editor-page-brand {
-            display: none;
-        }
     }
 
     .editor-page-workbench .tab.preview {
