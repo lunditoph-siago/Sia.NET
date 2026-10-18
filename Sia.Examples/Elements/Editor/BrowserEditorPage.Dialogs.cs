@@ -13,8 +13,9 @@ internal sealed partial class BrowserEditorPage
     private DomElement _confirmActions = null!;
     private readonly List<DomElement> _confirmButtons = [];
 
-    private TaskCompletionSource<CloseDecision>? _closeDecision;
-    private Entity? _pendingDeleteEntity;
+    private TaskCompletionSource<(CloseDecision Decision, string Content)>? _closeDecision;
+    private (Entity Entity, CellTab? Tab, string Path)? _dialog;
+    private long _dialogGeneration;
 
     private enum CloseDecision
     {
@@ -33,9 +34,9 @@ internal sealed partial class BrowserEditorPage
         _confirmBanner.Append(_confirmMessage).Append(_confirmActions);
     }
 
-    private Task<CloseDecision> RequestCloseDecisionAsync(Entity entity)
+    private Task<(CloseDecision Decision, string Content)> RequestCloseDecisionAsync(Entity entity)
     {
-        _closeDecision?.TrySetResult(CloseDecision.Cancel);
+        BeginDialog(entity);
         _closeDecision = new(TaskCreationOptions.RunContinuationsAsynchronously);
         ShowConfirmBanner(
             $"'{EditorWorkspace.NameOf(entity)}' has unsaved changes. Save before closing?",
@@ -45,29 +46,108 @@ internal sealed partial class BrowserEditorPage
         return _closeDecision.Task;
     }
 
-    private void ResolveCloseDialog(CloseDecision decision)
+    private void ResolveCloseDialog(CloseDecision decision, string argument)
     {
-        HideConfirmBanner();
-        _closeDecision?.TrySetResult(decision);
+        if (!IsCurrentDialog(argument) || _closeDecision is not { } pending) {
+            return;
+        }
+        SaveEditorSources(synchronizeNativeInput: true);
+        var content = _dialog!.Value.Entity.Get<WorkspaceFile>().Content;
         _closeDecision = null;
+        HideConfirmBanner();
+        pending.TrySetResult((decision, content));
     }
 
-    private void CancelCloseDialog() => ResolveCloseDialog(CloseDecision.Cancel);
+    private void BeginDialog(Entity entity)
+    {
+        CancelCloseDialog();
+        _state.Tabs.TryGetValue(TabIdFor(entity), out var tab);
+        _dialog = (entity, tab, EditorWorkspace.PathOf(entity));
+    }
+
+    private bool IsCurrentDialog(string argument)
+    {
+        if (!long.TryParse(argument, out var generation) || generation != _dialogGeneration) {
+            return false;
+        }
+        if (_dialog is { } owner && owner.Entity.IsValid
+            && EditorWorkspace.PathOf(owner.Entity) == owner.Path
+            && (owner.Tab is null || IsCurrentTab(owner.Entity, owner.Tab))) {
+            return true;
+        }
+        CancelCloseDialog();
+        return false;
+    }
+
+    private void CancelDialog(string argument)
+    {
+        if (IsCurrentDialog(argument)) {
+            CancelCloseDialog();
+        }
+    }
+
+    private void CancelDialog(Entity entity)
+    {
+        if (_dialog is { } owner && owner.Entity == entity) {
+            CancelCloseDialog();
+        }
+    }
+
+    private void CancelCloseDialog()
+    {
+        var pending = _closeDecision;
+        _closeDecision = null;
+        HideConfirmBanner();
+        pending?.TrySetResult((CloseDecision.Cancel, string.Empty));
+    }
+
+    internal (string Content, bool Dirty) CaptureNavigationState()
+    {
+        SaveEditorSources(synchronizeNativeInput: true);
+        var files = _workspace.OpenFiles();
+        var content = System.Text.Json.JsonSerializer.Serialize(files
+            .OrderBy(EditorWorkspace.PathOf)
+            .Select(static entity => new {
+                Path = EditorWorkspace.PathOf(entity),
+                entity.Get<WorkspaceFile>().Content,
+            }));
+        return (content, files.Any(EditorWorkspace.IsDirty));
+    }
+
+    internal async Task<bool> SaveForNavigationAsync()
+    {
+        CancelCloseDialog();
+        SaveEditorSources(synchronizeNativeInput: true);
+        foreach (var entity in _workspace.OpenFiles()) {
+            if (EditorWorkspace.IsDirty(entity) && !await SaveEntityAsync(entity)) {
+                return false;
+            }
+        }
+        UpdateChrome("saved all");
+        return true;
+    }
 
     private async Task<bool> SaveEntityAsync(Entity entity)
     {
-        if (entity.Contains<UntitledFile>()) {
-            _activeEntity = entity;
-            BeginSaveAs();
+        if (!entity.IsValid || !_state.Tabs.TryGetValue(TabIdFor(entity), out var tab)) {
             return false;
         }
+        if (entity.Contains<UntitledFile>()) {
+            BeginSaveAs(entity);
+            return false;
+        }
+        var path = EditorWorkspace.PathOf(entity);
+        var name = EditorWorkspace.NameOf(entity);
         try {
             await _workspace.SaveAsync(entity, _lifetime.Token);
-            return true;
+            return IsCurrentTab(entity, tab) && EditorWorkspace.PathOf(entity) == path;
+        }
+        catch (Exception) when (!IsCurrentTab(entity, tab) || EditorWorkspace.PathOf(entity) != path) {
+            return false;
         }
         catch (WorkspaceConflictException error) {
             _consoleOutput.Text(
-                $"Could not save '{EditorWorkspace.NameOf(entity)}': {error.Message}\n").ToggleClass(
+                $"Could not save '{name}': {error.Message}\n").ToggleClass(
                 "output-error", true);
             return false;
         }
@@ -78,16 +158,21 @@ internal sealed partial class BrowserEditorPage
         if (_activeEntity is not { } entity || !entity.IsValid) {
             return;
         }
-        SaveEditorSources();
-        if (await SaveEntityAsync(entity)) {
+        _state.Tabs.TryGetValue(TabIdFor(entity), out var tab);
+        var activation = _activationGeneration;
+        SaveEditorSources(synchronizeNativeInput: true);
+        var saved = await SaveEntityAsync(entity);
+        if (tab is not null && IsCurrentTab(entity, tab)) {
             ApplyLayout();
-            UpdateChrome("saved");
+            if (_activeEntity == entity) {
+                UpdateChrome(saved && activation == _activationGeneration ? "saved" : null);
+            }
         }
     }
 
     private async Task SaveAllAsync()
     {
-        SaveEditorSources();
+        SaveEditorSources(synchronizeNativeInput: true);
         var untitled = _workspace.OpenFiles().Where(static e => e.Contains<UntitledFile>() && EditorWorkspace.IsDirty(e)).ToArray();
         var failures = await _workspace.SaveAllAsync(_lifetime.Token);
         ApplyLayout();
@@ -98,14 +183,21 @@ internal sealed partial class BrowserEditorPage
 
     private void BeginSaveAs()
     {
-        if (_activeEntity is not { } entity || !entity.IsValid) {
+        if (_activeEntity is { } entity && entity.IsValid) {
+            BeginSaveAs(entity);
+        }
+    }
+
+    private void BeginSaveAs(Entity entity)
+    {
+        if (!entity.IsValid || !entity.Contains<OpenEditorFile>()) {
             return;
         }
         var currentPath = entity.Contains<UntitledFile>()
             ? EditorWorkspace.NameOf(entity)
             : EditorWorkspace.PathOf(entity);
 
-        ClearConfirmActions();
+        BeginDialog(entity);
         _confirmMessage.Text("Save as (workspace-relative path):");
         var input = DomElement.Create("input")
             .Class("inline-title-input")
@@ -119,12 +211,12 @@ internal sealed partial class BrowserEditorPage
             .Class("btn")
             .Attr("type", "button")
             .Attr("data-inline-save", SaveAsInputId)
-            .On("click", "editor-page-save-as-commit")
+            .On("click", $"editor-page-save-as-commit:{_dialogGeneration}")
             .Text("Save");
         var cancel = DomElement.Create("button")
             .Class("btn")
             .Attr("type", "button")
-            .On("click", "editor-page-save-as-cancel")
+            .On("click", $"editor-page-save-as-cancel:{_dialogGeneration}")
             .Text("Cancel");
         _confirmButtons.Add(input);
         _confirmButtons.Add(save);
@@ -133,11 +225,14 @@ internal sealed partial class BrowserEditorPage
         _confirmBanner.ToggleClass("hidden", false);
     }
 
-    private async Task CommitSaveAsAsync()
+    private async Task CommitSaveAsAsync(string argument)
     {
-        if (_activeEntity is not { } entity || !entity.IsValid) {
+        if (!IsCurrentDialog(argument)) {
             return;
         }
+        var owner = _dialog!.Value;
+        var entity = owner.Entity;
+        var activation = _activationGeneration;
         string? path;
         using (var input = DomElement.TryFind(SaveAsInputId)) {
             path = input?.Value().Trim();
@@ -146,7 +241,7 @@ internal sealed partial class BrowserEditorPage
             return;
         }
         HideConfirmBanner();
-        SaveEditorSources();
+        SaveEditorSources(synchronizeNativeInput: true);
         Entity saved;
         try {
             saved = await _workspace.SaveAsAsync(entity, path, _lifetime.Token);
@@ -155,7 +250,12 @@ internal sealed partial class BrowserEditorPage
             _consoleOutput.Text($"Could not save as '{path}': {error.Message}\n").ToggleClass("output-error", true);
             return;
         }
-        if (saved != entity) {
+        if (_disposed) {
+            return;
+        }
+        if (saved != entity && owner.Tab is { } tab && IsCurrentTab(entity, tab)
+            && _activeEntity == entity && activation == _activationGeneration) {
+            ++_activationGeneration;
             EnsureFileWindow(saved);
             _activeEntity = saved;
             UpdateState(state => NotebookCellLayout.OpenTabIntoHome(state, TabIdFor(saved)));
@@ -167,14 +267,12 @@ internal sealed partial class BrowserEditorPage
         RefreshExplorerSelection();
     }
 
-    private void CancelSaveAs() => HideConfirmBanner();
-
     private void BeginDelete(string key)
     {
         if (!TryResolve(key, out var entity) || !entity.IsValid) {
             return;
         }
-        _pendingDeleteEntity = entity;
+        BeginDialog(entity);
         var name = EditorWorkspace.NameOf(entity);
         var noun = EditorWorkspace.IsFolder(entity) ? "folder (and everything inside it)" : "file";
         ShowConfirmBanner(
@@ -183,34 +281,52 @@ internal sealed partial class BrowserEditorPage
             ("Cancel", "editor-page-dialog-delete-cancel"));
     }
 
-    private void CancelDeleteDialog()
+    private async Task ConfirmDeleteAsync(string argument)
     {
-        _pendingDeleteEntity = null;
-        HideConfirmBanner();
-    }
-
-    private async Task ConfirmDeleteAsync()
-    {
-        HideConfirmBanner();
-        if (_pendingDeleteEntity is not { } entity || !entity.IsValid) {
+        if (!IsCurrentDialog(argument)) {
             return;
         }
-        _pendingDeleteEntity = null;
+        var entity = _dialog!.Value.Entity;
+        HideConfirmBanner();
 
+        SaveEditorSources(synchronizeNativeInput: true);
         var deletedPath = EditorWorkspace.PathOf(entity);
+        var approved = _workspace.OpenFiles().ToDictionary(
+            static file => file,
+            file => (Content: file.Get<WorkspaceFile>().Content,
+                Tab: _state.Tabs.GetValueOrDefault(TabIdFor(file))));
+        await _workspace.DeleteEntryAsync(entity, _lifetime.Token);
+        if (_disposed) {
+            return;
+        }
+        SaveEditorSources(synchronizeNativeInput: true);
         foreach (var open in _workspace.OpenFiles().ToArray()) {
             if (!open.IsValid) {
                 continue;
             }
-            var isTarget = open == entity;
+            var isTarget = open == entity && !open.Contains<UntitledFile>()
+                && EditorWorkspace.PathOf(open) == deletedPath;
             var isDescendant = !open.Contains<UntitledFile>()
                 && WorkspacePath.IsDescendantOf(EditorWorkspace.PathOf(open), deletedPath);
             if (isTarget || isDescendant) {
-                FinishCloseTab(open, TabIdFor(open), WindowIdFor(open));
+                if (!approved.TryGetValue(open, out var snapshot)
+                    || open.Get<WorkspaceFile>().Content != snapshot.Content
+                    || snapshot.Tab is null || !IsCurrentTab(open, snapshot.Tab)) {
+                    CancelDialog(open);
+                    _workspace.RetainDeletedDraft(open);
+                } else {
+                    FinishCloseTab(open, TabIdFor(open), WindowIdFor(open));
+                }
             }
         }
-        await _workspace.DeleteAsync(entity, _lifetime.Token);
-        Forget(entity);
+        if (entity.IsValid && !entity.Contains<UntitledFile>() && EditorWorkspace.PathOf(entity) == deletedPath) {
+            _workspace.RemoveEntry(entity);
+        }
+        foreach (var removed in _entryKeys.Keys.Where(static entry => !entry.IsValid).ToArray()) {
+            Forget(removed);
+        }
+        ApplyLayout();
+        UpdateChrome();
         RenderExplorer();
     }
 
@@ -222,7 +338,7 @@ internal sealed partial class BrowserEditorPage
             var button = DomElement.Create("button")
                 .Class("btn")
                 .Attr("type", "button")
-                .On("click", payload)
+                .On("click", $"{payload}:{_dialogGeneration}")
                 .Text(label);
             _confirmButtons.Add(button);
             _confirmActions.Append(button);
@@ -241,6 +357,8 @@ internal sealed partial class BrowserEditorPage
 
     private void HideConfirmBanner()
     {
+        ++_dialogGeneration;
+        _dialog = null;
         ClearConfirmActions();
         _confirmBanner.ToggleClass("hidden", true);
     }

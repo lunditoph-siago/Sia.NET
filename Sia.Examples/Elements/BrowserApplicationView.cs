@@ -19,6 +19,7 @@ public sealed class BrowserApplicationView :
     private readonly DomElement _deleteButton;
     private readonly DomElement _conflictBanner;
     private readonly DomElement _conflictMessage;
+    private readonly List<DomElement> _noticeButtons = [];
 
     public BrowserApplicationView()
     {
@@ -56,15 +57,7 @@ public sealed class BrowserApplicationView :
             .Class("save-conflict-banner")
             .Class("hidden");
         _conflictMessage = DomElement.Create("span").Class("save-conflict-message");
-        using var overwrite = DomElement.Create("button")
-            .Class("btn")
-            .On("click", "resolve-conflict-overwrite")
-            .Text("Overwrite mine");
-        using var reload = DomElement.Create("button")
-            .Class("btn")
-            .On("click", "resolve-conflict-reload")
-            .Text("Discard mine, reload theirs");
-        _conflictBanner.Append(_conflictMessage).Append(overwrite).Append(reload);
+        _conflictBanner.Append(_conflictMessage);
         content.InsertBefore(_conflictBanner, notebook);
     }
 
@@ -92,14 +85,43 @@ public sealed class BrowserApplicationView :
 
     public void ShowConflict(WorkspaceConflictException error)
     {
-        _conflictMessage.Text(error.ActualVersion is { } actual
+        ShowNotice(error.ActualVersion is { } actual
             ? $"Storage changed from {error.ExpectedVersion} to {actual}."
-            : "This notebook was deleted from storage.");
+            : "This notebook was deleted from storage.",
+            ("Overwrite mine", "resolve-conflict-overwrite"),
+            ("Discard mine, reload theirs", "resolve-conflict-reload"));
+    }
+
+    internal void ShowNotice(string message, params (string Label, string Payload)[] actions)
+    {
+        ClearNoticeButtons();
+        _conflictMessage.Text(message);
+        foreach (var (label, payload) in actions) {
+            var button = DomElement.Create("button")
+                .Class("btn")
+                .Attr("type", "button")
+                .On("click", payload)
+                .Text(label);
+            _noticeButtons.Add(button);
+            _conflictBanner.Append(button);
+        }
         _conflictBanner.ToggleClass("hidden", false);
     }
 
     public void HideConflict()
-        => _conflictBanner.ToggleClass("hidden", true);
+    {
+        _conflictBanner.ToggleClass("hidden", true);
+        ClearNoticeButtons();
+    }
+
+    private void ClearNoticeButtons()
+    {
+        foreach (var button in _noticeButtons) {
+            button.Remove();
+            button.Dispose();
+        }
+        _noticeButtons.Clear();
+    }
 
     public void Upsert(in ExampleItemView view)
     {
@@ -127,6 +149,7 @@ public sealed class BrowserApplicationView :
             node.Dispose();
         }
         _examples.Clear();
+        ClearNoticeButtons();
         _conflictMessage.Dispose();
         _conflictBanner.Dispose();
         _deleteButton.Dispose();

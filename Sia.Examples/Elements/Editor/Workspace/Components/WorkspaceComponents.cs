@@ -28,5 +28,3 @@ public record struct OpenEditorFile;
 public record struct PreviewTab;
 
 public record struct UntitledFile;
-
-public readonly record struct EditorMemento(int Line, int Column, double ScrollTop);

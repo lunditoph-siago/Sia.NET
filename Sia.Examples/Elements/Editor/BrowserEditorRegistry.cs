@@ -10,7 +10,7 @@ public sealed class BrowserEditorRegistry(
 {
     private readonly World _world = world;
     private readonly ICompilationReferenceResolver _references = references;
-    private readonly Dictionary<string, BrowserEditorHost> _editors = [];
+    private readonly Dictionary<string, (DomElement Container, BrowserEditorHost Editor)> _editors = [];
 
     public BrowserEditorHost Add(
         DomElement container,
@@ -18,6 +18,9 @@ public sealed class BrowserEditorRegistry(
         string source,
         IReadOnlyList<HighlightRun> highlights)
     {
+        if (_editors.ContainsKey(cellId)) {
+            throw new InvalidOperationException($"Editor '{cellId}' is already mounted.");
+        }
         var editor = new BrowserEditorHost(
             _world,
             container,
@@ -25,7 +28,7 @@ public sealed class BrowserEditorRegistry(
             source,
             highlights,
             _references);
-        _editors.Add(cellId, editor);
+        _editors.Add(cellId, (container, editor));
         return editor;
     }
 
@@ -41,27 +44,59 @@ public sealed class BrowserEditorRegistry(
         }
 
         var eventType = payload[..typeSeparator];
-        var cellId = payload[(typeSeparator + 1)..cellSeparator];
-        return _editors.TryGetValue(cellId, out var editor)
-            && editor.Route(eventType, payload[(cellSeparator + 1)..]);
+        var bindingId = payload[(typeSeparator + 1)..cellSeparator];
+        return TryResolveCellId(bindingId, out var cellId)
+            && _editors[cellId].Editor.Route(eventType, payload[(cellSeparator + 1)..]);
+    }
+
+    public bool TryResolveCellId(string bindingId, out string cellId)
+    {
+        var separator = bindingId.LastIndexOf('~');
+        cellId = separator < 0 ? string.Empty : bindingId[..separator];
+        return _editors.TryGetValue(cellId, out var entry)
+            && entry.Editor.BindingId == bindingId;
     }
 
     public string GetSource(string cellId)
-        => _editors.TryGetValue(cellId, out var editor)
-            ? editor.Source
+        => _editors.TryGetValue(cellId, out var entry)
+            ? entry.Editor.Source
             : throw new KeyNotFoundException($"Editor '{cellId}' is not mounted.");
 
-    public void Update(string cellId, string source, IReadOnlyList<HighlightRun> highlights)
+    public void SynchronizeNativeInput(string cellId)
     {
-        if (_editors.TryGetValue(cellId, out var editor)) {
-            editor.Update(source, highlights);
+        if (_editors.TryGetValue(cellId, out var entry)) {
+            entry.Editor.SynchronizeNativeInput();
         }
+    }
+
+    public BrowserEditorHost? Update(string cellId, string source, IReadOnlyList<HighlightRun> highlights)
+    {
+        if (!_editors.TryGetValue(cellId, out var entry)) {
+            return null;
+        }
+        if (entry.Editor.Source == source) {
+            entry.Editor.UpdateHighlights(highlights);
+            return entry.Editor;
+        }
+        var hasPosition = entry.Editor.TryGetPosition(out var position);
+        var replacement = Replace(cellId, source, highlights);
+        if (hasPosition) {
+            replacement.RestorePosition(position);
+        }
+        return replacement;
+    }
+
+    public BrowserEditorHost Replace(string cellId, string source, IReadOnlyList<HighlightRun> highlights)
+    {
+        var container = _editors[cellId].Container;
+        Remove(cellId);
+        return Add(container, cellId, source, highlights);
     }
 
     public bool TryGetSource(string cellId, out string source)
     {
-        if (_editors.TryGetValue(cellId, out var editor)) {
-            source = editor.Source;
+        if (_editors.TryGetValue(cellId, out var entry)) {
+            source = entry.Editor.Source;
             return true;
         }
         source = string.Empty;
@@ -70,8 +105,8 @@ public sealed class BrowserEditorRegistry(
 
     public bool TryGetPosition(string cellId, out EditorMemento memento)
     {
-        if (_editors.TryGetValue(cellId, out var editor)) {
-            return editor.TryGetPosition(out memento);
+        if (_editors.TryGetValue(cellId, out var entry)) {
+            return entry.Editor.TryGetPosition(out memento);
         }
         memento = default!;
         return false;
@@ -79,22 +114,22 @@ public sealed class BrowserEditorRegistry(
 
     public void RestorePosition(string cellId, EditorMemento memento)
     {
-        if (_editors.TryGetValue(cellId, out var editor)) {
-            editor.RestorePosition(memento);
+        if (_editors.TryGetValue(cellId, out var entry)) {
+            entry.Editor.RestorePosition(memento);
         }
     }
 
     public void Remove(string cellId)
     {
-        if (_editors.Remove(cellId, out var editor)) {
-            editor.Dispose();
+        if (_editors.Remove(cellId, out var entry)) {
+            entry.Editor.Dispose();
         }
     }
 
     public void Dispose()
     {
-        foreach (var editor in _editors.Values) {
-            editor.Dispose();
+        foreach (var entry in _editors.Values) {
+            entry.Editor.Dispose();
         }
         _editors.Clear();
     }

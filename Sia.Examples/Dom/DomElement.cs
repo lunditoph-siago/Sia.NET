@@ -38,6 +38,9 @@ public sealed class DomElement : IDisposable
         return this;
     }
 
+    internal void TextRuns(IReadOnlyList<DomTextRun> runs)
+        => DomRuntime.Backend.SetTextRuns(Node, runs);
+
     public string TextContent() => DomRuntime.Backend.GetText(Node);
 
     public string Value() => DomRuntime.Backend.GetValue(Node);

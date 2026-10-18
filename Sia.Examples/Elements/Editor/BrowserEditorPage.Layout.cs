@@ -24,8 +24,6 @@ internal sealed partial class BrowserEditorPage
     private const string RenderWindowId = "window-render-render";
     private const string SeparatorAriaLabel = "Resize editor panes";
 
-    private IEnumerable<string> SurfaceIds => _editorEntities.Keys;
-
     private NotebookCellState CreateLayoutState()
     {
         var windows = ImmutableDictionary.CreateBuilder<string, CellWindow>();
@@ -76,10 +74,16 @@ internal sealed partial class BrowserEditorPage
             _state.Revision.ToString(CultureInfo.InvariantCulture));
     }
 
-    private void SaveEditorSources()
+    private void SaveEditorSources(bool synchronizeNativeInput = false)
     {
         foreach (var (groupId, entity) in _editorEntities) {
-            if (entity.IsValid && _editors.TryGetSource(groupId, out var source)) {
+            if (!entity.IsValid || !entity.Contains<OpenEditorFile>()) {
+                continue;
+            }
+            if (synchronizeNativeInput) {
+                _editors.SynchronizeNativeInput(groupId);
+            }
+            if (_editors.TryGetSource(groupId, out var source)) {
                 _workspace.SetContent(entity, source);
             }
         }
@@ -179,12 +183,6 @@ internal sealed partial class BrowserEditorPage
 
     private void DetachGroup(GroupView groupView)
     {
-        foreach (var tabId in groupView.MountedTabs) {
-            if (_tabHeaders.TryGetValue(tabId, out var header)) {
-                header.Root.Remove();
-            }
-        }
-        groupView.MountedTabs.Clear();
         if (groupView.ActiveWindowId is { } windowId) {
             switch (windowId) {
                 case ConsoleWindowId:
@@ -195,12 +193,26 @@ internal sealed partial class BrowserEditorPage
                     break;
             default:
                 if (_surfaces.TryGetValue(groupView.Id, out var surface)) {
+                    if (_editorEntities.TryGetValue(groupView.Id, out var entity)
+                        && entity.IsValid && entity.Contains<OpenEditorFile>()) {
+                        _editors.SynchronizeNativeInput(groupView.Id);
+                        CaptureMemento(groupView.Id, entity);
+                        if (_editors.TryGetSource(groupView.Id, out var source)) {
+                            _workspace.SetContent(entity, source);
+                        }
+                    }
                     surface.Remove();
                 }
                 break;
             }
             groupView.ActiveWindowId = null;
         }
+        foreach (var tabId in groupView.MountedTabs) {
+            if (_tabHeaders.TryGetValue(tabId, out var header)) {
+                header.Root.Remove();
+            }
+        }
+        groupView.MountedTabs.Clear();
         groupView.Signature = null;
     }
 
@@ -252,18 +264,13 @@ internal sealed partial class BrowserEditorPage
             _surfaces[group.Id] = surface;
             _editors.Add(surface, group.Id, content, HighlightsFor(content));
             _editorEntities[group.Id] = entity;
-            RestoreMemento(group.Id, entity);
         } else if (_editorEntities.TryGetValue(group.Id, out var currentEntity)
             && currentEntity != entity) {
-            CaptureMemento(group.Id, currentEntity);
-            if (currentEntity.IsValid && _editors.TryGetSource(group.Id, out var previousSource)) {
-                _workspace.SetContent(currentEntity, previousSource);
-            }
-            _editors.Update(group.Id, content, HighlightsFor(content));
+            _editors.Replace(group.Id, content, HighlightsFor(content));
             _editorEntities[group.Id] = entity;
-            RestoreMemento(group.Id, entity);
         }
         groupView.Content.Append(surface);
+        RestoreMemento(group.Id, entity);
     }
 
     private void CaptureMemento(string groupId, Entity entity)
@@ -275,8 +282,10 @@ internal sealed partial class BrowserEditorPage
 
     private void RestoreMemento(string groupId, Entity entity)
     {
-        if (_mementos.TryGetValue(entity, out var memento)) {
+        if (_mementos.TryGetValue(entity, out var memento)
+            && _editors.TryGetSource(groupId, out _)) {
             _editors.RestorePosition(groupId, memento);
+            _mementos[entity] = memento with { History = null };
         }
     }
 
@@ -296,6 +305,7 @@ internal sealed partial class BrowserEditorPage
                 .Attr("aria-label", title)
                 .Attr("title", title)
                 .Text(title);
+            existing.Close.Attr("aria-label", $"Close {title}");
             if (entity is { } liveEntity) {
                 existing.SetDirty(EditorWorkspace.IsDirty(liveEntity));
                 existing.SetPreview(liveEntity.Contains<PreviewTab>());
@@ -376,6 +386,7 @@ internal sealed partial class BrowserEditorPage
         foreach (var groupId in _surfaces.Keys.ToArray()) {
             DisposeEditorSurface(groupId);
         }
+        _mementos.Clear();
     }
 
     private void DisposeLayoutViews()

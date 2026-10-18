@@ -93,24 +93,36 @@
 
     .editor-container {
         --editor-gutter-width: 42px;
+        tab-size: 4;
         position: relative;
         display: grid;
         grid-template-rows: minmax(0, 1fr) auto;
         max-height: min(50dvh, 500px);
         overflow: hidden;
+        font-family: var(--font-mono);
+        font-size: 13px;
+        line-height: 1.5;
     }
 
     .editor-scroll {
         grid-row: 1;
-        display: flex;
-        align-items: flex-start;
+        display: block;
         overflow: auto;
         overflow-anchor: none;
     }
 
     .editor-gutter {
-        flex: 0 0 var(--editor-gutter-width);
-        width: var(--editor-gutter-width);
+        display: none;
+    }
+
+    .editor-lines {
+        display: grid;
+        grid-template-rows: subgrid;
+        grid-row: 1 / -1;
+    }
+
+    .editor-gutter {
+        grid-column: 1;
         border-right: 1px solid var(--color-border);
         background: var(--color-bg-secondary);
         color: var(--color-text-dim);
@@ -128,7 +140,9 @@
     }
 
     .editor-lines {
-        flex: 1 1 auto;
+        --editor-line-gutter-width: max(var(--editor-gutter-width), calc(var(--editor-line-digits, 1) * 1ch + 9px));
+        display: block;
+        background: linear-gradient(to right, var(--color-bg-secondary) var(--editor-line-gutter-width), transparent var(--editor-line-gutter-width));
         min-width: 0;
         min-height: 100%;
         outline: none;
@@ -142,14 +156,47 @@
         }
     }
 
+    .editor-chunk {
+        content-visibility: auto;
+    }
+
     .editor-line {
+        position: relative;
         min-height: 1.5em;
+        padding-inline-start: var(--editor-line-gutter-width);
+        box-sizing: border-box;
+
+        &::before {
+            content: attr(data-number);
+            position: absolute;
+            inset-inline-start: 0;
+            top: 0;
+            bottom: 0;
+            width: var(--editor-line-gutter-width);
+            box-sizing: border-box;
+            padding: 0 6px 0 2px;
+            border-inline-end: 1px solid var(--color-border);
+            color: var(--color-text-dim);
+            text-align: right;
+            pointer-events: none;
+            user-select: none;
+            white-space: pre;
+        }
+
+        &.active::before {
+            color: var(--color-text);
+            font-weight: 600;
+        }
     }
 
     .editor-spacer {
         overflow: hidden;
         pointer-events: none;
         user-select: none;
+
+        &:last-child {
+            grid-row: -2 / -1;
+        }
     }
 
     .completion-popup {
@@ -210,10 +257,7 @@
         .editor-container {
             --editor-gutter-width: 34px;
             max-height: min(58dvh, 540px);
-        }
-
-        .editor-gutter-line {
-            padding: 0 4px 0 1px;
+            font-size: 14px;
         }
 
         .editor-status {

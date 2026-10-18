@@ -5,11 +5,16 @@ namespace Sia_Examples.Notebook;
 public static class CSharpHighlighter
 {
     public static IReadOnlyList<HighlightRun> Classify(string source)
+        => Classify(source, default);
+
+    internal static IReadOnlyList<HighlightRun> Classify(string source, CancellationToken cancellationToken)
     {
-        var root = CSharpSyntaxTree.ParseText(source).GetRoot();
+        cancellationToken.ThrowIfCancellationRequested();
+        var root = CSharpSyntaxTree.ParseText(source, cancellationToken: cancellationToken).GetRoot(cancellationToken);
         List<HighlightRun> result = [];
 
         foreach (var trivia in root.DescendantTrivia(descendIntoTrivia: true)) {
+            cancellationToken.ThrowIfCancellationRequested();
             if (trivia.Kind() is SyntaxKind.SingleLineCommentTrivia
                 or SyntaxKind.MultiLineCommentTrivia
                 or SyntaxKind.SingleLineDocumentationCommentTrivia
@@ -22,6 +27,7 @@ public static class CSharpHighlighter
         }
 
         foreach (var token in root.DescendantTokens()) {
+            cancellationToken.ThrowIfCancellationRequested();
             if (token.Span.Length == 0 || Classify(token.Kind(), token.ValueText) is not { } classification) {
                 continue;
             }
@@ -29,6 +35,7 @@ public static class CSharpHighlighter
         }
 
         result.Sort(static (left, right) => left.Start.CompareTo(right.Start));
+        cancellationToken.ThrowIfCancellationRequested();
         return result;
     }
 

@@ -8,7 +8,8 @@ public static class LineDecorator
         IEnumerable<Range<Decoration>> marks)
     {
         var active = new List<Range<Decoration>>();
-        var boundaries = new SortedSet<int> { 0, lineText.Length };
+        SortedSet<int>? boundaries = null;
+        var previousTo = 0;
         foreach (var mark in marks) {
             if (mark.Value.Kind != DecorationKind.Mark) {
                 continue;
@@ -18,12 +19,36 @@ public static class LineDecorator
             if (to <= from) {
                 continue;
             }
-            boundaries.Add(from);
-            boundaries.Add(to);
+            if (boundaries is null && from < previousTo) {
+                boundaries = new() { 0, lineText.Length };
+                foreach (var range in active) {
+                    boundaries.Add(range.From);
+                    boundaries.Add(range.To);
+                }
+            }
+            boundaries?.Add(from);
+            boundaries?.Add(to);
+            previousTo = to;
             active.Add(new(from, to, mark.Value));
         }
         if (active.Count == 0) {
             return [new(lineText, null)];
+        }
+
+        if (boundaries is null) {
+            var orderedRuns = new List<StyledRun>(active.Count * 2 + 1);
+            var position = 0;
+            foreach (var range in active) {
+                if (position < range.From) {
+                    orderedRuns.Add(new(lineText[position..range.From], null));
+                }
+                orderedRuns.Add(new(lineText[range.From..range.To], range.Value.Class));
+                position = range.To;
+            }
+            if (position < lineText.Length) {
+                orderedRuns.Add(new(lineText[position..], null));
+            }
+            return orderedRuns;
         }
 
         var points = boundaries.ToArray();

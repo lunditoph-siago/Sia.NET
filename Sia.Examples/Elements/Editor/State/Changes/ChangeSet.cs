@@ -1,6 +1,6 @@
 namespace Sia_Examples.Editor;
 
-public class ChangeSet : ChangeDesc
+public partial class ChangeSet : ChangeDesc
 {
     internal ChangeSet(int[] sections, Text[] inserted)
         : base(sections)
@@ -127,7 +127,7 @@ public class ChangeSet : ChangeDesc
         }
     }
 
-    private static ChangeSet Compose(ChangeDesc first, ChangeDesc second)
+    internal static ChangeSet Compose(ChangeDesc first, ChangeDesc second)
     {
         var sections = new List<int>();
         var inserted = new List<Text>();

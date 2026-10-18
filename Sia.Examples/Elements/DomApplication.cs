@@ -36,6 +36,36 @@ internal static class DomApplication
 
             NotebookWorkspace? workspace = null;
             BrowserEditorPage? editorPage = null;
+            NavigationRequest? pendingNavigation = null;
+            object? navigationOwner = null;
+            long navigationGeneration = 0;
+            var quitting = false;
+
+            object? CurrentOwner() => (object?)workspace ?? editorPage;
+
+            (string Content, bool Dirty) CaptureNavigationState()
+                => workspace?.CaptureNavigationState()
+                    ?? editorPage?.CaptureNavigationState()
+                    ?? (string.Empty, false);
+
+            void ClearNavigation()
+            {
+                pendingNavigation = null;
+                navigationOwner = null;
+                view.HideConflict();
+            }
+
+            void PromptNavigation(NavigationRequest request, object? owner, string? error = null)
+            {
+                pendingNavigation = request;
+                navigationOwner = owner;
+                var generation = ++navigationGeneration;
+                view.ShowNotice(
+                    error ?? "There are unsaved changes. Save before leaving?",
+                    ("Save", $"navigation-save:{generation}"),
+                    ("Don't Save", $"navigation-discard:{generation}"),
+                    ("Cancel", $"navigation-cancel:{generation}"));
+            }
 
             async Task CloseWorkspaceAsync()
             {
@@ -64,89 +94,158 @@ internal static class DomApplication
                 world.FlushReactive();
             }
 
-            async Task OpenAsync(NotebookInfo info)
+            async Task NavigateAsync(NavigationRequest request, bool discard = false)
             {
+                if (!request.Reload && (request.Target == Destination.Notebook
+                    && workspace is not null && request.Info is { } current
+                    && workspace.Info.Key == current.Key && workspace.Info.Origin == current.Origin
+                    || request.Target == Destination.Editor && editorPage is not null)) {
+                    ClearNavigation();
+                    return;
+                }
+
+                var owner = CurrentOwner();
+                var before = CaptureNavigationState();
+                if (before.Dirty && !discard) {
+                    PromptNavigation(request, owner);
+                    return;
+                }
+
+                pendingNavigation = request;
+                navigationOwner = owner;
+                var generation = ++navigationGeneration;
+                NotebookDocument? document = null;
+                string? version = null;
+                try {
+                    if (request.Target == Destination.Notebook) {
+                        (document, version) = await library.LoadAsync(request.Info!);
+                    }
+                }
+                catch (Exception error) {
+                    view.ShowNotice($"Could not open notebook: {error.Message}",
+                        ("Retry", $"navigation-retry:{generation}"),
+                        ("Cancel", $"navigation-cancel:{generation}"));
+                    return;
+                }
+
+                if (!ReferenceEquals(owner, CurrentOwner())) {
+                    return;
+                }
+                var after = CaptureNavigationState();
+                if (after.Dirty && (!discard || after.Content != before.Content)) {
+                    PromptNavigation(request, owner);
+                    return;
+                }
+
+                ClearNavigation();
+                view.HideNotebookBar();
                 await CloseEditorPageAsync();
                 await CloseWorkspaceAsync();
-                var (document, version) = await library.LoadAsync(info);
+                if (request.Target == Destination.Quit) {
+                    quitting = true;
+                    return;
+                }
+                if (request.Target == Destination.Home) {
+                    RefreshSidebarSelection();
+                    return;
+                }
                 var references = new MetadataReferenceProvider(
                     frameworkAssemblies,
                     packages);
+                if (request.Target == Destination.Editor) {
+                    editorPage = new BrowserEditorPage(world, references, workspaceStorage);
+                    RefreshSidebarSelection();
+                    await editorPage.InitializeAsync();
+                    return;
+                }
+                var info = request.Info ?? new NotebookInfo("Untitled", "", "", NotebookOrigin.User);
                 workspace = new(
                     world,
                     uiThread,
-                    document,
+                    document ?? new NotebookDocument("Untitled", [], []),
                     references,
                     info,
                     version,
                     storage,
                     library);
+                if (request.Target == Destination.NewNotebook) {
+                    workspace.InsertSection(null, "Notes");
+                }
                 RefreshSidebarSelection();
                 view.ShowNotebookBar(info, version);
                 await workspace.InitializeAsync();
             }
 
             try {
-                while (true) {
+                while (!quitting) {
                     var payload = await DomRuntime.WaitForEventAsync();
                     var (eventName, argument) = Split(payload);
                     try {
                         switch (eventName) {
                             case "quit":
-                                return;
+                                await NavigateAsync(new(Destination.Quit));
+                                break;
 
                             case "select":
                                 if (int.TryParse(argument, out var index)
                                     && index >= 0
                                     && index < library.Notebooks.Count) {
-                                    await OpenAsync(library.Notebooks[index]);
+                                    await NavigateAsync(new(Destination.Notebook, library.Notebooks[index]));
                                 }
                                 break;
 
-                            case "new-notebook": {
-                                    await CloseEditorPageAsync();
-                                    await CloseWorkspaceAsync();
-                                    var info = new NotebookInfo(
-                                        "Untitled",
-                                        "",
-                                        "",
-                                        NotebookOrigin.User);
-                                    var references = new MetadataReferenceProvider(
-                                        frameworkAssemblies,
-                                        packages);
-                                    workspace = new(
-                                        world,
-                                        uiThread,
-                                        new NotebookDocument("Untitled", [], []),
-                                        references,
-                                        info,
-                                        null,
-                                        storage,
-                                        library);
-                                    workspace.InsertSection(null, "Notes");
-                                    RefreshSidebarSelection();
-                                    view.ShowNotebookBar(info, null);
-                                    await workspace.InitializeAsync();
-                                    break;
-                                }
+                            case "new-notebook":
+                                await NavigateAsync(new(Destination.NewNotebook));
+                                break;
 
-                            case "open-editor": {
-                                    await CloseWorkspaceAsync();
-                                    await CloseEditorPageAsync();
-                                    view.HideNotebookBar();
-                                    var references = new MetadataReferenceProvider(
-                                        frameworkAssemblies,
-                                        packages);
-                                    editorPage = new BrowserEditorPage(world, references, workspaceStorage);
-                                    RefreshSidebarSelection();
-                                    await editorPage.InitializeAsync();
-                                    break;
-                                }
+                            case "open-editor":
+                                await NavigateAsync(new(Destination.Editor));
+                                break;
 
                             case "editor-page-home" when editorPage is not null:
-                                await CloseEditorPageAsync();
-                                view.HideNotebookBar();
+                                await NavigateAsync(new(Destination.Home));
                                 break;
+
+                            case "navigation-save":
+                            case "navigation-discard":
+                            case "navigation-cancel":
+                            case "navigation-retry": {
+                                    if (pendingNavigation is not { } request
+                                        || !long.TryParse(argument, out var generation)
+                                        || generation != navigationGeneration
+                                        || !ReferenceEquals(navigationOwner, CurrentOwner())) {
+                                        break;
+                                    }
+                                    if (eventName == "navigation-cancel") {
+                                        ClearNavigation();
+                                        break;
+                                    }
+                                    if (eventName == "navigation-save") {
+                                        try {
+                                            if (workspace is not null) {
+                                                var (version, conflict) = await workspace.SaveToStorageAsync();
+                                                if (conflict is not null) {
+                                                    ClearNavigation();
+                                                    view.ShowConflict(conflict);
+                                                    break;
+                                                }
+                                                view.ShowNotebookBar(workspace.Info, version);
+                                                RefreshSidebarSelection();
+                                            } else if (editorPage is not null
+                                                && !await editorPage.SaveForNavigationAsync()) {
+                                                ClearNavigation();
+                                                break;
+                                            }
+                                        }
+                                        catch (Exception error) {
+                                            PromptNavigation(request, CurrentOwner(),
+                                                $"Could not save changes: {error.Message}");
+                                            break;
+                                        }
+                                    }
+                                    await NavigateAsync(request, discard: eventName == "navigation-discard");
+                                    break;
+                                }
 
                             case "compile" when workspace is not null:
                                 workspace.StartCompile(argument);
@@ -217,7 +316,7 @@ internal static class DomApplication
                                 }
 
                             case "resolve-conflict-reload" when workspace is not null:
-                                await OpenAsync(workspace.Info);
+                                await NavigateAsync(new(Destination.Notebook, workspace.Info, Reload: true), discard: true);
                                 break;
 
                             case "insert-cell" when workspace is not null:
@@ -343,6 +442,10 @@ internal static class DomApplication
         }
         return -1;
     }
+
+    private enum Destination { Notebook, NewNotebook, Editor, Home, Quit }
+
+    private sealed record NavigationRequest(Destination Target, NotebookInfo? Info = null, bool Reload = false);
 
     private static (string EventName, string Argument) Split(string payload)
     {

@@ -125,7 +125,7 @@ internal sealed partial class BrowserEditorPage
 
     private void StartShaderOperation(ShaderAction action)
     {
-        SaveEditorSources();
+        SaveEditorSources(synchronizeNativeInput: true);
         if (_activeEntity is not { } active || !active.IsValid || active.Contains<UntitledFile>()) {
             _buildStatus.Text("Open a saved C# file first");
             return;
@@ -151,7 +151,7 @@ internal sealed partial class BrowserEditorPage
             }
             return;
         }
-        SaveEditorSources();
+        SaveEditorSources(synchronizeNativeInput: true);
         var folder = request.Folder;
         if (_shaderFolder != folder) {
             _shaderFolder = folder;

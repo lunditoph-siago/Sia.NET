@@ -5,112 +5,108 @@ internal sealed class EditorLinesCache
     private Text? _document;
     private RangeSet<Decoration>? _decorations;
     private EditorLineIdentities _identities;
-    private EditorViewport _viewport;
-    private HashSet<int> _mountedKeys = [];
+    private EditorLineView[] _lines = [];
 
-    public Patch Update(in EditorLinesProps props)
+    public EditorLinesView Update(in EditorLinesProps props)
     {
-        Patch patch;
-        if (_document is null
-            || !ReferenceEquals(_decorations, props.Decorations)
-            || props.Update is not { } update
-            || !ReferenceEquals(update.BeforeDocument, _document)
-            || !ReferenceEquals(_identities.Values, props.Identities.Values)
-            || !_viewport.Equals(props.Viewport)) {
-            patch = Rebuild(props);
-        } else {
-            patch = UpdateChangedLines(props, update.Changes);
+        var (from, to) = LineIndexRange(props.Document, props.Viewport);
+        var sameDocument = ReferenceEquals(_document, props.Document);
+        var canReuse = _document is not null
+            && ReferenceEquals(_decorations, props.Decorations)
+            && ReferenceEquals(_identities.Values, props.Identities.Values)
+            && (sameDocument || props.Update is { } update
+                && ReferenceEquals(update.BeforeDocument, _document));
+        var changed = canReuse && !sameDocument && props.Update is { } lineUpdate
+            ? ChangedLines(props.Document, lineUpdate.Changes, from, to)
+            : null;
+        var oldFrom = _lines.Length == 0 ? 0 : _lines[0].Index;
+        var needsBuild = !canReuse || from < oldFrom || to > oldFrom + _lines.Length || changed is { Count: > 0 };
+        var decorations = needsBuild ? WindowDecorations(props, from, to) : [];
+        var ordered = OrderedDecorations(decorations);
+        var cursor = 0;
+        var lines = new EditorLineView[to - from];
+        for (var index = from; index < to; index++) {
+            var oldIndex = index - oldFrom;
+            lines[index - from] = canReuse && oldIndex >= 0 && oldIndex < _lines.Length
+                && changed?.Contains(index) != true
+                ? _lines[oldIndex]
+                : BuildLine(props, index, decorations, ordered, ref cursor);
         }
 
         _document = props.Document;
         _decorations = props.Decorations;
         _identities = props.Identities;
-        _viewport = props.Viewport;
-        return patch;
+        _lines = lines;
+        return new(lines);
     }
 
-    private Patch Rebuild(in EditorLinesProps props)
+    private static HashSet<int> ChangedLines(Text document, ChangeSet changes, int from, int to)
     {
-        var (from, to) = LineIndexRange(props.Document, props.Viewport);
-        var length = to - from;
-        var upserts = new (int Key, EditorLineItem Value)[length];
-        var currentKeys = new HashSet<int>(length);
-        for (var index = from; index < to; index++) {
-            var built = BuildLine(props, index);
-            upserts[index - from] = built;
-            currentKeys.Add(built.Key);
-        }
-
-        var removals = _mountedKeys.Count == 0
-            ? []
-            : _mountedKeys.Where(key => !currentKeys.Contains(key)).ToArray();
-        _mountedKeys = currentKeys;
-        return new(upserts, removals);
-    }
-
-    private static Patch UpdateChangedLines(
-        in EditorLinesProps props,
-        ChangeSet changes)
-    {
-        var (viewportFrom, viewportTo) = LineIndexRange(props.Document, props.Viewport);
-        var changedLines = new HashSet<int>();
-        var document = props.Document;
-        changes.IterateChangedRanges((_, _, from, to) => {
-            var start = document.LineAt(from).Number - 1;
-            var endLine = document.LineAt(to);
-            var end = endLine.Number - 1;
-            if (to > from && to == endLine.From) {
-                end--;
-            }
-            end = Math.Max(start, end);
-            start = Math.Max(start, viewportFrom);
-            end = Math.Min(end, viewportTo - 1);
-            for (var index = start; index <= end; index++) {
-                changedLines.Add(index);
+        var changed = new HashSet<int>();
+        changes.IterateChangedRanges((_, _, start, end) => {
+            var first = document.LineAt(start).Number - 1;
+            var lastLine = document.LineAt(end);
+            var last = lastLine.Number - 1;
+            if (end > start && end == lastLine.From) last--;
+            last = Math.Max(first, last);
+            for (var index = Math.Max(first, from); index <= Math.Min(last, to - 1); index++) {
+                changed.Add(index);
             }
         }, individual: true);
-
-        var upserts = new (int Key, EditorLineItem Value)[changedLines.Count];
-        var target = 0;
-        foreach (var index in changedLines.Order()) {
-            upserts[target++] = BuildLine(props, index);
-        }
-        return new(upserts, []);
+        return changed;
     }
 
     private static (int From, int To) LineIndexRange(Text document, EditorViewport viewport)
     {
-        if (document.Lines == 0) {
-            return (0, 0);
-        }
+        if (document.Lines == 0) return (0, 0);
         var clamped = viewport.Clamp(document.Length);
-        var from = document.LineAt(clamped.From).Number - 1;
-        var to = document.LineAt(clamped.To).Number;
-        return (from, to);
+        return (document.LineAt(clamped.From).Number - 1, document.LineAt(clamped.To).Number);
     }
 
-    private static (int Key, EditorLineItem Value) BuildLine(
-        in EditorLinesProps props,
-        int index)
+    private static Range<Decoration>[] WindowDecorations(in EditorLinesProps props, int from, int to)
+    {
+        if (from >= to || props.Decorations.IsEmpty) return [];
+        return props.Decorations.Between(
+            props.Document.Line(from + 1).From, props.Document.Line(to).To + 1).ToArray();
+    }
+
+    private static bool OrderedDecorations(Range<Decoration>[] decorations)
+    {
+        var previousTo = int.MinValue;
+        foreach (var range in decorations) {
+            if (range.From < previousTo || range.To < range.From) return false;
+            previousTo = range.To;
+        }
+        return true;
+    }
+
+    private static EditorLineView BuildLine(
+        in EditorLinesProps props, int index, Range<Decoration>[] decorations, bool ordered, ref int cursor)
     {
         var line = props.Document.Line(index + 1);
-        var marks = props.Decorations
-            .Between(line.From, line.To)
-            .Where(static range => range.Value.Kind == DecorationKind.Mark)
-            .ToArray();
-        var styledRuns = marks.Length == 0
-            ? null
-            : LineDecorator.Segment(line.Text, line.From, marks);
-        var view = new EditorLineView(
-            props.Identities.Values[index],
-            index,
-            line.Text,
-            styledRuns,
-            DecorationSet.LineClass(props.Decorations, line.From, line.To));
-        return (view.Identity, new(props.View, view));
+        var ranges = decorations.AsSpan();
+        if (ordered) {
+            while (cursor < decorations.Length && decorations[cursor].To < line.From) cursor++;
+            var end = cursor;
+            while (end < decorations.Length && decorations[end].From <= line.To + 1) end++;
+            ranges = ranges[cursor..end];
+        }
+        List<Range<Decoration>>? marks = null;
+        string? className = null;
+        foreach (var range in ranges) {
+            var end = range.Value.Kind == DecorationKind.Line ? line.To + 1 : line.To;
+            var overlaps = range.From == range.To
+                ? range.From >= line.From && range.From <= end
+                : range.From < end && range.To > line.From;
+            if (!overlaps) continue;
+            if (range.Value.Kind == DecorationKind.Mark) {
+                (marks ??= []).Add(range);
+            }
+            else if (range.Value.Kind == DecorationKind.Line) {
+                className = className is null ? range.Value.Class : $"{className} {range.Value.Class}";
+            }
+        }
+        var styledRuns = marks is null ? null : LineDecorator.Segment(line.Text, line.From, marks);
+        return new(props.Identities.Values[index], index, line.Text, styledRuns, className);
     }
-
-    internal readonly record struct Patch(
-        (int Key, EditorLineItem Value)[] Upserts,
-        int[] Removals);
 }

@@ -40,6 +40,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
 
     private NotebookCellState _state;
     private Entity? _activeEntity;
+    private long _activationGeneration;
     private bool _busy;
     private bool _disposed;
     private bool _initialized;
@@ -151,6 +152,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             return;
         }
         _initialized = true;
+        var generation = _activationGeneration;
         await _workspace.InitializeAsync(cancellationToken);
         if (_disposed) {
             return;
@@ -159,8 +161,11 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         var initial = _workspace.RootEntries
             .SelectMany(EnumerateFilesUnder)
             .FirstOrDefault();
-        if (initial != default) {
-            await OpenEntryAsync(initial, pin: true);
+        if (initial != default && generation == _activationGeneration) {
+            await OpenEntryAsync(initial, pin: true, showRender: true);
+        }
+        if (_disposed) {
+            return;
         }
         _buildStatus.Text("Ready");
         OpenPanelWindow("render");
@@ -206,10 +211,10 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
                 BeginSaveAs();
                 return true;
             case "editor-page-save-as-commit":
-                Track(CommitSaveAsAsync());
+                Track(CommitSaveAsAsync(argument));
                 return true;
             case "editor-page-save-as-cancel":
-                CancelSaveAs();
+                CancelDialog(argument);
                 return true;
             case "editor-page-revert":
                 RevertActiveFile();
@@ -238,19 +243,19 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
                 BeginDelete(argument);
                 return true;
             case "editor-page-dialog-save":
-                ResolveCloseDialog(CloseDecision.Save);
+                ResolveCloseDialog(CloseDecision.Save, argument);
                 return true;
             case "editor-page-dialog-dont-save":
-                ResolveCloseDialog(CloseDecision.DontSave);
+                ResolveCloseDialog(CloseDecision.DontSave, argument);
                 return true;
             case "editor-page-dialog-cancel":
-                CancelCloseDialog();
+                CancelDialog(argument);
                 return true;
             case "editor-page-dialog-delete-confirm":
-                Track(ConfirmDeleteAsync());
+                Track(ConfirmDeleteAsync(argument));
                 return true;
             case "editor-page-dialog-delete-cancel":
-                CancelDeleteDialog();
+                CancelDialog(argument);
                 return true;
             case "cell":
                 CellMove(argument);
@@ -265,12 +270,23 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
                 CellNormalize(argument);
                 return true;
             case "editor-focus":
-                return SurfaceIds.Contains(argument);
+                if (!_editors.TryResolveCellId(argument, out var groupId)
+                    || !_editorEntities.TryGetValue(groupId, out var focused)
+                    || !focused.IsValid || !focused.Contains<OpenEditorFile>()) {
+                    return false;
+                }
+                if (_activeEntity != focused) {
+                    ++_activationGeneration;
+                    _activeEntity = focused;
+                    UpdateChrome();
+                    RefreshExplorerSelection();
+                }
+                return true;
             default: {
                     var handled = _editors.Route(payload);
-                    if (handled) {
+                    if (handled && eventName is "input" or "text" or "mut" or "key" or "complete") {
                         SyncDirtyIndicators();
-                        if (eventName is "text" or "mut" or "key" or "complete") CheckShaderSources();
+                        CheckShaderSources();
                     }
                     return handled;
                 }
@@ -284,6 +300,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         }
         _disposed = true;
         _lifetime.Cancel();
+        CancelCloseDialog();
         DisposeShaderPreview();
         _uniformInspector?.Dispose();
         _uniformInspector = null;
@@ -320,6 +337,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
 
     private void Forget(Entity entity)
     {
+        _mementos.Remove(entity);
         if (_entryKeys.Remove(entity, out var key)) {
             _entriesByKey.Remove(key);
         }
@@ -337,18 +355,23 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         await OpenEntryAsync(entity, pin);
     }
 
-    private async Task OpenEntryAsync(Entity entity, bool pin)
+    private async Task OpenEntryAsync(Entity entity, bool pin, bool showRender = false)
     {
         if (!entity.IsValid || EditorWorkspace.IsFolder(entity)) {
             return;
         }
-        await _workspace.OpenFileAsync(entity, pin, _lifetime.Token);
-        if (_disposed) {
+        var generation = ++_activationGeneration;
+        if (!await _workspace.EnsureContentLoadedAsync(entity, _lifetime.Token)
+            || _disposed || generation != _activationGeneration) {
             return;
         }
+        await _workspace.OpenFileAsync(entity, pin, _lifetime.Token);
         EnsureFileWindow(entity);
         _activeEntity = entity;
-        UpdateState(state => NotebookCellLayout.OpenTabIntoHome(state, TabIdFor(entity)));
+        UpdateState(state => {
+            var opened = NotebookCellLayout.OpenTabIntoHome(state, TabIdFor(entity));
+            return showRender ? NotebookCellLayout.OpenWindow(opened, RenderWindowId) : opened;
+        });
         RefreshExplorerSelection();
     }
 
@@ -357,6 +380,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         if (!_state.Tabs.TryGetValue(tabId, out var tab)) {
             return;
         }
+        ++_activationGeneration;
         var window = _state.Windows[tab.WindowId];
         if (window.Kind == CellWindowKind.Script && TryResolve(window.SourceId, out var entity)) {
             _activeEntity = entity;
@@ -379,9 +403,17 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
     }
 
     private string? FindActiveTabId()
-        => NotebookCellLayout.EnumerateGroups(_state)
-            .Select(static group => group.ActiveTabId)
-            .FirstOrDefault(id => _state.Tabs.ContainsKey(id));
+    {
+        var active = NotebookCellLayout.EnumerateGroups(_state)
+            .Select(static group => group.ActiveTabId).ToArray();
+        if (_activeEntity is { } entity && entity.IsValid) {
+            var tabId = TabIdFor(entity);
+            if (active.Contains(tabId)) {
+                return tabId;
+            }
+        }
+        return active.FirstOrDefault(id => _state.Tabs.ContainsKey(id));
+    }
 
     private async Task CloseTabAsync(string tabId)
     {
@@ -397,20 +429,38 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         if (!TryResolve(window.SourceId, out var entity) || !entity.IsValid) {
             return;
         }
-        if (EditorWorkspace.IsDirty(entity)) {
-            var choice = await RequestCloseDecisionAsync(entity);
-            if (choice == CloseDecision.Cancel) {
+        while (IsCurrentTab(entity, tab)) {
+            SaveEditorSources(synchronizeNativeInput: true);
+            if (!EditorWorkspace.IsDirty(entity)) {
+                break;
+            }
+            var (choice, content) = await RequestCloseDecisionAsync(entity);
+            if (!IsCurrentTab(entity, tab) || choice == CloseDecision.Cancel) {
                 return;
             }
-            if (choice == CloseDecision.Save && !await SaveEntityAsync(entity)) {
-                return;
+            SaveEditorSources(synchronizeNativeInput: true);
+            if (choice == CloseDecision.DontSave) {
+                if (entity.Get<WorkspaceFile>().Content == content) {
+                    break;
+                }
+            } else {
+                if (!await SaveEntityAsync(entity) || !IsCurrentTab(entity, tab)) {
+                    return;
+                }
             }
         }
-        FinishCloseTab(entity, tabId, window.Id);
+        if (IsCurrentTab(entity, tab)) {
+            FinishCloseTab(entity, tabId, window.Id);
+        }
     }
+
+    private bool IsCurrentTab(Entity entity, CellTab tab)
+        => !_disposed && entity.IsValid
+            && _state.Tabs.TryGetValue(tab.Id, out var current) && ReferenceEquals(current, tab);
 
     private void FinishCloseTab(Entity entity, string tabId, string windowId)
     {
+        CancelDialog(entity);
         var destroyed = _workspace.CloseFile(entity);
         _state = NotebookCellLayout.CloseTab(_state, tabId);
         _state = _state with {
@@ -418,13 +468,27 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             Tabs = _state.Tabs.Remove(tabId),
         };
         if (_activeEntity == entity) {
+            ++_activationGeneration;
             _activeEntity = null;
+            foreach (var group in NotebookCellLayout.EnumerateGroups(_state)) {
+                if (_state.Tabs.TryGetValue(group.ActiveTabId, out var active)
+                    && _state.Windows.TryGetValue(active.WindowId, out var next)
+                    && next.Kind == CellWindowKind.Script
+                    && TryResolve(next.SourceId, out var remaining)
+                    && remaining.IsValid && remaining.Contains<OpenEditorFile>()) {
+                    _activeEntity = remaining;
+                    break;
+                }
+            }
         }
         if (destroyed) {
             Forget(entity);
             RenderExplorer();
         }
         ApplyLayout();
+        if (_mementos.TryGetValue(entity, out var position)) {
+            _mementos[entity] = position with { History = null };
+        }
         UpdateChrome();
         RefreshExplorerSelection();
     }
@@ -548,6 +612,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
 
     private async Task CreateUntitledAsync()
     {
+        ++_activationGeneration;
         var entity = _workspace.CreateUntitled();
         EnsureFileWindow(entity);
         _activeEntity = entity;

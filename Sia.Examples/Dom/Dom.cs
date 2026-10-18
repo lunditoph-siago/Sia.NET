@@ -17,6 +17,10 @@ internal static class DomRuntime
         => _backend ?? throw new InvalidOperationException(
             "The DOM backend is not initialized.");
 
+    public static void BeginUpdate(DomElement element) => Backend.BeginUpdate(element.Node);
+
+    public static void EndUpdate(DomElement element) => Backend.EndUpdate(element.Node);
+
     public static Task<string> WaitForEventAsync(
         CancellationToken cancellationToken = default)
         => Backend.WaitForEventAsync(cancellationToken);
@@ -39,6 +43,15 @@ internal static class DomRuntime
     public static void AcknowledgeEditorCommand(string cellId, int sequence)
         => Backend.AcknowledgeEditorCommand(cellId, sequence);
 
+    public static void ResolveEditorClipboard(string cellId, int requestId, string? text)
+        => Backend.ResolveEditorClipboard(cellId, requestId, text);
+
+    public static void PrepareEditorReconciliation(DomElement element, int sequence)
+        => Backend.PrepareEditorReconciliation(element.Node, sequence);
+
+    public static string TakeEditorInput(DomElement element, bool sourceBoundary)
+        => Backend.TakeEditorInput(element.Node, sourceBoundary);
+
     public static void AttachGutterHeights(DomElement gutter, DomElement lines, string cellId)
         => Backend.AttachGutterHeights(gutter.Node, lines.Node, cellId);
 
@@ -48,21 +61,26 @@ internal static class DomRuntime
     public static void SetDocumentLines(DomElement lines, int totalLines)
         => Backend.SetDocumentLines(lines.Node, totalLines);
 
-    public static void ScrollLineIntoView(DomElement lines, double targetTop)
-        => Backend.ScrollLineIntoView(lines.Node, targetTop);
+    public static EditorScrollPosition? ReadEditorScrollPosition(DomElement lines)
+        => Backend.ReadEditorScrollPosition(lines.Node);
+
+    public static void RestoreEditorScroll(DomElement lines, int generation, EditorScrollPosition position)
+        => Backend.RestoreEditorScroll(lines.Node, generation, position);
 
     public static void SetEditorSelection(
         DomElement element,
         int anchorLine,
         int anchorColumn,
         int headLine,
-        int headColumn)
+        int headColumn,
+        bool reveal = false)
         => Backend.SetEditorSelection(
             element.Node,
             anchorLine,
             anchorColumn,
             headLine,
-            headColumn);
+            headColumn,
+            reveal);
 
     public static void PlaceOverlay(
         DomElement container,
