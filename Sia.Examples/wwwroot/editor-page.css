@@ -10,6 +10,7 @@
     }
 
     .editor-page {
+        --editor-command-size: 2rem;
         display: grid;
         grid-template-columns: minmax(0, 1fr);
         grid-template-rows: 38px auto minmax(0, 1fr) 24px;
@@ -22,7 +23,8 @@
         font-family: var(--font-mono);
 
         @media (pointer: coarse),
-        (max-width: 720px) {
+        (max-width: 899px) {
+            --editor-command-size: 2.75rem;
             grid-template-rows: 48px auto minmax(0, 1fr) 24px;
 
             .tab-entry .tab {
@@ -58,7 +60,7 @@
         grid-row: 1;
         align-items: center;
         justify-content: space-between;
-        gap: 1rem;
+        gap: 0.5rem;
         min-width: 0;
         padding: 0 0.55rem 0 0.75rem;
         border-bottom: 1px solid var(--border-subtle);
@@ -67,16 +69,6 @@
 
     .editor-page-actions,
     .editor-page-menus {
-        .editor-files-toggle {
-            display: none;
-
-            @media (max-width: 899px) {
-                display: inline-grid;
-                min-width: 2.75rem;
-                min-height: 2.75rem;
-            }
-        }
-
         display: flex;
         flex: 0 1 auto;
         align-items: center;
@@ -86,6 +78,11 @@
     }
 
     .editor-page-actions {
+        button {
+            min-width: var(--editor-command-size);
+            min-height: var(--editor-command-size);
+        }
+
         .btn {
             white-space: nowrap;
         }
@@ -94,25 +91,26 @@
             opacity: 0.5;
             cursor: wait;
         }
-
-        @media (pointer: coarse),
-        (max-width: 720px) {
-            button {
-                min-width: 2.5rem;
-                min-height: 2.5rem;
-            }
-        }
     }
 
     .editor-page-menus {
-        > .menu-toggle > summary {
-            border-color: transparent;
+        .editor-files-toggle {
+            display: none;
 
-            @media (pointer: coarse),
-            (max-width: 720px) {
-                min-width: 2.5rem;
-                min-height: 2.5rem;
+            @media (max-width: 899px) {
+                display: inline-grid;
+                min-width: var(--editor-command-size);
+                min-height: var(--editor-command-size);
             }
+        }
+
+        > .menu-toggle > summary {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: var(--editor-command-size);
+            min-height: var(--editor-command-size);
+            border-color: transparent;
         }
     }
 

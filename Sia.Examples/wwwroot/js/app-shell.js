@@ -8,7 +8,7 @@ function syncSidebar() {
     const sidebar = document.getElementById('sidebar');
     if (sidebar) sidebar.inert = !open;
     for (const button of document.querySelectorAll('#sidebar-toggle, [data-sidebar-toggle]')) {
-        button.setAttribute('aria-expanded', String(open));
+        if (button.getAttribute('aria-expanded') !== String(open)) button.setAttribute('aria-expanded', String(open));
     }
 }
 
@@ -180,23 +180,42 @@ fileTreeRoot.addEventListener('click', (event) => {
     setFileTreeFolderOpen(folder, !folder.open);
 });
 
-new MutationObserver(() => {
-    for (const folder of fileTreeRoot.querySelectorAll('[data-file-tree-folder]')) {
+new MutationObserver((records) => {
+    const folders = new Set();
+    let structureChanged = false;
+    let selectionChanged = false;
+    for (const record of records) {
+        if (record.type === 'childList') {
+            structureChanged = selectionChanged = true;
+            for (const node of record.addedNodes) {
+                if (!(node instanceof Element)) continue;
+                if (node.hasAttribute('data-file-tree-folder')) folders.add(node);
+                for (const folder of node.querySelectorAll('[data-file-tree-folder]')) folders.add(folder);
+            }
+        } else if (record.attributeName === 'aria-current') {
+            selectionChanged = true;
+        } else if (record.target.hasAttribute('data-file-tree-folder')) {
+            folders.add(record.target);
+        }
+    }
+    for (const folder of folders) {
         const open = fileTreeFolderState.get(folder.dataset.fileTreeFolder);
         if (open !== undefined && folder.open !== open) {
             folder.open = open;
         }
     }
-    const active = fileTreeRoot.querySelector('[aria-current="true"]');
-    const activeKey = active?.closest('[data-file-tree-entry]')?.dataset.fileTreeEntry;
-    if (activeKey && activeKey !== fileTreeActiveKey) {
-        for (let folder = active.closest('[data-file-tree-folder]'); folder;
-            folder = folder.parentElement.closest('[data-file-tree-folder]')) {
-            setFileTreeFolderOpen(folder, true);
+    if (selectionChanged) {
+        const active = fileTreeRoot.querySelector('[aria-current="true"]');
+        const activeKey = active?.closest('[data-file-tree-entry]')?.dataset.fileTreeEntry;
+        if (activeKey && activeKey !== fileTreeActiveKey) {
+            for (let folder = active.closest('[data-file-tree-folder]'); folder;
+                folder = folder.parentElement.closest('[data-file-tree-folder]')) {
+                setFileTreeFolderOpen(folder, true);
+            }
         }
+        if (activeKey) fileTreeActiveKey = activeKey;
     }
-    if (activeKey) fileTreeActiveKey = activeKey;
-    syncSidebar();
+    if (structureChanged) syncSidebar();
 }).observe(fileTreeRoot, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-current', 'open'] });
 
 document.addEventListener('click', (event) => {
@@ -246,7 +265,7 @@ fileTreeRoot.addEventListener('keydown', (event) => {
                 parent = parent.parentElement.closest('details')) {
                 if (!parent.open && parent.querySelector(':scope > summary') !== entry) return false;
             }
-            return entry.getClientRects().length > 0;
+            return !entry.closest('.renaming');
         });
     const index = entries.indexOf(target);
     let next;
