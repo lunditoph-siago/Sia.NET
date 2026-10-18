@@ -4,6 +4,7 @@ import './js/app-shell.js';
 import {
     createUniformInspector, disposeUniformInspector, createUniformBinding,
     configureUniformBinding, activateUniformBinding, readUniformEdits, disposeUniformBinding,
+    readUniformImageEdits, readUniformImagePixels,
 } from './js/uniform-inspector.js';
 import {
     createPipelineCanvas,
@@ -303,6 +304,7 @@ const domImports = {
     reportError: (message) => console.error(message),
     createUniformInspector, disposeUniformInspector, createUniformBinding,
     configureUniformBinding, activateUniformBinding, readUniformEdits, disposeUniformBinding,
+    readUniformImageEdits, readUniformImagePixels,
     createPipelineCanvas,
     nextPipelineFrame,
     disposePipelineCanvas,

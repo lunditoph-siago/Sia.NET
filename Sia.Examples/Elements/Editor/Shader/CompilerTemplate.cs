@@ -26,8 +26,8 @@ internal static class CompilerTemplate
                 WGPUTextureFormat Format, DrawResources Draw, string Vertex, string Fragment);
             private struct Material
             {
-                [ColorAttribute] public float4 Tint;
-                [Range(0, 2)] public float Exposure;
+                [Sia.Color] public float4 Tint;
+                [Sia.Range(0, 2)] public float Exposure;
                 public bool Animate;
             }
 

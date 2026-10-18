@@ -1,3 +1,5 @@
+import { createImageControl, imageBudget } from './image-input.js';
+
 export function createUniformInspector(containerId) {
     return new UniformInspector(containerId);
 }
@@ -11,6 +13,19 @@ export function readUniformEdits(binding) {
     const json = JSON.stringify(Object.fromEntries(binding.edits));
     binding.edits.clear();
     return json;
+}
+export function readUniformImageEdits(binding) {
+    if (!binding.imageEdits.size) return '';
+    binding.imageReads = binding.imageEdits;
+    binding.imageEdits = new Map();
+    return JSON.stringify([...binding.imageReads].map(([key, image]) => ({
+        key, name: image?.name ?? null, width: image?.width ?? 0, height: image?.height ?? 0,
+    })));
+}
+export function readUniformImagePixels(binding, key) {
+    const pixels = binding.imageReads.get(key)?.pixels ?? new Uint8Array();
+    binding.imageReads.delete(key);
+    return pixels;
 }
 
 function valid(field, values) {
@@ -28,18 +43,36 @@ function bounded(field, values) {
     return values.map(value => Math.min(field.max ?? Infinity, Math.max(field.min ?? -Infinity, value)));
 }
 
+const decimal = new Intl.NumberFormat('en-US', { useGrouping: false, maximumSignificantDigits: 21 });
+function parseDecimal(value) {
+    return /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(value) ? Number(value) : NaN;
+}
+
 export class UniformBinding {
     constructor(owner) {
         this.owner = owner;
         this.fields = [];
         this.edits = new Map();
+        this.imageEdits = new Map();
+        this.imageReads = new Map();
         this.changed = () => {};
     }
     configure(fields) {
+        for (const field of this.fields) field.abort?.abort();
+        this.edits.clear();
+        this.imageEdits.clear();
+        this.imageReads.clear();
         const previous = new Map(this.fields.map(field => [field.signature, field]));
         this.fields = fields.map(field => {
-            const signature = `${field.key}/${field.type}/${field.values.length}`;
+            const signature = `${field.key}/${field.type}/${field.values?.length ?? 0}`;
             const saved = this.owner.values.get(signature);
+            if (field.type === 'image') {
+                const active = this.owner.active?.fields.find(row => row.signature === signature);
+                const image = active ? active.image : saved ? saved.image : previous.get(signature)?.image ?? null;
+                const row = { ...field, signature, image, abort: null };
+                this.imageEdits.set(row.key, row.image);
+                return row;
+            }
             if (!valid(field, field.values)) throw new Error(`Invalid uniform default: ${field.name}`);
             const restored = saved && valid(field, saved.values);
             const row = { ...field, signature, initial: previous.get(signature)?.initial ?? bounded(field, field.values), initialSource: field.source ?? 'constant',
@@ -58,8 +91,22 @@ export class UniformBinding {
     remember(field) {
         const values = this.owner.values;
         values.delete(field.signature);
-        values.set(field.signature, { values: [...field.values], source: field.source });
+        values.set(field.signature, field.type === 'image' ? { image: field.image } : { values: [...field.values], source: field.source });
         if (values.size > 256) values.delete(values.keys().next().value);
+        let bytes = [...values.values()].reduce((total, saved) => total + (saved.image?.pixels.length ?? 0), 0);
+        for (const [key, saved] of values) {
+            if (bytes <= imageBudget) break;
+            if (saved.image) { bytes -= saved.image.pixels.length; values.delete(key); }
+        }
+    }
+    updateImage(field, image) {
+        if (!this.fields.includes(field)) return;
+        const bytes = this.fields.reduce((total, row) => total + (row !== field ? row.image?.pixels.length ?? 0 : 0), image?.pixels.length ?? 0);
+        if (bytes > imageBudget) throw new Error('Selected images may use at most 32 MB of pixels per session.');
+        field.image = image;
+        this.imageEdits.set(field.key, image);
+        if (this.owner.active === this) this.remember(field);
+        this.changed();
     }
     update(field, values, source = field.source) {
         if (!valid(field, values)) return false;
@@ -78,12 +125,16 @@ export class UniformBinding {
         return valid(field, [value]) ? value : field.values[0];
     }
     dispose() {
+        for (const field of this.fields) field.abort?.abort();
+        this.fields = [];
         if (this.owner.active === this) {
             this.owner.active = null;
             this.owner.render();
         }
         this.changed = () => {};
         this.edits.clear();
+        this.imageEdits.clear();
+        this.imageReads.clear();
     }
 }
 
@@ -114,8 +165,14 @@ class UniformInspector {
         reset.className = 'btn';
         reset.textContent = 'Reset';
         reset.addEventListener('click', () => {
-            for (const field of this.active?.fields ?? [])
-                this.active.update(field, field.initial, field.initialSource);
+            for (const field of this.active?.fields ?? []) {
+                if (field.type === 'image') {
+                    field.abort?.abort();
+                    field.abort = null;
+                    this.active.updateImage(field, null);
+                }
+                else this.active.update(field, field.initial, field.initialSource);
+            }
             this.render();
         });
         const close = document.createElement('button');
@@ -159,35 +216,73 @@ class UniformInspector {
         const fields = this.active?.fields ?? [];
         this.button.disabled = fields.length === 0;
         if (!fields.length) this.panel.hidePopover();
-        for (const field of fields) this.body.append(this.control(field));
+        const groups = new Map();
+        for (const field of fields) {
+            const separator = field.name.indexOf('.');
+            const name = separator < 0 ? '' : field.name.slice(0, separator);
+            let group = groups.get(name);
+            if (!group) {
+                group = document.createElement('fieldset');
+                if (name) {
+                    const legend = document.createElement('legend');
+                    legend.textContent = name;
+                    group.append(legend);
+                }
+                groups.set(name, group);
+                this.body.append(group);
+            }
+            group.append(this.control(field, field.name.slice(separator + 1)));
+        }
         this.place();
     }
-    control(field) {
-        const row = document.createElement('fieldset');
-        const legend = document.createElement('legend');
-        legend.textContent = field.name;
-        row.append(legend);
+    control(field, name) {
+        if (field.type === 'image') return createImageControl(this.active, field, name);
+        const row = document.createElement('div');
+        row.className = 'editor-uniform-field';
+        row.setAttribute('role', 'group');
+        row.setAttribute('aria-label', field.name);
+        const header = document.createElement(field.type === 'bool' ? 'label' : 'div');
+        header.className = 'editor-uniform-label';
+        const title = document.createElement('span');
+        title.textContent = name;
+        header.append(title);
+        const controls = document.createElement('div');
+        controls.className = 'editor-uniform-values';
+        row.append(header, controls);
         const inputs = [];
         const error = document.createElement('span');
         error.className = 'editor-uniform-error';
         error.setAttribute('role', 'status');
         let picker, slider, source;
-        const sync = () => {
+        const sync = (preserveInputs = false) => {
             inputs.forEach((input, index) => {
-                if (field.type === 'bool') input.checked = field.values[index] !== 0;
-                else input.value = String(field.values[index]);
+                if (!preserveInputs) {
+                    if (field.type === 'bool') input.checked = field.values[index] !== 0;
+                    else input.value = decimal.format(field.values[index]);
+                    input.setAttribute('aria-invalid', 'false');
+                }
                 input.disabled = field.source !== 'constant';
+                if (field.type !== 'bool') input.setAttribute('aria-valuenow', String(field.values[index]));
             });
-            if (picker) picker.value = '#' + field.values.slice(0, 3).map(value =>
-                Math.round(Math.min(1, Math.max(0, value)) * 255).toString(16).padStart(2, '0')).join('');
-            if (slider) slider.value = String(field.values[0]);
+            if (picker) {
+                picker.value = '#' + field.values.slice(0, 3).map(value =>
+                    Math.round(Math.min(1, Math.max(0, value)) * 255).toString(16).padStart(2, '0')).join('');
+                picker.setAttribute('aria-invalid', 'false');
+            }
+            if (slider) {
+                slider.value = String(field.values[0]);
+                slider.disabled = field.source !== 'constant';
+                slider.setAttribute('aria-invalid', 'false');
+            }
             if (source) source.value = field.source;
         };
-        const change = values => {
-            const ok = this.active.update(field, values);
-            error.textContent = ok ? '' : `Enter a valid ${field.type} value${field.min != null ? ` in [${field.min}, ${field.max}]` : ''}.`;
-            inputs.forEach(input => input.setAttribute('aria-invalid', String(!ok)));
-            if (ok) sync();
+        const change = (values, control, mode = field.source) => {
+            const ok = this.active.update(field, values, mode);
+            control.setAttribute('aria-invalid', String(!ok));
+            if (ok) sync(inputs.includes(control));
+            const invalid = [...inputs, picker, slider, source].some(input => input?.getAttribute('aria-invalid') === 'true');
+            error.textContent = invalid ? `Enter a valid ${field.type} value${field.min != null ? ` in [${field.min}, ${field.max}]` : ''}.` : '';
+            return ok;
         };
         if (field.color) {
             picker = document.createElement('input');
@@ -196,8 +291,8 @@ class UniformInspector {
             picker.addEventListener('input', () => change([
                 ...[1, 3, 5].map(offset => parseInt(picker.value.slice(offset, offset + 2), 16) / 255),
                 ...field.values.slice(3),
-            ]));
-            row.append(picker);
+            ], picker));
+            header.append(picker);
         }
         if (field.min != null && field.max != null && field.values.length === 1) {
             slider = document.createElement('input');
@@ -206,8 +301,8 @@ class UniformInspector {
             slider.max = field.max;
             slider.step = field.type === 'f32' ? 'any' : '1';
             slider.setAttribute('aria-label', `${field.name} range`);
-            slider.addEventListener('input', () => change([Number(slider.value)]));
-            row.append(slider);
+            slider.addEventListener('input', () => change([Number(slider.value)], slider));
+            controls.append(slider);
         }
         if (field.sources) {
             source = document.createElement('select');
@@ -218,26 +313,55 @@ class UniformInspector {
                 option.textContent = label;
                 source.append(option);
             }
-            source.addEventListener('change', () => { this.active.update(field, field.values, source.value); sync(); });
-            row.append(source);
+            source.addEventListener('change', () => change(field.values, source, source.value));
+            header.append(source);
         }
         field.values.forEach((_, index) => {
             const input = document.createElement('input');
-            input.type = field.type === 'bool' ? 'checkbox' : 'number';
-            input.step = field.type === 'f32' ? 'any' : '1';
-            if (field.min != null) input.min = field.min;
-            if (field.max != null) input.max = field.max;
+            input.type = field.type === 'bool' ? 'checkbox' : 'text';
+            if (field.type !== 'bool') {
+                input.inputMode = field.type === 'f32' ? 'decimal' : 'numeric';
+                input.autocomplete = 'off';
+                input.spellcheck = false;
+                input.setAttribute('role', 'spinbutton');
+                if (field.min != null) input.setAttribute('aria-valuemin', field.min);
+                if (field.max != null) input.setAttribute('aria-valuemax', field.max);
+                input.addEventListener('blur', () => {
+                    if (input.getAttribute('aria-invalid') !== 'true') input.value = decimal.format(field.values[index]);
+                });
+                input.addEventListener('keydown', event => {
+                    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+                    event.preventDefault();
+                    const values = [...field.values];
+                    values[index] = Math.min(field.max ?? Infinity, Math.max(field.min ?? -Infinity,
+                        field.values[index] + (event.key === 'ArrowUp' ? 1 : -1)));
+                    if (change(values, input)) input.value = decimal.format(field.values[index]);
+                });
+            }
             input.setAttribute('aria-label', `${field.name}${field.values.length > 1 ? '.' + 'xyzw'[index] : ''} value`);
-            input.addEventListener('input', () => change(inputs.map(control => field.type === 'bool' ? Number(control.checked) :
-                control.value === '' ? NaN : Number(control.value))));
+            input.addEventListener('input', () => {
+                const values = [...field.values];
+                values[index] = field.type === 'bool' ? Number(input.checked) : parseDecimal(input.value);
+                change(values, input);
+            });
             inputs.push(input);
-            row.append(input);
+            if (field.type === 'bool') header.append(input);
+            else if (field.values.length > 1) {
+                const component = document.createElement('label');
+                component.className = 'editor-uniform-component';
+                const axis = document.createElement('span');
+                axis.textContent = (field.color ? 'RGBA' : 'XYZW')[index];
+                component.append(axis, input);
+                controls.append(component);
+            }
+            else controls.append(input);
         });
         row.append(error);
         sync();
         return row;
     }
     dispose() {
+        this.active?.dispose();
         this.abort.abort();
         this.resize.disconnect();
         this.panel.remove();

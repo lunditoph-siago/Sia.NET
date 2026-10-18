@@ -149,8 +149,8 @@ internal sealed class EditorShaderCompiler(MetadataReferenceProvider references)
                 SpirvScalarType.Int32 => "i32",
                 SpirvScalarType.UInt32 => "u32",
                 _ => throw new InvalidDataException("Unsupported preview scalar type: " + parameter.ScalarType),
-            }, index * 4, metadata[index].GetCustomAttribute<RangeAttribute>()?.Minimum,
-            metadata[index].GetCustomAttribute<RangeAttribute>()?.Maximum)).ToArray();
+            }, index * 4, metadata[index].GetCustomAttribute<Sia.RangeAttribute>()?.Minimum,
+            metadata[index].GetCustomAttribute<Sia.RangeAttribute>()?.Maximum)).ToArray();
         if (parameters.Any(parameter => parameter.Min is { } min && parameter.Max is { } max
             && (!double.IsFinite(min) || !double.IsFinite(max) || min >= max)))
             return Unsupported("Parameter ranges must have finite, increasing bounds.");
