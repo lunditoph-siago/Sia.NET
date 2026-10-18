@@ -72,6 +72,16 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             .Attr("role", "status")
             .Text("Loading workspace…"));
         var menus = Own(DomElement.Create("nav").Class("editor-page-menus").Attr("aria-label", "Editor commands"));
+        var filesToggle = Own(DomElement.Create("button").Class("icon-btn").Class("editor-files-toggle")
+            .Attr("type", "button").Attr("data-sidebar-toggle", "")
+            .Attr("aria-label", "Files").Attr("title", "Show workspace files")
+            .Attr("aria-controls", "sidebar").Attr("aria-expanded", "false"));
+        var filesIcon = Own(DomElement.Create("svg").Attr("viewBox", "0 0 24 24")
+            .Attr("width", "20").Attr("height", "20").Attr("fill", "none")
+            .Attr("stroke", "currentColor").Attr("stroke-width", "1.4")
+            .Attr("stroke-linejoin", "round").Attr("aria-hidden", "true"));
+        filesIcon.Append(Own(DomElement.Create("path").Attr("d", "M3 7V5h7l2 2h9v13H3Z")));
+        menus.Append(filesToggle.Append(filesIcon));
         CreateMenu(menus, "File", [
             ("New File", "editor-page-new-file", "Open a new untitled file"),
             ("Save", "editor-page-save", "Save the active file (Ctrl+S)"),

@@ -19,6 +19,15 @@ internal sealed partial class BrowserEditorPage
         _explorerElements.Clear();
         _explorerFileButtons.Clear();
 
+        var tools = Explorer(DomElement.Create("div").Class("file-tree-tools")
+            .Attr("role", "toolbar").Attr("aria-label", "Workspace files"));
+        tools.Append(Explorer(DomElement.Create("span").Text("Workspace")));
+        AppendExplorerTool(tools, "New file in workspace", "editor-page-tree-new-file:",
+            "M13 3H5v18h14V9Zm0 0v6h6M8 14h8m-4-4v8");
+        AppendExplorerTool(tools, "New folder in workspace", "editor-page-tree-new-folder:",
+            "M3 7V5h7l2 2h9v13H3Zm5 7h8m-4-4v8");
+        _explorerRoot.Append(tools);
+
         var roots = _workspace.RootEntries;
         if (roots.Count == 0) {
             using var placeholder = DomElement.Create("span")
@@ -46,6 +55,8 @@ internal sealed partial class BrowserEditorPage
     {
         var key = KeyFor(folder);
         var name = EditorWorkspace.NameOf(folder);
+        var entry = Explorer(DomElement.Create("div").Class("file-tree-folder-entry")
+            .Attr("data-file-tree-entry", key));
         var node = Explorer(DomElement.Create("details")
             .Class("file-tree-folder")
             .Attr("data-file-tree-folder", key)
@@ -55,21 +66,24 @@ internal sealed partial class BrowserEditorPage
             .Class("file-tree-folder-icon")
             .Attr("aria-hidden", "true")
             .Text("›"));
-        var label = Explorer(DomElement.Create("span").Class("file-tree-folder-name").Text(name));
+        var label = Explorer(DomElement.Create("span").Class("file-tree-folder-name")
+            .Attr("title", EditorWorkspace.PathOf(folder)).Text(name));
         summary.Append(icon).Append(label);
-        AppendFolderAction(summary, "＋", $"New file in {name}", $"editor-page-tree-new-file:{key}");
-        AppendFolderAction(summary, "⊞", $"New folder in {name}", $"editor-page-tree-new-folder:{key}");
-        AppendFolderAction(summary, "✎", $"Rename {name}", string.Empty, renameTriggerKey: key);
-        AppendFolderAction(summary, "×", $"Delete {name}", $"editor-page-tree-delete:{key}");
         node.Append(summary);
-        AppendRenameInput(node, key, name, keepExtension: true);
 
         var children = Explorer(DomElement.Create("div").Class("file-tree-children"));
         foreach (var child in _workspace.ChildrenOf(folder)) {
             AppendEntry(children, child);
         }
         node.Append(children);
-        parent.Append(node);
+        entry.Append(node);
+        var menu = AppendEntryMenu(entry, name);
+        AppendEntryAction(menu, "New file", $"New file in {name}", $"editor-page-tree-new-file:{key}");
+        AppendEntryAction(menu, "New folder", $"New folder in {name}", $"editor-page-tree-new-folder:{key}");
+        AppendEntryAction(menu, "Rename…", $"Rename {name}", string.Empty, renameTriggerKey: key);
+        AppendEntryAction(menu, "Delete…", $"Delete {name}", $"editor-page-tree-delete:{key}");
+        AppendRenameInput(entry, key, name, keepExtension: true);
+        parent.Append(entry);
     }
 
     private void AppendFile(DomElement parent, Entity file)
@@ -85,7 +99,7 @@ internal sealed partial class BrowserEditorPage
             .Attr("type", "button")
             .Attr("data-file-tree-open", TabIdFor(file))
             .Attr("aria-label", $"Open {name}")
-            .Attr("title", name)
+            .Attr("title", EditorWorkspace.PathOf(file))
             .On("click", $"editor-page-tree-open:{key}")
             .On("dblclick", $"editor-page-tree-pin:{key}"));
         var icon = Explorer(DomElement.Create("span")
@@ -100,29 +114,56 @@ internal sealed partial class BrowserEditorPage
             open.Append(extensionLabel);
         }
         row.Append(open);
-        AppendFolderAction(
-            row, "✎", $"Rename {name}", string.Empty, renameTriggerKey: key, cssClass: "file-tree-file-action");
-        AppendFolderAction(
-            row, "×", $"Delete {name}", $"editor-page-tree-delete:{key}", cssClass: "file-tree-file-action");
+        var menu = AppendEntryMenu(row, name);
+        AppendEntryAction(menu, "Rename…", $"Rename {name}", string.Empty, renameTriggerKey: key);
+        AppendEntryAction(menu, "Delete…", $"Delete {name}", $"editor-page-tree-delete:{key}");
         AppendRenameInput(row, key, name, keepExtension: true);
         parent.Append(row);
         _explorerFileButtons[key] = open;
     }
 
-    private void AppendFolderAction(
+    private DomElement AppendEntryMenu(DomElement parent, string name)
+    {
+        var host = Explorer(DomElement.Create("details").Class("menu-toggle").Class("file-tree-menu"));
+        var summary = Explorer(DomElement.Create("summary").Class("icon-btn")
+            .Attr("aria-label", $"Actions for {name}").Attr("title", $"Actions for {name}"));
+        AppendExplorerIcon(summary, "M5 12h.01M12 12h.01M19 12h.01");
+        var menu = Explorer(DomElement.Create("div").Class("menu-popover").Class("file-tree-actions"));
+        parent.Append(host.Append(summary).Append(menu));
+        return menu;
+    }
+
+    private void AppendExplorerTool(DomElement parent, string label, string payload, string path)
+    {
+        var button = Explorer(DomElement.Create("button").Class("icon-btn")
+            .Attr("type", "button").Attr("aria-label", label).Attr("title", label).On("click", payload));
+        AppendExplorerIcon(button, path);
+        parent.Append(button);
+    }
+
+    private void AppendExplorerIcon(DomElement parent, string path)
+    {
+        var svg = Explorer(DomElement.Create("svg").Attr("viewBox", "0 0 24 24")
+            .Attr("width", "18").Attr("height", "18").Attr("fill", "none")
+            .Attr("stroke", "currentColor").Attr("stroke-width", "1.5")
+            .Attr("stroke-linecap", "round").Attr("stroke-linejoin", "round").Attr("aria-hidden", "true"));
+        svg.Append(Explorer(DomElement.Create("path").Attr("d", path)));
+        parent.Append(svg);
+    }
+
+    private void AppendEntryAction(
         DomElement parent,
-        string glyph,
+        string text,
         string label,
         string payload,
-        string? renameTriggerKey = null,
-        string cssClass = "file-tree-folder-action")
+        string? renameTriggerKey = null)
     {
         var button = Explorer(DomElement.Create("button")
-            .Class(cssClass)
+            .Class("menu-item")
             .Attr("type", "button")
             .Attr("aria-label", label)
             .Attr("title", label)
-            .Text(glyph));
+            .Text(text));
         if (renameTriggerKey is { } key) {
             button.Attr("data-file-tree-rename-trigger", key);
         }

@@ -1,7 +1,49 @@
 import { emit } from './notebook-runtime.js';
 
-document.getElementById('sidebar-toggle')?.addEventListener('click', () => {
-    document.getElementById('app')?.classList.toggle('sidebar-open');
+const compactSidebar = matchMedia('(max-width: 899px)');
+let sidebarReturnFocus;
+
+function syncSidebar() {
+    const open = !compactSidebar.matches || document.getElementById('app')?.classList.contains('sidebar-open');
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar) sidebar.inert = !open;
+    for (const button of document.querySelectorAll('#sidebar-toggle, [data-sidebar-toggle]')) {
+        button.setAttribute('aria-expanded', String(open));
+    }
+}
+
+function closeSidebar(focus = false) {
+    document.getElementById('app')?.classList.remove('sidebar-open');
+    for (const menu of document.querySelectorAll('#sidebar .menu-toggle[open]')) menu.open = false;
+    syncSidebar();
+    if (focus && sidebarReturnFocus?.isConnected) sidebarReturnFocus.focus();
+}
+
+compactSidebar.addEventListener('change', () => { closeSidebar(); });
+syncSidebar();
+
+document.addEventListener('click', (event) => {
+    const toggle = event.target.closest?.('#sidebar-toggle, [data-sidebar-toggle]');
+    if (toggle) {
+        sidebarReturnFocus = toggle;
+        document.getElementById('app')?.classList.toggle('sidebar-open');
+        syncSidebar();
+        if (document.getElementById('app')?.classList.contains('sidebar-open')) {
+            if (toggle.hasAttribute('data-sidebar-toggle')) selectSidebarView('files');
+            document.querySelector('#sidebar [aria-current="true"], #sidebar .sidebar-tab.active')?.focus();
+        }
+    } else if (compactSidebar.matches && document.getElementById('app')?.classList.contains('sidebar-open')) {
+        if (event.target.closest?.('[data-sidebar-dismiss]')) closeSidebar(true);
+        else if (!event.target.closest?.('#sidebar') && !menuOwner(event.target)?.closest('#sidebar')) closeSidebar();
+    }
+});
+
+document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && compactSidebar.matches && document.getElementById('app')?.classList.contains('sidebar-open') &&
+        !event.target.closest?.('[data-file-tree-rename]') && !menuOwner(event.target)?.open) {
+        event.preventDefault();
+        closeSidebar(true);
+    }
 });
 
 document.addEventListener('keydown', (event) => {
@@ -22,7 +64,7 @@ document.getElementById('sidebar')?.addEventListener('click', (event) => {
         event.target.closest?.('.example-btn, [data-file-tree-open]') &&
         matchMedia('(max-width: 899px)').matches
     ) {
-        document.getElementById('app')?.classList.remove('sidebar-open');
+        closeSidebar(true);
     }
 });
 
@@ -84,8 +126,8 @@ document.getElementById('sidebar')?.addEventListener('click', (event) => {
 });
 
 function beginFileTreeRename(trigger) {
-    const entry = trigger.closest('[data-file-tree-entry]');
-    const input = entry?.querySelector('[data-file-tree-rename]');
+    const entry = (menuOwner(trigger) ?? trigger).closest('[data-file-tree-entry]');
+    const input = entry?.querySelector(':scope > [data-file-tree-rename]');
     if (!entry || !input) {
         return;
     }
@@ -112,36 +154,52 @@ function finishFileTreeRename(input, save) {
     } else {
         input.value = savedValue;
     }
-    input.blur();
+    entry.querySelector('.file-tree-file-open, .file-tree-folder-label')?.focus();
 }
 
 const fileTreeFolderState = new Map();
 const fileTreeRoot = document.getElementById('notebook-files');
+let fileTreeActiveKey;
 if (!fileTreeRoot) {
     throw new Error('The sidebar #notebook-files tree is required');
 }
 
-fileTreeRoot.addEventListener(
-    'toggle',
-    (event) => {
-        const folder = event.target.closest?.('[data-file-tree-folder]');
-        if (folder) {
-            fileTreeFolderState.set(folder.dataset.fileTreeFolder, folder.open);
-        }
-    },
-    true,
-);
+function setFileTreeFolderOpen(folder, open) {
+    const active = fileTreeRoot.querySelector('[aria-current="true"]');
+    const activeKey = active?.closest('[data-file-tree-entry]')?.dataset.fileTreeEntry;
+    if (activeKey) fileTreeActiveKey = activeKey;
+    folder.open = open;
+    fileTreeFolderState.set(folder.dataset.fileTreeFolder, open);
+}
+
+fileTreeRoot.addEventListener('click', (event) => {
+    const label = event.target.closest?.('.file-tree-folder-label');
+    const folder = label?.parentElement;
+    if (!folder?.hasAttribute('data-file-tree-folder')) return;
+    event.preventDefault();
+    setFileTreeFolderOpen(folder, !folder.open);
+});
 
 new MutationObserver(() => {
     for (const folder of fileTreeRoot.querySelectorAll('[data-file-tree-folder]')) {
         const open = fileTreeFolderState.get(folder.dataset.fileTreeFolder);
-        if (open !== undefined) {
+        if (open !== undefined && folder.open !== open) {
             folder.open = open;
         }
     }
-}).observe(fileTreeRoot, { childList: true, subtree: true });
+    const active = fileTreeRoot.querySelector('[aria-current="true"]');
+    const activeKey = active?.closest('[data-file-tree-entry]')?.dataset.fileTreeEntry;
+    if (activeKey && activeKey !== fileTreeActiveKey) {
+        for (let folder = active.closest('[data-file-tree-folder]'); folder;
+            folder = folder.parentElement.closest('[data-file-tree-folder]')) {
+            setFileTreeFolderOpen(folder, true);
+        }
+    }
+    if (activeKey) fileTreeActiveKey = activeKey;
+    syncSidebar();
+}).observe(fileTreeRoot, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-current', 'open'] });
 
-document.getElementById('sidebar')?.addEventListener('click', (event) => {
+document.addEventListener('click', (event) => {
     const rename = event.target.closest?.('[data-file-tree-rename-trigger]');
     if (rename) {
         beginFileTreeRename(rename);
@@ -161,7 +219,7 @@ document.getElementById('sidebar')?.addEventListener('click', (event) => {
 
 document.getElementById('sidebar')?.addEventListener('keydown', (event) => {
     const input = event.target.closest?.('[data-file-tree-rename]');
-    if (!input) {
+    if (!input || event.isComposing) {
         return;
     }
     if (event.key === 'Enter') {
@@ -171,6 +229,40 @@ document.getElementById('sidebar')?.addEventListener('keydown', (event) => {
         event.preventDefault();
         finishFileTreeRename(input, false);
     }
+});
+
+fileTreeRoot.addEventListener('keydown', (event) => {
+    const target = event.target.closest?.('.file-tree-file-open, .file-tree-folder-label');
+    if (!target || event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return;
+    if (event.key === 'F2') {
+        event.preventDefault();
+        beginFileTreeRename(target);
+        return;
+    }
+    const folder = target.matches('.file-tree-folder-label') ? target.parentElement : null;
+    const entries = [...fileTreeRoot.querySelectorAll('.file-tree-file-open, .file-tree-folder-label')]
+        .filter((entry) => {
+            for (let parent = entry.parentElement.closest('details'); parent;
+                parent = parent.parentElement.closest('details')) {
+                if (!parent.open && parent.querySelector(':scope > summary') !== entry) return false;
+            }
+            return entry.getClientRects().length > 0;
+        });
+    const index = entries.indexOf(target);
+    let next;
+    if (event.key === 'ArrowDown') next = entries[Math.min(index + 1, entries.length - 1)];
+    else if (event.key === 'ArrowUp') next = entries[Math.max(index - 1, 0)];
+    else if (event.key === 'Home') next = entries[0];
+    else if (event.key === 'End') next = entries.at(-1);
+    else if (event.key === 'ArrowRight' && folder) {
+        if (!folder.open) setFileTreeFolderOpen(folder, true);
+        else next = entries[index + 1];
+    } else if (event.key === 'ArrowLeft') {
+        if (folder?.open) setFileTreeFolderOpen(folder, false);
+        else next = target.closest('.file-tree-children')?.parentElement.querySelector(':scope > summary');
+    } else return;
+    event.preventDefault();
+    next?.focus();
 });
 
 document.getElementById('sidebar')?.addEventListener('focusout', (event) => {

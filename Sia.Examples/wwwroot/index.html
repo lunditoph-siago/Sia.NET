@@ -34,6 +34,13 @@
                     </button>
                 </div>
                 <span id="sidebar-actions" class="sidebar-actions"></span>
+                <button class="icon-btn sidebar-dismiss" type="button" data-sidebar-dismiss
+                        aria-label="Close sidebar" title="Close sidebar">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+                         stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
+                        <path d="m6 6 12 12M18 6 6 18" />
+                    </svg>
+                </button>
             </div>
             <div id="sidebar-explorer" class="sidebar-panel" role="tabpanel"
                  aria-labelledby="sidebar-explorer-tab">
@@ -67,7 +74,7 @@
         </aside>
         <main id="content">
             <div id="content-header">
-                <button id="sidebar-toggle" class="sidebar-toggle" aria-label="Toggle sidebar">
+                <button id="sidebar-toggle" class="sidebar-toggle" aria-label="Toggle sidebar" aria-controls="sidebar" aria-expanded="true">
                     <svg viewBox="0 0 24 24" width="20" height="20">
                         <line class="bar bar-top" x1="3" y1="6" x2="21" y2="6" />
                         <line class="bar bar-mid" x1="3" y1="12" x2="21" y2="12" />
