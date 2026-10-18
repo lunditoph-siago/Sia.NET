@@ -1,8 +1,8 @@
 # Sia.NET
 
 [![Build](https://img.shields.io/github/actions/workflow/status/lunditoph-siago/Sia.NET/test.yml?branch=master&event=push&label=Build&labelColor=343b45)](https://github.com/lunditoph-siago/Sia.NET/actions/workflows/test.yml?query=branch%3Amaster)
-[![Playground: Live](https://img.shields.io/badge/Playground-Live-2386c8?labelColor=343b45)](https://lunditoph-siago.github.io/Sia.NET/)
 [![License: BSD](https://img.shields.io/badge/License-BSD-737d8c?labelColor=343b45)](LICENSE)
+[![Playground: Live](https://img.shields.io/badge/Playground-Live-2386c8?labelColor=343b45)](https://lunditoph-siago.github.io/Sia.NET/)
 
 **A reactive entity component system for .NET.**
 Typed components and queries, composable systems, and generated change events.
