@@ -123,8 +123,10 @@ internal sealed partial class EditorPipelineSession : IDisposable
     private unsafe bool Frame(double milliseconds, double cssWidth, double cssHeight, double scale, ReadOnlySpan<double> inputs)
     {
         if (_disposed || _graph is null) return false;
-        var width = Math.Clamp((int)Math.Round(cssWidth * scale), 1, _maxTextureDimension);
-        var height = Math.Clamp((int)Math.Round(cssHeight * scale), 1, _maxTextureDimension);
+        var maximum = Math.Min(EditorShaderPreview.MaxRenderDimension, _maxTextureDimension);
+        var renderScale = Math.Min(Math.Min(scale, 1), maximum / Math.Max(cssWidth, cssHeight));
+        var width = Math.Clamp((int)Math.Round(cssWidth * renderScale), 1, maximum);
+        var height = Math.Clamp((int)Math.Round(cssHeight * renderScale), 1, maximum);
         if (!_target!.TryAcquireFrame(width, height, out var output)) return false;
         using (output) {
             var validate = _firstFrameValidation is null;

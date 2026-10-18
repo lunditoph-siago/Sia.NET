@@ -7,6 +7,7 @@ namespace Sia_Examples.Editor;
 
 internal sealed partial class EditorShaderPreview : IDisposable
 {
+    internal const int MaxRenderDimension = 1280;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 #if BROWSER
     private readonly JSObject _handle;
@@ -16,7 +17,7 @@ internal sealed partial class EditorShaderPreview : IDisposable
     public EditorShaderPreview(string containerId, string statusId, EditorUniformInspector inspector)
     {
 #if BROWSER
-        _handle = Create(containerId, statusId, inspector.Handle);
+        _handle = Create(containerId, statusId, inspector.Handle, MaxRenderDimension);
 #endif
     }
 
@@ -59,7 +60,7 @@ internal sealed partial class EditorShaderPreview : IDisposable
 
 #if BROWSER
     [JSImport("createShaderPreview", "main.js")]
-    private static partial JSObject Create(string containerId, string statusId, JSObject inspector);
+    private static partial JSObject Create(string containerId, string statusId, JSObject inspector, int maximumDimension);
     [JSImport("setShaderPreviewRevision", "main.js")]
     private static partial void SetRevision(JSObject owner, int revision);
     [JSImport("showShaderPreview", "main.js")]

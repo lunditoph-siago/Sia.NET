@@ -7,11 +7,12 @@ const fullscreenVertex = `
     return vec4<f32>(x * 2.0 - 1.0, y * 2.0 - 1.0, 0.0, 1.0);
 }`;
 
-export function createShaderPreview(containerId, statusId, inspector) {
+export function createShaderPreview(containerId, statusId, inspector, maximumDimension) {
     return new ShaderPreview(
         document.getElementById(containerId),
         document.getElementById(statusId),
         inspector,
+        maximumDimension,
     );
 }
 export function setShaderPreviewRevision(owner, revision) {
@@ -34,8 +35,9 @@ export function downloadShaderBinary(name, base64) {
 }
 
 class ShaderPreview {
-    constructor(container, status, inspector) {
+    constructor(container, status, inspector, maximumDimension) {
         this.container = container;
+        this.maximumDimension = maximumDimension;
         this.status = status;
         this.canvas = document.createElement('canvas');
         this.canvas.className = 'editor-shader-canvas';
@@ -251,9 +253,10 @@ class ShaderPreview {
             return;
         const rect = this.canvas.getBoundingClientRect();
         if (rect.width <= 0 || rect.height <= 0) return;
-        const maximum = this.device.limits.maxTextureDimension2D;
-        const width = Math.max(1, Math.min(maximum, Math.round(rect.width * devicePixelRatio)));
-        const height = Math.max(1, Math.min(maximum, Math.round(rect.height * devicePixelRatio)));
+        const maximum = Math.min(this.maximumDimension, this.device.limits.maxTextureDimension2D);
+        const scale = Math.min(devicePixelRatio || 1, 1, maximum / Math.max(rect.width, rect.height));
+        const width = Math.max(1, Math.min(maximum, Math.round(rect.width * scale)));
+        const height = Math.max(1, Math.min(maximum, Math.round(rect.height * scale)));
         if (width !== this.canvas.width || height !== this.canvas.height || !this.configured) {
             this.canvas.width = width;
             this.canvas.height = height;

@@ -294,11 +294,15 @@
     }
 
     .editor-shader {
+        box-sizing: border-box;
         display: flex;
         flex-direction: column;
         gap: 0.6rem;
-        padding: 0.8rem;
+        height: 100%;
+        padding: 0.4rem;
         min-width: 0;
+        min-height: 0;
+        overflow: hidden;
     }
 
     .editor-shader-actions {
@@ -319,19 +323,22 @@
 
     .editor-shader-stage {
         display: flex;
-        align-items: flex-start;
+        flex: 1;
+        min-height: 0;
         gap: 0.75rem;
     }
 
     .editor-shader-surfaces {
+        display: flex;
+        flex-direction: column;
         flex: 1;
         min-width: 0;
+        min-height: 0;
     }
 
     .editor-uniform-space {
         display: none;
         flex: 0 0 min(21rem, 45%);
-        height: min(24rem, 50vh);
     }
 
     .editor-shader:has(#editor-uniform-inspector [aria-expanded='true']) .editor-uniform-space {
@@ -392,19 +399,34 @@
         overflow-wrap: anywhere;
     }
     .editor-shader-preview {
+        position: relative;
         display: flex;
+        flex: 1;
         flex-direction: column;
+        min-height: 0;
         gap: 0.5rem;
+
+        &:empty {
+            display: none;
+        }
     }
     .editor-shader-canvas {
         width: 100%;
-        height: clamp(120px, 22vh, 280px);
+        height: 100%;
+        flex: 1;
+        min-height: 0;
         background: #101419;
         display: block;
         touch-action: none;
     }
     .editor-shader-preview > .btn {
         align-self: flex-start;
+    }
+    .editor-shader-preview > canvas + canvas {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        pointer-events: none;
     }
     .editor-shader-output {
         max-height: 360px;
@@ -414,6 +436,9 @@
     }
     .editor-shader-artifacts > summary {
         cursor: pointer;
-        margin-bottom: 0.5rem;
+    }
+    .editor-shader-artifacts[open] {
+        max-height: 40%;
+        overflow: auto;
     }
 }
