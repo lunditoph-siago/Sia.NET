@@ -9,8 +9,6 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
 {
     private const string RegionId = "region-editor-page";
     private const string ProjectId = "editor-page";
-    private const string ConsoleTabId = "tab-console-output";
-    private const string RenderTabId = "tab-render-render";
     private const string ScriptSuffix = "script";
     private const double DefaultEditorShare = 0.72;
     private const int HighlightLimit = 200_000;
@@ -22,12 +20,20 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
     private readonly DomElement _workbench;
     private readonly DomElement _activeFileName;
     private readonly DomElement _workspaceStatus;
+    private readonly DomElement _cursorStatus;
+    private readonly DomElement _diagnosticStatus;
+    private readonly DomElement _lastActionStatus;
     private readonly DomElement _buildStatus;
+    private readonly DomElement _runAction;
     private readonly DomElement _compileAction;
     private readonly DomElement _diagnostics;
-    private readonly DomElement _consoleOutput;
+    private readonly DomElement _operationError;
+    private readonly DomElement _compilationOutput;
+    private DomElement _compilationDetails = null!;
+    private DomElement _compilationDetailsToggle = null!;
+    private bool _showCompilationDetails;
     private readonly DomElement _programOutput;
-    private readonly DomElement _renderOutput;
+    private readonly DomElement _compilationPanel;
     private readonly DomElement _consolePanel;
     private readonly DomElement _renderPanel;
     private readonly DomElement _layoutRevision;
@@ -73,15 +79,16 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             ("Revert", "editor-page-revert", "Discard unsaved edits in the active file"),
         ]);
         CreateMenu(menus, "View", [
-            ("Console", "editor-page-open:console", "Open Console and diagnostics"),
+            ("Compilation", "editor-page-open:compilation", "Open diagnostics and compiler outputs"),
+            ("Console", "editor-page-open:console", "Open program logs"),
             ("Render", "editor-page-open:render", "Open the Render window"),
-            ("Clear Output", "editor-page-clear", "Clear Console and Render output"),
+            ("Clear Output", "editor-page-clear", "Clear compiler output, program logs and rendering"),
         ]);
         var actions = Own(DomElement.Create("div").Class("editor-page-actions"));
-        _compileAction = CreateAction("Compile", "editor-compile-action", "Compile C# and inspect shader artifacts when present")
-            .Attr("aria-disabled", "false");
+        _runAction = CreateIconAction("Run", "editor-run-action");
+        _compileAction = CreateIconAction("Compile", "editor-compile-action");
         actions
-            .Append(CreateAction("Run", "editor-shader-run", "Run the C# program or programmable RenderGraph from the active folder"))
+            .Append(_runAction)
             .Append(_compileAction)
             .Append(CreateAction("Close", "editor-page-home", "Return to the examples home"));
         titlebar.Append(menus).Append(actions);
@@ -94,9 +101,15 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             .Attr("aria-label", "Editor layout"));
 
         var statusbar = Own(DomElement.Create("footer").Class("editor-page-statusbar"));
-        _activeFileName = Own(DomElement.Create("span"));
-        _workspaceStatus = Own(DomElement.Create("span"));
-        statusbar.Append(_activeFileName).Append(_workspaceStatus).Append(_buildStatus);
+        _activeFileName = Own(DomElement.Create("span").Class("editor-status-file"));
+        _workspaceStatus = Own(DomElement.Create("span").Class("editor-status-workspace"));
+        _cursorStatus = Own(DomElement.Create("span").Class("editor-status-cursor"));
+        _diagnosticStatus = CreateAction("Not checked", "editor-page-open:compilation", "Open compiler diagnostics")
+            .Class("editor-status-item").Class("is-empty");
+        _lastActionStatus = CreateAction(string.Empty, "editor-status-details", "Open last action details")
+            .Class("editor-status-item").Class("editor-status-duration");
+        statusbar.Append(_activeFileName).Append(_workspaceStatus).Append(_diagnosticStatus)
+            .Append(_buildStatus).Append(_lastActionStatus).Append(_cursorStatus);
 
         _layoutRevision = Own(DomElement.Create("div")
             .Class("floating-layer")
@@ -105,7 +118,8 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             .Attr("aria-hidden", "true"));
 
         _diagnostics = Own(DomElement.Create("div").Class("editor-page-diagnostics"));
-        _consoleOutput = Own(DomElement.Create("pre")
+        _operationError = Own(DomElement.Create("div").Class("editor-operation-error").Attr("role", "alert"));
+        _compilationOutput = Own(DomElement.Create("pre")
             .Class("editor-page-console-output")
             .Text("Compile the active folder to see diagnostics and timings."));
         _consolePanel = Own(DomElement.Create("div")
@@ -113,10 +127,10 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             .Attr("role", "tabpanel"));
         _programOutput = Own(DomElement.Create("pre").Class("editor-page-console-output").Class("editor-program-output")
             .Attr("aria-label", "Program Console"));
-        _consolePanel.Append(_diagnostics).Append(_consoleOutput).Append(_programOutput);
-        _renderOutput = Own(DomElement.Create("pre")
-            .Class("editor-page-render-output")
-            .Text("Compile C# to inspect WGSL and SPIR-V, then render the result"));
+        _consolePanel.Append(_programOutput);
+        _compilationPanel = Own(DomElement.Create("div").Class("editor-page-console").Class("editor-page-compilation")
+            .Attr("role", "tabpanel"));
+        _compilationPanel.Append(_operationError).Append(_diagnostics);
         _renderPanel = Own(DomElement.Create("div")
             .Class("editor-page-render")
             .Attr("role", "tabpanel"));
@@ -137,6 +151,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         _state = CreateLayoutState();
         ApplyLayout();
         UpdateChrome();
+        UpdateActions();
 
         ActivateFilesSidebarTab();
         RenderExplorer();
@@ -155,7 +170,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             return;
         }
         RenderExplorer();
-        var initial = _workspace.RootEntries
+        var initial = _workspace.TryGetEntity(WorkspaceSeed.ProgramPath, out var program) ? program : _workspace.RootEntries
             .SelectMany(EnumerateFilesUnder)
             .FirstOrDefault();
         if (initial != default && generation == _activationGeneration) {
@@ -164,8 +179,8 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         if (_disposed) {
             return;
         }
-        _buildStatus.Text("Ready");
-        OpenPanelWindow("console");
+        SetBuildStatus("Ready");
+        OpenPanelWindow("compilation");
         UpdateChrome();
     }
 
@@ -278,13 +293,16 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
                     UpdateChrome();
                     RefreshExplorerSelection();
                 }
+                UpdateCursorStatus();
                 return true;
             default: {
                     var handled = _editors.Route(payload);
-                    if (handled && eventName is "input" or "text" or "mut" or "key" or "complete") {
+                    if (handled && eventName is "input" or "text" or "paste" or "mut" or "key" or "complete") {
                         SyncDirtyIndicators();
                         CheckShaderSources();
                     }
+                    if (handled && eventName is "input" or "text" or "paste" or "mut" or "key" or "sel" or "complete")
+                        UpdateCursorStatus();
                     return handled;
                 }
         }
@@ -398,7 +416,12 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
     private void OpenPanelWindow(string windowKey)
         => UpdateState(state => NotebookCellLayout.OpenWindow(
             state,
-            windowKey == "console" ? ConsoleWindowId : RenderWindowId));
+            windowKey switch {
+                "compilation" => CompilationWindowId,
+                "console" => ConsoleWindowId,
+                "render" => RenderWindowId,
+                _ => throw new ArgumentOutOfRangeException(nameof(windowKey)),
+            }));
 
     private void CloseActiveTab()
     {
@@ -583,6 +606,13 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
 
     private void RenderDiagnostics(IReadOnlyList<CSharpCompilationDiagnostic> diagnostics)
     {
+        var errors = diagnostics.Count(static diagnostic => diagnostic.Severity == NotebookDiagnosticSeverity.Error);
+        var warnings = diagnostics.Count(static diagnostic => diagnostic.Severity == NotebookDiagnosticSeverity.Warning);
+        _diagnosticStatus.Text($"{errors} errors · {warnings} warnings")
+            .Attr("aria-label", $"{errors} errors, {warnings} warnings. Open compiler diagnostics")
+            .Attr("title", "Diagnostics for the compiled C# snapshot")
+            .ToggleClass("is-empty", errors == 0 && warnings == 0)
+            .ToggleClass("has-errors", errors != 0);
         _diagnostics.Text(string.Empty);
         foreach (var diagnostic in diagnostics) {
             var location = diagnostic.SourcePath is null
@@ -628,25 +658,53 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
 
     private void ClearOutput()
     {
+        ResetDiagnosticStatus();
+        _operationError.Text(string.Empty);
+        ShowCompilationDetails(false);
         _diagnostics.Text(string.Empty);
-        _consoleOutput.Text(string.Empty).ToggleClass("output-error", false);
+        _compilationOutput.Text(string.Empty).ToggleClass("output-error", false);
         _programConsole?.Clear();
         _programOutput.Text(string.Empty).ToggleClass("output-error", false);
-        _renderOutput.Text("Compile C# to inspect WGSL and SPIR-V, then render the result");
         StopRendering();
     }
 
     private void UpdateChrome(string? message = null)
     {
         if (_activeEntity is { } entity && entity.IsValid) {
-            var dirty = EditorWorkspace.IsDirty(entity) ? " ●" : string.Empty;
-            _activeFileName.Text($"{EditorWorkspace.NameOf(entity)}{dirty}");
+            UpdateFileStatus(entity, EditorWorkspace.IsDirty(entity));
         }
         else {
             _activeFileName.Text(string.Empty);
         }
         _workspaceStatus.Text(message ?? string.Empty);
+        UpdateCursorStatus();
     }
+
+    private void UpdateFileStatus(Entity entity, bool dirty)
+        => _activeFileName.Text($"{EditorWorkspace.PathOf(entity)}{(dirty ? " ●" : string.Empty)}")
+            .Attr("title", $"{EditorWorkspace.PathOf(entity)} · {(entity.Contains<UntitledFile>() ? "Unsaved file" : dirty ? "Unsaved changes" : "Saved")}");
+
+    private void UpdateCursorStatus()
+    {
+        if (_activeEntity is { IsValid: true } entity) {
+            var tabId = TabIdFor(entity);
+            foreach (var group in NotebookCellLayout.EnumerateGroups(_state)) {
+                if (group.ActiveTabId != tabId || !_editors.TryGetCursorPosition(group.Id, out var cursor)) continue;
+                var label = $"Ln {cursor.Line}, Col {cursor.Column}" +
+                    (cursor.Selected == 0 ? string.Empty : $" · {cursor.Selected} selected");
+                _cursorStatus.Text(label).Attr("title", label);
+                return;
+            }
+        }
+        _cursorStatus.Text(string.Empty).Attr("title", string.Empty);
+    }
+
+    private void ResetDiagnosticStatus()
+        => _diagnosticStatus.Text("Not checked").Attr("aria-label", "Not checked. Open compiler diagnostics")
+            .Attr("title", "Compile to check the current source")
+            .ToggleClass("is-empty", true).ToggleClass("has-errors", false);
+
+    private DomElement SetBuildStatus(string message) => _buildStatus.Text(message).Attr("title", message);
 
     private void CreateMenu(DomElement parent, string label, (string Label, string Payload, string Title)[] items)
     {
@@ -666,6 +724,29 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             .Attr("title", title)
             .On("click", payload)
             .Text(label));
+
+    private DomElement CreateIconAction(string label, string payload)
+        => Own(DomElement.Create("button").Class("icon-btn").Class("editor-action")
+            .Attr("type", "button").Attr("aria-label", label).Attr("title", label)
+            .On("click", payload))
+            .Append(Own(DomElement.Create("span").Class("editor-action-icon").Attr("aria-hidden", "true")));
+
+    private void ShowCompilationDetails(bool show)
+    {
+        _showCompilationDetails = show;
+        _compilationDetails.ToggleClass("hidden", !show);
+        _compilationDetailsToggle.Attr("aria-expanded", show ? "true" : "false");
+    }
+
+    private void ShowOperationError(string message, Exception? error = null)
+    {
+        if (_disposed) return;
+        _operationError.Text(message);
+        SetBuildStatus(message);
+        _compilationOutput.Text(error?.ToString() ?? message).ToggleClass("output-error", true);
+        ShowCompilationDetails(true);
+        OpenPanelWindow("compilation");
+    }
 
     private DomElement Own(DomElement element)
     {
@@ -690,8 +771,8 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         catch (Exception error) {
             if (!_disposed) {
                 _busy = false;
-                _buildStatus.Text("Operation failed").ToggleClass("busy", false);
-                _consoleOutput.Text(error.ToString()).ToggleClass("output-error", true);
+                _buildStatus.ToggleClass("busy", false);
+                ShowOperationError($"Operation failed: {error.Message}", error);
                 DomRuntime.ReportError(error.ToString());
                 DomRuntime.Flush();
             }

@@ -20,6 +20,7 @@ internal sealed partial class BrowserEditorPage
     private readonly Dictionary<Entity, EditorMemento> _mementos = [];
     private string _regionShape = string.Empty;
 
+    private const string CompilationWindowId = "window-compilation-output";
     private const string ConsoleWindowId = "window-console-output";
     private const string RenderWindowId = "window-render-render";
     private const string SeparatorAriaLabel = "Resize editor panes";
@@ -28,6 +29,8 @@ internal sealed partial class BrowserEditorPage
     {
         var windows = ImmutableDictionary.CreateBuilder<string, CellWindow>();
         var tabs = ImmutableDictionary.CreateBuilder<string, CellTab>();
+        NotebookCellState.AddWindow(
+            windows, tabs, ProjectId, "compilation", RegionId, CellWindowKind.Output, "Compilation");
         NotebookCellState.AddWindow(
             windows, tabs, ProjectId, "console", RegionId, CellWindowKind.Output, "Console");
         NotebookCellState.AddWindow(
@@ -185,6 +188,9 @@ internal sealed partial class BrowserEditorPage
     {
         if (groupView.ActiveWindowId is { } windowId) {
             switch (windowId) {
+                case CompilationWindowId:
+                    _compilationPanel.Remove();
+                    break;
                 case ConsoleWindowId:
                     _consolePanel.Remove();
                     break;
@@ -239,6 +245,9 @@ internal sealed partial class BrowserEditorPage
         }
         var activeWindow = _state.Windows[activeTab.WindowId];
         switch (activeWindow.Id) {
+            case CompilationWindowId:
+                groupView.Content.Append(_compilationPanel);
+                break;
             case ConsoleWindowId:
                 groupView.Content.Append(_consolePanel);
                 break;
@@ -357,6 +366,7 @@ internal sealed partial class BrowserEditorPage
                 ? source
                 : entity.Get<WorkspaceFile>().Content;
             header.SetDirty(live != entity.Get<WorkspaceFile>().SavedContent);
+            if (_activeEntity == entity) UpdateFileStatus(entity, live != entity.Get<WorkspaceFile>().SavedContent);
         }
     }
 

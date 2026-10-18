@@ -28,14 +28,14 @@ internal sealed partial class EditorShaderPreview : IDisposable
 #endif
     }
 
-    public Task<double> ShowAsync(ShaderArtifact artifact, bool spirvRoute, int revision)
+    public Task<double> ShowAsync(ShaderArtifact artifact, int revision)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (artifact.Preview.UnsupportedReason is { } reason) throw new InvalidOperationException(reason);
 #if BROWSER
-        return Show(_handle, spirvRoute ? artifact.TranslatedWgsl : artifact.Wgsl,
+        return Show(_handle, artifact.Wgsl,
             artifact.EntryName, JsonSerializer.Serialize(artifact.Preview, JsonOptions), revision,
-            spirvRoute ? "SPIR-V → WGSL" : "WGSL");
+            "WGSL");
 #else
         return Task.FromException<double>(new PlatformNotSupportedException("GPU preview is available in the browser editor."));
 #endif

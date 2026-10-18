@@ -11,8 +11,7 @@ internal sealed partial class BrowserEditorPage
     private EditorPipelineSession? _pipeline;
 #endif
 
-    private async Task<bool> TryRunPipelineAsync(ShaderCompilation source, bool spirvRoute, bool normalCanvas,
-        int revision, CancellationToken token)
+    private async Task<bool> TryRunPipelineAsync(ShaderCompilation source, int revision, CancellationToken token)
     {
 #if BROWSER
         var assembly = source.Program;
@@ -38,8 +37,11 @@ internal sealed partial class BrowserEditorPage
         var console = new ProgramConsole();
         try {
             using var capture = console.Capture();
-            session = await EditorPipelineSession.CreateAsync(assembly, artifacts, render, spirvRoute, normalCanvas, message => {
-                if (!_disposed && revision == _shaderRevision) { _shaderStatus.Text(message); DomRuntime.Flush(); }
+            session = await EditorPipelineSession.CreateAsync(assembly, artifacts, render, message => {
+                if (!_disposed && (revision == _shaderRevision || session is not null && ReferenceEquals(_pipeline, session))) {
+                    _shaderStatus.Text(message);
+                    DomRuntime.Flush();
+                }
             }, _uniformInspector!, console, token);
             if (!CurrentShaderJob(revision)) return true;
             StopPipeline(cancelPending: false);
@@ -52,9 +54,8 @@ internal sealed partial class BrowserEditorPage
             else RefreshShaderArtifact();
             _shaderPreview?.Dispose();
             _shaderPreview = null;
-            _shaderPreviewSnapshot = null;
-            _renderOutput.Text("Programmable RenderGraph · focus the canvas for input");
-            _buildStatus.Text("Programmable pipeline running");
+            _shaderPreviewSnapshot = $"{_shaderSourcesHash![..8]} · C# pipeline";
+            SetBuildStatus("Programmable pipeline running");
         }
         finally {
             if (previous is not null) previous.Paused = false;
