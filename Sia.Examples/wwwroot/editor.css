@@ -17,6 +17,10 @@
                 outline: 2px solid var(--focus-muted);
                 outline-offset: -2px;
             }
+
+            @media (max-width: 720px) {
+                font-size: 14px;
+            }
         }
     }
 
@@ -71,8 +75,14 @@
         .diagnostic-error {
             color: var(--color-danger);
         }
+
         .diagnostic-warning {
             color: var(--color-warning);
+        }
+
+        @media (max-width: 720px) {
+            padding-right: 0.65rem;
+            padding-left: 0.65rem;
         }
     }
 
@@ -89,6 +99,11 @@
             opacity: 1;
             color: var(--color-danger);
         }
+
+        @media (max-width: 720px) {
+            padding-right: 0.65rem;
+            padding-left: 0.65rem;
+        }
     }
 
     .editor-container {
@@ -102,6 +117,12 @@
         font-family: var(--font-mono);
         font-size: 13px;
         line-height: 1.5;
+
+        @media (max-width: 720px) {
+            --editor-gutter-width: 34px;
+            max-height: min(58dvh, 540px);
+            font-size: 14px;
+        }
     }
 
     .editor-scroll {
@@ -213,26 +234,8 @@
         color: var(--color-text-dim);
         font-size: 0.7rem;
         white-space: nowrap;
-    }
 
-    @media (max-width: 720px) {
-        .code.code-edit {
-            font-size: 14px;
-        }
-
-        .diagnostics,
-        .output {
-            padding-right: 0.65rem;
-            padding-left: 0.65rem;
-        }
-
-        .editor-container {
-            --editor-gutter-width: 34px;
-            max-height: min(58dvh, 540px);
-            font-size: 14px;
-        }
-
-        .editor-status {
+        @media (max-width: 720px) {
             gap: 0.5rem;
             padding: 0.15rem 0.45rem;
             font-size: 0.66rem;
