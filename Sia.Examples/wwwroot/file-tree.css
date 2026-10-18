@@ -1,0 +1,268 @@
+@layer components {
+    .file-tree {
+        --file-tree-row-size: 1.8rem;
+        --file-tree-inline-action-opacity: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.05rem;
+        min-width: 0;
+        padding: 0.15rem 0;
+
+        @media (pointer: coarse), (max-width: 899px) {
+            --file-tree-row-size: 2.75rem;
+            --file-tree-inline-action-opacity: 0.65;
+        }
+
+        .file-tree-placeholder {
+            padding: 0.65rem;
+            opacity: 0.5;
+            font-size: 0.75rem;
+            line-height: 1.45;
+            white-space: normal;
+        }
+
+        .icon-btn,
+        .file-tree-file-action {
+            width: var(--file-tree-row-size);
+            height: var(--file-tree-row-size);
+        }
+
+        .file-tree-tools {
+            display: flex;
+            align-items: center;
+            gap: 0.15rem;
+            margin-bottom: 0.25rem;
+            padding: 0 0.25rem 0.35rem;
+            border-bottom: 1px solid var(--border-subtle);
+
+            > span {
+                flex: 1;
+                opacity: 0.6;
+                font-size: 0.72rem;
+            }
+        }
+
+        .file-tree-folder-entry {
+            position: relative;
+
+            > .file-tree-folder > summary {
+                padding-right: var(--file-tree-row-size);
+            }
+
+            > .file-tree-menu {
+                position: absolute;
+                top: 0;
+                right: 0;
+            }
+
+            &.renaming {
+                > .file-tree-menu,
+                > .file-tree-folder > summary {
+                    visibility: hidden;
+                }
+
+                > .file-tree-rename-input {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    display: block;
+                    width: calc(100% - 0.5rem);
+                }
+            }
+        }
+
+        .file-tree-menu {
+            align-self: flex-start;
+
+            > summary {
+                opacity: 0.75;
+            }
+
+            &[open] > summary,
+            > summary:hover,
+            > summary:focus-visible {
+                opacity: 1;
+            }
+        }
+
+        .file-tree-folder {
+            min-width: 0;
+
+            > summary::-webkit-details-marker {
+                display: none;
+            }
+
+            &[open] > .file-tree-folder-label .file-tree-folder-icon {
+                transform: rotate(90deg);
+            }
+        }
+
+        :is(.file-tree-folder-label, .file-tree-file-open) {
+            display: flex;
+            align-items: center;
+            gap: 0.2rem;
+            min-width: 0;
+            min-height: var(--file-tree-row-size);
+            padding: 0.15rem 0.3rem;
+            border: 0;
+            border-radius: var(--radius-small);
+            background: transparent;
+            color: inherit;
+            font: inherit;
+            font-size: 0.75rem;
+            text-align: left;
+            cursor: pointer;
+
+            &:hover,
+            &:focus-visible {
+                background: var(--surface-hover);
+            }
+
+            &:focus-visible {
+                outline: 1px solid var(--color-accent);
+                outline-offset: -1px;
+            }
+        }
+
+        .file-tree-folder-label {
+            list-style: none;
+        }
+
+        .file-tree-folder-icon {
+            flex: 0 0 auto;
+            width: 0.8rem;
+            opacity: 0.55;
+            text-align: center;
+            transition: transform 0.12s ease;
+        }
+
+        :is(.file-tree-folder-name, .file-tree-file-name) {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .file-tree-folder-name {
+            flex: 1;
+            font-weight: 550;
+        }
+
+        .file-tree-scope {
+            min-width: 0;
+            margin-left: auto;
+            padding: 0.05rem 0.3rem;
+            overflow: hidden;
+            border-radius: var(--radius-pill);
+            background: var(--surface-subtle);
+            opacity: 0.55;
+            font-size: 0.65rem;
+            text-overflow: ellipsis;
+        }
+
+        .file-tree-children {
+            min-width: 0;
+            margin-left: 0.65rem;
+            padding-left: 0.35rem;
+            border-left: 1px solid var(--border-subtle);
+        }
+
+        .file-tree-file {
+            display: flex;
+            align-items: center;
+            gap: 0.1rem;
+            min-width: 0;
+            padding-right: 0.15rem;
+
+            &:hover .file-tree-file-action,
+            &:focus-within .file-tree-file-action {
+                opacity: 0.75;
+            }
+
+            &.renaming {
+                > :not(.file-tree-rename-input) {
+                    display: none;
+                }
+
+                > .file-tree-rename-input {
+                    display: block;
+                }
+            }
+        }
+
+        .file-tree-file-open {
+            flex: 1;
+            overflow: hidden;
+
+            &.active {
+                background: var(--surface-selected);
+                box-shadow: inset 2px 0 var(--color-accent);
+                color: var(--color-fg);
+            }
+        }
+
+        .file-tree-file-icon {
+            flex: 0 0 auto;
+            width: 0.9rem;
+            opacity: 0.45;
+            color: var(--color-accent);
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-align: center;
+        }
+
+        .file-tree-file-extension {
+            flex: 0 0 auto;
+            opacity: 0.4;
+        }
+
+        .file-tree-file-action {
+            display: grid;
+            place-items: center;
+            flex: 0 0 auto;
+            padding: 0;
+            border: 0;
+            border-radius: var(--radius-small);
+            background: transparent;
+            opacity: var(--file-tree-inline-action-opacity);
+            color: inherit;
+            font: inherit;
+            cursor: pointer;
+
+            &:hover,
+            &:focus-visible {
+                background: var(--surface-hover);
+                opacity: 1;
+            }
+        }
+
+        .file-tree-rename-input {
+            display: none;
+            flex: 1;
+            min-width: 0;
+            height: var(--file-tree-row-size);
+            margin: 0 0.2rem;
+            padding: 0.1rem 0.35rem;
+            border: 1px solid var(--color-accent);
+            border-radius: var(--radius-small);
+            background: var(--color-bg);
+            color: inherit;
+            font: inherit;
+            font-size: 0.75rem;
+
+            &:focus {
+                outline: 1px solid var(--color-accent);
+                outline-offset: 1px;
+            }
+        }
+    }
+
+    .file-tree-actions {
+        .menu-item {
+            grid-template-columns: 1fr;
+
+            @media (pointer: coarse), (max-width: 899px) {
+                min-height: 2.75rem;
+            }
+        }
+    }
+}
