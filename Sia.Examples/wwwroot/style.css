@@ -170,17 +170,6 @@
             min-width: 0;
         }
 
-        .sidebar-dismiss {
-            display: none;
-
-            @media (max-width: 899px) {
-                display: inline-grid;
-                width: 2.75rem;
-                height: 2.75rem;
-                margin-left: auto;
-            }
-        }
-
         .sidebar-tab {
             position: relative;
             padding: 0 0.35rem;
@@ -837,6 +826,17 @@
 
 @layer components {
     #sidebar {
+        .sidebar-dismiss {
+            display: none;
+
+            @media (max-width: 899px) {
+                display: inline-grid;
+                width: 2.75rem;
+                height: 2.75rem;
+                margin-left: auto;
+            }
+        }
+
         .file-tree-folder-entry > .file-tree-menu {
             position: absolute;
             top: 0;
