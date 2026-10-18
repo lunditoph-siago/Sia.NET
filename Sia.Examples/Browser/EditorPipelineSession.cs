@@ -84,7 +84,7 @@ internal sealed partial class EditorPipelineSession : IDisposable
         await Task.Yield();
         cancellationToken.ThrowIfCancellationRequested();
         _instance = Wgpu.CreateInstance();
-        _adapter = await AwaitGpuAsync(Wgpu.RequestAdapterAsync(_instance, cancellationToken), cancellationToken);
+        _adapter = await AwaitGpuAsync(RequestAdapterAsync(cancellationToken), cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         _device = await AwaitGpuAsync(Wgpu.RequestDeviceAsync(_adapter, cancellationToken), cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
@@ -99,6 +99,25 @@ internal sealed partial class EditorPipelineSession : IDisposable
         _ = RunFramesAsync();
         await _ready.Task.WaitAsync(cancellationToken);
         _status($"{(_spirvRoute ? "SPIR-V → WGSL" : "WGSL")} · {(_normalCanvas ? "Normal canvas" : "Offscreen canvas")} · programmable pipeline running");
+    }
+
+    private async Task<WgpuHandle<WGPUAdapter>> RequestAdapterAsync(CancellationToken cancellationToken)
+    {
+        try {
+            return await Wgpu.RequestAdapterAsync(_instance, cancellationToken);
+        }
+        catch (WgpuException coreError) {
+            cancellationToken.ThrowIfCancellationRequested();
+            try {
+                var options = new WGPURequestAdapterOptions { FeatureLevel = WGPUFeatureLevel.Compatibility };
+                return await Wgpu.RequestAdapterAsync(_instance, in options, cancellationToken);
+            }
+            catch (WgpuException compatibilityError) {
+                throw new WgpuException(
+                    $"No WebGPU adapter is available. Core: {coreError.Message} " +
+                    $"Compatibility: {compatibilityError.Message}");
+            }
+        }
     }
 
     private async Task<T> AwaitGpuAsync<T>(Task<T> request, CancellationToken cancellationToken)

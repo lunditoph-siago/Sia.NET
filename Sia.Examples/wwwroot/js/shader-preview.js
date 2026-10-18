@@ -88,8 +88,9 @@ class ShaderPreview {
                 throw new Error(
                     'WebGPU is unavailable. Use a supported browser in a secure context.',
                 );
-            const adapter = await navigator.gpu.requestAdapter();
-            if (!adapter) throw new Error('No WebGPU adapter is available.');
+            let adapter = await navigator.gpu.requestAdapter();
+            if (!adapter) adapter = await navigator.gpu.requestAdapter({ featureLevel: 'compatibility' });
+            if (!adapter) throw new Error('No WebGPU adapter is available at Core or Compatibility feature level.');
             const device = await adapter.requestDevice();
             if (this.disposed) {
                 device.destroy();
