@@ -19,6 +19,13 @@ internal sealed class CSharpCompilationEngine(ICompilationReferenceResolver refe
         finally { _roslynWork.Release(); }
     }
 
+    internal static async Task<T> RunRoslynAsync<T>(Func<Task<T>> work, CancellationToken cancellationToken)
+    {
+        await _roslynWork.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try { return await Task.Run(work, cancellationToken).ConfigureAwait(false); }
+        finally { _roslynWork.Release(); }
+    }
+
     public async Task<CSharpCompilationOutput> CompileAsync(
         CSharpCompilationRequest request,
         CancellationToken cancellationToken = default)

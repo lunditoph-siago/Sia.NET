@@ -455,7 +455,8 @@ public sealed class NotebookWorkspace : IAsyncDisposable
             _mount.Unmount();
         }
         _session.Dispose();
-        _view.Dispose();
+        try { _view.Dispose(); }
+        finally { await _view.Editors.DisposeAsync(); }
         _lifetime.Dispose();
     }
 

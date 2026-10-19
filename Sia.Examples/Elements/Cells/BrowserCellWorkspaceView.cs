@@ -200,7 +200,8 @@ public sealed class BrowserCellWorkspaceView(DomElement floatingLayer, BrowserEd
                 view.Second.ToggleClass("collapsed", surfaceIndex == 1 && surfaceShare <= 0);
                 view.First.Attr("style", string.Empty);
                 view.Second.Attr("style", string.Empty);
-            } else {
+            }
+            else {
                 view.Root.ToggleClass("surface", false);
                 view.Separator.Attr("aria-disabled", "false");
                 view.First.ToggleClass("surface-pane", false);
@@ -240,6 +241,7 @@ public sealed class BrowserCellWorkspaceView(DomElement floatingLayer, BrowserEd
             if (!_disposed && window.Window.Kind == CellWindowKind.Script) {
                 var sourceId = window.Window.SourceId;
                 editors.SynchronizeNativeInput(sourceId);
+                editors.InvalidateLanguageContext(sourceId);
                 if (editors.TryGetPosition(sourceId, out var memento)) {
                     _mementos[sourceId] = memento;
                 }

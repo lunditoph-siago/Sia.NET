@@ -30,7 +30,7 @@
     <ProjectReference Include="..\Sia\Sia.csproj" />
     <ProjectReference Include="..\Sia.CodeGenerators\Sia.CodeGenerators.csproj" OutputItemType="Analyzer" />
     <ProjectReference Include="..\Sia.Prelude\Sia.Prelude.csproj" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.3.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Features" Version="5.3.0" />
     <PackageReference Include="Sia.Spirv.Compiler" Version="0.0.24" />
     <PackageReference Include="Sia.Math" Version="0.0.4" />
     <PackageReference Include="Sia.Window" Version="0.0.8" />

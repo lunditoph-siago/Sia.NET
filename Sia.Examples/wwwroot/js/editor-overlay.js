@@ -1,4 +1,7 @@
+import { emit } from './notebook-runtime.js';
+
 const overlayPlacements = new WeakMap();
+const completionWindows = new WeakMap();
 const caretMarkerSelector = '[data-editor-caret-marker]';
 
 function editorPositionRect(surface, lineIndex, column) {
@@ -140,6 +143,36 @@ function positionOverlay(placement) {
     overlay.style.left = `${left - containerRect.left}px`;
     overlay.style.top = `${top - containerRect.top}px`;
     overlay.style.visibility = '';
+    const list = overlay.querySelector('.completion-list');
+    if (list) scheduleCompletionWindow(list);
+}
+
+export function scheduleCompletionWindow(list) {
+    let pending = completionWindows.get(list);
+    if (!pending) { pending = { frame: 0, sent: '' }; completionWindows.set(list, pending); }
+    if (pending.frame) return;
+    pending.frame = requestAnimationFrame(() => {
+        pending.frame = 0;
+        if (!list.isConnected) return;
+        const rows = list.querySelectorAll('[data-completion-index]');
+        const height = rows[0]?.getBoundingClientRect().height;
+        if (!height || !list.clientHeight) return;
+        const measured = `${height}px`;
+        if (list.style.getPropertyValue('--completion-row-height') !== measured)
+            list.style.setProperty('--completion-row-height', measured);
+        const start = Number(list.dataset.completionStart);
+        const total = Number(list.dataset.completionTotal);
+        if (!Number.isFinite(start) || !Number.isFinite(total)) return;
+        const first = Math.floor(list.scrollTop / height);
+        const last = Math.min(total - 1, Math.floor((list.scrollTop + list.clientHeight - 1) / height));
+        const next = first >= start && last < start + rows.length ? start
+            : Math.max(0, Math.min(total - rows.length, first - 3));
+        const pageSize = Math.max(1, Math.floor(list.clientHeight / height));
+        const key = `${list.dataset.completionGeneration}:${start}:${next}:${pageSize}`;
+        if (key === pending.sent) return;
+        pending.sent = key;
+        emit(`suggestion-window:${list.dataset.completionBinding}:${list.dataset.completionGeneration}:${next}:${pageSize}`);
+    });
 }
 
 export function placeOverlay(container, surface, overlay, lineIndex, column) {
@@ -190,6 +223,12 @@ export function placeOverlay(container, surface, overlay, lineIndex, column) {
 }
 
 export function clearOverlayPlacement(overlay) {
+    const list = overlay.querySelector('.completion-list');
+    if (list) {
+        const pending = completionWindows.get(list);
+        if (pending) cancelAnimationFrame(pending.frame);
+        completionWindows.delete(list);
+    }
     const placement = overlayPlacements.get(overlay);
     if (!placement) {
         return;
@@ -201,11 +240,21 @@ export function clearOverlayPlacement(overlay) {
 }
 
 export function ensureVisible(container, element) {
-    const top = element.offsetTop;
-    const bottom = top + element.offsetHeight;
+    if (container.dataset?.completionReveal === 'false') return;
+    const bounds = element.getBoundingClientRect();
+    const origin = container.getBoundingClientRect();
+    const top = bounds.top - origin.top + container.scrollTop;
+    const bottom = bounds.bottom - origin.top + container.scrollTop;
     if (top < container.scrollTop) {
         container.scrollTop = top;
     } else if (bottom > container.scrollTop + container.clientHeight) {
         container.scrollTop = bottom - container.clientHeight;
+    }
+    const left = bounds.left - origin.left + container.scrollLeft;
+    const right = bounds.right - origin.left + container.scrollLeft;
+    if (left < container.scrollLeft || bounds.width > container.clientWidth) {
+        container.scrollLeft = left;
+    } else if (right > container.scrollLeft + container.clientWidth) {
+        container.scrollLeft = right - container.clientWidth;
     }
 }

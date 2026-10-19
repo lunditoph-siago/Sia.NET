@@ -6,11 +6,33 @@ namespace Sia_Examples.Editor;
 
 public sealed class BrowserEditorRegistry(
     World world,
-    ICompilationReferenceResolver references) : IDisposable
+    ICompilationReferenceResolver references) : IDisposable, IAsyncDisposable
 {
     private readonly World _world = world;
-    private readonly ICompilationReferenceResolver _references = references;
+    private readonly CSharpCompletionProvider _completionProvider = new(references);
     private readonly Dictionary<string, (DomElement Container, BrowserEditorHost Editor)> _editors = [];
+    internal event Action<string>? SourceChanged;
+
+    private void OnSourceChanged(BrowserEditorHost editor) { InvalidateLanguageContext(editor); SourceChanged?.Invoke(editor.BindingId); }
+
+    internal Func<string, string, CancellationToken, ValueTask<CSharpProjectSnapshot>>? LanguageContext {
+        set {
+            _completionProvider.CaptureSnapshot = value;
+            InvalidateLanguageContext();
+        }
+    }
+
+    internal void InvalidateLanguageContext(BrowserEditorHost? changed = null)
+    {
+        foreach (var entry in _editors.Values) {
+            if (entry.Editor != changed) entry.Editor.InvalidateLanguageContext();
+        }
+    }
+
+    internal void InvalidateLanguageContext(string cellId)
+    {
+        if (_editors.TryGetValue(cellId, out var entry)) entry.Editor.InvalidateLanguageContext();
+    }
 
     public BrowserEditorHost Add(
         DomElement container,
@@ -27,8 +49,10 @@ public sealed class BrowserEditorRegistry(
             cellId,
             source,
             highlights,
-            _references);
+            _completionProvider);
         _editors.Add(cellId, (container, editor));
+        editor.SourceChanged += OnSourceChanged;
+        InvalidateLanguageContext(editor);
         return editor;
     }
 
@@ -145,14 +169,19 @@ public sealed class BrowserEditorRegistry(
     {
         if (_editors.Remove(cellId, out var entry)) {
             entry.Editor.Dispose();
+            InvalidateLanguageContext();
         }
     }
 
     public void Dispose()
     {
+        SourceChanged = null;
         foreach (var entry in _editors.Values) {
             entry.Editor.Dispose();
         }
         _editors.Clear();
+        _completionProvider.Dispose();
     }
+
+    public async ValueTask DisposeAsync() { Dispose(); await _completionProvider.DisposeAsync(); }
 }

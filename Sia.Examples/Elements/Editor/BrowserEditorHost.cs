@@ -9,16 +9,14 @@ namespace Sia_Examples.Editor;
 
 public sealed partial class BrowserEditorHost : IDisposable
 {
-    private const int _completionDelayMilliseconds = 80;
     private const int _highlightDelayMilliseconds = 150;
-    private const int _maximumRenderedCompletions = 20;
+
 
     private readonly string _cellId;
     private readonly World _world;
-    private readonly BrowserEditorView _view;
     private readonly CSharpCompletionProvider _completionProvider;
+    private readonly BrowserEditorView _view;
     private readonly ReactiveMount<EditorViewProps> _mount;
-    private readonly List<(DomElement Element, string Label)> _completionItems = [];
 
     private readonly EditorViewState _viewState;
 
@@ -26,17 +24,6 @@ public sealed partial class BrowserEditorHost : IDisposable
     private State<EditorViewport>? _viewport;
     private double _lastClientHeight = 400;
     private double _lastScrollTop;
-    private CompletionResult? _completion;
-    private CompletionResult? _completionSource;
-    private DomElement? _completionPopup;
-    private CancellationTokenSource? _completionCancellation;
-    private int _completionIndex;
-    private int _completionGeneration;
-    private int _completionQueryAnchor = -1;
-    private bool _completionPending;
-    private bool _completionQueryRunning;
-    private Text? _completionDocument;
-    private int _completionPosition;
     private bool _disposed;
     private Text? _sourceDocument;
     private string _source = string.Empty;
@@ -59,12 +46,12 @@ public sealed partial class BrowserEditorHost : IDisposable
         string cellId,
         string source,
         IReadOnlyList<HighlightRun> highlights,
-        ICompilationReferenceResolver references)
+        CSharpCompletionProvider completionProvider)
     {
         _cellId = $"{cellId}~{Guid.NewGuid():N}";
         _world = world;
         _view = new(_cellId, container);
-        _completionProvider = new(references);
+        _completionProvider = completionProvider;
         _highlightedSource = source;
         var initialState = EditorState.Create(
             source,
@@ -82,6 +69,10 @@ public sealed partial class BrowserEditorHost : IDisposable
     }
 
     public string Source => ReadSource(State.Value.Doc);
+
+    internal event Action<BrowserEditorHost>? SourceChanged;
+
+    internal void InvalidateLanguageContext() { CancelCompletion(); CancelSignature(); }
 
     internal (int Line, int Column, int Selected) CursorPosition {
         get {
@@ -108,9 +99,10 @@ public sealed partial class BrowserEditorHost : IDisposable
 
     internal bool CanExecuteCommand(EditorCommand command) => command.Context switch {
         CommandContext.Editor => true,
-        CommandContext.Suggestions => _completion is { HasItems: true }
-            && (command.Id != EditorCommandId.AcceptSuggestion || ReferenceEquals(_completionDocument, State.Value.Doc)
-                && State.Value.Selection.Main.Empty && State.Value.Selection.Main.Head == _completionPosition),
+        CommandContext.Suggestions => _completion is { HasItems: true } completion && (command.Id != EditorCommandId.AcceptSuggestion
+            || completion.Items[_completionIndex].Edit is not null && ReferenceEquals(_completionDocument, State.Value.Doc)
+            && State.Value.Selection.Main.Empty && State.Value.Selection.Main.Head == _completionPosition),
+        CommandContext.Signatures => _signatureHelp is not null,
         _ => false,
     };
 
@@ -120,10 +112,10 @@ public sealed partial class BrowserEditorHost : IDisposable
         return CanExecuteCommand(command) && ExecuteCommand(command, new(-1, -1, -1, -1), _completionGeneration);
     }
 
-    public void SynchronizeNativeInput()
+    public void SynchronizeNativeInput(bool sourceBoundary = true)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        var input = _view.TakePendingInput();
+        var input = _view.TakePendingInput(sourceBoundary);
         if (input.Length > 0) {
             _view.BeginUpdate();
             try {
@@ -158,6 +150,10 @@ public sealed partial class BrowserEditorHost : IDisposable
                 "mut" => HandleDomMutation(arguments),
                 "sel" => HandleSelection(arguments),
                 "complete" => HandleCompletionRequest(arguments),
+                "suggestion" => HandleCompletionClick(arguments),
+                "suggestion-window" => HandleCompletionWindow(arguments),
+                "signature" => HandleSignatureRequest(arguments),
+                "signature-step" => HandleSignatureStep(arguments),
                 "highlight" => HandleHighlightRequest(arguments),
                 "highlight-ready" => HandleHighlightReady(arguments),
                 _ => false,
@@ -194,7 +190,7 @@ public sealed partial class BrowserEditorHost : IDisposable
             return false;
         }
         var separator = input.IndexOf(':');
-        if (separator < 0 || input[..separator] is not ("key" or "command" or "text" or "paste" or "mut" or "sel" or "clipboard" or "noop")) {
+        if (separator < 0 || input[..separator] is not ("key" or "command" or "text" or "paste" or "mut" or "sel" or "clipboard" or "noop" or "suggestion")) {
             return false;
         }
         if (sequence <= _lastInputSequence) {
@@ -430,7 +426,9 @@ public sealed partial class BrowserEditorHost : IDisposable
             return;
         }
         _disposed = true;
+        SourceChanged = null;
         CancelCompletion();
+        CancelSignature();
         CancelHighlight();
         if (_mount.IsMounted) {
             _mount.Unmount();
@@ -772,7 +770,7 @@ public sealed partial class BrowserEditorHost : IDisposable
             | (alt ? ShortcutModifiers.Alt : ShortcutModifiers.None) | (shift ? ShortcutModifiers.Shift : ShortcutModifiers.None);
         var key = parts[4] == " " ? "Space" : parts[4].Length == 1 ? parts[4].ToUpperInvariant() : parts[4];
         var context = _completion is { HasItems: true } ? CommandContext.Suggestions
-            : CommandContext.Editor;
+            : _signatureHelp is not null ? CommandContext.Signatures : CommandContext.Editor;
         var command = EditorKeymap.Default.Resolve(new(key, modifiers), context);
         var fallback = context == CommandContext.Suggestions ? EditorKeymap.Default.Resolve(new(key, modifiers), CommandContext.Editor) : null;
         return command?.IsEditor == true && ExecuteCommand(command, nativeSelection, _completionGeneration, fallback);
@@ -801,19 +799,17 @@ public sealed partial class BrowserEditorHost : IDisposable
                     && ExecuteCommand(fallback, nativeSelection, generation);
             switch (command.Id) {
                 case EditorCommandId.AcceptSuggestion:
-                    if (!ReferenceEquals(_completionDocument, State.Value.Doc)
-                        || !State.Value.Selection.Main.Empty || State.Value.Selection.Main.Head != _completionPosition
-                        || fallback?.Id == EditorCommandId.Newline && State.Value.Doc.SliceDoc(
-                            _completion.Items[_completionIndex].ReplaceStart, _completion.Items[_completionIndex].ReplaceEnd)
-                            == _completion.Items[_completionIndex].InsertText) {
+                    if (_completion.Items[_completionIndex].Edit is null || !ReferenceEquals(_completionDocument, State.Value.Doc)
+                        || !State.Value.Selection.Main.Empty || State.Value.Selection.Main.Head != _completionPosition || fallback?.Id == EditorCommandId.Newline
+                        && (_completionSoft || !CompletionMakesEdit(_completion.Items[_completionIndex]))) {
                         CancelCompletion();
                         return fallback is { IsEditor: true } && ExecuteCommand(fallback, nativeSelection, generation);
                     }
                     AcceptCompletion(_completion); break;
                 case EditorCommandId.NextSuggestion: SelectCompletion((_completionIndex + 1) % _completion.Items.Count); break;
                 case EditorCommandId.PreviousSuggestion: SelectCompletion((_completionIndex - 1 + _completion.Items.Count) % _completion.Items.Count); break;
-                case EditorCommandId.NextSuggestionPage: SelectCompletion(Math.Min(_completionIndex + 8, _completion.Items.Count - 1)); break;
-                case EditorCommandId.PreviousSuggestionPage: SelectCompletion(Math.Max(0, _completionIndex - 8)); break;
+                case EditorCommandId.NextSuggestionPage: SelectCompletion(Math.Min(_completionIndex + _completionPageSize, _completion.Items.Count - 1)); break;
+                case EditorCommandId.PreviousSuggestionPage: SelectCompletion(Math.Max(0, _completionIndex - _completionPageSize)); break;
                 case EditorCommandId.HideSuggestions: CancelCompletion(); break;
             }
             return true;
@@ -821,6 +817,23 @@ public sealed partial class BrowserEditorHost : IDisposable
         if (command.Id is EditorCommandId.Undo or EditorCommandId.Redo)
             return ReplayHistory(command.Id == EditorCommandId.Redo);
         if (command.Id == EditorCommandId.Suggest) return HandleManualCompletion(nativeSelection);
+        if (command.Id == EditorCommandId.SignatureHelp) {
+            var state = ApplyNativeSelection(State.Value, nativeSelection);
+            Commit(state);
+            _view.RevealSelection();
+            ScheduleSignature(state, manual: true);
+            return true;
+        }
+        if (command.Context == CommandContext.Signatures) {
+            if (command.Id == EditorCommandId.HideSignature) CancelSignature();
+            else StepSignature(command.Id == EditorCommandId.NextSignature ? 1 : -1);
+            return true;
+        }
+        if (command.Id == EditorCommandId.Escape && _signatureRequested && _completion is null) {
+            CancelCompletion();
+            CancelSignature();
+            return true;
+        }
         if (command.Edit is not { } edit) return false;
         if ((_completionPending || _completion is not null) && command.Id is
             EditorCommandId.Indent or EditorCommandId.Outdent or EditorCommandId.Newline or EditorCommandId.Escape
@@ -895,6 +908,7 @@ public sealed partial class BrowserEditorHost : IDisposable
             _view.SetDocumentRevision(_documentRevision);
         }
         State.Set(state);
+        if (documentChanges is not null) SourceChanged?.Invoke(this);
         if (documentChanges is { } edit && recordHistory) {
             RecordHistory(edit, before, state, historySelection ?? before.Selection, historyGroup);
         }
@@ -921,6 +935,7 @@ public sealed partial class BrowserEditorHost : IDisposable
         }
         ApplyViewport(viewport);
         _world.FlushReactive();
+        if (documentChanges is not null || !state.Selection.Eq(before.Selection, true)) ScheduleSignature(state);
     }
 
     private EditorViewport EnsureSelectionVisible(EditorState state, EditorViewport viewport)
@@ -1032,315 +1047,6 @@ public sealed partial class BrowserEditorHost : IDisposable
         try { await work.ConfigureAwait(false); }
         catch { }
         finally { cancellation.Dispose(); }
-    }
-
-    private void ScheduleCompletion(EditorState before, EditorState after)
-    {
-        var isActive = _completionPending || _completionSource is not null;
-        if (!CompletionTrigger.ShouldActivate(before, after, isActive)) {
-            CancelCompletion();
-            return;
-        }
-
-        StartCompletion(after, _completionDelayMilliseconds);
-    }
-
-    private bool HandleManualCompletion(BrowserSelection nativeSelection)
-    {
-        var before = State.Value;
-        var state = ApplyNativeSelection(before, nativeSelection);
-        if (!state.Selection.Main.Empty) {
-            return false;
-        }
-        if (state != before) {
-            _view.SuppressNextSelectionUpdate();
-            Commit(state);
-        }
-        StartCompletion(state, delayMilliseconds: 0);
-        return true;
-    }
-
-    private void StartCompletion(EditorState state, int delayMilliseconds)
-    {
-        var position = state.Selection.Main.Head;
-        var queryAnchor = CompletionIdentifier.FindStart(state.Doc, position);
-        if (_completionPending && queryAnchor == _completionQueryAnchor) {
-            if (!_completionQueryRunning) {
-                DomRuntime.ScheduleEvent(
-                    CompletionScheduleKey,
-                    $"complete:{_cellId}:{_completionGeneration}",
-                    delayMilliseconds);
-            }
-            return;
-        }
-
-        CancelCompletionQuery();
-        if (_completionSource is { } source
-            && source.TryFilter(
-                state.Doc,
-                position,
-                _maximumRenderedCompletions,
-                out var filtered)) {
-            _completionPending = false;
-            _completionIndex = 0;
-            _completion = filtered;
-            if (filtered.HasItems) {
-                RenderCompletionPopup();
-            }
-            else {
-                HideCompletionPopup();
-            }
-            return;
-        }
-
-        _completionPending = true;
-        _completion = null;
-        _completionSource = null;
-        _completionQueryAnchor = queryAnchor;
-        var cancellation = new CancellationTokenSource();
-        _completionCancellation = cancellation;
-        var generation = _completionGeneration;
-        DomRuntime.ScheduleEvent(
-            CompletionScheduleKey,
-            $"complete:{_cellId}:{generation}",
-            delayMilliseconds);
-    }
-
-    private bool HandleCompletionRequest(string arguments)
-    {
-        if (!int.TryParse(arguments, out var generation)
-            || generation != _completionGeneration
-            || _completionCancellation is not { } cancellation
-            || cancellation.IsCancellationRequested) {
-            return false;
-        }
-        if (_completionQueryRunning) {
-            return true;
-        }
-
-        _completionQueryRunning = true;
-        _ = QueryCompletionAsync(State.Value, cancellation, generation);
-        return true;
-    }
-
-    private async Task QueryCompletionAsync(
-        EditorState state,
-        CancellationTokenSource cancellation,
-        int generation)
-    {
-        try {
-            cancellation.Token.ThrowIfCancellationRequested();
-
-            var result = await _completionProvider.QueryAsync(
-                state.Doc.SliceDoc(),
-                state.Selection.Main.Head,
-                cancellation.Token);
-            if (generation != _completionGeneration || cancellation.IsCancellationRequested) {
-                return;
-            }
-
-            var current = State.Value;
-            var currentPosition = current.Selection.Main.Head;
-            if (CompletionIdentifier.FindStart(current.Doc, currentPosition)
-                != _completionQueryAnchor) {
-                CancelCompletion();
-                return;
-            }
-
-            _completionPending = false;
-            _completionIndex = 0;
-            if (!result.HasItems) {
-                CloseCompletionPopup();
-                return;
-            }
-
-            _completionSource = result;
-            if (!result.TryFilter(
-                current.Doc,
-                currentPosition,
-                _maximumRenderedCompletions,
-                out var filtered)) {
-                CloseCompletionPopup();
-                return;
-            }
-            _completion = filtered;
-            RenderCompletionPopup();
-        }
-        catch (OperationCanceledException) when (cancellation.IsCancellationRequested) {
-        }
-        catch (Exception error) {
-            if (generation == _completionGeneration) {
-                _completionPending = false;
-                CloseCompletionPopup();
-                DomRuntime.ReportError(error.ToString());
-            }
-        }
-        finally {
-            if (ReferenceEquals(_completionCancellation, cancellation)) {
-                _completionCancellation = null;
-                _completionQueryRunning = false;
-            }
-            cancellation.Dispose();
-        }
-    }
-
-    private void HandleCompletionKey(string key)
-    {
-        if (_completion is not { } completion) {
-            return;
-        }
-        switch (key) {
-            case "ArrowDown":
-                SelectCompletion((_completionIndex + 1) % completion.Items.Count);
-                break;
-            case "ArrowUp":
-                SelectCompletion(
-                    (_completionIndex - 1 + completion.Items.Count) % completion.Items.Count);
-                break;
-            case "Enter":
-            case "Tab":
-                AcceptCompletion(completion);
-                break;
-            case "Escape":
-                CancelCompletion();
-                break;
-        }
-    }
-
-    private void AcceptCompletion(CompletionResult completion)
-    {
-        var candidate = completion.Items[_completionIndex];
-        CancelCompletion();
-        var state = State.Value;
-        Commit(state.Apply(new() {
-            Changes = [new(
-                candidate.ReplaceStart,
-                candidate.ReplaceEnd,
-                candidate.InsertText)],
-            Selection = EditorSelection.Single(
-                candidate.ReplaceStart + candidate.InsertText.Length),
-        }));
-    }
-
-    private void RenderCompletionPopup()
-    {
-        if (_completion is not { } completion) {
-            CloseCompletionPopup();
-            return;
-        }
-        if (!completion.HasItems) {
-            HideCompletionPopup();
-            return;
-        }
-
-        _completionDocument = State.Value.Doc;
-        _completionPosition = State.Value.Selection.Main.Head;
-        var isNew = _completionPopup is null;
-        var popup = _completionPopup ??= DomElement.Create("div").Class("completion-popup");
-        var listId = $"completion-{_cellId}";
-        popup.Attr("id", listId).Attr("role", "listbox")
-            .Attr("data-completion-generation", _completionGeneration.ToString());
-        for (var index = 0; index < completion.Items.Count; index++) {
-            var label = completion.Items[index].Label;
-            DomElement item;
-            if (index < _completionItems.Count) {
-                var rendered = _completionItems[index];
-                item = rendered.Element;
-                if (rendered.Label != label) {
-                    item.Text(label);
-                    _completionItems[index] = (item, label);
-                }
-            }
-            else {
-                item = DomElement.Create("div").Class("completion-item").Text(label);
-                popup.Append(item);
-                _completionItems.Add((item, label));
-            }
-            item.Attr("id", $"{listId}-{index}").Attr("role", "option")
-                .Attr("aria-selected", index == _completionIndex ? "true" : "false")
-                .ToggleClass("selected", index == _completionIndex);
-        }
-        while (_completionItems.Count > completion.Items.Count) {
-            var item = _completionItems[^1].Element;
-            item.Remove();
-            item.Dispose();
-            _completionItems.RemoveAt(_completionItems.Count - 1);
-        }
-        _view.SetCompletionSelection(listId, $"{listId}-{_completionIndex}");
-        var anchorPosition = completion.Items.Min(static item => item.ReplaceStart);
-        var anchorLine = State.Value.Doc.LineAt(anchorPosition);
-        var anchorLineIndex = anchorLine.Number - 1;
-        var anchorColumn = anchorPosition - anchorLine.From;
-        if (isNew) {
-            _view.MountOverlay(popup, anchorLineIndex, anchorColumn);
-        }
-        else {
-            _view.PlaceOverlay(popup, anchorLineIndex, anchorColumn);
-        }
-        DomRuntime.EnsureVisible(popup, _completionItems[_completionIndex].Element);
-    }
-
-    private void SelectCompletion(int index)
-    {
-        _completionItems[_completionIndex].Element.Attr("aria-selected", "false").ToggleClass("selected", false);
-        _completionIndex = index;
-        var selected = _completionItems[_completionIndex].Element;
-        selected.Attr("aria-selected", "true").ToggleClass("selected", true);
-        _view.SetCompletionSelection($"completion-{_cellId}", $"completion-{_cellId}-{index}");
-        if (_completionPopup is { } popup) {
-            DomRuntime.EnsureVisible(popup, selected);
-        }
-    }
-
-    private void ClearCompletionItems()
-    {
-        foreach (var (item, _) in _completionItems) {
-            item.Remove();
-            item.Dispose();
-        }
-        _completionItems.Clear();
-    }
-
-    private void CancelCompletion()
-    {
-        CancelCompletionQuery();
-        _completionPending = false;
-        CloseCompletionPopup();
-    }
-
-    private void CancelCompletionQuery()
-    {
-        _completionGeneration++;
-        DomRuntime.CancelScheduledEvent(CompletionScheduleKey);
-        var cancellation = _completionCancellation;
-        var queryWasRunning = _completionQueryRunning;
-        _completionCancellation = null;
-        _completionQueryAnchor = -1;
-        _completionQueryRunning = false;
-        cancellation?.Cancel();
-        if (!queryWasRunning) {
-            cancellation?.Dispose();
-        }
-    }
-
-    private void CloseCompletionPopup()
-    {
-        _completionSource = null;
-        HideCompletionPopup();
-    }
-
-    private void HideCompletionPopup()
-    {
-        _view.SetCompletionSelection("", "");
-        _completionDocument = null;
-        ClearCompletionItems();
-        if (_completionPopup is { } popup) {
-            DomRuntime.ClearOverlayPlacement(popup);
-        }
-        _completionPopup?.Remove();
-        _completionPopup?.Dispose();
-        _completionPopup = null;
-        _completion = null;
     }
 
     private enum NativeSelectionSource

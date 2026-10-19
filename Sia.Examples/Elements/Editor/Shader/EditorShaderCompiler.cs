@@ -39,14 +39,7 @@ internal sealed class EditorShaderCompiler(MetadataReferenceProvider references)
         IReadOnlyList<CSharpSourceDocument> files, CancellationToken cancellationToken)
     {
         var clock = Stopwatch.StartNew();
-        var intrinsicImage = await references.EnsureHostReferenceAsync("Sia.Spirv.Core", cancellationToken);
-        // Every action shares this program cache and the exact host types used by its Render delegate.
-        var hostAssemblies = new[] {
-            typeof(EditorShaderCompiler).Assembly.GetName().Name!,
-            "Sia.Prelude", "Sia.Math", "Sia.Window", "Sia.Input", "Sia.RenderGraph", "Sia.Graphics", "Sia.WebGPU",
-        };
-        foreach (var assembly in hostAssemblies)
-            await references.EnsureHostReferenceAsync(assembly, cancellationToken);
+        var intrinsicImage = await PrepareReferencesAsync(cancellationToken);
         var referenceVersion = ReferenceVersion;
         var output = await _engine.CompileAsync(new(
             $"EditorShader_{Interlocked.Increment(ref _assemblyNumber)}",
@@ -69,6 +62,19 @@ internal sealed class EditorShaderCompiler(MetadataReferenceProvider references)
         var entries = frontend.Kernels.Select(static kernel => new ShaderEntry(
             kernel.QualifiedName, kernel.Name, kernel.MetadataToken, kernel.Stage, kernel.Parameters)).ToArray();
         return new(image, intrinsicImage, entries, diagnostics, referenceVersion, csharpMilliseconds, clock.Elapsed.TotalMilliseconds);
+    }
+
+    internal async ValueTask<ReadOnlyMemory<byte>> PrepareReferencesAsync(CancellationToken cancellationToken)
+    {
+        var intrinsicImage = await references.EnsureHostReferenceAsync("Sia.Spirv.Core", cancellationToken);
+        // Every action shares this program cache and the exact host types used by its Render delegate.
+        var hostAssemblies = new[] {
+            typeof(EditorShaderCompiler).Assembly.GetName().Name!,
+            "Sia.Prelude", "Sia.Math", "Sia.Window", "Sia.Input", "Sia.RenderGraph", "Sia.Graphics", "Sia.WebGPU",
+        };
+        foreach (var assembly in hostAssemblies)
+            await references.EnsureHostReferenceAsync(assembly, cancellationToken);
+        return intrinsicImage;
     }
 
     private static OutputKind ChooseOutputKind(Compilation compilation, CancellationToken cancellationToken)

@@ -155,7 +155,7 @@ internal sealed record EditorKeymap(IReadOnlyDictionary<string, KeyBinding[]> Ov
 
     internal static bool Allows(CommandContext owner, CommandContext current)
         => owner == CommandContext.Workbench || owner == current || owner == CommandContext.Editor
-            && current is CommandContext.EditorLab or CommandContext.Notebook or CommandContext.Suggestions;
+            && current is CommandContext.EditorLab or CommandContext.Notebook or CommandContext.Suggestions or CommandContext.Signatures;
 
     private static bool Prefix(KeyStroke[] first, KeyStroke[] second)
         => first.Take(Math.Min(first.Length, second.Length)).Zip(second).All(pair => Matches(pair.First, pair.Second));
