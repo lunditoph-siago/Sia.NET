@@ -159,9 +159,10 @@ public static class CursorCommands
         var line = state.Doc.LineAt(position);
         if (position == (forward ? line.To : line.From)) {
             position = forward
-                ? Math.Min(state.Doc.Length, line.To + 1)
-                : Math.Max(0, line.From - 1);
-        } else {
+                ? line.EndIncludingLineBreak
+                : line.Number == 1 ? 0 : state.Doc.Line(line.Number - 1).To;
+        }
+        else {
             position = line.From + CharUtil.FindClusterBreak(
                 line.Text,
                 position - line.From,

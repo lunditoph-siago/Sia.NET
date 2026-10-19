@@ -25,7 +25,7 @@ public static class DeleteCommands
             var line = target.State.Doc.LineAt(range.Head);
             return range.Head < line.To
                 ? line.To
-                : Math.Min(target.State.Doc.Length, range.Head + 1);
+                : line.EndIncludingLineBreak;
         });
 
     private static bool DeleteBy(
@@ -91,10 +91,10 @@ public static class DeleteCommands
             return boundary;
         }
         if (forward && line.Number < state.Doc.Lines) {
-            return boundary + 1;
+            return line.EndIncludingLineBreak;
         }
         if (!forward && line.Number > 1) {
-            return boundary - 1;
+            return state.Doc.Line(line.Number - 1).To;
         }
         return boundary;
     }

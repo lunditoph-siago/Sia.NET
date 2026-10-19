@@ -205,8 +205,7 @@ public static partial class NotebookCellLayout
         NotebookCellState state,
         string windowId)
     {
-        if (!state.Windows.TryGetValue(windowId, out var window)
-            || window.Kind == CellWindowKind.Script) {
+        if (!state.Windows.TryGetValue(windowId, out var window)) {
             return state;
         }
 
@@ -491,6 +490,9 @@ public static partial class NotebookCellLayout
                     TabIds = group.TabIds.AddRange(newTabIds),
                     ActiveTabId = newTabIds[newTabIds.Count - 1],
                 });
+            }
+            else {
+                foreach (var tabId in newTabIds) state = OpenTabIntoHome(state, tabId);
             }
         }
 

@@ -67,7 +67,7 @@ internal sealed class EditorLinesCache
     {
         if (from >= to || props.Decorations.IsEmpty) return [];
         return props.Decorations.Between(
-            props.Document.Line(from + 1).From, props.Document.Line(to).To + 1).ToArray();
+            props.Document.Line(from + 1).From, props.Document.Line(to).EndIncludingLineBreak).ToArray();
     }
 
     private static bool OrderedDecorations(Range<Decoration>[] decorations)
@@ -88,13 +88,13 @@ internal sealed class EditorLinesCache
         if (ordered) {
             while (cursor < decorations.Length && decorations[cursor].To < line.From) cursor++;
             var end = cursor;
-            while (end < decorations.Length && decorations[end].From <= line.To + 1) end++;
+            while (end < decorations.Length && decorations[end].From <= line.EndIncludingLineBreak) end++;
             ranges = ranges[cursor..end];
         }
         List<Range<Decoration>>? marks = null;
         string? className = null;
         foreach (var range in ranges) {
-            var end = range.Value.Kind == DecorationKind.Line ? line.To + 1 : line.To;
+            var end = range.Value.Kind == DecorationKind.Line ? line.EndIncludingLineBreak : line.To;
             var overlaps = range.From == range.To
                 ? range.From >= line.From && range.From <= end
                 : range.From < end && range.To > line.From;

@@ -53,7 +53,7 @@ internal sealed class BrowserNotebookFileTree : IDisposable
 
                 using var cellChildren = DomElement.Create("div").Class("file-tree-children");
                 foreach (var script in cell.Scripts) {
-                    AppendScript(cellChildren, script, cellState);
+                    AppendScript(cellChildren, script, cellState, cell.Editable && cell.Scripts.Count > 1);
                 }
                 cellNode.Append(cellChildren);
                 sectionChildren.Append(cellNode);
@@ -102,7 +102,7 @@ internal sealed class BrowserNotebookFileTree : IDisposable
     private void AppendScript(
         DomElement parent,
         CellScript script,
-        NotebookCellState cellState)
+        NotebookCellState cellState, bool deletable)
     {
         var window = cellState.GetScriptWindow(script.Id);
         var tab = cellState.GetTabForWindow(window.Id);
@@ -151,6 +151,16 @@ internal sealed class BrowserNotebookFileTree : IDisposable
             .Attr("spellcheck", "false")
             .Attr("enterkeyhint", "done");
         row.Append(open).Append(rename).Append(input);
+        if (deletable) {
+            using var delete = DomElement.Create("button").Class("file-tree-file-action").Attr("type", "button")
+                .Attr("aria-label", $"Delete {window.Title}.cs").Attr("title", $"Delete {window.Title}.cs")
+                .On("click", $"remove-script:{script.Id}");
+            using var icon = DomElement.Create("svg").Attr("viewBox", "0 0 24 24").Attr("width", "16").Attr("height", "16")
+                .Attr("fill", "none").Attr("stroke", "currentColor").Attr("stroke-width", "1.5")
+                .Attr("stroke-linecap", "round").Attr("stroke-linejoin", "round").Attr("aria-hidden", "true").Attr("focusable", "false");
+            using var path = DomElement.Create("path").Attr("d", "M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5");
+            row.Append(delete.Append(icon.Append(path)));
+        }
         parent.Append(row);
         _files.Add(script.Id, new(open, tab.Id));
     }

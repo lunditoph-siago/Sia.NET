@@ -7,9 +7,12 @@ public static class LineCommands
         var state = target.State;
         var (changes, selection) = ChangeHelpers.InsertPerRange(
             state.Selection.Ranges,
-            range => "\n" + new string(
-                ' ',
-                state.Doc.LineAt(range.From).Text.TakeWhile(char.IsWhiteSpace).Count()));
+            range => {
+                var line = state.Doc.LineAt(range.From);
+                var length = 0;
+                while (length < range.From - line.From && line.Text[length] is ' ' or '\t') length++;
+                return state.Doc.NewlineAt(range.From) + line.Text[..length];
+            });
         target.Apply(state.Apply(new() {
             Changes = changes,
             Selection = selection,
@@ -72,7 +75,8 @@ public static class LineCommands
                     changes.Add(change);
                 }
                 lastLineNumber = Math.Max(lastLineNumber, line.Number);
-                position = line.To + 1;
+                position = line.EndIncludingLineBreak;
+                if (line.BreakLength == 0) break;
             }
         }
         return changes;
