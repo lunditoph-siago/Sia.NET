@@ -8,6 +8,7 @@ public readonly record struct CompletionCandidate(
 {
     internal Microsoft.CodeAnalysis.Completion.CompletionItem? Item { get; init; }
     internal CompletionEdit? Edit { get; init; }
+    internal IReadOnlyDictionary<char, CompletionEdit>? CommitEdits { get; init; }
     internal CompletionQuery? PreparedQuery { get; init; }
 
     internal bool SameIdentity(CompletionCandidate other)

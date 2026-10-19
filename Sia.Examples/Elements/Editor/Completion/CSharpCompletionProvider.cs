@@ -143,17 +143,47 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
     }
 
     private static async Task<CompletionEdit?> GetChangeAsync(CompletionResult completion, CompletionCandidate candidate,
-        CancellationToken cancellationToken)
+        string source, CancellationToken cancellationToken, char? character = null)
     {
         if (completion.Query is not { } query || candidate.Item is not { } item)
             return new([new(candidate.ReplaceStart, candidate.ReplaceEnd, candidate.InsertText)],
                 candidate.ReplaceStart + candidate.InsertText.Length);
-        var edit = await query.Service.GetChangeAsync(query.Document, item, cancellationToken: cancellationToken);
+        var edit = await query.Service.GetChangeAsync(query.Document, item, character, cancellationToken);
         var position = edit.NewPosition ?? edit.TextChange.Span.Start + (edit.TextChange.NewText?.Length ?? 0);
-        if (query.Projection is { } projection) return projection.ToSource(query.Document.FilePath!, edit.TextChanges, position);
-        return new CompletionEdit([.. edit.TextChanges.OrderBy(static change => change.Span.Start)
+        var result = query.Projection is { } projection ? projection.ToSource(query.Document.FilePath!, edit.TextChanges, position)
+            : new CompletionEdit([.. edit.TextChanges.OrderBy(static change => change.Span.Start)
             .Select(static change => new ChangeSpec(change.Span.Start, change.Span.End, change.NewText ?? ""))],
             position);
+        return result is { } change && character is { } commit
+            ? change.WithCharacter(commit, source.Length, edit.IncludesCommitCharacter) : result;
+    }
+
+    internal static char[] CommitCharacters(CompletionItem item, CompletionRules rules)
+    {
+        var characters = rules.DefaultCommitCharacters.ToHashSet();
+        foreach (var rule in item.Rules.CommitCharacterRules) {
+            switch (rule.Kind) {
+                case CharacterSetModificationKind.Replace: characters.Clear(); characters.UnionWith(rule.Characters); break;
+                case CharacterSetModificationKind.Add: characters.UnionWith(rule.Characters); break;
+                case CharacterSetModificationKind.Remove: characters.ExceptWith(rule.Characters); break;
+            }
+        }
+        return characters.Where(character => !char.IsControl(character) && !Filtered(character)).Order().ToArray();
+
+        bool Filtered(char character)
+        {
+            var filtered = CompletionIdentifier.IsCharacter(character);
+            foreach (var rule in item.Rules.FilterCharacterRules) {
+                var contains = rule.Characters.Contains(character);
+                filtered = rule.Kind switch {
+                    CharacterSetModificationKind.Replace => contains,
+                    CharacterSetModificationKind.Add => filtered || contains,
+                    CharacterSetModificationKind.Remove => filtered && !contains,
+                    _ => filtered
+                };
+            }
+            return filtered;
+        }
     }
 
     internal static async Task<CompletionResult> PrepareAsync(CompletionResult completion, string source, int position,
@@ -173,6 +203,7 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
                 query = new(document, query.Service);
             }
             var prepared = new List<CompletionCandidate>(completion.Items.Count);
+            var rules = query?.Service.GetRules();
             foreach (var original in completion.Items) {
                 cancellationToken.ThrowIfCancellationRequested();
                 var candidate = original;
@@ -182,8 +213,16 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
                     candidate = candidate with { Item = current, ReplaceStart = fresh.Span.Start, ReplaceEnd = fresh.Span.End };
                 }
                 var context = completion with { Query = query };
-                if (await GetChangeAsync(context, candidate, cancellationToken) is { } edit)
-                    prepared.Add(candidate with { Edit = edit, PreparedQuery = query });
+                if (await GetChangeAsync(context, candidate, source, cancellationToken) is not { } edit) continue;
+                Dictionary<char, CompletionEdit>? commits = null;
+                if (candidate.Item is { } itemWithRules && rules is not null) {
+                    commits = [];
+                    foreach (var character in CommitCharacters(itemWithRules, rules)) {
+                        if (await GetChangeAsync(context, candidate, source, cancellationToken, character) is { } committed)
+                            commits.Add(character, committed);
+                    }
+                }
+                prepared.Add(candidate with { Edit = edit, CommitEdits = commits, PreparedQuery = query });
             }
             return new CompletionResult(prepared) { Query = query, SuggestionMode = fresh is null ? completion.SuggestionMode : IsSuggestionMode(fresh, source) };
         }, cancellationToken);
@@ -300,4 +339,13 @@ internal sealed record CSharpProjectSnapshot(string ActiveDocumentId, IReadOnlyL
 }
 internal sealed record CompletionQuery(Document Document, CompletionService Service, CSharpSourceProjection? Projection = null,
     Func<string, int, CancellationToken, Task<CompletionResult>>? Refresh = null);
-internal readonly record struct CompletionEdit(ChangeSpec[] Changes, int Position);
+internal readonly record struct CompletionEdit(ChangeSpec[] Changes, int Position)
+{
+    internal CompletionEdit WithCharacter(char character, int sourceLength, bool includesCharacter = false)
+    {
+        if (includesCharacter) return this;
+        var changes = ChangeSet.Of(Changes, sourceLength);
+        var insertion = ChangeSet.Of([new(Position, Position, character.ToString())], changes.MapPos(sourceLength, 1)!.Value);
+        return new(ChangeSet.Compose(changes, insertion).ToSpecs(), Position + 1);
+    }
+}

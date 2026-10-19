@@ -464,6 +464,7 @@ public sealed partial class BrowserEditorHost : IDisposable
             }
 
             var editBefore = ApplyNativeSelection(before, nativeSelection);
+            if (!isolateHistory && TryCommitCompletionCharacter(editBefore, text)) return true;
             var after = editBefore;
             TextCommands.Insert(new(after, state => after = state), text);
             Commit(after, historySelection: editBefore.Selection, historyGroup:
