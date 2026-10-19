@@ -17,18 +17,24 @@ internal static class GeneratorPipeline
         out ImmutableArray<Diagnostic> diagnostics,
         CancellationToken cancellationToken = default)
     {
+        var generators = GetGenerators();
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            generators,
+            parseOptions: parseOptions);
+        driver.RunGeneratorsAndUpdateCompilation(
+            compilation, out var updated, out diagnostics, cancellationToken);
+        return updated;
+    }
+
+    internal static ImmutableArray<ISourceGenerator> GetGenerators()
+    {
         var version = DynamicAssemblyRegistry.Version;
         if (Volatile.Read(ref _discoveredVersion) != version) {
             _generators = Discover();
             _discoveredVersion = version;
         }
 
-        GeneratorDriver driver = CSharpGeneratorDriver.Create(
-            _generators,
-            parseOptions: parseOptions);
-        driver.RunGeneratorsAndUpdateCompilation(
-            compilation, out var updated, out diagnostics, cancellationToken);
-        return updated;
+        return _generators;
     }
 
     [UnconditionalSuppressMessage("Trimming", "IL2026",

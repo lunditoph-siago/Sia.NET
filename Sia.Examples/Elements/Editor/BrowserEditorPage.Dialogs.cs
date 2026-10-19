@@ -245,6 +245,7 @@ internal sealed partial class BrowserEditorPage
         Entity saved;
         try {
             saved = await _workspace.SaveAsAsync(entity, path, _lifetime.Token);
+            InvalidateLanguageContext();
         }
         catch (Exception error) when (error is WorkspaceEntryExistsException or ArgumentException) {
             ShowOperationError($"Could not save as '{path}': {error.Message}", error);
@@ -259,7 +260,8 @@ internal sealed partial class BrowserEditorPage
             EnsureFileWindow(saved);
             _activeEntity = saved;
             UpdateState(state => NotebookCellLayout.OpenTabIntoHome(state, TabIdFor(saved)));
-        } else {
+        }
+        else {
             ApplyLayout();
             UpdateChrome("saved");
         }
@@ -296,6 +298,7 @@ internal sealed partial class BrowserEditorPage
             file => (Content: file.Get<WorkspaceFile>().Content,
                 Tab: _state.Tabs.GetValueOrDefault(TabIdFor(file))));
         await _workspace.DeleteEntryAsync(entity, _lifetime.Token);
+        InvalidateLanguageContext();
         if (_disposed) {
             return;
         }
@@ -314,7 +317,8 @@ internal sealed partial class BrowserEditorPage
                     || snapshot.Tab is null || !IsCurrentTab(open, snapshot.Tab)) {
                     CancelDialog(open);
                     _workspace.RetainDeletedDraft(open);
-                } else {
+                }
+                else {
                     FinishCloseTab(open, TabIdFor(open), WindowIdFor(open));
                 }
             }

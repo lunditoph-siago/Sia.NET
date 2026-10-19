@@ -1,6 +1,7 @@
 import { emit, emitBarrier, resolveBarrier, takeEventBatch } from './notebook-runtime.js';
 import { pinEditorLines } from './editor-lines.js';
 import { attachCommandSurface, invokeWorkbenchCommand, resolveShortcut } from './editor-keybindings.js';
+import { scheduleCompletionWindow } from './editor-overlay.js';
 
 const editorHandlers = new Map();
 const selectionSyncPending = new WeakSet();
@@ -344,8 +345,8 @@ export function attachEditorSurface(cellId, surface, restoreFocus) {
     if (editorHandlers.has(cellId)) {
         throw new Error(`Editor '${cellId}' is already attached.`);
     }
-
     surface.dataset.editorBinding = cellId;
+
     let nativeEditSnapshot = null;
     let knownSelection;
     let modelSelectionOnly = false;
@@ -488,6 +489,7 @@ export function attachEditorSurface(cellId, surface, restoreFocus) {
     const reportSelection = () => {
         const state = surfaceObservers.get(surface);
         if (
+            document.activeElement !== surface ||
             selectionSyncPending.has(surface) ||
             usingModelSelection() ||
             nativeEditSnapshot ||
@@ -600,6 +602,34 @@ export function attachEditorSurface(cellId, surface, restoreFocus) {
         event.preventDefault();
         command();
     };
+
+    const completionRoot = surface.closest('.editor-container');
+    const completionItem = (event) => event.target.closest?.('[data-completion-index]');
+    const preserveCompletionFocus = (event) => {
+        if (event.pointerType === 'mouse' && completionItem(event)) event.preventDefault();
+        if (!completionItem(event)) markCompletionScroll(event);
+    };
+    const markCompletionScroll = event => {
+        const list = event.target.closest?.('.completion-list');
+        if (list) list.dataset.completionReveal = 'false';
+    };
+    const acceptCompletion = (event) => {
+        const item = completionItem(event);
+        if (!item || composing || compositionEnding) return;
+        event.preventDefault();
+        if (item.getAttribute('aria-disabled') === 'true') return;
+        if (nativeEditSnapshot) reconcileNativeEdit();
+        emitInput('suggestion', `${item.dataset.completionGeneration}:${item.dataset.completionIndex}`);
+        surface.focus({ preventScroll: true });
+    };
+    completionRoot?.addEventListener('pointerdown', preserveCompletionFocus);
+    completionRoot?.addEventListener('click', acceptCompletion);
+    const scrollCompletion = event => {
+        if (event.target.matches?.('.completion-list')) scheduleCompletionWindow(event.target);
+    };
+    completionRoot?.addEventListener('scroll', scrollCompletion, true);
+    completionRoot?.addEventListener('wheel', markCompletionScroll, { passive: true });
+    completionRoot?.addEventListener('touchmove', markCompletionScroll, { passive: true });
 
     const handlers = {
         input(event) {
@@ -762,6 +792,11 @@ export function attachEditorSurface(cellId, surface, restoreFocus) {
             disposed = true;
             detachCommands();
             delete surface.dataset.editorBinding;
+            completionRoot?.removeEventListener('pointerdown', preserveCompletionFocus);
+            completionRoot?.removeEventListener('click', acceptCompletion);
+            completionRoot?.removeEventListener('scroll', scrollCompletion, true);
+            completionRoot?.removeEventListener('wheel', markCompletionScroll);
+            completionRoot?.removeEventListener('touchmove', markCompletionScroll);
             for (const operation of [...clipboardOperations.values()]) finishClipboard(operation, false);
             clipboardOperations.clear();
             surface.dataset.editorClipboardPending = 'false';
@@ -813,7 +848,6 @@ export function attachEditorSurface(cellId, surface, restoreFocus) {
             return JSON.stringify([...pendingInputs.values()]);
         },
     };
-
     const detachCommands = attachCommandSurface(surface, () => {
         if (nativeEditSnapshot && !composing) {
             compositionEnding = false;
@@ -989,6 +1023,7 @@ function applyEditorSelection(surface, update) {
     ignoreOwnWrites(() => clearCaretMarkers(surface, false), surface);
     let selectionRows = null;
     const physicalLine = index => surface.querySelector(`[data-ln="${index}"]`);
+    if (update.reveal && document.activeElement === surface) pinEditorLines(surface, headLineIndex);
     const findLine = index => selectionRows ? selectionRows.find(row => Number(row.dataset.ln) === index) : physicalLine(index);
     const pointIn = (line, column) => {
         const lineLength = getEditorText(line).length;

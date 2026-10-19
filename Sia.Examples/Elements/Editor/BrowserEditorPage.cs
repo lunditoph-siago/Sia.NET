@@ -162,6 +162,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         _uniformInspector = new();
 
         _editors = new(world, references);
+        _editors.LanguageContext = CaptureLanguageSnapshotAsync;
         _state = CreateLayoutState();
         ApplyLayout();
         UpdateChrome();
@@ -357,7 +358,8 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             try { await operation; }
             catch (Exception error) { (failures ??= []).Add(error); }
         }
-        Release(_editors.Dispose);
+        try { await _editors.DisposeAsync(); }
+        catch (Exception error) { (failures ??= []).Add(error); }
         Release(DisposeSurfaces);
         Release(DisposeLayoutViews);
         Release(DisposeExplorer);

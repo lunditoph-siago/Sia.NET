@@ -28,6 +28,7 @@ function active(binding, event, surface) {
             return Boolean(script && (binding.command !== 'NotebookSave' || script.dataset.scriptEditable === 'true'));
         }
         case 'Suggestions': return Boolean(surface?.getAttribute('aria-controls'));
+        case 'Signatures': return Boolean(surface?.getAttribute('aria-describedby'));
         default: return false;
     }
 }

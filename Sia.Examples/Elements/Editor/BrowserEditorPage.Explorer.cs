@@ -51,7 +51,8 @@ internal sealed partial class BrowserEditorPage
     {
         if (EditorWorkspace.IsFolder(entry)) {
             AppendFolder(parent, entry);
-        } else {
+        }
+        else {
             AppendFile(parent, entry);
         }
     }
@@ -219,6 +220,7 @@ internal sealed partial class BrowserEditorPage
             return;
         }
         await _workspace.RenameAsync(entity, name, _lifetime.Token);
+        InvalidateLanguageContext();
         if (_disposed || !entity.IsValid) {
             return;
         }
@@ -232,9 +234,11 @@ internal sealed partial class BrowserEditorPage
         string folderPath;
         if (folderKey.Length == 0) {
             folderPath = string.Empty;
-        } else if (TryResolve(folderKey, out var parent) && parent.IsValid) {
+        }
+        else if (TryResolve(folderKey, out var parent) && parent.IsValid) {
             folderPath = EditorWorkspace.PathOf(parent);
-        } else {
+        }
+        else {
             return;
         }
         var activation = folder ? _activationGeneration : ++_activationGeneration;
@@ -242,6 +246,7 @@ internal sealed partial class BrowserEditorPage
         var created = folder
             ? await _workspace.CreateFolderAsync(folderPath, name, _lifetime.Token)
             : await _workspace.CreateFileAsync(folderPath, name, _lifetime.Token);
+        InvalidateLanguageContext();
         if (_disposed) {
             return;
         }

@@ -190,6 +190,8 @@ public sealed class BrowserEditorView : IEditorView
 
     internal void Focus() => _lines.Focus();
 
+    internal void SetSignatureHelp(string id) => _lines.Attr("aria-describedby", id);
+
     public void PlaceOverlay(DomElement overlay, int lineIndex, int column)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);

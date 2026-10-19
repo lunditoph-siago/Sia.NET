@@ -193,11 +193,14 @@ function intersectingChunks(lines) {
     return visible;
 }
 
-export function pinEditorLines(lines) {
+export function pinEditorLines(lines, revealLine) {
     const owner = owners.get(lines);
     if (!owner || owner.disposed || !lines.isConnected) return;
+    const target = revealLine === undefined ? null
+        : lines.querySelector(`.editor-line[data-ln="${revealLine}"]`)?.closest('.editor-chunk');
     for (let pass = 0; pass < 4; pass++) {
         const next = new Set(intersectingChunks(lines));
+        if (target) next.add(target);
         if (next.size === owner.pinned.size && [...next].every(chunk => owner.pinned.has(chunk))) return;
         for (const chunk of owner.pinned) if (!next.has(chunk)) chunk.style.contentVisibility = '';
         for (const chunk of next) if (!owner.pinned.has(chunk)) chunk.style.contentVisibility = 'visible';

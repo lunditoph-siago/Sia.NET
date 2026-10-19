@@ -1,6 +1,6 @@
 namespace Sia_Examples.Editor;
 
-internal enum CommandContext { Workbench, Editor, EditorLab, Notebook, Suggestions }
+internal enum CommandContext { Workbench, Editor, EditorLab, Notebook, Suggestions, Signatures }
 
 internal enum EditorCommandId
 {
@@ -8,6 +8,7 @@ internal enum EditorCommandId
     Compile, Run, Console, Compilation, Render, ClearOutput, NotebookRun, NotebookSave,
     Undo, Redo, Suggest, AcceptSuggestion, NextSuggestion, PreviousSuggestion, HideSuggestions,
 
+    SignatureHelp, NextSignature, PreviousSignature, HideSignature,
     NextSuggestionPage, PreviousSuggestionPage,
 
     Left, Right, Up, Down, SelectLeft, SelectRight, SelectUp, SelectDown,
@@ -21,7 +22,7 @@ internal sealed record EditorCommand(
     EditorCommandId Id, string Title, CommandContext Context, KeyBinding[] Defaults,
     StateCommand? Edit = null, string? Event = null)
 {
-    internal bool IsEditor => Context is CommandContext.Editor or CommandContext.Suggestions;
+    internal bool IsEditor => Context is CommandContext.Editor or CommandContext.Suggestions or CommandContext.Signatures;
 
     internal static IReadOnlyList<EditorCommand> All { get; } = [
         new(EditorCommandId.Commands, "Show All Commands", CommandContext.Workbench, [new("Mod+Shift+P"), new("F1")]),
@@ -43,6 +44,10 @@ internal sealed record EditorCommand(
         new(EditorCommandId.Undo, "Edit: Undo", CommandContext.Editor, [new("Mod+Z")]),
         new(EditorCommandId.Redo, "Edit: Redo", CommandContext.Editor, [new("Mod+Shift+Z"), new("Mod+Y")]),
         new(EditorCommandId.Suggest, "Suggest: Trigger Completion", CommandContext.Editor, [new("Mod+Space")]),
+        new(EditorCommandId.SignatureHelp, "Suggest: Parameter Hints", CommandContext.Editor, [new("Mod+Shift+Space")]),
+        new(EditorCommandId.NextSignature, "Parameters: Next Overload", CommandContext.Signatures, [new("Alt+ArrowDown")]),
+        new(EditorCommandId.PreviousSignature, "Parameters: Previous Overload", CommandContext.Signatures, [new("Alt+ArrowUp")]),
+        new(EditorCommandId.HideSignature, "Parameters: Dismiss", CommandContext.Signatures, [new("Escape")]),
         new(EditorCommandId.AcceptSuggestion, "Suggest: Accept", CommandContext.Suggestions, [new("Enter"), new("Tab")]),
         new(EditorCommandId.NextSuggestion, "Suggest: Next", CommandContext.Suggestions, [new("ArrowDown")]),
         new(EditorCommandId.PreviousSuggestion, "Suggest: Previous", CommandContext.Suggestions, [new("ArrowUp")]),
