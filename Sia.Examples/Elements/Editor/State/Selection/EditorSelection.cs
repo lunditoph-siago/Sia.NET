@@ -19,6 +19,18 @@ public sealed class EditorSelection : IEquatable<EditorSelection>
             ? this
             : Create([.. Ranges.Select(range => range.Map(change, assoc))], MainIndex);
 
+    internal EditorSelection Normalize(Text document)
+    {
+        SelectionRange[]? normalized = null;
+        for (var index = 0; index < Ranges.Count; index++) {
+            var range = Ranges[index].Normalize(document);
+            if (ReferenceEquals(range, Ranges[index])) continue;
+            normalized ??= [.. Ranges];
+            normalized[index] = range;
+        }
+        return normalized is null ? this : Create(normalized, MainIndex);
+    }
+
     public EditorSelection AsSingle()
         => Ranges.Count == 1 ? this : new([Main], 0);
 

@@ -648,7 +648,7 @@ export function attachEditorSurface(cellId, surface, restoreFocus) {
             }
             const text = event.clipboardData.getData('text/plain');
             emitInputCommand(event, () =>
-                emitTextCommand(text.replaceAll('\r\n', '\n').replaceAll('\r', '\n'), true),
+                emitTextCommand(text, true),
             );
         },
         focus() {
@@ -712,7 +712,7 @@ export function attachEditorSurface(cellId, surface, restoreFocus) {
                 const text = event.data ?? event.dataTransfer?.getData('text/plain');
                 if (text !== undefined && text !== null) {
                     emitInputCommand(event, () =>
-                        emitTextCommand(text.replaceAll('\r\n', '\n').replaceAll('\r', '\n'), true),
+                        emitTextCommand(text, true),
                     );
                     return;
                 }

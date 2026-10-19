@@ -27,6 +27,13 @@ public sealed class SelectionRange : IEquatable<SelectionRange>
     internal SelectionRange Clamp(int length)
         => To <= length ? this : new(Math.Min(From, length), Math.Min(To, length), _flags, GoalColumn);
 
+    internal SelectionRange Normalize(Text document)
+    {
+        var from = document.NormalizePosition(From, Empty && Assoc >= 0);
+        var to = Empty ? from : document.NormalizePosition(To, true);
+        return from == From && to == To ? this : new(from, to, _flags, GoalColumn);
+    }
+
     public int Assoc => (_flags & SelFlag.AssocBefore) != 0
         ? -1
         : (_flags & SelFlag.AssocAfter) != 0

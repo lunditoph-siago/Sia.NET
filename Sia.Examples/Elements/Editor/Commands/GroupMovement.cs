@@ -12,7 +12,7 @@ internal static class GroupMovement
         if (position == (forward ? line.To : line.From)) {
             var documentBoundary = forward ? state.Doc.Length : 0;
             return EditorSelection.Cursor(
-                position == documentBoundary ? position : position + (forward ? 1 : -1),
+                position == documentBoundary ? position : forward ? line.EndIncludingLineBreak : state.Doc.Line(line.Number - 1).To,
                 forward ? -1 : 1);
         }
 
@@ -47,7 +47,7 @@ internal static class GroupMovement
             if (position == (forward ? line.To : line.From)) {
                 var documentBoundary = forward ? state.Doc.Length : 0;
                 if (position == range.Head && position != documentBoundary) {
-                    position += forward ? 1 : -1;
+                    position = forward ? line.EndIncludingLineBreak : state.Doc.Line(line.Number - 1).To;
                 }
                 break;
             }

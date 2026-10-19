@@ -68,10 +68,7 @@ public sealed partial class BrowserEditorHost : IDisposable
             source,
             EditorDecorations.FromHighlights(highlights));
         _domDocuments.Add(0, new(initialState.Doc, ChangeSet.Empty(initialState.Doc.Length), 0));
-        var oracle = new EditorHeightOracle(lineWrapping: false).SetDoc(initialState.Doc);
-        var heightMap = EditorHeightMap.Empty()
-            .ApplyChanges(Text.Empty, oracle, [(0, 0, 0, initialState.Doc.Length)]);
-        _viewState = new EditorViewState(heightMap, oracle);
+        _viewState = EditorViewState.Create(initialState.Doc, lineWrapping: false);
         _view.BeginUpdate();
         try {
             _view.SetDocumentRevision(0);
@@ -248,7 +245,7 @@ public sealed partial class BrowserEditorHost : IDisposable
 
         _lastClientHeight = clientHeight;
         var state = State.Value;
-        var oracle = _viewState.Oracle.SetDoc(state.Doc);
+        var oracle = _viewState.SetDocument(state.Doc);
 
         var oracleChanged = false;
         var lineLength = contentWidth / charWidth;
@@ -273,12 +270,7 @@ public sealed partial class BrowserEditorHost : IDisposable
         try {
             var hasMeasuredLines = heights is { Length: > 0 } && firstLineIndex >= 0 && firstLineIndex < state.Doc.Lines;
             if (hasMeasuredLines || oracleChanged) {
-                EditorMeasuredHeights? measured = null;
-                if (hasMeasuredLines) {
-                    var from = state.Doc.Line(firstLineIndex + 1).From;
-                    measured = new EditorMeasuredHeights(from, heights!);
-                }
-                _viewState.SetHeightMap(_viewState.HeightMap.UpdateHeight(oracle, 0, force: oracleChanged, measured));
+                _viewState.UpdateMeasuredHeights(firstLineIndex, heights, force: oracleChanged);
             }
 
             if (oracleChanged && _pendingRestore is not null) {
@@ -334,12 +326,11 @@ public sealed partial class BrowserEditorHost : IDisposable
 
     private void PushSpacerHeights(EditorViewport viewport)
     {
-        var oracle = _viewState.Oracle;
         var map = _viewState.HeightMap;
         var before = viewport.From <= 0
             ? 0
-            : map.LineAt(viewport.From, QueryType.ByPos, oracle, 0, 0).Top;
-        var afterBlock = map.LineAt(Math.Min(viewport.To, map.Length), QueryType.ByPos, oracle, 0, 0);
+            : _viewState.LineAt(viewport.From, QueryType.ByPos).Top;
+        var afterBlock = _viewState.LineAt(viewport.To, QueryType.ByPos);
         var after = Math.Max(0, map.Height - afterBlock.Bottom);
         _view.SetSpacerHeights(before, after);
     }
@@ -370,7 +361,7 @@ public sealed partial class BrowserEditorHost : IDisposable
         var position = _view.ReadScrollPosition();
         var captured = position ?? new(_lastScrollTop, 0, -1, 0, 0);
         if (captured.Line < 0) {
-            var block = _viewState.HeightMap.LineAt(captured.Top, QueryType.ByHeight, _viewState.Oracle, 0, 0);
+            var block = _viewState.LineAt(captured.Top, QueryType.ByHeight);
             captured = captured with {
                 Line = state.Doc.LineAt(block.From).Number - 1,
                 Offset = (block.Top - captured.Top) / _viewState.Oracle.LineHeight,
@@ -406,7 +397,7 @@ public sealed partial class BrowserEditorHost : IDisposable
     {
         var doc = State.Value.Doc;
         var line = doc.Line(Math.Clamp(memento.ViewLine + 1, 1, doc.Lines));
-        var block = _viewState.HeightMap.LineAt(line.From, QueryType.ByPos, _viewState.Oracle, 0, 0);
+        var block = _viewState.LineAt(line.From, QueryType.ByPos);
         var column = Math.Clamp(memento.ViewColumn, 0, line.Length);
         var rowTop = Math.Min(block.Height - _viewState.Oracle.LineHeight,
             Math.Floor(column / _viewState.Oracle.LineLength) * _viewState.Oracle.LineHeight);
@@ -568,12 +559,14 @@ public sealed partial class BrowserEditorHost : IDisposable
         var windowLength = windowEnd.To - windowStart.From;
         var from = Math.Clamp(beforeSelection.Main.From - windowStart.From, 0, windowLength);
         var to = Math.Clamp(beforeSelection.Main.To - windowStart.From, from, windowLength);
+        var window = document.Slice(windowStart.From, windowEnd.To);
         var difference = TextDiff.FindForSelection(
-            document.SliceDoc(windowStart.From, windowEnd.To), mutation.Replacement, from, to,
+            window.Layout.SliceDoc(), Text.OfString(mutation.Replacement).Layout.SliceDoc(), window.ToLayoutPosition(from), window.ToLayoutPosition(to),
             mutation.InputType.Contains("Backward", StringComparison.Ordinal)
                 ? TextDiff.Preference.End : TextDiff.Preference.None);
         change = difference is { } edit
-            ? new(windowStart.From + edit.From, windowStart.From + edit.To, edit.Insert)
+            ? new(windowStart.From + window.FromLayoutPosition(edit.From), windowStart.From + window.FromLayoutPosition(edit.To),
+                edit.Insert.Replace("\n", document.NewlineAt(windowStart.From + window.FromLayoutPosition(edit.From)), StringComparison.Ordinal))
             : null;
         return true;
     }
@@ -872,11 +865,7 @@ public sealed partial class BrowserEditorHost : IDisposable
         ScheduleHighlight(ReadSource(state.Doc));
         var viewport = Viewport.Value;
         if (!ReferenceEquals(state.LineUpdate, before.LineUpdate) && state.LineUpdate is { } update) {
-            var ranges = new List<(int FromA, int ToA, int FromB, int ToB)>();
-            update.Changes.IterateChangedRanges(
-                (oldFrom, oldTo, newFrom, newTo) => ranges.Add((oldFrom, oldTo, newFrom, newTo)));
-            var oracle = _viewState.Oracle.SetDoc(state.Doc);
-            _viewState.SetHeightMap(_viewState.HeightMap.ApplyChanges(update.BeforeDocument, oracle, ranges));
+            _viewState.ApplyChanges(update, state.Doc);
 
             var mapped = _viewState.MapViewport(viewport, update.Changes).Clamp(state.Doc.Length);
             viewport = _viewState.IsAppropriate(mapped)

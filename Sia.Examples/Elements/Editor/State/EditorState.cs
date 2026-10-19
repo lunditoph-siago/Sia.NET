@@ -25,9 +25,10 @@ public readonly record struct EditorState(
             ? ChangeSet.Of(update.Changes, Doc.Length)
             : ChangeSet.Empty(Doc.Length);
         var document = changes.Apply(Doc);
+        var selection = (update.Selection ?? Selection.Map(changes)).Normalize(document);
         return new(
             document,
-            update.Selection ?? Selection.Map(changes),
+            selection,
             update.Decorations ?? Decorations.Map(changes),
             LineIdentities.Map(changes, Doc, document),
             changes.IsEmpty ? LineUpdate : new(Doc, changes),
