@@ -669,24 +669,30 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             .Attr("title", "Diagnostics for the compiled C# snapshot")
             .ToggleClass("is-empty", errors == 0 && warnings == 0)
             .ToggleClass("has-errors", errors != 0);
-        ClearDiagnostics();
-        var generation = _diagnosticsGeneration;
-        foreach (var diagnostic in diagnostics) {
-            var location = diagnostic.SourcePath is null
-                ? string.Empty
-                : $"{diagnostic.SourcePath}({diagnostic.Line},{diagnostic.Column}): ";
-            var text = $"{location}{diagnostic.Severity.ToString().ToLowerInvariant()} "
-                + $"{diagnostic.Id}: {diagnostic.Message}";
-            using var line = DomElement.Create(diagnostic.SourceId is null ? "div" : "button")
-                .Class("editor-page-diagnostic")
-                .Class(diagnostic.Severity == NotebookDiagnosticSeverity.Error
-                    ? "diagnostic-error"
-                    : "diagnostic-warning")
-                .Text(text);
-            if (diagnostic.SourceId is { } fileId) {
-                line.Attr("type", "button").On("click", $"editor-language-diagnostic:{generation}:{Uri.EscapeDataString(fileId)}:{diagnostic.Line}:{diagnostic.Column}");
+        DomRuntime.BeginUpdate(_diagnostics);
+        try {
+            ClearDiagnostics();
+            var generation = _diagnosticsGeneration;
+            foreach (var diagnostic in diagnostics) {
+                var location = diagnostic.SourcePath is null
+                    ? string.Empty
+                    : $"{diagnostic.SourcePath}({diagnostic.Line},{diagnostic.Column}): ";
+                var text = $"{location}{diagnostic.Severity.ToString().ToLowerInvariant()} "
+                    + $"{diagnostic.Id}: {diagnostic.Message}";
+                using var line = DomElement.Create(diagnostic.SourceId is null ? "div" : "button")
+                    .Class("editor-page-diagnostic")
+                    .Class(diagnostic.Severity == NotebookDiagnosticSeverity.Error
+                        ? "diagnostic-error"
+                        : "diagnostic-warning")
+                    .Text(text);
+                if (diagnostic.SourceId is { } fileId) {
+                    line.Attr("type", "button").On("click", $"editor-language-diagnostic:{generation}:{Uri.EscapeDataString(fileId)}:{diagnostic.Line}:{diagnostic.Column}");
+                }
+                _diagnostics.Append(line);
             }
-            _diagnostics.Append(line);
+        }
+        finally {
+            DomRuntime.EndUpdate(_diagnostics);
         }
     }
 
