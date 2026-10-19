@@ -691,14 +691,15 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         UpdateChrome("reverted to the saved version");
     }
 
-    private async Task CreateUntitledAsync()
+    private Task CreateUntitledAsync()
     {
         ++_activationGeneration;
         var entity = _workspace.CreateUntitled();
         EnsureFileWindow(entity);
         _activeEntity = entity;
         UpdateState(state => NotebookCellLayout.OpenTabIntoHome(state, TabIdFor(entity)));
-        await Task.CompletedTask;
+        if (ActiveLanguageGroup(entity) is { } group) _editors.Focus(group);
+        return Task.CompletedTask;
     }
 
     private void ClearOutput()

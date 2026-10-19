@@ -1,7 +1,10 @@
 using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Completion;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Host.Mef;
+using Microsoft.CodeAnalysis.Operations;
+using Microsoft.CodeAnalysis.Tags;
 using Microsoft.CodeAnalysis.Text;
 using Sia_Examples.Notebook;
 
@@ -38,7 +41,17 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
             if (snapshot.Projection is { } projection
                 && (!projection.TryToSource(document.FilePath!, list.Span.Start, list.Span.Length, out var id, out start)
                     || id != projection.ActiveId)) return CompletionResult.Empty;
-            var items = list.ItemsList.Select(item => new CompletionCandidate(
+            var root = await document.GetSyntaxRootAsync(token);
+            var node = root?.FindToken(Math.Max(0, cursor - 1)).Parent;
+            var local = node?.AncestorsAndSelf().OfType<VariableDeclaratorSyntax>().FirstOrDefault(variable =>
+                variable.Parent is VariableDeclarationSyntax { Parent: LocalDeclarationStatementSyntax or ForStatementSyntax or UsingStatementSyntax }
+                && variable.Initializer is { } initializer && initializer.Span.Start <= cursor && cursor <= initializer.Span.End);
+            if (local is not null && node is not null) {
+                var model = await document.GetSemanticModelAsync(token);
+                if (node.AncestorsAndSelf().OfType<InvocationExpressionSyntax>().Any(invocation => model?.GetOperation(invocation, token) is INameOfOperation)) local = null;
+            }
+            var items = list.ItemsList.Where(item => local is null || item.FilterText.TrimStart('@') != local.Identifier.ValueText
+                || !item.Tags.Contains(WellKnownTags.Local)).Select(item => new CompletionCandidate(
                 item.DisplayTextPrefix + item.DisplayText + item.DisplayTextSuffix,
                 item.DisplayText, start, start + list.Span.Length) { Item = item }).ToArray();
             return new CompletionResult(items) {
