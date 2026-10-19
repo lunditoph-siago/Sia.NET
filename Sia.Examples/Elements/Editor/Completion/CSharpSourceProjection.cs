@@ -10,6 +10,8 @@ internal sealed class CSharpSourceProjection(string activeId, IReadOnlyList<CSha
     IReadOnlyList<CSharpSourceMapping> mappings)
 {
     private CompilationUnitSyntax? _activeRoot;
+    private readonly Dictionary<string, SourceText> _sourceTexts = originals.DistinctBy(static source => source.Id)
+        .ToDictionary(static source => source.Id, static source => SourceText.From(source.Source), StringComparer.Ordinal);
     internal string ActiveId { get; } = activeId;
     internal IReadOnlyList<CSharpSourceDocument> Sources => originals;
     internal CSharpSourceDocument ActiveSource => originals.First(source => source.Id == ActiveId);
@@ -40,9 +42,15 @@ internal sealed class CSharpSourceProjection(string activeId, IReadOnlyList<CSha
 
     internal bool TryToSource(string path, int start, int length, out string sourceId, out int sourceStart)
     {
-        var mapping = mappings.Where(mapping => mapping.ProjectPath == path && mapping.ProjectStart <= start
-            && start + length <= mapping.ProjectStart + mapping.Length)
-            .OrderByDescending(mapping => mapping.SourceId == ActiveId).FirstOrDefault();
+        CSharpSourceMapping? mapping = null;
+        foreach (var candidate in mappings) {
+            if (candidate.ProjectPath != path || candidate.ProjectStart > start
+                || start + length > candidate.ProjectStart + candidate.Length) continue;
+            mapping ??= candidate;
+            if (candidate.SourceId != ActiveId) continue;
+            mapping = candidate;
+            break;
+        }
         sourceId = mapping?.SourceId ?? "";
         sourceStart = mapping is null ? 0 : mapping.SourceStart + start - mapping.ProjectStart;
         return mapping is not null;
@@ -53,7 +61,7 @@ internal sealed class CSharpSourceProjection(string activeId, IReadOnlyList<CSha
         if (position.Generated) return position;
         if (!TryToSource(position.Path, position.Start, position.Length, out var id, out var start)) return position with { Generated = true };
         var source = originals.First(source => source.Id == id);
-        var point = SourceText.From(source.Source).Lines.GetLinePosition(start);
+        var point = _sourceTexts[id].Lines.GetLinePosition(start);
         return new(id, source.DisplayPath, start, position.Length, point.Line + 1, point.Character + 1, source.Source, false);
     }
 
