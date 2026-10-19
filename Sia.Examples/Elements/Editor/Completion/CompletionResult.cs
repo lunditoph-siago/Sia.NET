@@ -78,34 +78,47 @@ internal static class CompletionMatch
         if (name.Equals(pattern, StringComparison.Ordinal)) return 1200;
         if (name.StartsWith(pattern, StringComparison.Ordinal)) return 1100;
         if (name.StartsWith(pattern, StringComparison.OrdinalIgnoreCase)) return 1000;
-        if (MatchesHumps(name, pattern)) return 800;
+        var humps = HumpRank(name, pattern);
+        if (humps > 0) return humps;
         var substring = name.IndexOf(pattern, StringComparison.OrdinalIgnoreCase);
         if (substring >= 0) return 600 - Math.Min(substring, 99);
         return TypoRank(name, pattern);
     }
 
-    private static bool MatchesHumps(string name, string pattern)
+    private static int HumpRank(string name, string pattern)
     {
-        if (pattern.Length > name.Length) return false;
+        if (pattern.Length > name.Length) return 0;
+        var matched = 0;
+        for (var index = 0; index < name.Length && matched < pattern.Length; index++) {
+            if (Equal(name[index], pattern[matched])) matched++;
+        }
+        if (matched < pattern.Length) return 0;
         var width = pattern.Length + 1;
-        Span<byte> states = width <= 256 ? stackalloc byte[width * 2] : new byte[width * 2];
+        Span<short> states = width <= 256 ? stackalloc short[width * 2] : new short[width * 2];
         states.Clear();
         var adjacent = states[..width];
         var seen = states[width..];
-        seen[0] = 1;
+        var best = 0;
         for (var index = 0; index < name.Length; index++) {
             var boundary = index == 0 || name[index] == '_' || !char.IsLetterOrDigit(name[index - 1])
                 || char.IsDigit(name[index]) && !char.IsDigit(name[index - 1])
                 || char.IsUpper(name[index]) && (char.IsLower(name[index - 1]) || char.IsDigit(name[index - 1])
                     || index + 1 < name.Length && char.IsLower(name[index + 1]));
             for (var part = pattern.Length - 1; part >= 0; part--) {
-                adjacent[part + 1] = (byte)(Equal(name[index], pattern[part])
-                    && (adjacent[part] != 0 || boundary && seen[part] != 0) ? 1 : 0);
-                seen[part + 1] |= adjacent[part + 1];
+                short rank = 0;
+                if (Equal(name[index], pattern[part])) {
+                    rank = part == 0 && boundary ? (short)(index == 0 ? 900 : 800 - Math.Min(index, 99))
+                        : Math.Max(adjacent[part], boundary ? seen[part] : (short)0);
+                }
+                adjacent[part + 1] = rank;
+                var retained = seen[part + 1];
+                if (retained > 0) retained = (short)Math.Max(retained > 800 ? 850 : 650, retained - 1);
+                seen[part + 1] = Math.Max(retained, rank);
             }
-            if (adjacent[pattern.Length] != 0) return true;
+            best = Math.Max(best, adjacent[pattern.Length]);
+            if (best == 900 || pattern.Length == 1 && best > 0) return best;
         }
-        return false;
+        return best;
     }
 
     private static int TypoRank(string name, string pattern)
