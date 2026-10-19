@@ -93,6 +93,8 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         CreateMenu(menus, "View", [
             ("Command Palette…", "workbench-command:Commands", "Search and run commands"),
             ("Keyboard Shortcuts…", "workbench-command:Keybindings", "Configure keyboard shortcuts"),
+            ("Symbol in File…", "workbench-command:DocumentSymbols", "Go to a C# declaration in the active file"),
+            ("Symbol in Workspace…", "workbench-command:WorkspaceSymbols", "Go to a C# declaration across workspace files"),
             ("Compilation", "editor-page-open:compilation", "Open diagnostics and compiler outputs"),
             ("Console", "editor-page-open:console", "Open program logs"),
             ("Render", "editor-page-open:render", "Open the Render window"),
@@ -327,12 +329,14 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
     }
 
     internal bool CanExecuteCommand(EditorCommand command, string binding)
-        => command.Id == EditorCommandId.QuickOpen ? _initialized && !_disposed : command.Context == CommandContext.EditorLab ? command.Id switch {
-            EditorCommandId.NavigateBack => _navigationBack.Any(static bookmark => bookmark.Entity.IsValid),
-            EditorCommandId.NavigateForward => _navigationForward.Any(static bookmark => bookmark.Entity.IsValid),
-            EditorCommandId.CheckCode => ActiveLanguageBinding() is not null,
-            _ => true,
-        } : _editors.CanExecuteCommand(binding, command);
+        => command.Id == EditorCommandId.QuickOpen ? _initialized && !_disposed
+            : command.Id is EditorCommandId.DocumentSymbols or EditorCommandId.WorkspaceSymbols
+                ? _initialized && !_disposed && ActiveLanguageBinding() is not null : command.Context == CommandContext.EditorLab ? command.Id switch {
+                    EditorCommandId.NavigateBack => _navigationBack.Any(static bookmark => bookmark.Entity.IsValid),
+                    EditorCommandId.NavigateForward => _navigationForward.Any(static bookmark => bookmark.Entity.IsValid),
+                    EditorCommandId.CheckCode => ActiveLanguageBinding() is not null,
+                    _ => true,
+                } : _editors.CanExecuteCommand(binding, command);
 
     internal bool ExecuteCommand(EditorCommand command, string binding)
     {
@@ -340,6 +344,8 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             if (!_initialized || _disposed) return false;
             OpenFilePicker(binding); return true;
         }
+        if (command.Id is EditorCommandId.DocumentSymbols or EditorCommandId.WorkspaceSymbols)
+            return _initialized && !_disposed && OpenSymbolPicker(binding, command.Id == EditorCommandId.WorkspaceSymbols);
         if (!command.IsEditor) return command is { Context: CommandContext.EditorLab, Event: { } action } && Route(action);
         if (!_editors.ExecuteCommand(binding, command)) return false;
         SyncDirtyIndicators();
@@ -365,7 +371,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         Release(ClearLanguageResults);
         Release(() => _referenceResults.Dispose());
         Release(_renamePanel.Dispose);
-        Release(_filePicker.Dispose);
+        Release(_navigationPicker.Dispose);
         Release(_workspaceEdits.Dispose);
         Release(CancelCloseDialog);
         Release(StopRendering);

@@ -2,11 +2,16 @@ using Sia_Examples.Dom;
 
 namespace Sia_Examples.Editor;
 
-internal sealed record EditorFileChoice(string Id, string Name, string Path)
+internal sealed record EditorNavigationChoice(string Id, string Name, string Path, SourcePosition? Target = null)
 {
-    internal static EditorFileChoice[] Match(IEnumerable<EditorFileChoice> files, string query)
+    internal static EditorNavigationChoice FromSymbol(DocumentSymbol symbol)
+        => new($"{symbol.Location.DocumentId}:{symbol.Location.Start}", symbol.Name,
+            $"{symbol.Container}{(symbol.Container.Length == 0 ? "" : " · ")}{symbol.Kind} · {symbol.Location.Path}:{symbol.Location.Line}", symbol.Location);
+
+    internal static EditorNavigationChoice[] Match(IEnumerable<EditorNavigationChoice> files, string query)
     {
         var terms = query.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (terms.Length == 0) return [.. files];
         return [.. files.Select(file => (File: file, Ranks: terms.Select(term =>
                 Math.Max(CompletionMatch.Rank(file.Name, term), CompletionMatch.Rank(file.Path, term))).ToArray()))
             .Where(static item => item.Ranks.All(static rank => rank >= 0))
@@ -15,8 +20,8 @@ internal sealed record EditorFileChoice(string Id, string Name, string Path)
     }
 }
 
-internal sealed class EditorFilePicker(string eventName, Func<IReadOnlyList<EditorFileChoice>> files,
-    Action<EditorFileChoice> open) : IDisposable
+internal sealed class EditorNavigationPicker(string eventName, Func<IReadOnlyList<EditorNavigationChoice>> files,
+    Action<EditorNavigationChoice> open) : IDisposable
 {
     private const int PageSize = 50;
     private readonly DomElement _root = DomElement.Find("app");
@@ -28,29 +33,71 @@ internal sealed class EditorFilePicker(string eventName, Func<IReadOnlyList<Edit
     private DomElement _input = null!, _list = null!, _message = null!;
     private DomElement _pages = null!;
     private Action _returnFocus = static () => { };
-    private EditorFileChoice[] _matches = [];
+    private EditorNavigationChoice[] _matches = [];
     private string _query = "";
+    private string _emptyMessage = "No matching files.";
+    private string? _failure;
+    private CancellationTokenSource? _loadCancellation;
+    private EditorNavigationChoice[]? _symbols;
+    private Func<EditorNavigationChoice, bool>? _validateSymbol;
+    private Action<EditorNavigationChoice>? _navigateSymbol;
     private int _generation, _revision, _selected, _offset;
     private bool _disposed;
 
     internal void Open(Action returnFocus)
+        => Open("Quick Open", "Search workspace files", "Type a file name or path", "Workspace files", returnFocus);
+
+    internal async Task OpenSymbolsAsync(bool workspace, Func<CancellationToken, Task<DocumentSymbol[]>> load,
+        Func<SourcePosition, bool> validate, Action<SourcePosition> navigate, Action returnFocus)
+    {
+        if (_disposed) return;
+        Open(workspace ? "Workspace Symbols" : "Document Symbols", "Search C# symbols", "Type a symbol name or container", "C# symbols", returnFocus);
+        var generation = _generation;
+        var cancellation = new CancellationTokenSource();
+        var token = cancellation.Token;
+        _loadCancellation = cancellation;
+        _symbols = [];
+        _emptyMessage = "No matching symbols.";
+        _validateSymbol = choice => choice.Target is { } target && validate(target);
+        _navigateSymbol = choice => navigate(choice.Target!);
+        _dialog!.Attr("aria-busy", "true");
+        Filter();
+        try {
+            var symbols = await load(token);
+            if (_disposed || token.IsCancellationRequested || generation != _generation || _dialog is null) return;
+            _symbols = [.. symbols.Select(EditorNavigationChoice.FromSymbol)];
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested || generation != _generation || _disposed) { return; }
+        catch (Exception error) {
+            if (_disposed || generation != _generation || _dialog is null) return;
+            _failure = $"Symbol search failed: {error.Message}";
+        }
+        finally {
+            if (ReferenceEquals(_loadCancellation, cancellation)) _loadCancellation = null;
+            cancellation.Dispose();
+        }
+        _dialog!.Attr("aria-busy", "false");
+        Filter();
+    }
+
+    private void Open(string title, string searchLabel, string placeholder, string listLabel, Action returnFocus)
     {
         if (_disposed) return;
         Close();
         _returnFocus = returnFocus;
-        _dialog = Own(DomElement.Create("dialog").Class("editor-dialog").Attr("aria-label", "Quick Open")
+        _dialog = Own(DomElement.Create("dialog").Class("editor-dialog").Attr("aria-label", title)
             .Attr("data-editor-dialog", eventName).Attr("data-editor-dialog-stamp", $"{_instance}:{_generation}")
             .Attr("data-editor-dialog-list", ""));
         var header = Own(DomElement.Create("header").Class("editor-dialog-header"));
-        header.Append(Own(DomElement.Create("h2").Text("Quick Open")))
+        header.Append(Own(DomElement.Create("h2").Text(title)))
             .Append(Own(DomElement.Create("button").Class("btn").Attr("type", "button").Text("Close").On("click", Payload("close"))));
         _input = Own(DomElement.Create("input").Attr("type", "search").Attr("role", "combobox")
-            .Attr("aria-label", "Search workspace files").Attr("placeholder", "Type a file name or path")
+            .Attr("aria-label", searchLabel).Attr("placeholder", placeholder)
             .Attr("autocomplete", "off").Attr("spellcheck", "false").Attr("data-editor-dialog-focus", "")
             .Attr("aria-autocomplete", "list").Attr("aria-expanded", "true").Attr("aria-controls", $"{_instance}-files")
             .On("input", Payload("input")));
         _list = Own(DomElement.Create("div").Class("editor-dialog-list").Id($"{_instance}-files")
-            .Attr("role", "listbox").Attr("aria-label", "Workspace files"));
+            .Attr("role", "listbox").Attr("aria-label", listLabel));
         _message = Own(DomElement.Create("p").Class("editor-dialog-message").Attr("role", "status"));
         _pages = Own(DomElement.Create("footer").Class("editor-dialog-footer"));
         _dialog.Append(header).Append(_input).Append(_list).Append(_message).Append(_pages);
@@ -89,6 +136,13 @@ internal sealed class EditorFilePicker(string eventName, Func<IReadOnlyList<Edit
                     || !int.TryParse(parts[4], out index))) return false;
                 if (index < 0 || index >= _matches.Length) return false;
                 var choice = _matches[index];
+                if (_symbols is not null) {
+                    if (_validateSymbol?.Invoke(choice) != true) {
+                        _symbols = []; Filter(); _message.Text("The source changed. Reopen symbol search."); return true;
+                    }
+                    var navigate = _navigateSymbol;
+                    Close(); navigate?.Invoke(choice); return true;
+                }
                 if (!files().Contains(choice)) { Filter(); _message.Text("The workspace changed. Select a file again."); return true; }
                 Close(); open(choice); return true;
             default: return false;
@@ -99,7 +153,7 @@ internal sealed class EditorFilePicker(string eventName, Func<IReadOnlyList<Edit
     {
         _revision++;
         _query = _input.Value();
-        _matches = EditorFileChoice.Match(files(), _query);
+        _matches = EditorNavigationChoice.Match(_symbols ?? files(), _query);
         _selected = 0;
         RenderRows();
     }
@@ -141,7 +195,8 @@ internal sealed class EditorFilePicker(string eventName, Func<IReadOnlyList<Edit
     {
         for (var index = 0; index < _rows.Count; index++) _rows[index].Attr("aria-selected", _offset + index == _selected ? "true" : "false");
         _input.Attr("aria-activedescendant", _matches.Length == 0 ? "" : $"{_instance}-file-{_selected}");
-        _message.Text(_matches.Length == 0 ? "No matching files." : $"{_selected + 1} / {_matches.Length} · Enter to open · Escape to cancel");
+        _message.Text(_failure ?? (_loadCancellation is not null ? "Loading symbols…" : _matches.Length == 0
+            ? _emptyMessage : $"{_selected + 1} / {_matches.Length} · Enter to open · Escape to cancel"));
         if (_rows.Count > 0) DomRuntime.EnsureVisible(_list, _rows[_selected - _offset]);
     }
 
@@ -150,6 +205,8 @@ internal sealed class EditorFilePicker(string eventName, Func<IReadOnlyList<Edit
     internal void Close()
     {
         _generation++;
+        _loadCancellation?.Cancel();
+        _loadCancellation = null;
         _dialog?.Remove();
         foreach (var row in _rows) row.Dispose();
         _rows.Clear();
@@ -157,6 +214,7 @@ internal sealed class EditorFilePicker(string eventName, Func<IReadOnlyList<Edit
         _pageButtons.Clear();
         foreach (var element in _elements) element.Dispose();
         _elements.Clear(); _dialog = null; _matches = []; _query = "";
+        _symbols = null; _validateSymbol = null; _navigateSymbol = null; _failure = null; _emptyMessage = "No matching files.";
     }
     public void Dispose() { if (_disposed) return; _disposed = true; Close(); _root.Dispose(); }
 }

@@ -130,6 +130,14 @@ public sealed class BrowserEditorRegistry(
         return _completionProvider.PrepareRenameAsync(binding, source, position, name, cancellation);
     }
 
+    internal Task<DocumentSymbol[]> QuerySymbolsAsync(string binding, bool workspace, CancellationToken cancellation)
+    {
+        if (!TryResolveCellId(binding, out var cellId)) throw new OperationCanceledException(cancellation);
+        var editor = _editors[cellId].Editor;
+        editor.SynchronizeNativeInput();
+        return _completionProvider.QuerySymbolsAsync(binding, editor.Source, workspace, cancellation);
+    }
+
     internal string? GetBindingId(string cellId)
         => _editors.TryGetValue(cellId, out var entry) ? entry.Editor.BindingId : null;
 
