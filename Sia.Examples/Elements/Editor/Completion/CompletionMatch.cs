@@ -1,4 +1,3 @@
-
 namespace Sia.Examples.Editor;
 
 internal static class CompletionMatch

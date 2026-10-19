@@ -1,4 +1,3 @@
-
 namespace Sia.Examples.Editor;
 
 internal readonly record struct CompletionEdit(ChangeSpec[] Changes, int Position)

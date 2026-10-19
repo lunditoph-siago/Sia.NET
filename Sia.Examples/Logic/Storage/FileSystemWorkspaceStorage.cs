@@ -1,4 +1,3 @@
-
 using System.Text;
 
 namespace Sia.Examples.Notebook;
