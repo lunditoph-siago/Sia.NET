@@ -1,8 +1,8 @@
-using Sia_Examples.Dom;
-using Sia_Examples.Editor;
-using Sia_Examples.Notebook;
+using Sia.Examples.Dom;
+using Sia.Examples.Editor;
+using Sia.Examples.Notebook;
 
-namespace Sia_Examples;
+namespace Sia.Examples;
 
 public sealed class BrowserApplicationView :
     IRenderHost<ExampleItemView>,

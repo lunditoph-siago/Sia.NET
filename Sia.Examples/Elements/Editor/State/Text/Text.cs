@@ -2,7 +2,7 @@ using System.Collections;
 using System.Text;
 using Microsoft.CodeAnalysis.Text;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public sealed class Text : IEquatable<Text>, IEnumerable<string>
 {
@@ -110,32 +110,32 @@ public sealed class Text : IEquatable<Text>, IEnumerable<string>
 
     internal int ToLayoutPosition(int position)
     {
-        position = Math.Clamp(position, 0, Length);
+        position = System.Math.Clamp(position, 0, Length);
         if (ReferenceEquals(Layout, this)) return position;
         var index = LineIndex(position);
         var line = _source.Lines[index];
-        return Layout._source.Lines[index].Start + Math.Min(position - line.Start, line.Span.Length);
+        return Layout._source.Lines[index].Start + System.Math.Min(position - line.Start, line.Span.Length);
     }
 
     internal int FromLayoutPosition(int position)
     {
-        if (ReferenceEquals(Layout, this)) return Math.Clamp(position, 0, Length);
-        position = Math.Clamp(position, 0, Layout.Length);
+        if (ReferenceEquals(Layout, this)) return System.Math.Clamp(position, 0, Length);
+        position = System.Math.Clamp(position, 0, Layout.Length);
         var index = Layout.LineIndex(position);
         var line = Layout._source.Lines[index];
-        return _source.Lines[index].Start + Math.Min(position - line.Start, line.Span.Length);
+        return _source.Lines[index].Start + System.Math.Min(position - line.Start, line.Span.Length);
     }
 
     internal int NormalizePosition(int position, bool after)
     {
-        position = Math.Clamp(position, 0, Length);
+        position = System.Math.Clamp(position, 0, Length);
         var line = _source.Lines[LineIndex(position)];
         return position > line.End ? after ? line.EndIncludingLineBreak : line.End : position;
     }
 
     internal string NewlineAt(int position)
     {
-        var line = _source.Lines[LineIndex(Math.Clamp(position, 0, Length))];
+        var line = _source.Lines[LineIndex(System.Math.Clamp(position, 0, Length))];
         return line.EndIncludingLineBreak > line.End ? BreakText(line) : PreferredNewline;
     }
 
@@ -174,8 +174,8 @@ public sealed class Text : IEquatable<Text>, IEnumerable<string>
 
     private (int From, int To) Clip(int from, int to)
     {
-        from = Math.Clamp(from, 0, Length);
-        return (from, Math.Clamp(to, from, Length));
+        from = System.Math.Clamp(from, 0, Length);
+        return (from, System.Math.Clamp(to, from, Length));
     }
 
     public IEnumerator<string> GetEnumerator()

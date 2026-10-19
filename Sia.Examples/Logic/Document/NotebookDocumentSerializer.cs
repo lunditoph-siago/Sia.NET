@@ -1,10 +1,10 @@
 using System.Xml.Linq;
 
-namespace Sia_Examples.Notebook;
+namespace Sia.Examples.Notebook;
 
 public static class NotebookDocumentSerializer
 {
-    private const int CodeIndent = 4;
+    private const int k_CodeIndent = 4;
 
     public static string Write(NotebookDocument document)
     {
@@ -115,7 +115,7 @@ public static class NotebookDocumentSerializer
 
     private static string IndentCode(string source)
     {
-        var indent = new string(' ', CodeIndent);
+        var indent = new string(' ', k_CodeIndent);
         var lines = source.Replace("\r\n", "\n").Split('\n');
         return string.Join('\n', lines.Select(line => line.Length == 0 ? line : indent + line));
     }

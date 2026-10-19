@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Formatting;
 using Microsoft.CodeAnalysis.Text;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 internal sealed record SourcePosition(
     string DocumentId, string Path, int Start, int Length, int Line, int Column, string Source, bool Generated);
@@ -16,7 +16,7 @@ internal static class CSharpDocumentTools
         Document document, int position, Func<Document, string?> documentKey, CancellationToken cancellation)
     {
         var text = await document.GetTextAsync(cancellation);
-        var symbol = await SymbolFinder.FindSymbolAtPositionAsync(document, Math.Clamp(position, 0, text.Length), cancellation);
+        var symbol = await SymbolFinder.FindSymbolAtPositionAsync(document, System.Math.Clamp(position, 0, text.Length), cancellation);
         if (symbol is null) return null;
         var definition = await SymbolFinder.FindSourceDefinitionAsync(symbol, document.Project.Solution, cancellation) ?? symbol;
         var locations = new List<SourcePosition>();

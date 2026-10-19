@@ -1,6 +1,6 @@
-using Sia_Examples.Notebook;
+using Sia.Examples.Notebook;
 
-namespace Sia_Examples;
+namespace Sia.Examples;
 
 internal enum ApplicationDestination { Home, Editor, Notebook, NewNotebook, Quit }
 

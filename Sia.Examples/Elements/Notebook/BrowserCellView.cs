@@ -1,7 +1,7 @@
-using Sia_Examples.Dom;
-using Sia_Examples.Editor;
+using Sia.Examples.Dom;
+using Sia.Examples.Editor;
 
-namespace Sia_Examples.Notebook;
+namespace Sia.Examples.Notebook;
 
 public sealed class BrowserCellView : IDisposable
 {

@@ -4,12 +4,12 @@ using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
-namespace Sia_Examples.Notebook;
+namespace Sia.Examples.Notebook;
 
 internal static class GeneratorPipeline
 {
-    private static int _discoveredVersion = -1;
-    private static ImmutableArray<ISourceGenerator> _generators = [];
+    private static int s_DiscoveredVersion = -1;
+    private static ImmutableArray<ISourceGenerator> s_Generators = [];
 
     public static Compilation Run(
         CSharpCompilation compilation,
@@ -29,12 +29,12 @@ internal static class GeneratorPipeline
     internal static ImmutableArray<ISourceGenerator> GetGenerators()
     {
         var version = DynamicAssemblyRegistry.Version;
-        if (Volatile.Read(ref _discoveredVersion) != version) {
-            _generators = Discover();
-            _discoveredVersion = version;
+        if (Volatile.Read(ref s_DiscoveredVersion) != version) {
+            s_Generators = Discover();
+            s_DiscoveredVersion = version;
         }
 
-        return _generators;
+        return s_Generators;
     }
 
     [UnconditionalSuppressMessage("Trimming", "IL2026",

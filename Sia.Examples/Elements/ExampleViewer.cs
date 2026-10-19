@@ -1,5 +1,5 @@
 #if BROWSER
-namespace Sia_Examples;
+namespace Sia.Examples;
 
 public static class ExampleViewer
 {

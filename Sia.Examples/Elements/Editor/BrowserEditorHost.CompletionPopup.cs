@@ -1,11 +1,11 @@
 using System.Globalization;
-using Sia_Examples.Dom;
+using Sia.Examples.Dom;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public sealed partial class BrowserEditorHost
 {
-    private const int _maximumRenderedCompletions = 20;
+    private const int k_MaximumRenderedCompletions = 20;
     private readonly List<(DomElement Element, string Label)> _completionItems = [];
     private DomElement? _completionPopup;
     private DomElement? _completionList;
@@ -20,7 +20,7 @@ public sealed partial class BrowserEditorHost
     private DomElement? _completionCount;
 
     private static int CompletionWindowStart(int selectedIndex, int count)
-        => Math.Clamp(selectedIndex - _maximumRenderedCompletions / 2, 0, Math.Max(0, count - _maximumRenderedCompletions));
+        => System.Math.Clamp(selectedIndex - k_MaximumRenderedCompletions / 2, 0, System.Math.Max(0, count - k_MaximumRenderedCompletions));
 
     private void RenderCompletionPopup(bool revealSelection = true)
     {
@@ -40,7 +40,7 @@ public sealed partial class BrowserEditorHost
                 popup.Append(_completionList).Append(_completionCount).Append(_completionDescription);
             }
             var start = _completionWindowStart;
-            var length = Math.Min(_maximumRenderedCompletions, completion.Items.Count - start);
+            var length = System.Math.Min(k_MaximumRenderedCompletions, completion.Items.Count - start);
             _completionList!.Attr("data-completion-binding", _cellId)
                 .Attr("aria-busy", _completionPending ? "true" : "false")
                 .Attr("data-completion-generation", _completionGeneration.ToString(CultureInfo.InvariantCulture))
@@ -104,7 +104,7 @@ public sealed partial class BrowserEditorHost
         _completionIndex = index;
         _completionChoice = completion.Items[index];
         _completionSoft = false;
-        if (index < _completionWindowStart || index >= _completionWindowStart + _maximumRenderedCompletions)
+        if (index < _completionWindowStart || index >= _completionWindowStart + k_MaximumRenderedCompletions)
             _completionWindowStart = CompletionWindowStart(index, completion.Items.Count);
         RenderCompletionPopup();
         PrepareCompletionWindow();
@@ -115,8 +115,8 @@ public sealed partial class BrowserEditorHost
         var parts = arguments.Split(':');
         if (parts.Length is not (2 or 3) || !int.TryParse(parts[0], out var generation) || generation != _completionGeneration
             || !int.TryParse(parts[1], out var start) || _completion is not { } completion) return false;
-        if (parts.Length == 3 && int.TryParse(parts[2], out var pageSize)) _completionPageSize = Math.Clamp(pageSize, 1, _maximumRenderedCompletions);
-        start = Math.Clamp(start, 0, Math.Max(0, completion.Items.Count - _maximumRenderedCompletions));
+        if (parts.Length == 3 && int.TryParse(parts[2], out var pageSize)) _completionPageSize = System.Math.Clamp(pageSize, 1, k_MaximumRenderedCompletions);
+        start = System.Math.Clamp(start, 0, System.Math.Max(0, completion.Items.Count - k_MaximumRenderedCompletions));
         if (start == _completionWindowStart) return true;
         _completionWindowStart = start;
         RenderCompletionPopup(revealSelection: false);

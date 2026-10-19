@@ -1,3 +1,3 @@
-namespace Sia_Examples.Notebook;
+namespace Sia.Examples.Notebook;
 
 public sealed record CodeInline(string Text) : Inline;

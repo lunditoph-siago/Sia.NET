@@ -1,10 +1,10 @@
 using System.Threading;
 
-namespace Sia_Examples.Notebook;
+namespace Sia.Examples.Notebook;
 
 public sealed class NotebookCompiler
 {
-    private static int _programCounter;
+    private static int s_ProgramCounter;
 
     private readonly string _assemblyName;
     private readonly CSharpCompilationEngine _engine;
@@ -16,7 +16,7 @@ public sealed class NotebookCompiler
         ICompilationReferenceResolver referenceResolver)
     {
         _engine = new(referenceResolver);
-        _assemblyName = $"NotebookProgram_{Interlocked.Increment(ref _programCounter)}";
+        _assemblyName = $"NotebookProgram_{Interlocked.Increment(ref s_ProgramCounter)}";
         _program = program;
     }
 

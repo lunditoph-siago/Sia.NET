@@ -1,6 +1,6 @@
 using System.Collections.Immutable;
 
-namespace Sia_Examples.Notebook;
+namespace Sia.Examples.Notebook;
 
 public readonly record struct NotebookCellState(
     ImmutableDictionary<string, CellWindow> Windows,
@@ -10,8 +10,8 @@ public readonly record struct NotebookCellState(
     int NextNodeId,
     long Revision)
 {
-    internal const double CollapsedScriptRatio = 1.0;
-    private const int NodesPerCell = 3;
+    internal const double k_CollapsedScriptRatio = 1.0;
+    private const int k_NodesPerCell = 3;
 
     public static NotebookCellState Create(NotebookDocument document)
     {
@@ -28,7 +28,7 @@ public readonly record struct NotebookCellState(
                     continue;
                 }
                 regions.Add(RegisterCell(windows, tabs, cell, nextNodeId));
-                nextNodeId += NodesPerCell;
+                nextNodeId += k_NodesPerCell;
             }
         }
 
@@ -88,7 +88,7 @@ public readonly record struct NotebookCellState(
         var split = new CellSplit(
             $"split-{groupNodeId}-surface",
             CellAxis.Vertical,
-            CollapsedScriptRatio,
+            k_CollapsedScriptRatio,
             scriptGroup,
             surfaceGroup);
         return new(regionId, split);

@@ -1,8 +1,8 @@
 using System.Text.Json;
-using Sia_Examples.Dom;
+using Sia.Examples.Dom;
 using Sia.Reactive;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public sealed partial class BrowserEditorHost
 {
@@ -129,7 +129,7 @@ public sealed partial class BrowserEditorHost
         var before = State.Value;
         var nativeSelection = TryResolveSelection(basis.Document, mutation.Before, out var resolved)
             ? resolved
-            : EditorSelection.Single(Math.Clamp(before.Selection.Main.Head, 0, basis.Document.Length));
+            : EditorSelection.Single(System.Math.Clamp(before.Selection.Main.Head, 0, basis.Document.Length));
         if (!TryCreateDomChange(basis.Document, nativeSelection, mutation, out var change)) {
             return false;
         }
@@ -178,13 +178,13 @@ public sealed partial class BrowserEditorHost
                 var modelRange = before.Selection.Main;
                 var from = mutation.SelectionSource == NativeSelectionSource.Model
                     ? modelRange.From
-                    : Math.Clamp(
+                    : System.Math.Clamp(
                         basis.PendingChanges.MapPos(nativeEdit.From, 1)!.Value
                             + modelRange.From - basis.PendingChanges.MapPos(nativeRange.From, 1)!.Value,
                         0, before.Doc.Length);
                 var to = mutation.SelectionSource == NativeSelectionSource.Model
                     ? modelRange.To
-                    : Math.Clamp(
+                    : System.Math.Clamp(
                         basis.PendingChanges.MapPos(nativeEdit.To ?? nativeEdit.From, 1)!.Value
                             + modelRange.To - basis.PendingChanges.MapPos(nativeRange.To, 1)!.Value,
                         from, before.Doc.Length);
@@ -229,8 +229,8 @@ public sealed partial class BrowserEditorHost
         var windowStart = document.Line(mutation.LineIndex + 1);
         var windowEnd = document.Line(mutation.WindowEnd);
         var windowLength = windowEnd.To - windowStart.From;
-        var from = Math.Clamp(beforeSelection.Main.From - windowStart.From, 0, windowLength);
-        var to = Math.Clamp(beforeSelection.Main.To - windowStart.From, from, windowLength);
+        var from = System.Math.Clamp(beforeSelection.Main.From - windowStart.From, 0, windowLength);
+        var to = System.Math.Clamp(beforeSelection.Main.To - windowStart.From, from, windowLength);
         var window = document.Slice(windowStart.From, windowEnd.To);
         var difference = TextDiff.FindForSelection(
             window.Layout.SliceDoc(), Text.OfString(mutation.Replacement).Layout.SliceDoc(), window.ToLayoutPosition(from), window.ToLayoutPosition(to),
@@ -328,11 +328,11 @@ public sealed partial class BrowserEditorHost
         var anchorLine = document.Line(native.AnchorLineIndex + 1);
         var headLine = document.Line(native.HeadLineIndex + 1);
         selection = EditorSelection.Single(
-            Math.Clamp(
+            System.Math.Clamp(
                 anchorLine.From + native.AnchorColumn,
                 anchorLine.From,
                 anchorLine.To),
-            Math.Clamp(
+            System.Math.Clamp(
                 headLine.From + native.HeadColumn,
                 headLine.From,
                 headLine.To));

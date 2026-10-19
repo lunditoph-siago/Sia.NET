@@ -6,7 +6,7 @@ using Microsoft.CodeAnalysis.FlowAnalysis;
 using Microsoft.CodeAnalysis.Operations;
 using Microsoft.CodeAnalysis.Text;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 internal sealed record SymbolOccurrence(SourcePosition Location, string Symbol, bool Definition, bool Implicit, bool Candidate);
 internal sealed record SymbolReferences(string Display, IReadOnlyList<SymbolOccurrence> Occurrences);

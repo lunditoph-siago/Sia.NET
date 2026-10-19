@@ -1,16 +1,16 @@
-using Sia_Examples.Dom;
-using Sia_Examples.Notebook;
+using Sia.Examples.Dom;
+using Sia.Examples.Notebook;
 using Sia;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 internal sealed partial class BrowserEditorPage : IAsyncDisposable
 {
-    private const string RegionId = "region-editor-page";
-    private const string ProjectId = "editor-page";
-    private const string ScriptSuffix = "script";
-    private const double DefaultEditorShare = 0.72;
-    private const int HighlightLimit = 200_000;
+    private const string k_RegionId = "region-editor-page";
+    private const string k_ProjectId = "editor-page";
+    private const string k_ScriptSuffix = "script";
+    private const double k_DefaultEditorShare = 0.72;
+    private const int k_HighlightLimit = 200_000;
 
     private readonly EditorWorkspace _workspace;
     private readonly BrowserEditorRegistry _editors;
@@ -94,8 +94,8 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
 
         _workbench = Own(DomElement.Create("div")
             .Class("editor-page-workbench")
-            .Attr("data-cell-region", RegionId)
-            .Attr("data-cell-owner", ProjectId)
+            .Attr("data-cell-region", k_RegionId)
+            .Attr("data-cell-owner", k_ProjectId)
             .Attr("role", "region")
             .Attr("aria-label", "Editor layout"));
 
@@ -274,5 +274,5 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
     }
 
     private static IReadOnlyList<HighlightRun> HighlightsFor(string source)
-        => source.Length <= HighlightLimit ? CSharpHighlighter.Classify(source) : [];
+        => source.Length <= k_HighlightLimit ? CSharpHighlighter.Classify(source) : [];
 }

@@ -1,26 +1,26 @@
 using System.Collections.Immutable;
 
-namespace Sia_Examples.Notebook;
+namespace Sia.Examples.Notebook;
 
 public static partial class NotebookCellLayout
 {
-    private const int FloatingWidth = 520;
-    private const int FloatingHeight = 360;
-    private const int FloatingMargin = 8;
-    private const int FloatingHeaderOffsetX = 80;
-    private const int FloatingHeaderOffsetY = 20;
-    private const int FloatingPreferredTop = 48;
+    private const int k_FloatingWidth = 520;
+    private const int k_FloatingHeight = 360;
+    private const int k_FloatingMargin = 8;
+    private const int k_FloatingHeaderOffsetX = 80;
+    private const int k_FloatingHeaderOffsetY = 20;
+    private const int k_FloatingPreferredTop = 48;
 
-    private const double PrimaryPaneShare = 5.0 / 8.0;
-    private const double SecondaryPaneShare = 3.0 / 8.0;
-    private const double MinPaneShare = 0.15;
+    private const double k_PrimaryPaneShare = 5.0 / 8.0;
+    private const double k_SecondaryPaneShare = 3.0 / 8.0;
+    private const double k_MinPaneShare = 0.15;
 
-    private const double ExpandedScriptRatio = PrimaryPaneShare;
+    private const double k_ExpandedScriptRatio = k_PrimaryPaneShare;
 
     private static NotebookCellState ExpandSurface(
         NotebookCellState state,
         string cellId)
-        => SetSurfaceScriptShare(state, cellId, ExpandedScriptRatio);
+        => SetSurfaceScriptShare(state, cellId, k_ExpandedScriptRatio);
 
     private static NotebookCellState SetSurfaceScriptShare(
         NotebookCellState state,
@@ -39,7 +39,7 @@ public static partial class NotebookCellLayout
         var ratio = surfaceSplit.Second is CellTabGroup second && second.Id == surface.Id
             ? scriptShare
             : 1 - scriptShare;
-        if (Math.Abs(surfaceSplit.Ratio - ratio) < 1e-9) {
+        if (System.Math.Abs(surfaceSplit.Ratio - ratio) < 1e-9) {
             return state;
         }
         return TransformRoots(
@@ -87,7 +87,7 @@ public static partial class NotebookCellLayout
             || !EnumerateSplits(state).Any(split => split.Id == splitId)) {
             return state;
         }
-        var normalized = Math.Clamp(ratio, MinPaneShare, 1 - MinPaneShare);
+        var normalized = System.Math.Clamp(ratio, k_MinPaneShare, 1 - k_MinPaneShare);
         return TransformRoots(state, root => UpdateSplitRatio(root, splitId, normalized));
     }
 
@@ -175,7 +175,7 @@ public static partial class NotebookCellLayout
                 var split = new CellSplit(
                     $"split-{state.NextNodeId + 1}",
                     CellAxis.Vertical,
-                    ExpandedScriptRatio,
+                    k_ExpandedScriptRatio,
                     script,
                     surfaceGroup);
                 return ReplaceGroup(state, script.Id, split) with {
@@ -214,7 +214,7 @@ public static partial class NotebookCellLayout
             return SetSurfaceScriptShare(
                 state,
                 window.CellId,
-                NotebookCellState.CollapsedScriptRatio);
+                NotebookCellState.k_CollapsedScriptRatio);
         }
 
         var tab = state.GetTabForWindow(windowId);
@@ -264,7 +264,7 @@ public static partial class NotebookCellLayout
             if (source?.Id == target.Id && sourceIndex >= 0 && sourceIndex < targetIndex) {
                 targetIndex--;
             }
-            var insertion = Math.Clamp(targetIndex, 0, target.TabIds.Length);
+            var insertion = System.Math.Clamp(targetIndex, 0, target.TabIds.Length);
             return UpdateGroup(
                 withoutSource,
                 target.Id,
@@ -303,8 +303,8 @@ public static partial class NotebookCellLayout
             == CellWindowKind.Script;
         var targetHasScript = GroupContainsKind(state, target, CellWindowKind.Script);
         return movedIsScript && !targetHasScript
-            ? PrimaryPaneShare
-            : SecondaryPaneShare;
+            ? k_PrimaryPaneShare
+            : k_SecondaryPaneShare;
     }
 
     public static NotebookCellState Detach(
@@ -324,16 +324,16 @@ public static partial class NotebookCellLayout
         var groupId = $"group-{withoutSource.NextNodeId}";
         var floatingId = $"floating-{withoutSource.NextNodeId + 1}";
         var group = new CellTabGroup(groupId, [tabId], tabId);
-        var maxX = Math.Max(FloatingMargin, viewportWidth - FloatingWidth - FloatingMargin);
-        var maxY = Math.Max(FloatingMargin, viewportHeight - FloatingHeight - FloatingMargin);
-        var minY = Math.Min(FloatingPreferredTop, maxY);
+        var maxX = System.Math.Max(k_FloatingMargin, viewportWidth - k_FloatingWidth - k_FloatingMargin);
+        var maxY = System.Math.Max(k_FloatingMargin, viewportHeight - k_FloatingHeight - k_FloatingMargin);
+        var minY = System.Math.Min(k_FloatingPreferredTop, maxY);
         var floating = new CellFloatingHost(
             floatingId,
             group,
-            Math.Clamp(pointerX - FloatingHeaderOffsetX, FloatingMargin, maxX),
-            Math.Clamp(pointerY - FloatingHeaderOffsetY, minY, maxY),
-            FloatingWidth,
-            FloatingHeight);
+            System.Math.Clamp(pointerX - k_FloatingHeaderOffsetX, k_FloatingMargin, maxX),
+            System.Math.Clamp(pointerY - k_FloatingHeaderOffsetY, minY, maxY),
+            k_FloatingWidth,
+            k_FloatingHeight);
         return withoutSource with {
             FloatingHosts = withoutSource.FloatingHosts.Add(floating),
             NextNodeId = withoutSource.NextNodeId + 2,
@@ -347,10 +347,10 @@ public static partial class NotebookCellLayout
     {
         var changed = false;
         var hosts = state.FloatingHosts.Select(host => {
-            var maxX = Math.Max(FloatingMargin, viewportWidth - host.Width - FloatingMargin);
-            var maxY = Math.Max(FloatingMargin, viewportHeight - host.Height - FloatingMargin);
-            var x = Math.Clamp(host.X, FloatingMargin, maxX);
-            var y = Math.Clamp(host.Y, FloatingMargin, maxY);
+            var maxX = System.Math.Max(k_FloatingMargin, viewportWidth - host.Width - k_FloatingMargin);
+            var maxY = System.Math.Max(k_FloatingMargin, viewportHeight - host.Height - k_FloatingMargin);
+            var x = System.Math.Clamp(host.X, k_FloatingMargin, maxX);
+            var y = System.Math.Clamp(host.Y, k_FloatingMargin, maxY);
             if (x == host.X && y == host.Y) {
                 return host;
             }

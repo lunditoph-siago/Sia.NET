@@ -1,6 +1,6 @@
-using Sia_Examples.Dom;
+using Sia.Examples.Dom;
 
-namespace Sia_Examples.Notebook;
+namespace Sia.Examples.Notebook;
 
 public sealed class BrowserCellWindowView : IDisposable
 {

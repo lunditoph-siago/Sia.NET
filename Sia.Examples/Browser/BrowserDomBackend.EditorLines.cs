@@ -1,9 +1,9 @@
 #if BROWSER
-using Sia_Examples.Dom;
-using Sia_Examples.Editor;
-using Sia_Examples.Notebook;
+using Sia.Examples.Dom;
+using Sia.Examples.Editor;
+using Sia.Examples.Notebook;
 
-namespace Sia_Examples.Browser;
+namespace Sia.Examples.Browser;
 
 internal sealed partial class BrowserDomBackend
 {

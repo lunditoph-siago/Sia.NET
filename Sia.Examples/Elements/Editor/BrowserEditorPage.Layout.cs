@@ -1,10 +1,10 @@
 using System.Collections.Immutable;
 using System.Globalization;
-using Sia_Examples.Dom;
-using Sia_Examples.Notebook;
+using Sia.Examples.Dom;
+using Sia.Examples.Notebook;
 using Sia;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 internal sealed partial class BrowserEditorPage
 {
@@ -20,25 +20,25 @@ internal sealed partial class BrowserEditorPage
     private readonly Dictionary<Entity, EditorMemento> _mementos = [];
     private string _regionShape = string.Empty;
 
-    private const string CompilationWindowId = "window-compilation-output";
-    private const string ConsoleWindowId = "window-console-output";
-    private const string RenderWindowId = "window-render-render";
-    private const string SeparatorAriaLabel = "Resize editor panes";
+    private const string k_CompilationWindowId = "window-compilation-output";
+    private const string k_ConsoleWindowId = "window-console-output";
+    private const string k_RenderWindowId = "window-render-render";
+    private const string k_SeparatorAriaLabel = "Resize editor panes";
 
     private NotebookCellState CreateLayoutState()
     {
         var windows = ImmutableDictionary.CreateBuilder<string, CellWindow>();
         var tabs = ImmutableDictionary.CreateBuilder<string, CellTab>();
         NotebookCellState.AddWindow(
-            windows, tabs, ProjectId, "compilation", RegionId, CellWindowKind.Output, "Compilation");
+            windows, tabs, k_ProjectId, "compilation", k_RegionId, CellWindowKind.Output, "Compilation");
         NotebookCellState.AddWindow(
-            windows, tabs, ProjectId, "console", RegionId, CellWindowKind.Output, "Console");
+            windows, tabs, k_ProjectId, "console", k_RegionId, CellWindowKind.Output, "Console");
         NotebookCellState.AddWindow(
-            windows, tabs, ProjectId, "render", RegionId, CellWindowKind.Render, "Render");
+            windows, tabs, k_ProjectId, "render", k_RegionId, CellWindowKind.Render, "Render");
         return new(
             windows.ToImmutable(),
             tabs.ToImmutable(),
-            [new(RegionId, null)],
+            [new(k_RegionId, null)],
             [],
             0,
             0);
@@ -52,7 +52,7 @@ internal sealed partial class BrowserEditorPage
         }
         var tabId = TabIdFor(entity);
         var window = new CellWindow(
-            windowId, ProjectId, RegionId, CellWindowKind.Script, EditorWorkspace.NameOf(entity), KeyFor(entity));
+            windowId, k_ProjectId, k_RegionId, CellWindowKind.Script, EditorWorkspace.NameOf(entity), KeyFor(entity));
         var tab = new CellTab(tabId, windowId);
         _state = _state with {
             Windows = _state.Windows.Add(windowId, window),
@@ -63,7 +63,7 @@ internal sealed partial class BrowserEditorPage
     private void ApplyLayout()
     {
         SaveEditorSources();
-        var region = _state.Regions.Single(static region => region.Id == RegionId);
+        var region = _state.Regions.Single(static region => region.Id == k_RegionId);
         var shape = CellLayoutDom.BuildNodeShape(region.Root);
         if (shape != _regionShape) {
             RebuildRegion(region);
@@ -113,7 +113,7 @@ internal sealed partial class BrowserEditorPage
         if (region.Root is not null) {
             CellLayoutDom.AppendNode(
                 _workbench, region.Root, containerId, "Editor windows", _groupViews, _groupContainers,
-                _splitViews, _splitContainers, SeparatorAriaLabel);
+                _splitViews, _splitContainers, k_SeparatorAriaLabel);
             return;
         }
         using var placeholder = DomElement.Create("div")
@@ -139,7 +139,7 @@ internal sealed partial class BrowserEditorPage
         var root = CellLayoutDom.CreateFloatingHostElement(floating);
         CellLayoutDom.AppendNode(
             root, floating.Root, containerId, "Editor windows", _groupViews, _groupContainers,
-            _splitViews, _splitContainers, SeparatorAriaLabel);
+            _splitViews, _splitContainers, k_SeparatorAriaLabel);
         _layoutRevision.Append(root);
         _floatingHosts[floating.Id] = root;
     }
@@ -162,7 +162,7 @@ internal sealed partial class BrowserEditorPage
             }
             view.Separator.Attr(
                 "aria-valuenow",
-                Math.Round(split.Ratio * 100).ToString(CultureInfo.InvariantCulture));
+                System.Math.Round(split.Ratio * 100).ToString(CultureInfo.InvariantCulture));
             view.First.ToggleClass("collapsed", split.Ratio <= 0);
             view.Second.ToggleClass("collapsed", split.Ratio >= 1);
             CellLayoutDom.SetShare(view.First, split.Ratio);
@@ -188,29 +188,29 @@ internal sealed partial class BrowserEditorPage
     {
         if (groupView.ActiveWindowId is { } windowId) {
             switch (windowId) {
-                case CompilationWindowId:
+                case k_CompilationWindowId:
                     _compilationPanel.Remove();
                     break;
-                case ConsoleWindowId:
+                case k_ConsoleWindowId:
                     _consolePanel.Remove();
                     break;
-                case RenderWindowId:
+                case k_RenderWindowId:
                     _layoutRevision.Append(_renderTools);
                     _renderPanel.Remove();
                     break;
-            default:
-                if (_surfaces.TryGetValue(groupView.Id, out var surface)) {
-                    if (_editorEntities.TryGetValue(groupView.Id, out var entity)
-                        && entity.IsValid && entity.Contains<OpenEditorFile>()) {
-                        _editors.SynchronizeNativeInput(groupView.Id);
-                        CaptureMemento(groupView.Id, entity);
-                        if (_editors.TryGetSource(groupView.Id, out var source)) {
-                            _workspace.SetContent(entity, source);
+                default:
+                    if (_surfaces.TryGetValue(groupView.Id, out var surface)) {
+                        if (_editorEntities.TryGetValue(groupView.Id, out var entity)
+                            && entity.IsValid && entity.Contains<OpenEditorFile>()) {
+                            _editors.SynchronizeNativeInput(groupView.Id);
+                            CaptureMemento(groupView.Id, entity);
+                            if (_editors.TryGetSource(groupView.Id, out var source)) {
+                                _workspace.SetContent(entity, source);
+                            }
                         }
+                        surface.Remove();
                     }
-                    surface.Remove();
-                }
-                break;
+                    break;
             }
             groupView.ActiveWindowId = null;
         }
@@ -246,13 +246,13 @@ internal sealed partial class BrowserEditorPage
         }
         var activeWindow = _state.Windows[activeTab.WindowId];
         switch (activeWindow.Id) {
-            case CompilationWindowId:
+            case k_CompilationWindowId:
                 groupView.Content.Append(_compilationPanel);
                 break;
-            case ConsoleWindowId:
+            case k_ConsoleWindowId:
                 groupView.Content.Append(_consolePanel);
                 break;
-            case RenderWindowId:
+            case k_RenderWindowId:
                 groupView.Root.InsertBefore(_renderTools, groupView.Content);
                 groupView.Content.Append(_renderPanel);
                 break;
@@ -275,7 +275,8 @@ internal sealed partial class BrowserEditorPage
             _surfaces[group.Id] = surface;
             _editors.Add(surface, group.Id, content, HighlightsFor(content));
             _editorEntities[group.Id] = entity;
-        } else if (_editorEntities.TryGetValue(group.Id, out var currentEntity)
+        }
+        else if (_editorEntities.TryGetValue(group.Id, out var currentEntity)
             && currentEntity != entity) {
             _editors.Replace(group.Id, content, HighlightsFor(content));
             _editorEntities[group.Id] = entity;
@@ -332,7 +333,7 @@ internal sealed partial class BrowserEditorPage
             .Attr("role", "tab")
             .Attr("aria-controls", window.Id)
             .Attr("data-cell-tab", tab.Id)
-            .Attr("data-cell-owner", ProjectId)
+            .Attr("data-cell-owner", k_ProjectId)
             .Attr("data-cell-label", title)
             .Attr("aria-label", title)
             .Attr("title", title)
@@ -411,7 +412,7 @@ internal sealed partial class BrowserEditorPage
             }
         }
         _floatingShapes.Clear();
-        DisposeContainer(CellLayoutDom.RegionContainerId(RegionId));
+        DisposeContainer(CellLayoutDom.RegionContainerId(k_RegionId));
         foreach (var header in _tabHeaders.Values) {
             header.Dispose();
         }

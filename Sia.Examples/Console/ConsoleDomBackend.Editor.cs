@@ -1,7 +1,7 @@
 #if !BROWSER
-using Sia_Examples.Dom;
+using Sia.Examples.Dom;
 
-namespace Sia_Examples.Console;
+namespace Sia.Examples.Console;
 
 internal sealed partial class ConsoleDomBackend
 {

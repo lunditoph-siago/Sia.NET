@@ -1,18 +1,18 @@
 using Sia.Reactive;
-using Sia_Examples.Dom;
+using Sia.Examples.Dom;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 [ReactiveComponent]
 public static partial class EditorViewComponent
 {
-    private const int InitialViewportLines = 200;
+    private const int k_InitialViewportLines = 200;
 
     public static ReactiveNode Render(in EditorViewProps props, ref Hooks hooks)
     {
         var state = hooks.UseState(props.InitialState);
 
-        var initialLines = Math.Min(props.InitialState.Doc.Lines, InitialViewportLines);
+        var initialLines = System.Math.Min(props.InitialState.Doc.Lines, k_InitialViewportLines);
         var initialViewportTo = initialLines <= 0
             ? 0
             : props.InitialState.Doc.Line(initialLines).To;
@@ -22,8 +22,8 @@ public static partial class EditorViewComponent
         var anchorLine = state.Value.Doc.LineAt(selection.Anchor);
         var headLine = state.Value.Doc.LineAt(selection.Head);
 
-        return Reactive.Group(
-            Reactive.Component<EditorLinesProps>(
+        return Reactive.Reactive.Group(
+            Reactive.Reactive.Component<EditorLinesProps>(
                 EditorLinesComponent.Render,
                 new EditorLinesProps(
                     props.View,

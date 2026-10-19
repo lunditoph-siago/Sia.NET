@@ -1,18 +1,18 @@
 using System.IO.Compression;
 
-namespace Sia_Examples.Notebook;
+namespace Sia.Examples.Notebook;
 
 public static class NuGetAssemblyExtractor
 {
 #if BROWSER
-    private static readonly string[] _preferredTfms =
+    private static readonly string[] s_PreferredTfms =
     [
         "net11.0-browser1.0", "net11.0-browser",
         "net11.0", "net10.0", "net9.0", "net8.0", "net7.0", "net6.0", "net5.0",
         "netstandard2.1", "netstandard2.0", "netstandard1.6", "netstandard1.3",
     ];
 #else
-    private static readonly string[] _preferredTfms =
+    private static readonly string[] s_PreferredTfms =
     [
         "net11.0", "net10.0", "net9.0", "net8.0", "net7.0", "net6.0", "net5.0",
         "netstandard2.1", "netstandard2.0", "netstandard1.6", "netstandard1.3",
@@ -74,7 +74,7 @@ public static class NuGetAssemblyExtractor
         var tfms = new HashSet<string>(
             entries.Select(e => TfmOf(e.FullName)), StringComparer.OrdinalIgnoreCase);
         tfms.Remove("");
-        foreach (var preferredTfm in _preferredTfms) {
+        foreach (var preferredTfm in s_PreferredTfms) {
             if (tfms.Contains(preferredTfm)) {
                 return preferredTfm;
             }

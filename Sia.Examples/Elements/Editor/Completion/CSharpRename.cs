@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Text;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 internal static class CSharpRename
 {

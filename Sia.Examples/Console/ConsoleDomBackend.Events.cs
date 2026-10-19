@@ -1,8 +1,8 @@
 #if !BROWSER
 using System.Threading.Channels;
-using Sia_Examples.Console.Layout;
+using Sia.Examples.Console.Layout;
 
-namespace Sia_Examples.Console;
+namespace Sia.Examples.Console;
 
 internal sealed partial class ConsoleDomBackend
 {
@@ -105,7 +105,7 @@ internal sealed partial class ConsoleDomBackend
         _ = PublishScheduledAsync(
             key,
             payload,
-            Math.Max(delayMilliseconds, 0),
+            System.Math.Max(delayMilliseconds, 0),
             cancellation);
     }
 

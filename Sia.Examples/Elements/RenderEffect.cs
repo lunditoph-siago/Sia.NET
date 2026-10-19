@@ -1,6 +1,6 @@
 using Sia.Reactive;
 
-namespace Sia_Examples;
+namespace Sia.Examples;
 
 public readonly record struct RenderEffect<TView>(
     IRenderHost<TView> Host,
@@ -17,7 +17,8 @@ public readonly record struct RenderEffect<TView>(
         if (!ReferenceEquals(previous.Host, next.Host)) {
             previous.Host.Remove(previous.View);
             next.Host.Upsert(next.View);
-        } else if (!previous.View.Equals(next.View)) {
+        }
+        else if (!previous.View.Equals(next.View)) {
             next.Host.Upsert(next.View);
         }
     }

@@ -1,4 +1,4 @@
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public sealed class SelectionRange : IEquatable<SelectionRange>
 {
@@ -25,7 +25,7 @@ public sealed class SelectionRange : IEquatable<SelectionRange>
     public bool Empty => From == To;
 
     internal SelectionRange Clamp(int length)
-        => To <= length ? this : new(Math.Min(From, length), Math.Min(To, length), _flags, GoalColumn);
+        => To <= length ? this : new(System.Math.Min(From, length), System.Math.Min(To, length), _flags, GoalColumn);
 
     internal SelectionRange Normalize(Text document)
     {

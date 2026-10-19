@@ -1,4 +1,4 @@
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public static class CursorCommands
 {
@@ -134,7 +134,7 @@ public static class CursorCommands
         int lineOffset)
     {
         var currentLine = state.Doc.LineAt(range.Head);
-        var targetLine = state.Doc.Line(Math.Clamp(
+        var targetLine = state.Doc.Line(System.Math.Clamp(
             currentLine.Number + lineOffset,
             1,
             state.Doc.Lines));

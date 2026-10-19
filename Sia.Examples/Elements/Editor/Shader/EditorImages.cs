@@ -4,7 +4,7 @@ using Sia.Reactive;
 using System.Runtime.InteropServices.JavaScript;
 #endif
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public sealed class EditorImage
 {
@@ -66,7 +66,7 @@ internal sealed partial class EditorUniformSession
         if (_images.Count == 0) return;
         var json = ReadImages(_binding);
         if (json.Length == 0) return;
-        foreach (var edit in JsonSerializer.Deserialize<ImageEdit[]>(json, JsonOptions)!) {
+        foreach (var edit in JsonSerializer.Deserialize<ImageEdit[]>(json, s_JsonOptions)!) {
             if (!_images.TryGetValue(edit.Key, out var state)) continue;
             state.Set(new(edit.Name is null ? null : new EditorImage(edit.Name, edit.Width, edit.Height, ReadPixels(_binding, edit.Key))));
         }

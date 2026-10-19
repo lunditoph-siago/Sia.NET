@@ -1,11 +1,11 @@
 using Microsoft.CodeAnalysis.Completion;
-using Sia_Examples.Dom;
+using Sia.Examples.Dom;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public sealed partial class BrowserEditorHost
 {
-    private const int _completionDelayMilliseconds = 80;
+    private const int k_CompletionDelayMilliseconds = 80;
     private CompletionResult? _completion;
     private CompletionResult? _completionSource;
     private Text? _completionDocument;
@@ -27,7 +27,7 @@ public sealed partial class BrowserEditorHost
             return;
         }
 
-        StartCompletion(after, _completionDelayMilliseconds);
+        StartCompletion(after, k_CompletionDelayMilliseconds);
     }
 
     private bool HandleManualCompletion(BrowserSelection nativeSelection)
@@ -137,7 +137,7 @@ public sealed partial class BrowserEditorHost
     private async Task RefreshCompletionAsync(
         EditorState state, CancellationTokenSource cancellation, int generation, CompletionResult? cached)
     {
-        Func<string, int, CancellationToken, Task<CompletionResult>>? refresh = cached is null
+        var refresh = cached is null
             ? (source, position, token) => _completionProvider.QueryAsync(_cellId, source, position, token)
             : cached.Query?.Refresh;
         var result = refresh is null ? cached! : await refresh(state.Doc.SliceDoc(), state.Selection.Main.Head, cancellation.Token);
@@ -169,7 +169,7 @@ public sealed partial class BrowserEditorHost
             }
             _completionSource = result;
             CompletionResult? Filter() => result.TryFilter(current.Doc, position, int.MaxValue, out var value) ? value : null;
-            var filtered = result.Items.Count <= _maximumRenderedCompletions ? Filter() : await Task.Run(Filter, cancellation.Token);
+            var filtered = result.Items.Count <= k_MaximumRenderedCompletions ? Filter() : await Task.Run(Filter, cancellation.Token);
             if (IsRetired()) return;
             if (SourceChanged(current)) continue;
             if (filtered is null) {

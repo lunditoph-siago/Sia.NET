@@ -1,5 +1,5 @@
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 internal static class CompletionMatch
 {
@@ -12,7 +12,7 @@ internal static class CompletionMatch
         var humps = HumpRank(name, pattern);
         if (humps > 0) return humps;
         var substring = name.IndexOf(pattern, StringComparison.OrdinalIgnoreCase);
-        if (substring >= 0) return 600 - Math.Min(substring, 99);
+        if (substring >= 0) return 600 - System.Math.Min(substring, 99);
         return TypoRank(name, pattern);
     }
 
@@ -25,7 +25,7 @@ internal static class CompletionMatch
         }
         if (matched < pattern.Length) return 0;
         var width = pattern.Length + 1;
-        Span<short> states = width <= 256 ? stackalloc short[width * 2] : new short[width * 2];
+        var states = width <= 256 ? stackalloc short[width * 2] : new short[width * 2];
         states.Clear();
         var adjacent = states[..width];
         var seen = states[width..];
@@ -38,15 +38,15 @@ internal static class CompletionMatch
             for (var part = pattern.Length - 1; part >= 0; part--) {
                 short rank = 0;
                 if (Equal(name[index], pattern[part])) {
-                    rank = part == 0 && boundary ? (short)(index == 0 ? 900 : 800 - Math.Min(index, 99))
-                        : Math.Max(adjacent[part], boundary ? seen[part] : (short)0);
+                    rank = part == 0 && boundary ? (short)(index == 0 ? 900 : 800 - System.Math.Min(index, 99))
+                        : System.Math.Max(adjacent[part], boundary ? seen[part] : (short)0);
                 }
                 adjacent[part + 1] = rank;
                 var retained = seen[part + 1];
-                if (retained > 0) retained = (short)Math.Max(retained > 800 ? 850 : 650, retained - 1);
-                seen[part + 1] = Math.Max(retained, rank);
+                if (retained > 0) retained = (short)System.Math.Max(retained > 800 ? 850 : 650, retained - 1);
+                seen[part + 1] = System.Math.Max(retained, rank);
             }
-            best = Math.Max(best, adjacent[pattern.Length]);
+            best = System.Math.Max(best, adjacent[pattern.Length]);
             if (best == 900 || pattern.Length == 1 && best > 0) return best;
         }
         return best;
@@ -56,8 +56,8 @@ internal static class CompletionMatch
     {
         if (pattern.Length is < 4 or > 128) return -1;
         var limit = pattern.Length >= 8 ? 2 : 1;
-        var end = Math.Min(name.Length, pattern.Length + limit);
-        var start = Math.Max(1, pattern.Length - limit);
+        var end = System.Math.Min(name.Length, pattern.Length + limit);
+        var start = System.Math.Max(1, pattern.Length - limit);
         if (end < start) return -1;
         var width = end + 1;
         Span<int> states = stackalloc int[width * 3];
@@ -65,18 +65,18 @@ internal static class CompletionMatch
         var older = states[..width];
         var previous = states.Slice(width, width);
         var current = states[(width * 2)..];
-        for (var column = 0; column <= Math.Min(end, limit); column++) previous[column] = column;
+        for (var column = 0; column <= System.Math.Min(end, limit); column++) previous[column] = column;
         for (var row = 1; row <= pattern.Length; row++) {
             current.Fill(limit + 1);
             current[0] = row;
             var minimum = limit + 1;
-            for (var column = Math.Max(1, row - limit); column <= Math.Min(end, row + limit); column++) {
-                var distance = Math.Min(previous[column] + 1, Math.Min(current[column - 1] + 1,
+            for (var column = System.Math.Max(1, row - limit); column <= System.Math.Min(end, row + limit); column++) {
+                var distance = System.Math.Min(previous[column] + 1, System.Math.Min(current[column - 1] + 1,
                     previous[column - 1] + (Equal(pattern[row - 1], name[column - 1]) ? 0 : 1)));
                 if (row > 1 && column > 1 && Equal(pattern[row - 1], name[column - 2]) && Equal(pattern[row - 2], name[column - 1]))
-                    distance = Math.Min(distance, older[column - 2] + 1);
+                    distance = System.Math.Min(distance, older[column - 2] + 1);
                 current[column] = distance;
-                minimum = Math.Min(minimum, distance);
+                minimum = System.Math.Min(minimum, distance);
             }
             if (minimum > limit) return -1;
             var next = older;
@@ -85,7 +85,7 @@ internal static class CompletionMatch
             current = next;
         }
         var best = limit + 1;
-        for (var column = start; column <= end; column++) best = Math.Min(best, previous[column]);
+        for (var column = start; column <= end; column++) best = System.Math.Min(best, previous[column]);
         return best <= limit ? 300 - best * 50 : -1;
     }
 

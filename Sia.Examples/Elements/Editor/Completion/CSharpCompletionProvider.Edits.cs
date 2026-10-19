@@ -3,9 +3,9 @@ using Microsoft.CodeAnalysis.Completion;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
-using Sia_Examples.Notebook;
+using Sia.Examples.Notebook;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public sealed partial class CSharpCompletionProvider
 {

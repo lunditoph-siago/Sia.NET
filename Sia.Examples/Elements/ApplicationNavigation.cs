@@ -1,7 +1,7 @@
-using Sia_Examples.Notebook;
-using Destination = Sia_Examples.ApplicationDestination;
+using Sia.Examples.Notebook;
+using Destination = Sia.Examples.ApplicationDestination;
 
-namespace Sia_Examples;
+namespace Sia.Examples;
 
 internal sealed record NavigationState(ApplicationRoute Page, string Content, bool Dirty);
 
@@ -22,9 +22,8 @@ internal static class ApplicationNavigation
     public static NavigationTransition Update(NavigationState state, NavigationEvent action)
     {
         var samePage = (state.Page, action.Page) switch {
-            ({ Target: Destination.Editor }, { Target: Destination.Editor }) => true,
-            ({ Target: Destination.Notebook, Info: { } current },
-             { Target: Destination.Notebook, Info: { } target })
+            ( { Target: Destination.Editor }, { Target: Destination.Editor }) => true,
+            ( { Target: Destination.Notebook, Info: { } current }, { Target: Destination.Notebook, Info: { } target })
                 => (current.Key, current.Origin) == (target.Key, target.Origin),
             _ => false,
         };

@@ -1,7 +1,7 @@
-using Sia_Examples.Dom;
-using Sia_Examples.Notebook;
+using Sia.Examples.Dom;
+using Sia.Examples.Notebook;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public sealed class BrowserEditorView : IEditorView
 {
@@ -153,10 +153,10 @@ public sealed class BrowserEditorView : IEditorView
         }
     }
 
-    private static bool AlmostEqual(double a, double b) => Math.Abs(a - b) < 0.5;
+    private static bool AlmostEqual(double a, double b) => System.Math.Abs(a - b) < 0.5;
 
     private static void SetHeight(DomElement element, double px)
-        => element.Attr("style", $"height:{Math.Max(0, px).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)}px");
+        => element.Attr("style", $"height:{System.Math.Max(0, px).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)}px");
 
     public void RestoreDocumentStructure()
     {

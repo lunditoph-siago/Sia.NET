@@ -336,7 +336,7 @@ async function initializeAssemblyManifest() {
     const virtualPaths = assets.map((asset) => asset.virtualPath);
     const urls = assets.map((asset) => new URL(asset.resolvedUrl, document.baseURI).href);
     const exports = await getAssemblyExports(config.mainAssemblyName);
-    await exports.Sia_Examples.Notebook.AssemblyLoader.InitializeAsync(virtualPaths, urls);
+    await exports.Sia.Examples.Notebook.AssemblyLoader.InitializeAsync(virtualPaths, urls);
 }
 
 try {

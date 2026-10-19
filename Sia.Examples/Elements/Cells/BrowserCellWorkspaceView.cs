@@ -1,9 +1,9 @@
 using System.Globalization;
 
-using Sia_Examples.Dom;
-using Sia_Examples.Editor;
+using Sia.Examples.Dom;
+using Sia.Examples.Editor;
 
-namespace Sia_Examples.Notebook;
+namespace Sia.Examples.Notebook;
 
 public sealed class BrowserCellWorkspaceView(DomElement floatingLayer, BrowserEditorRegistry editors) : IDisposable
 {
@@ -189,7 +189,7 @@ public sealed class BrowserCellWorkspaceView(DomElement floatingLayer, BrowserEd
             var ratio = split.Ratio;
             view.Separator.Attr(
                 "aria-valuenow",
-                Math.Round(ratio * 100).ToString(CultureInfo.InvariantCulture));
+                System.Math.Round(ratio * 100).ToString(CultureInfo.InvariantCulture));
             if (surfaceChildren.TryGetValue(split.Id, out var surfaceIndex)) {
                 var surfaceShare = surfaceIndex == 0 ? ratio : 1 - ratio;
                 view.Root.ToggleClass("surface", true);

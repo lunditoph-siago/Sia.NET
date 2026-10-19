@@ -1,13 +1,13 @@
 using Microsoft.CodeAnalysis.Text;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public sealed class EditorViewState(EditorHeightMap heightMap, EditorHeightOracle oracle, Text? document = null)
 {
     private Text _document = document ?? oracle.Doc;
-    private const double Margin = 1000;
-    private const double MinCoverMargin = 10;
-    private const double MaxCoverMargin = Margin / 4;
+    private const double k_Margin = 1000;
+    private const double k_MinCoverMargin = 10;
+    private const double k_MaxCoverMargin = k_Margin / 4;
 
     public EditorHeightMap HeightMap { get; private set; } = heightMap;
 
@@ -80,9 +80,9 @@ public sealed class EditorViewState(EditorHeightMap heightMap, EditorHeightOracl
         PixelViewportTop = visibleTop;
         PixelViewportBottom = visibleBottom;
 
-        var marginTop = 0.5 - Math.Max(-0.5, Math.Min(0.5, bias / Margin / 2));
-        var from = LineAt(visibleTop - marginTop * Margin, QueryType.ByHeight).From;
-        var to = LineAt(visibleBottom + (1 - marginTop) * Margin, QueryType.ByHeight).To;
+        var marginTop = 0.5 - System.Math.Max(-0.5, System.Math.Min(0.5, bias / k_Margin / 2));
+        var from = LineAt(visibleTop - marginTop * k_Margin, QueryType.ByHeight).From;
+        var to = LineAt(visibleBottom + (1 - marginTop) * k_Margin, QueryType.ByHeight).To;
         MainViewport = new EditorViewport(from, to).Clamp(_document.Length);
         return MainViewport;
     }
@@ -92,7 +92,7 @@ public sealed class EditorViewState(EditorHeightMap heightMap, EditorHeightOracl
         if (MainViewport.Contains(target.Position)) {
             return MainViewport;
         }
-        var viewHeight = Math.Min(editorPixelHeight, PixelViewportBottom - PixelViewportTop);
+        var viewHeight = System.Math.Min(editorPixelHeight, PixelViewportBottom - PixelViewportTop);
         var block = LineAt(target.Position, QueryType.ByPos);
         var topPos = target.Y switch {
             ScrollYStrategy.Center => (block.Top + block.Bottom) / 2 - viewHeight / 2,
@@ -100,8 +100,8 @@ public sealed class EditorViewState(EditorHeightMap heightMap, EditorHeightOracl
             ScrollYStrategy.Nearest when target.Position < MainViewport.From => block.Top,
             _ => block.Bottom - viewHeight,
         };
-        var from = LineAt(topPos - Margin / 2, QueryType.ByHeight).From;
-        var to = LineAt(topPos + viewHeight + Margin / 2, QueryType.ByHeight).To;
+        var from = LineAt(topPos - k_Margin / 2, QueryType.ByHeight).From;
+        var to = LineAt(topPos + viewHeight + k_Margin / 2, QueryType.ByHeight).To;
         MainViewport = new EditorViewport(from, to).Clamp(_document.Length);
         return MainViewport;
     }
@@ -120,10 +120,10 @@ public sealed class EditorViewState(EditorHeightMap heightMap, EditorHeightOracl
         var top = LineAt(viewport.From, QueryType.ByPos).Top;
         var bottom = LineAt(viewport.To, QueryType.ByPos).Bottom;
         return (viewport.From == 0
-                || top <= PixelViewportTop - Math.Max(MinCoverMargin, Math.Min(-bias, MaxCoverMargin)))
+                || top <= PixelViewportTop - System.Math.Max(k_MinCoverMargin, System.Math.Min(-bias, k_MaxCoverMargin)))
             && (viewport.To == _document.Length
-                || bottom >= PixelViewportBottom + Math.Max(MinCoverMargin, Math.Min(bias, MaxCoverMargin)))
-            && top > PixelViewportTop - 2 * Margin
-            && bottom < PixelViewportBottom + 2 * Margin;
+                || bottom >= PixelViewportBottom + System.Math.Max(k_MinCoverMargin, System.Math.Min(bias, k_MaxCoverMargin)))
+            && top > PixelViewportTop - 2 * k_Margin
+            && bottom < PixelViewportBottom + 2 * k_Margin;
     }
 }

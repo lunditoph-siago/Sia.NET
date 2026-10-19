@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 internal sealed record SignatureHelp(int Start, IReadOnlyList<SignatureItem> Items, int Selected);
 internal sealed record SignatureItem(string Prefix, string[] Parameters, string Suffix, int ActiveParameter,
@@ -12,7 +12,7 @@ internal sealed record SignatureItem(string Prefix, string[] Parameters, string 
 
 internal static class CSharpSignatureHelp
 {
-    private static readonly SymbolDisplayFormat _display = SymbolDisplayFormat.MinimallyQualifiedFormat
+    private static readonly SymbolDisplayFormat s_Display = SymbolDisplayFormat.MinimallyQualifiedFormat
         .WithMemberOptions(SymbolDisplayMemberOptions.IncludeContainingType | SymbolDisplayMemberOptions.IncludeType)
         .WithParameterOptions(SymbolDisplayParameterOptions.IncludeType | SymbolDisplayParameterOptions.IncludeName
             | SymbolDisplayParameterOptions.IncludeParamsRefOut | SymbolDisplayParameterOptions.IncludeDefaultValue
@@ -39,7 +39,7 @@ internal static class CSharpSignatureHelp
         var model = await document.GetSemanticModelAsync(cancellation);
         if (model is null) return null;
         var enclosing = model.GetEnclosingSymbol(list.SpanStart, cancellation);
-        ISymbol within = enclosing as INamedTypeSymbol ?? (ISymbol?)enclosing?.ContainingType ?? model.Compilation.Assembly;
+        var within = enclosing as INamedTypeSymbol ?? (ISymbol?)enclosing?.ContainingType ?? model.Compilation.Assembly;
         var info = model.GetSymbolInfo(list.Parent!, cancellation);
         var symbols = new List<ISymbol>();
         if (info.Symbol is IMethodSymbol or IPropertySymbol) symbols.Add(info.Symbol);
@@ -106,11 +106,11 @@ internal static class CSharpSignatureHelp
                     applicable = false;
             }
             if (applicable) score += 1000;
-            score -= Math.Abs(parameters.Length - Math.Max(arguments.Length, ordinal + 1));
+            score -= System.Math.Abs(parameters.Length - System.Math.Max(arguments.Length, ordinal + 1));
             var (summary, parameterDocs) = Documentation(symbol, active >= 0 ? parameters[active].Name : null, cancellation);
             var indexer = symbol is IPropertySymbol;
-            var item = new SignatureItem(symbol.ToMinimalDisplayString(model, position, _display) + (indexer ? "[" : "("),
-                parameters.Select(parameter => parameter.ToMinimalDisplayString(model, position, _display)).ToArray(),
+            var item = new SignatureItem(symbol.ToMinimalDisplayString(model, position, s_Display) + (indexer ? "[" : "("),
+                parameters.Select(parameter => parameter.ToMinimalDisplayString(model, position, s_Display)).ToArray(),
                 indexer ? "]" : ")", active, summary, parameterDocs, applicable);
             ranked.Add((item, score, item.Prefix + string.Join(",", item.Parameters)));
         }

@@ -1,6 +1,6 @@
 using Sia;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 internal sealed partial class BrowserEditorPage
 {

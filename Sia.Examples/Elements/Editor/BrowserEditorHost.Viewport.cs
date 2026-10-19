@@ -1,7 +1,7 @@
 using System.Globalization;
 using Sia.Reactive;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public sealed partial class BrowserEditorHost
 {
@@ -133,7 +133,7 @@ public sealed partial class BrowserEditorHost
             ? 0
             : _viewState.LineAt(viewport.From, QueryType.ByPos).Top;
         var afterBlock = _viewState.LineAt(viewport.To, QueryType.ByPos);
-        var after = Math.Max(0, map.Height - afterBlock.Bottom);
+        var after = System.Math.Max(0, map.Height - afterBlock.Bottom);
         _view.SetSpacerHeights(before, after);
     }
 
@@ -184,12 +184,12 @@ public sealed partial class BrowserEditorHost
     private void RestoreViewport(EditorMemento memento)
     {
         var doc = State.Value.Doc;
-        var line = doc.Line(Math.Clamp(memento.ViewLine + 1, 1, doc.Lines));
+        var line = doc.Line(System.Math.Clamp(memento.ViewLine + 1, 1, doc.Lines));
         var block = _viewState.LineAt(line.From, QueryType.ByPos);
-        var column = Math.Clamp(memento.ViewColumn, 0, line.Length);
-        var rowTop = Math.Min(block.Height - _viewState.Oracle.LineHeight,
-            Math.Floor(column / _viewState.Oracle.LineLength) * _viewState.Oracle.LineHeight);
-        var top = Math.Max(0, block.Top + Math.Max(0, rowTop) - memento.ViewOffset * _viewState.Oracle.LineHeight);
+        var column = System.Math.Clamp(memento.ViewColumn, 0, line.Length);
+        var rowTop = System.Math.Min(block.Height - _viewState.Oracle.LineHeight,
+            System.Math.Floor(column / _viewState.Oracle.LineLength) * _viewState.Oracle.LineHeight);
+        var top = System.Math.Max(0, block.Top + System.Math.Max(0, rowTop) - memento.ViewOffset * _viewState.Oracle.LineHeight);
         ApplyViewport(_viewState.ComputeViewport(top, top + _lastClientHeight));
         _view.RestoreScroll(_scrollGeneration, new(top, memento.ScrollLeft, line.Number - 1, column, memento.ViewOffset));
     }

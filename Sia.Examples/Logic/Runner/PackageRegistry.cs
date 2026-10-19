@@ -1,6 +1,6 @@
 using System.Collections.Immutable;
 
-namespace Sia_Examples.Notebook;
+namespace Sia.Examples.Notebook;
 
 internal sealed class PackageRegistry
 {

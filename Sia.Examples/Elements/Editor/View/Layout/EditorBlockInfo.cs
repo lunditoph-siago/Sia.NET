@@ -1,4 +1,4 @@
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public readonly record struct EditorBlockInfo(int From, int Length, double Top, double Height)
 {

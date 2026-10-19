@@ -1,4 +1,4 @@
-namespace Sia_Examples.Notebook;
+namespace Sia.Examples.Notebook;
 
 public readonly record struct PackageStatus(
     PackageRef Package,

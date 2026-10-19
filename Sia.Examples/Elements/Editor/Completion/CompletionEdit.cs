@@ -1,5 +1,6 @@
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
+
 internal readonly record struct CompletionEdit(ChangeSpec[] Changes, int Position)
 {
     internal CompletionEdit WithCharacter(char character, int sourceLength, bool includesCharacter = false)

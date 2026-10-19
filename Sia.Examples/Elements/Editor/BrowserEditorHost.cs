@@ -1,9 +1,9 @@
-using Sia_Examples.Dom;
-using Sia_Examples.Notebook;
+using Sia.Examples.Dom;
+using Sia.Examples.Notebook;
 using Sia;
 using Sia.Reactive;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public sealed partial class BrowserEditorHost : IDisposable
 {

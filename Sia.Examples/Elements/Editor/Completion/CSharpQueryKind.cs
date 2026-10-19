@@ -1,3 +1,3 @@
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 internal enum CSharpQueryKind { Language, References, DocumentSymbols, WorkspaceSymbols }

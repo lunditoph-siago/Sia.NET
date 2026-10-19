@@ -1,7 +1,7 @@
 #if !BROWSER
-using Sia_Examples.Console.Layout;
+using Sia.Examples.Console.Layout;
 
-namespace Sia_Examples.Console;
+namespace Sia.Examples.Console;
 
 internal readonly record struct ConsoleRenderRequest(
     ConsoleDomNode Sidebar,

@@ -1,14 +1,14 @@
 using System.Xml;
 using System.Xml.Linq;
-using Sia_Examples.Editor;
+using Sia.Examples.Editor;
 
-namespace Sia_Examples.Notebook;
+namespace Sia.Examples.Notebook;
 
 public sealed class NotebookLibrary(IWorkspaceStorage storage)
 {
-    internal const string Extension = ".notebook.xml";
+    internal const string k_Extension = ".notebook.xml";
 
-    private static readonly IReadOnlyList<NotebookInfo> BuiltIn = [
+    private static readonly IReadOnlyList<NotebookInfo> s_BuiltIn = [
         new("1. Browser",
             "Run C# and Sia.NET in the browser",
             "Example1_Guide.notebook.xml",
@@ -26,7 +26,7 @@ public sealed class NotebookLibrary(IWorkspaceStorage storage)
     private readonly IWorkspaceStorage _storage = storage;
     private readonly Dictionary<string, NotebookDocument> _builtInCache = [];
 
-    public IReadOnlyList<NotebookInfo> Notebooks { get; private set; } = BuiltIn;
+    public IReadOnlyList<NotebookInfo> Notebooks { get; private set; } = s_BuiltIn;
 
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
     {
@@ -34,7 +34,7 @@ public sealed class NotebookLibrary(IWorkspaceStorage storage)
         List<(NotebookInfo Info, DateTimeOffset ModifiedAt)> user = [];
         foreach (var entry in entries) {
             if (entry.Kind != WorkspaceEntryKind.File
-                || !entry.Path.EndsWith(Extension, StringComparison.Ordinal)) {
+                || !entry.Path.EndsWith(k_Extension, StringComparison.Ordinal)) {
                 continue;
             }
             if (await _storage.ReadFileAsync(entry.Path, cancellationToken) is not { } content) {
@@ -47,13 +47,13 @@ public sealed class NotebookLibrary(IWorkspaceStorage storage)
             catch (XmlException) {
                 continue;
             }
-            var key = entry.Path[..^Extension.Length];
+            var key = entry.Path[..^k_Extension.Length];
             user.Add((
                 new NotebookInfo(title.Length > 0 ? title : "(untitled)", "", key, NotebookOrigin.User),
                 entry.ModifiedAt ?? DateTimeOffset.MinValue));
         }
         Notebooks = [
-            .. BuiltIn,
+            .. s_BuiltIn,
             .. user
                 .OrderByDescending(static pair => pair.ModifiedAt)
                 .Select(static pair => pair.Info),
@@ -89,7 +89,7 @@ public sealed class NotebookLibrary(IWorkspaceStorage storage)
         return document;
     }
 
-    internal static string PathOf(string key) => key + Extension;
+    internal static string PathOf(string key) => key + k_Extension;
 
     private static string PeekTitle(string xml)
     {

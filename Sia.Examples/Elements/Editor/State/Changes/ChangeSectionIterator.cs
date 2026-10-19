@@ -1,4 +1,4 @@
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 internal sealed class ChangeSectionIterator
 {
@@ -38,7 +38,8 @@ internal sealed class ChangeSectionIterator
         if (_index < sections.Length) {
             Length = sections[_index++];
             InsertedLength = sections[_index++];
-        } else {
+        }
+        else {
             Length = 0;
             InsertedLength = -2;
         }
@@ -64,7 +65,8 @@ internal sealed class ChangeSectionIterator
     {
         if (length == Length) {
             Next();
-        } else {
+        }
+        else {
             Length -= length;
             Offset += length;
         }
@@ -74,9 +76,11 @@ internal sealed class ChangeSectionIterator
     {
         if (InsertedLength == -1) {
             Forward(length);
-        } else if (length == InsertedLength) {
+        }
+        else if (length == InsertedLength) {
             Next();
-        } else {
+        }
+        else {
             InsertedLength -= length;
             Offset += length;
         }

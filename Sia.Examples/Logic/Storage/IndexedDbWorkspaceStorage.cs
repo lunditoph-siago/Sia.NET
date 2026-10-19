@@ -1,13 +1,13 @@
 #if BROWSER
 using System.Runtime.InteropServices.JavaScript;
 using System.Text.Json;
-using Sia_Examples.Browser;
+using Sia.Examples.Browser;
 
-namespace Sia_Examples.Notebook;
+namespace Sia.Examples.Notebook;
 
 public sealed partial class IndexedDbWorkspaceStorage(BrowserMainThread mainThread) : IWorkspaceStorage
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() {
+    private static readonly JsonSerializerOptions s_JsonOptions = new() {
         PropertyNameCaseInsensitive = true,
     };
 
@@ -19,7 +19,7 @@ public sealed partial class IndexedDbWorkspaceStorage(BrowserMainThread mainThre
         mainThread.VerifyAccess();
         cancellationToken.ThrowIfCancellationRequested();
 
-        var records = JsonSerializer.Deserialize<RawRecord[]>(json, JsonOptions) ?? [];
+        var records = JsonSerializer.Deserialize<RawRecord[]>(json, s_JsonOptions) ?? [];
         List<WorkspaceStorageEntry> entries = [];
         foreach (var record in records) {
             entries.Add(Describe(record));
@@ -39,7 +39,7 @@ public sealed partial class IndexedDbWorkspaceStorage(BrowserMainThread mainThre
         if (json is null) {
             return null;
         }
-        var record = JsonSerializer.Deserialize<RawRecord>(json, JsonOptions)!;
+        var record = JsonSerializer.Deserialize<RawRecord>(json, s_JsonOptions)!;
         return record.Kind == WorkspaceEntryKind.File.ToString().ToLowerInvariant()
             ? new WorkspaceFileContent(record.Content ?? string.Empty, VersionOf(record))
             : null;
@@ -61,7 +61,7 @@ public sealed partial class IndexedDbWorkspaceStorage(BrowserMainThread mainThre
             var actual = await ReadFileAsync(normalized, cancellationToken);
             throw new WorkspaceConflictException(normalized, expectedVersion, actual?.Version);
         }
-        var record = JsonSerializer.Deserialize<RawRecord>(written, JsonOptions)!;
+        var record = JsonSerializer.Deserialize<RawRecord>(written, s_JsonOptions)!;
         return new WorkspaceFileContent(record.Content ?? string.Empty, VersionOf(record));
     }
 
@@ -95,7 +95,7 @@ public sealed partial class IndexedDbWorkspaceStorage(BrowserMainThread mainThre
         cancellationToken.ThrowIfCancellationRequested();
 
         var result = JsonSerializer.Deserialize<RemovalResult>(
-            await RemoveAsync(normalized, previous, expectedVersion is not null), JsonOptions)!;
+            await RemoveAsync(normalized, previous, expectedVersion is not null), s_JsonOptions)!;
         mainThread.VerifyAccess();
         if (!result.Removed) {
             if (expectedVersion is { } expected) {
@@ -134,7 +134,7 @@ public sealed partial class IndexedDbWorkspaceStorage(BrowserMainThread mainThre
             return null;
         }
         var json = await GetJsonAsync(path);
-        var record = json is null ? null : JsonSerializer.Deserialize<RawRecord>(json, JsonOptions);
+        var record = json is null ? null : JsonSerializer.Deserialize<RawRecord>(json, s_JsonOptions);
         var actual = record is { Kind: "file" } ? VersionOf(record) : null;
         if (actual != expected) {
             throw new WorkspaceConflictException(path, expected, actual);

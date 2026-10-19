@@ -3,13 +3,13 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.CodeAnalysis.Text;
-using Sia_Examples.Notebook;
+using Sia.Examples.Notebook;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public sealed partial class CSharpCompletionProvider
 {
-    private static readonly Lazy<MefHostServices> _services = new(() => MefHostServices.Create(
+    private static readonly Lazy<MefHostServices> s_Services = new(() => MefHostServices.Create(
         MefHostServices.DefaultAssemblies
             .Add(Assembly.Load("Microsoft.CodeAnalysis.CSharp.Workspaces"))
             .Add(Assembly.Load("Microsoft.CodeAnalysis.Features"))
@@ -64,7 +64,7 @@ public sealed partial class CSharpCompletionProvider
     {
         var previous = _project;
         _documents.TryGetValue(activeId, out var activeBefore);
-        _workspace ??= new(_services.Value);
+        _workspace ??= new(s_Services.Value);
         _project ??= _workspace.AddProject(ProjectInfo.Create(ProjectId.CreateNewId(), VersionStamp.Create(),
             "Editor", "Editor", LanguageNames.CSharp, parseOptions: CSharpLanguageOptions.Parse,
             compilationOptions: CSharpLanguageOptions.Library));

@@ -1,7 +1,7 @@
 using Sia;
-using Sia_Examples.Notebook;
+using Sia.Examples.Notebook;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 internal sealed partial class BrowserEditorPage
 {

@@ -1,12 +1,12 @@
 using Sia.Reactive;
 
-namespace Sia_Examples.Notebook;
+namespace Sia.Examples.Notebook;
 
 [ReactiveComponent]
 public static partial class NotebookPackagesComponent
 {
     public static ReactiveNode Render(in NotebookPackagesProps props, ref Hooks hooks)
-        => Reactive.ForEach(RenderPackage, BuildPackages(props));
+        => Reactive.Reactive.ForEach(RenderPackage, BuildPackages(props));
 
     private static (PackageKey Key, PackageItem Value)[] BuildPackages(
         scoped in NotebookPackagesProps props)

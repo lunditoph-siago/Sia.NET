@@ -1,4 +1,4 @@
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 [Flags]
 internal enum SelFlag : byte

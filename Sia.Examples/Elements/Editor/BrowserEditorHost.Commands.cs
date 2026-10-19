@@ -1,7 +1,7 @@
-using Sia_Examples.Dom;
+using Sia.Examples.Dom;
 using Sia.Reactive;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public sealed partial class BrowserEditorHost
 {
@@ -86,8 +86,8 @@ public sealed partial class BrowserEditorHost
                     AcceptCompletion(_completion); break;
                 case EditorCommandId.NextSuggestion: SelectCompletion((_completionIndex + 1) % _completion.Items.Count); break;
                 case EditorCommandId.PreviousSuggestion: SelectCompletion((_completionIndex - 1 + _completion.Items.Count) % _completion.Items.Count); break;
-                case EditorCommandId.NextSuggestionPage: SelectCompletion(Math.Min(_completionIndex + _completionPageSize, _completion.Items.Count - 1)); break;
-                case EditorCommandId.PreviousSuggestionPage: SelectCompletion(Math.Max(0, _completionIndex - _completionPageSize)); break;
+                case EditorCommandId.NextSuggestionPage: SelectCompletion(System.Math.Min(_completionIndex + _completionPageSize, _completion.Items.Count - 1)); break;
+                case EditorCommandId.PreviousSuggestionPage: SelectCompletion(System.Math.Max(0, _completionIndex - _completionPageSize)); break;
                 case EditorCommandId.HideSuggestions: CancelCompletion(); break;
             }
             return true;

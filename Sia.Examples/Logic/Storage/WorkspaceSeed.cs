@@ -1,6 +1,6 @@
-using Sia_Examples.Editor;
+using Sia.Examples.Editor;
 
-namespace Sia_Examples.Notebook;
+namespace Sia.Examples.Notebook;
 
 public static class WorkspaceSeed
 {

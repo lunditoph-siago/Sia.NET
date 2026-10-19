@@ -1,8 +1,8 @@
 using System.Globalization;
-using Sia_Examples.Notebook;
+using Sia.Examples.Notebook;
 using Sia;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 internal sealed partial class BrowserEditorPage
 {
@@ -33,9 +33,9 @@ internal sealed partial class BrowserEditorPage
         }
     }
 
-    private string WindowIdFor(Entity entity) => $"window-{KeyFor(entity)}-{ScriptSuffix}";
+    private string WindowIdFor(Entity entity) => $"window-{KeyFor(entity)}-{k_ScriptSuffix}";
 
-    private string TabIdFor(Entity entity) => $"tab-{KeyFor(entity)}-{ScriptSuffix}";
+    private string TabIdFor(Entity entity) => $"tab-{KeyFor(entity)}-{k_ScriptSuffix}";
 
     private async Task OpenEntryAsync(string key, bool pin)
     {
@@ -60,7 +60,7 @@ internal sealed partial class BrowserEditorPage
         _activeEntity = entity;
         UpdateState(state => {
             var opened = NotebookCellLayout.OpenTabIntoHome(state, TabIdFor(entity));
-            return showConsole ? NotebookCellLayout.OpenWindow(opened, ConsoleWindowId) : opened;
+            return showConsole ? NotebookCellLayout.OpenWindow(opened, k_ConsoleWindowId) : opened;
         });
         RefreshExplorerSelection();
         ScheduleLanguageDiagnostics(ActiveLanguageBinding());
@@ -85,9 +85,9 @@ internal sealed partial class BrowserEditorPage
         => UpdateState(state => NotebookCellLayout.OpenWindow(
             state,
             windowKey switch {
-                "compilation" => CompilationWindowId,
-                "console" => ConsoleWindowId,
-                "render" => RenderWindowId,
+                "compilation" => k_CompilationWindowId,
+                "console" => k_ConsoleWindowId,
+                "render" => k_RenderWindowId,
                 _ => throw new ArgumentOutOfRangeException(nameof(windowKey)),
             }));
 
@@ -119,7 +119,7 @@ internal sealed partial class BrowserEditorPage
             return;
         }
         if (window.Kind != CellWindowKind.Script) {
-            if (window.Id == RenderWindowId) StopRendering();
+            if (window.Id == k_RenderWindowId) StopRendering();
             UpdateState(state => NotebookCellLayout.CloseTab(state, tabId));
             return;
         }

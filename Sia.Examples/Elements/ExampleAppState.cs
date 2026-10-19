@@ -1,4 +1,4 @@
-namespace Sia_Examples;
+namespace Sia.Examples;
 
 public readonly record struct ExampleAppState(int SelectedIndex)
 {

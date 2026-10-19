@@ -1,8 +1,8 @@
 #if !BROWSER
-using Sia_Examples.Editor;
-using Sia_Examples.Notebook;
+using Sia.Examples.Editor;
+using Sia.Examples.Notebook;
 
-namespace Sia_Examples.Console;
+namespace Sia.Examples.Console;
 
 public static class ConsoleApplication
 {

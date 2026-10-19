@@ -1,4 +1,4 @@
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public readonly record struct Line(int From, int To, int Number, string Text, int BreakLength = 0)
 {

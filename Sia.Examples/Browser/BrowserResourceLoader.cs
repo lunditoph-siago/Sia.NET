@@ -1,8 +1,8 @@
 #if BROWSER
 using System.Runtime.InteropServices.JavaScript;
-using Sia_Examples.Notebook;
+using Sia.Examples.Notebook;
 
-namespace Sia_Examples.Browser;
+namespace Sia.Examples.Browser;
 
 public sealed partial class BrowserResourceLoader : IResourceLoader
 {

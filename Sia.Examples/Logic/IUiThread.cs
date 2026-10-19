@@ -1,4 +1,4 @@
-namespace Sia_Examples;
+namespace Sia.Examples;
 
 public interface IUiThread
 {

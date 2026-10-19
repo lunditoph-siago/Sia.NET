@@ -1,18 +1,18 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
-namespace Sia_Examples.Notebook;
+namespace Sia.Examples.Notebook;
 
 internal static class CSharpLanguageOptions
 {
-    private static readonly IEnumerable<string> _frameworkSymbols =
+    private static readonly IEnumerable<string> s_FrameworkSymbols =
         ["NET", "NET7_0_OR_GREATER", "NET8_0_OR_GREATER", "NET9_0_OR_GREATER",
             "NET10_0_OR_GREATER", "NET11_0_OR_GREATER"];
 
     public static CSharpParseOptions Parse { get; } = CSharpParseOptions.Default
-        .WithPreprocessorSymbols(_frameworkSymbols);
+        .WithPreprocessorSymbols(s_FrameworkSymbols);
 
-    private static readonly IReadOnlyDictionary<string, ReportDiagnostic> RuntimePolicyWarningsSuppressed =
+    private static readonly IReadOnlyDictionary<string, ReportDiagnostic> s_RuntimePolicyWarningsSuppressed =
         new Dictionary<string, ReportDiagnostic> {
             ["CS1701"] = ReportDiagnostic.Suppress,
             ["CS1702"] = ReportDiagnostic.Suppress
@@ -23,7 +23,7 @@ internal static class CSharpLanguageOptions
             .WithConcurrentBuild(false)
             .WithNullableContextOptions(NullableContextOptions.Enable)
             .WithAllowUnsafe(true)
-            .WithSpecificDiagnosticOptions(RuntimePolicyWarningsSuppressed);
+            .WithSpecificDiagnosticOptions(s_RuntimePolicyWarningsSuppressed);
 
     public static CSharpCompilationOptions Library { get; } =
         ConsoleApplication.WithOutputKind(OutputKind.DynamicallyLinkedLibrary);

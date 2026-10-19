@@ -1,4 +1,4 @@
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 internal sealed class EditorLinesCache
 {
@@ -48,8 +48,8 @@ internal sealed class EditorLinesCache
             var lastLine = document.LineAt(end);
             var last = lastLine.Number - 1;
             if (end > start && end == lastLine.From) last--;
-            last = Math.Max(first, last);
-            for (var index = Math.Max(first, from); index <= Math.Min(last, to - 1); index++) {
+            last = System.Math.Max(first, last);
+            for (var index = System.Math.Max(first, from); index <= System.Math.Min(last, to - 1); index++) {
                 changed.Add(index);
             }
         }, individual: true);

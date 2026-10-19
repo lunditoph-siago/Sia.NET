@@ -1,4 +1,4 @@
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public sealed class EditorHeightOracle(bool lineWrapping)
 {
@@ -26,9 +26,9 @@ public sealed class EditorHeightOracle(bool lineWrapping)
     {
         var lines = Doc.LineAt(to).Number - Doc.LineAt(from).Number + 1;
         if (LineWrapping) {
-            lines += Math.Max(
+            lines += System.Math.Max(
                 0,
-                (int)Math.Ceiling(((to - from) - lines * LineLength * 0.5) / LineLength));
+                (int)System.Math.Ceiling(((to - from) - lines * LineLength * 0.5) / LineLength));
         }
         return LineHeight * lines;
     }
@@ -38,9 +38,9 @@ public sealed class EditorHeightOracle(bool lineWrapping)
         if (!LineWrapping) {
             return LineHeight;
         }
-        var lines = 1 + Math.Max(
+        var lines = 1 + System.Math.Max(
             0,
-            (int)Math.Ceiling((length - LineLength) / Math.Max(1, LineLength - 5)));
+            (int)System.Math.Ceiling((length - LineLength) / System.Math.Max(1, LineLength - 5)));
         return lines * LineHeight;
     }
 
@@ -48,7 +48,7 @@ public sealed class EditorHeightOracle(bool lineWrapping)
     {
         var before = _heightSamples.Count;
         foreach (var height in lineHeights) {
-            _heightSamples.Add((int)Math.Floor(height * 10));
+            _heightSamples.Add((int)System.Math.Floor(height * 10));
         }
         return _heightSamples.Count != before;
     }
@@ -61,9 +61,9 @@ public sealed class EditorHeightOracle(bool lineWrapping)
         double lineLength,
         IReadOnlyList<double> knownHeights)
     {
-        var changed = Math.Abs(lineHeight - LineHeight) > 0.3
-            || Math.Abs(charWidth - CharWidth) > 0.01
-            || lineWrapping && Math.Abs(lineLength - LineLength) > 0.01
+        var changed = System.Math.Abs(lineHeight - LineHeight) > 0.3
+            || System.Math.Abs(charWidth - CharWidth) > 0.01
+            || lineWrapping && System.Math.Abs(lineLength - LineLength) > 0.01
             || LineWrapping != lineWrapping;
         LineWrapping = lineWrapping;
         LineHeight = lineHeight;
@@ -73,7 +73,7 @@ public sealed class EditorHeightOracle(bool lineWrapping)
         if (changed) {
             _heightSamples.Clear();
             foreach (var height in knownHeights) {
-                _heightSamples.Add((int)Math.Floor(height * 10));
+                _heightSamples.Add((int)System.Math.Floor(height * 10));
             }
         }
         return changed;

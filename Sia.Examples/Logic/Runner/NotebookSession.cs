@@ -1,6 +1,6 @@
 using System.Collections.Immutable;
 
-namespace Sia_Examples.Notebook;
+namespace Sia.Examples.Notebook;
 
 public sealed class NotebookSession : IDisposable
 {
@@ -277,7 +277,7 @@ public sealed class NotebookSession : IDisposable
                 Editable: true,
                 null);
         var sections = _document.Sections.ToList();
-        var insertAt = afterIndex is { } index ? Math.Clamp(index + 1, 0, sections.Count) : sections.Count;
+        var insertAt = afterIndex is { } index ? System.Math.Clamp(index + 1, 0, sections.Count) : sections.Count;
         sections.Insert(insertAt, new NotebookSection(Guid.NewGuid().ToString("N"), title, [starterBlock]));
         _document = _document with { Sections = sections };
         Rebuild();

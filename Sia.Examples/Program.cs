@@ -1,6 +1,6 @@
-using Sia_Examples;
+using Sia.Examples;
 #if !BROWSER
-using Sia_Examples.Console;
+using Sia.Examples.Console;
 #endif
 
 #if BROWSER

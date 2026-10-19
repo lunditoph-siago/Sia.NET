@@ -1,4 +1,4 @@
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public readonly record struct EditorViewport(int From, int To)
 {
@@ -12,8 +12,8 @@ public readonly record struct EditorViewport(int From, int To)
 
     public EditorViewport Clamp(int length)
     {
-        var from = Math.Clamp(From, 0, length);
-        var to = Math.Clamp(To, from, length);
+        var from = System.Math.Clamp(From, 0, length);
+        var to = System.Math.Clamp(To, from, length);
         return from == From && to == To ? this : new(from, to);
     }
 
@@ -35,8 +35,9 @@ public readonly record struct EditorViewport(int From, int To)
             var last = merged[^1];
             var next = sorted[i];
             if (next.From <= last.To) {
-                merged[^1] = new EditorViewport(last.From, Math.Max(last.To, next.To));
-            } else {
+                merged[^1] = new EditorViewport(last.From, System.Math.Max(last.To, next.To));
+            }
+            else {
                 merged.Add(next);
             }
         }

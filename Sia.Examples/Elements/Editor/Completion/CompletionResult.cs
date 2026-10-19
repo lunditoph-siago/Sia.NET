@@ -1,4 +1,4 @@
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public sealed record CompletionResult(IReadOnlyList<CompletionCandidate> Items)
 {
@@ -57,7 +57,7 @@ public sealed record CompletionResult(IReadOnlyList<CompletionCandidate> Items)
     internal CompletionResult WithPreparedWindow(int start, int count, CompletionResult prepared)
     {
         var items = Items.ToArray();
-        for (var index = start; index < Math.Min(items.Length, start + count); index++) {
+        for (var index = start; index < System.Math.Min(items.Length, start + count); index++) {
             foreach (var candidate in prepared.Items) {
                 if (items[index].SameIdentity(candidate)) { items[index] = candidate; break; }
             }

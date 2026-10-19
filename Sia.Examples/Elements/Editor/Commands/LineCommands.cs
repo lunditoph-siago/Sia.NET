@@ -2,13 +2,13 @@ using System.Buffers;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
-using Sia_Examples.Notebook;
+using Sia.Examples.Notebook;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public static class LineCommands
 {
-    private static readonly SearchValues<string> _contextStarts = SearchValues.Create(
+    private static readonly SearchValues<string> s_ContextStarts = SearchValues.Create(
         ["\"", "'", "/", "@", "$", "#", "<<<<<<<", "|||||||", "======="], StringComparison.Ordinal);
 
     public static bool InsertNewlineAndIndent(CommandTarget target)
@@ -104,7 +104,7 @@ public static class LineCommands
         var offset = 0;
         do {
             if (offset < lineFrom) {
-                var marker = source.AsSpan(offset, lineFrom - offset).IndexOfAny(_contextStarts);
+                var marker = source.AsSpan(offset, lineFrom - offset).IndexOfAny(s_ContextStarts);
                 var contextLineStart = marker < 0 ? lineFrom
                     : offset + source.AsSpan(offset, marker).LastIndexOfAny("\r\n\u0085\u2028\u2029") + 1;
                 if (contextLineStart > offset) parser.SkipForwardTo(contextLineStart);

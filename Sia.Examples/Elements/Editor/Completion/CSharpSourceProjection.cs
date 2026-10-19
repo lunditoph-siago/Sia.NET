@@ -2,9 +2,9 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
-using Sia_Examples.Notebook;
+using Sia.Examples.Notebook;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 internal sealed class CSharpSourceProjection(string activeId, IReadOnlyList<CSharpSourceDocument> originals,
     IReadOnlyList<CSharpSourceMapping> mappings)
@@ -87,7 +87,7 @@ internal sealed class CSharpSourceProjection(string activeId, IReadOnlyList<CSha
         if (pending.Any(edit => !TryToSource(path, edit.Span.Start, edit.Span.Length, out var id, out _) || id != ActiveId)) {
             if (projectRoot is null || !ActiveSource.IsUserCode
                 || !mappings.Any(mapping => mapping.ProjectPath == path && mapping.SourceId == ActiveId)) return null;
-            var headerEnd = Math.Max(projectRoot.Usings.LastOrDefault()?.FullSpan.End ?? 0, projectRoot.Externs.LastOrDefault()?.FullSpan.End ?? 0);
+            var headerEnd = System.Math.Max(projectRoot.Usings.LastOrDefault()?.FullSpan.End ?? 0, projectRoot.Externs.LastOrDefault()?.FullSpan.End ?? 0);
             var headerEdits = pending.Where(edit => edit.Span.End <= headerEnd).ToArray();
             if (headerEdits.Length == 0) return null;
             var headerChange = MapImportHeader(projectRoot, headerEdits, headerEnd, cancellation);

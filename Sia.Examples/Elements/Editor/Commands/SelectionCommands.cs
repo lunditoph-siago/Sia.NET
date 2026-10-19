@@ -1,4 +1,4 @@
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public static class SelectionCommands
 {
@@ -16,9 +16,11 @@ public static class SelectionCommands
         EditorSelection simplified;
         if (selection.Ranges.Count > 1) {
             simplified = EditorSelection.Create([selection.Main]);
-        } else if (!selection.Main.Empty) {
+        }
+        else if (!selection.Main.Empty) {
             simplified = EditorSelection.Single(selection.Main.Head);
-        } else {
+        }
+        else {
             return false;
         }
 

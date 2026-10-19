@@ -1,17 +1,17 @@
 using System.Text.RegularExpressions;
 
-namespace Sia_Examples.Notebook;
+namespace Sia.Examples.Notebook;
 
 public static class AssemblyReferenceResolver
 {
-    private static readonly Regex _usingDirective = new(
+    private static readonly Regex s_UsingDirective = new(
         @"(?m)^\s*(?:global\s+)?using\s+(?:static\s+)?(?:[A-Za-z_][A-Za-z0-9_]*\s*=\s*)?([A-Za-z_][A-Za-z0-9_.]*)\s*;",
         RegexOptions.Compiled);
 
     public static IReadOnlySet<string> ResolveNamespaces(string source)
     {
         var namespaces = new HashSet<string>(StringComparer.Ordinal);
-        foreach (Match match in _usingDirective.Matches(source)) {
+        foreach (Match match in s_UsingDirective.Matches(source)) {
             namespaces.Add(match.Groups[1].Value);
         }
         return namespaces;

@@ -1,17 +1,17 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
-namespace Sia_Examples.Notebook;
+namespace Sia.Examples.Notebook;
 
 internal static class ManagedAssemblyExecutor
 {
-    private static readonly SemaphoreSlim _executionGate = new(1, 1);
+    private static readonly SemaphoreSlim s_ExecutionGate = new(1, 1);
 
     [UnconditionalSuppressMessage("Trimming", "IL2026",
         Justification = "Loads a freshly emitted in-memory assembly, not application code trimming can affect.")]
     public static async Task<NotebookExecuteResult> ExecuteAsync(byte[] assemblyImage)
     {
-        await _executionGate.WaitAsync();
+        await s_ExecutionGate.WaitAsync();
         try {
             var assembly = Assembly.Load(assemblyImage);
             DynamicAssemblyRegistry.Register(assembly.GetName().Name!, assembly);
@@ -19,7 +19,7 @@ internal static class ManagedAssemblyExecutor
             return await ExecuteAsync(assembly, console);
         }
         catch (Exception error) { return new(false, "", error.ToString()); }
-        finally { _executionGate.Release(); }
+        finally { s_ExecutionGate.Release(); }
     }
 
     internal static async Task<NotebookExecuteResult> ExecuteAsync(Assembly assembly, ProgramConsole console)

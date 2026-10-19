@@ -1,6 +1,6 @@
-using Sia_Examples.Dom;
+using Sia.Examples.Dom;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 internal sealed class EditorRenamePanel(BrowserEditorRegistry editors, EditorWorkspaceEdits edits, string eventName, Action returnFocus) : IDisposable
 {
@@ -82,7 +82,7 @@ internal sealed class EditorRenamePanel(BrowserEditorRegistry editors, EditorWor
                 finally { _applying = false; }
                 break;
             case "previous" or "next" when parts.Length == 4 && int.TryParse(parts[3], out var preview) && preview == _previewGeneration && _plan is not null:
-                _offset = Math.Max(0, _offset + (parts[2] == "next" ? 50 : -50)); RenderPreview(); break;
+                _offset = System.Math.Max(0, _offset + (parts[2] == "next" ? 50 : -50)); RenderPreview(); break;
             default: return false;
         }
         return true;
@@ -160,7 +160,7 @@ internal sealed class EditorRenamePanel(BrowserEditorRegistry editors, EditorWor
             return;
         }
         var changes = plan.Documents.SelectMany(document => document.Changes.Select(change => (Document: document, Change: change))).ToArray();
-        _offset = Math.Min(_offset, Math.Max(0, (changes.Length - 1) / 50 * 50));
+        _offset = System.Math.Min(_offset, System.Math.Max(0, (changes.Length - 1) / 50 * 50));
         _message.Text(changes.Length == 0 ? "Enter a new name." : $"{changes.Length} changes in {plan.Documents.Count} files");
         foreach (var (document, change) in changes.Skip(_offset).Take(50)) {
             var line = 1 + document.Before.AsSpan(0, change.From).Count('\n');
@@ -179,7 +179,7 @@ internal sealed class EditorRenamePanel(BrowserEditorRegistry editors, EditorWor
                 if (enabled) footer.Append(Preview(DomElement.Create("button").Class("btn").Attr("type", "button").Text(direction == "previous" ? "Previous" : "Next")
                     .On("click", Payload(direction) + ":" + _previewGeneration)));
             }
-            footer.Append(Preview(DomElement.Create("span").Text($"{_offset + 1}–{Math.Min(_offset + 50, changes.Length)} / {changes.Length}")));
+            footer.Append(Preview(DomElement.Create("span").Text($"{_offset + 1}–{System.Math.Min(_offset + 50, changes.Length)} / {changes.Length}")));
             _results.Append(footer);
         }
     }

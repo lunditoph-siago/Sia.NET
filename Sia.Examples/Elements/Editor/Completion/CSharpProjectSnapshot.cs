@@ -1,7 +1,7 @@
 using Microsoft.CodeAnalysis;
-using Sia_Examples.Notebook;
+using Sia.Examples.Notebook;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 internal sealed record CSharpProjectSnapshot(string ActiveDocumentId, IReadOnlyList<CSharpSourceDocument> Documents)
 {

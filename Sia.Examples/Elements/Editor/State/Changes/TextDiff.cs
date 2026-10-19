@@ -1,4 +1,4 @@
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public static class TextDiff
 {
@@ -21,11 +21,11 @@ public static class TextDiff
             return null;
         }
 
-        selectionFrom = Math.Clamp(selectionFrom, 0, oldText.Length);
-        selectionTo = Math.Clamp(selectionTo, selectionFrom, oldText.Length);
+        selectionFrom = System.Math.Clamp(selectionFrom, 0, oldText.Length);
+        selectionTo = System.Math.Clamp(selectionTo, selectionFrom, oldText.Length);
         if (selectionFrom < selectionTo
             && oldText.AsSpan(0, selectionFrom).SequenceEqual(
-                newText.AsSpan(0, Math.Min(selectionFrom, newText.Length)))
+                newText.AsSpan(0, System.Math.Min(selectionFrom, newText.Length)))
             && selectionFrom <= newText.Length) {
             var suffixLength = oldText.Length - selectionTo;
             var insertedEnd = newText.Length - suffixLength;
@@ -56,7 +56,7 @@ public static class TextDiff
             return null;
         }
 
-        var minimumLength = Math.Min(oldText.Length, newText.Length);
+        var minimumLength = System.Math.Min(oldText.Length, newText.Length);
         var from = 0;
         while (from < minimumLength && oldText[from] == newText[from]) {
             from++;
@@ -71,9 +71,9 @@ public static class TextDiff
             newTo--;
         }
 
-        preferredPosition = Math.Clamp(preferredPosition, 0, oldText.Length);
+        preferredPosition = System.Math.Clamp(preferredPosition, 0, oldText.Length);
         if (preference == Preference.End) {
-            var adjustment = Math.Max(0, from - Math.Min(oldTo, newTo));
+            var adjustment = System.Math.Max(0, from - System.Math.Min(oldTo, newTo));
             preferredPosition -= oldTo + adjustment - from;
         }
         if (oldTo < from && oldText.Length < newText.Length) {
@@ -83,7 +83,8 @@ public static class TextDiff
             from -= move;
             newTo = from + newTo - oldTo;
             oldTo = from;
-        } else if (newTo < from) {
+        }
+        else if (newTo < from) {
             var move = preferredPosition <= from && preferredPosition >= newTo
                 ? from - preferredPosition
                 : 0;

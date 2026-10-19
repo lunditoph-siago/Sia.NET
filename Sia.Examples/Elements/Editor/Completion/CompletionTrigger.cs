@@ -1,8 +1,8 @@
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public static class CompletionTrigger
 {
-    private const int _minimumIdentifierLength = 2;
+    private const int k_MinimumIdentifierLength = 2;
 
     public static bool ShouldActivate(
         EditorState before,
@@ -35,7 +35,7 @@ public static class CompletionTrigger
         var line = state.Doc.LineAt(position);
         var identifierLength = IdentifierLengthBefore(line, position - line.From);
         var identifierStart = position - line.From - identifierLength;
-        return identifierLength >= _minimumIdentifierLength
+        return identifierLength >= k_MinimumIdentifierLength
             || identifierStart > 0 && line.Text[identifierStart - 1] == '.';
     }
 

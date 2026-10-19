@@ -1,9 +1,9 @@
-namespace Sia_Examples;
+namespace Sia.Examples;
 
 internal interface IApplicationNavigation : IDisposable
 {
-    string InitialPath { get; }
-    bool IsCurrent(int ticket);
-    Task HoldAsync(int ticket);
-    Task CommitAsync(string path, int ticket = 0, bool replace = false);
+    public string InitialPath { get; }
+    public bool IsCurrent(int ticket);
+    public Task HoldAsync(int ticket);
+    public Task CommitAsync(string path, int ticket = 0, bool replace = false);
 }

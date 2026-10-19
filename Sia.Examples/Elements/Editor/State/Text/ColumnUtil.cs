@@ -1,4 +1,4 @@
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public static class ColumnUtil
 {
@@ -12,7 +12,8 @@ public static class ColumnUtil
             if (text[index] == '\t') {
                 column += tabSize - column % tabSize;
                 index++;
-            } else {
+            }
+            else {
                 column++;
                 index = CharUtil.FindClusterBreak(text, index);
             }

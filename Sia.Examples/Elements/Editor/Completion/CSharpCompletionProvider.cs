@@ -5,9 +5,9 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Operations;
 using Microsoft.CodeAnalysis.Tags;
 using Microsoft.CodeAnalysis.Text;
-using Sia_Examples.Notebook;
+using Sia.Examples.Notebook;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public sealed partial class CSharpCompletionProvider(ICompilationReferenceResolver references) : IDisposable, IAsyncDisposable
 {
@@ -23,7 +23,7 @@ public sealed partial class CSharpCompletionProvider(ICompilationReferenceResolv
         => WithDocumentAsync(documentId, source, async (document, snapshot, token) => {
             var service = CompletionService.GetService(document)
                 ?? throw new InvalidOperationException("C# completion services are unavailable.");
-            var cursor = snapshot.Projection?.ToProject(position).Position ?? Math.Clamp(position, 0, source.Length);
+            var cursor = snapshot.Projection?.ToProject(position).Position ?? System.Math.Clamp(position, 0, source.Length);
             if (_completionCache is { } cached && cached.Id == documentId && cached.Position == position
                 && ReferenceEquals(cached.Document, document) && cached.Snapshot.ActiveDocumentId == snapshot.ActiveDocumentId
                 && cached.Snapshot.Documents.SequenceEqual(snapshot.Documents)
@@ -54,7 +54,7 @@ public sealed partial class CSharpCompletionProvider(ICompilationReferenceResolv
         Document document, int position, CancellationToken cancellation)
     {
         var root = await document.GetSyntaxRootAsync(cancellation);
-        var node = root?.FindToken(Math.Max(0, position - 1)).Parent;
+        var node = root?.FindToken(System.Math.Max(0, position - 1)).Parent;
         var local = node?.AncestorsAndSelf().OfType<VariableDeclaratorSyntax>().FirstOrDefault(variable =>
             variable.Parent is VariableDeclarationSyntax { Parent: LocalDeclarationStatementSyntax or ForStatementSyntax or UsingStatementSyntax }
             && variable.Initializer is { } initializer && initializer.Span.Start <= position && position <= initializer.Span.End);
@@ -69,7 +69,7 @@ public sealed partial class CSharpCompletionProvider(ICompilationReferenceResolv
     internal Task<SignatureHelp?> QuerySignatureAsync(string documentId, string source, int position,
         CancellationToken cancellationToken = default)
         => WithDocumentAsync(documentId, source, async (document, snapshot, token) => {
-            var result = await CSharpSignatureHelp.QueryAsync(document, snapshot.Projection?.ToProject(position).Position ?? Math.Clamp(position, 0, source.Length), token);
+            var result = await CSharpSignatureHelp.QueryAsync(document, snapshot.Projection?.ToProject(position).Position ?? System.Math.Clamp(position, 0, source.Length), token);
             if (result is null || snapshot.Projection is not { } projection) return result;
             return result with { Start = projection.TryToSource(document.FilePath!, result.Start, 0, out var id, out var start) && id == projection.ActiveId ? start : 0 };
         }, cancellationToken, position: position);

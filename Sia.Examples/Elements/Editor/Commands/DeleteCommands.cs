@@ -1,4 +1,4 @@
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public static class DeleteCommands
 {
@@ -38,8 +38,8 @@ public static class DeleteCommands
             var to = range.To;
             if (from == to) {
                 var boundary = findBoundary(range);
-                from = Math.Min(from, boundary);
-                to = Math.Max(to, boundary);
+                from = System.Math.Min(from, boundary);
+                to = System.Math.Max(to, boundary);
             }
             if (from != to) {
                 changes.Add(new(from, to, string.Empty));

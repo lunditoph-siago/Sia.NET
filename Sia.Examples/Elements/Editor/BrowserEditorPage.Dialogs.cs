@@ -1,12 +1,12 @@
 using Sia;
-using Sia_Examples.Dom;
-using Sia_Examples.Notebook;
+using Sia.Examples.Dom;
+using Sia.Examples.Notebook;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 internal sealed partial class BrowserEditorPage
 {
-    private const string SaveAsInputId = "editor-page-save-as-input";
+    private const string k_SaveAsInputId = "editor-page-save-as-input";
 
     private DomElement _confirmBanner = null!;
     private DomElement _confirmMessage = null!;
@@ -201,7 +201,7 @@ internal sealed partial class BrowserEditorPage
         _confirmMessage.Text("Save as (workspace-relative path):");
         var input = DomElement.Create("input")
             .Class("inline-title-input")
-            .Id(SaveAsInputId)
+            .Id(k_SaveAsInputId)
             .Attr("type", "text")
             .Attr("aria-label", "New file path")
             .Attr("value", currentPath)
@@ -210,7 +210,7 @@ internal sealed partial class BrowserEditorPage
         var save = DomElement.Create("button")
             .Class("btn")
             .Attr("type", "button")
-            .Attr("data-inline-save", SaveAsInputId)
+            .Attr("data-inline-save", k_SaveAsInputId)
             .On("click", $"editor-page-save-as-commit:{_dialogGeneration}")
             .Text("Save");
         var cancel = DomElement.Create("button")
@@ -234,7 +234,7 @@ internal sealed partial class BrowserEditorPage
         var entity = owner.Entity;
         var activation = _activationGeneration;
         string? path;
-        using (var input = DomElement.TryFind(SaveAsInputId)) {
+        using (var input = DomElement.TryFind(k_SaveAsInputId)) {
             path = input?.Value().Trim();
         }
         if (string.IsNullOrEmpty(path)) {

@@ -1,4 +1,4 @@
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 internal enum CommandContext { Workbench, Editor, EditorLab, Notebook, Suggestions, Signatures }
 
@@ -111,7 +111,7 @@ internal sealed record EditorCommand(
         new(EditorCommandId.Escape, "Select: Clear Secondary Selections", CommandContext.Editor, [new("Escape"), new("Shift+Escape")], SelectionCommands.SimplifySelection),
     ];
 
-    private static readonly IReadOnlyDictionary<string, EditorCommand> _byId = All.ToDictionary(static command => command.Id.ToString(), StringComparer.Ordinal);
+    private static readonly IReadOnlyDictionary<string, EditorCommand> s_ById = All.ToDictionary(static command => command.Id.ToString(), StringComparer.Ordinal);
 
-    internal static EditorCommand? Find(string id) => _byId.GetValueOrDefault(id);
+    internal static EditorCommand? Find(string id) => s_ById.GetValueOrDefault(id);
 }

@@ -3,10 +3,10 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using Sia;
-using Sia_Examples.Dom;
-using Sia_Examples.Notebook;
+using Sia.Examples.Dom;
+using Sia.Examples.Notebook;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 internal sealed partial class BrowserEditorPage
 {
@@ -415,7 +415,7 @@ internal sealed partial class BrowserEditorPage
         if (_shaderArtifact is not { } artifact) return;
         _shaderOutput.Text(_shaderView.Value() switch {
             "spirv" => $"SPIR-V · {artifact.Spirv.Length} bytes · download for the full binary\n" +
-                Convert.ToHexString(artifact.Spirv.AsSpan(0, Math.Min(artifact.Spirv.Length, 4096))),
+                Convert.ToHexString(artifact.Spirv.AsSpan(0, System.Math.Min(artifact.Spirv.Length, 4096))),
             "translated" => artifact.TranslatedWgsl,
             _ => artifact.Wgsl,
         });

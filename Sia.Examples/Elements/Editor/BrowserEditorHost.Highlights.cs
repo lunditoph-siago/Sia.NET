@@ -1,12 +1,12 @@
-using Sia_Examples.Dom;
-using Sia_Examples.Notebook;
+using Sia.Examples.Dom;
+using Sia.Examples.Notebook;
 using Sia.Reactive;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public sealed partial class BrowserEditorHost
 {
-    private const int _highlightDelayMilliseconds = 150;
+    private const int k_HighlightDelayMilliseconds = 150;
     private string _highlightedSource;
     private int _highlightGeneration;
     private string? _highlightPendingSource;
@@ -43,7 +43,7 @@ public sealed partial class BrowserEditorHost
         DomRuntime.ScheduleEvent(
             HighlightScheduleKey,
             $"highlight:{_cellId}:{_highlightGeneration}",
-            _highlightDelayMilliseconds);
+            k_HighlightDelayMilliseconds);
     }
 
     private bool HandleHighlightRequest(string arguments)

@@ -1,11 +1,11 @@
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 
-namespace Sia_Examples.Notebook;
+namespace Sia.Examples.Notebook;
 
 public static class NotebookDocumentParser
 {
-    private static readonly Regex _whitespaceRun = new(@"\s+", RegexOptions.Compiled);
+    private static readonly Regex s_WhitespaceRun = new(@"\s+", RegexOptions.Compiled);
 
     public static NotebookDocument Parse(string xml)
     {
@@ -103,7 +103,7 @@ public static class NotebookDocumentParser
     }
 
     private static string NormalizeWhitespace(string text)
-        => _whitespaceRun.Replace(text, " ");
+        => s_WhitespaceRun.Replace(text, " ");
 
     private static string DedentCode(string raw)
     {
@@ -150,7 +150,7 @@ public static class NotebookDocumentParser
                 continue;
             }
             var leading = lines[index].Length - lines[index].TrimStart(' ').Length;
-            indent = Math.Min(indent, leading);
+            indent = System.Math.Min(indent, leading);
         }
         return indent == int.MaxValue ? 0 : indent;
     }
