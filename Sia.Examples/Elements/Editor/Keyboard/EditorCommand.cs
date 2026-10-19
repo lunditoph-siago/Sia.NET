@@ -4,7 +4,7 @@ internal enum CommandContext { Workbench, Editor, EditorLab, Notebook, Suggestio
 
 internal enum EditorCommandId
 {
-    Commands, Keybindings, QuickOpen, NewFile, Save, SaveAll, SaveAs, Revert, CloseFile,
+    Commands, Keybindings, QuickOpen, DocumentSymbols, WorkspaceSymbols, NewFile, Save, SaveAll, SaveAs, Revert, CloseFile,
     Compile, Run, Console, Compilation, Render, ClearOutput, NotebookRun, NotebookSave,
     Undo, Redo, Suggest, AcceptSuggestion, NextSuggestion, PreviousSuggestion, HideSuggestions,
     SignatureHelp, NextSignature, PreviousSignature, HideSignature,
@@ -30,6 +30,10 @@ internal sealed record EditorCommand(
         new(EditorCommandId.Keybindings, "Preferences: Keyboard Shortcuts", CommandContext.Workbench, [new("Mod+K Mod+S")]),
         new(EditorCommandId.QuickOpen, "Go: Quick Open File", CommandContext.Workbench,
             [new("Mod+P", CommandContext.EditorLab), new("Mod+P", CommandContext.Notebook)]),
+        new(EditorCommandId.DocumentSymbols, "Go: Symbol in File", CommandContext.Workbench,
+            [new("Mod+Shift+O", CommandContext.EditorLab), new("Mod+Shift+O", CommandContext.Notebook)]),
+        new(EditorCommandId.WorkspaceSymbols, "Go: Symbol in Workspace", CommandContext.Workbench,
+            [new("Mod+T", CommandContext.EditorLab), new("Mod+T", CommandContext.Notebook)]),
         new(EditorCommandId.NewFile, "File: New File", CommandContext.EditorLab, [new("Mod+Alt+N")], Event: "editor-page-new-file"),
         new(EditorCommandId.Save, "File: Save", CommandContext.EditorLab, [new("Mod+S")], Event: "editor-page-save"),
         new(EditorCommandId.SaveAll, "File: Save All", CommandContext.EditorLab, [new("Mod+Shift+S")], Event: "editor-page-save-all"),

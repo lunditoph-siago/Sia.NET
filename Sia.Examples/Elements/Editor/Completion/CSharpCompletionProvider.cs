@@ -116,6 +116,19 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
     private string? DocumentKey(Document document)
         => _documents.FirstOrDefault(entry => entry.Value.Id == document.Id).Key;
 
+    internal async Task<DocumentSymbol[]> QuerySymbolsAsync(string documentId, string source, bool workspace,
+        CancellationToken cancellationToken)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
+        var token = cancellation.Token;
+        var snapshot = CaptureSnapshot is { } capture
+            ? await capture(documentId, source, workspace ? CSharpQueryKind.WorkspaceSymbols : CSharpQueryKind.DocumentSymbols, token)
+            : new CSharpProjectSnapshot(documentId, [new(documentId, "Completion.cs", "Completion.cs", source)]);
+        return await CSharpCompilationEngine.RunRoslynAsync(() => CSharpDocumentSymbols.Read(
+            (snapshot.Projection?.Sources ?? snapshot.Documents).Where(file => workspace || file.Id == snapshot.ActiveDocumentId), token), token);
+    }
+
     private async Task<T> WithDocumentAsync<T>(string documentId, string source,
         Func<Document, CSharpProjectSnapshot, CancellationToken, Task<T>> query, CancellationToken cancellationToken, bool expandReferences = false,
         int position = 0, CSharpQueryKind kind = CSharpQueryKind.Language)

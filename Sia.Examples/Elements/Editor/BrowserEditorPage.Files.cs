@@ -4,19 +4,19 @@ namespace Sia_Examples.Editor;
 
 internal sealed partial class BrowserEditorPage
 {
-    private EditorFilePicker _filePicker = null!;
+    private EditorNavigationPicker _navigationPicker = null!;
 
-    private IReadOnlyList<EditorFileChoice> CaptureFileChoices()
+    private IReadOnlyList<EditorNavigationChoice> CaptureFileChoices()
         => [.. _workspace.RootEntries.SelectMany(EnumerateFilesUnder).Concat(_workspace.OpenFiles())
             .Where(static entity => entity.IsValid && !EditorWorkspace.IsFolder(entity)).Distinct()
-            .Select(entity => new EditorFileChoice(KeyFor(entity), entity.Get<WorkspaceEntry>().Name, EditorWorkspace.PathOf(entity)))];
+            .Select(entity => new EditorNavigationChoice(KeyFor(entity), entity.Get<WorkspaceEntry>().Name, EditorWorkspace.PathOf(entity)))];
 
-    private void InitializeFilePicker()
+    private void InitializeNavigationPicker()
     {
-        _filePicker = new("editor-file-picker", CaptureFileChoices, choice => Track(OpenPickedFileAsync(choice)));
+        _navigationPicker = new("editor-navigation-picker", CaptureFileChoices, choice => Track(OpenPickedFileAsync(choice)));
     }
 
-    private async Task OpenPickedFileAsync(EditorFileChoice choice)
+    private async Task OpenPickedFileAsync(EditorNavigationChoice choice)
     {
         if (!TryResolve(choice.Id, out var entity) || !entity.IsValid || EditorWorkspace.PathOf(entity) != choice.Path) return;
         await OpenEntryAsync(entity, pin: true);
@@ -27,6 +27,17 @@ internal sealed partial class BrowserEditorPage
     {
         var origin = _editors.TryResolveCellId(binding, out var group) ? group
             : ActiveLanguageBinding() is { } active && _editors.TryResolveCellId(active, out var current) ? current : null;
-        _filePicker.Open(() => { if (origin is not null) _editors.Focus(origin); });
+        _navigationPicker.Open(() => { if (origin is not null) _editors.Focus(origin); });
+    }
+
+    private bool OpenSymbolPicker(string binding, bool workspace)
+    {
+        if (!_editors.TryResolveCellId(binding, out _) && ActiveLanguageBinding() is { } active) binding = active;
+        if (!_editors.TryResolveCellId(binding, out var origin)) return false;
+        Track(_navigationPicker.OpenSymbolsAsync(workspace, token => _editors.QuerySymbolsAsync(binding, workspace, token),
+            target => !_disposed && _workspace.TryGetEntity(target.DocumentId, out var file) && file.IsValid
+                && ReadLanguageSource(file, synchronize: true) == target.Source,
+            target => Track(NavigateToSourceAsync(target, binding)), () => _editors.Focus(origin)));
+        return true;
     }
 }

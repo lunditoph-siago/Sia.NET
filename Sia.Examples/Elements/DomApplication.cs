@@ -475,8 +475,8 @@ internal static class DomApplication
                             case "notebook-reference" when workspace is not null:
                                 workspace.RouteReferences(argument);
                                 break;
-                            case "notebook-file-picker" when workspace is not null:
-                                workspace.RouteFilePicker(argument);
+                            case "notebook-navigation-picker" when workspace is not null:
+                                workspace.RouteNavigationPicker(argument);
                                 break;
                             case "notebook-rename" when workspace is not null:
                                 workspace.RouteRename(argument);

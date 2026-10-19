@@ -18,7 +18,7 @@ public sealed class NotebookWorkspace : IAsyncDisposable
     private readonly EditorReferenceResults _referenceResults;
     private readonly EditorWorkspaceEdits _workspaceEdits;
     private readonly EditorRenamePanel _renamePanel;
-    private readonly EditorFilePicker _filePicker;
+    private readonly EditorNavigationPicker _navigationPicker;
     private string? _renameReturnBinding;
     private string? _referenceReturnBinding;
     private readonly ReactiveMount<NotebookViewProps> _mount;
@@ -71,7 +71,7 @@ public sealed class NotebookWorkspace : IAsyncDisposable
             _renameReturnBinding = binding; _renamePanel.Open(binding, target, source, position);
         };
         _view.Editors.LanguageContext = CaptureLanguageSnapshot;
-        _filePicker = new("notebook-file-picker", CaptureFileChoices, choice => {
+        _navigationPicker = new("notebook-navigation-picker", CaptureFileChoices, choice => {
             if (_disposed || !_session.Scripts.Any(script => script.Id == choice.Id)) return;
             UpdateCell(state => NotebookCellLayout.OpenTabIntoHome(state,
                 state.GetTabForWindow(state.GetScriptWindow(choice.Id).Id).Id));
@@ -96,6 +96,12 @@ public sealed class NotebookWorkspace : IAsyncDisposable
     {
         cancellation.ThrowIfCancellationRequested();
         if (_disposed || !_view.Editors.TryResolveCellId(binding, out var active)) throw new OperationCanceledException(cancellation);
+        if (kind is CSharpQueryKind.DocumentSymbols or CSharpQueryKind.WorkspaceSymbols) {
+            var documents = CaptureFileChoices().Where(file => kind == CSharpQueryKind.WorkspaceSymbols || file.Id == active)
+                .Select(file => new CSharpSourceDocument(file.Id, file.Name, file.Path,
+                    file.Id == active ? source : ReadScriptSource(file.Id), _session.IsScriptEditable(file.Id))).ToArray();
+            return ValueTask.FromResult(new CSharpProjectSnapshot(active, documents));
+        }
         var cells = _session.GetProgramCells(active, id => id == active ? source
             : _view.Editors.TryGetSource(id, out var live) ? live : _session.GetState(id).Source, includeFollowing: kind == CSharpQueryKind.References);
         var readOnly = cells.SelectMany(static cell => cell.Files).Where(file => !_session.IsScriptEditable(file.Id)).Select(static file => file.Id).ToHashSet(StringComparer.Ordinal);
@@ -129,12 +135,18 @@ public sealed class NotebookWorkspace : IAsyncDisposable
     }
 
     internal bool RouteReferences(string argument) => !_disposed && _referenceResults.Route(argument);
-    internal bool RouteFilePicker(string argument) => !_disposed && _filePicker.Route(argument);
+    internal bool RouteNavigationPicker(string argument) => !_disposed && _navigationPicker.Route(argument);
 
-    private IReadOnlyList<EditorFileChoice> CaptureFileChoices()
+    private IReadOnlyList<EditorNavigationChoice> CaptureFileChoices()
         => [.. _session.ToDocument().Sections.SelectMany(section => section.Blocks.OfType<CodeCellBlock>()
-            .SelectMany(cell => cell.Scripts.Select(script => new EditorFileChoice(script.Id,
+            .SelectMany(cell => cell.Scripts.Select(script => new EditorNavigationChoice(script.Id,
                 script.Name ?? "Script", $"{section.Title}/{script.Name ?? "Script"}"))))];
+
+    private string ReadScriptSource(string id)
+    {
+        _view.Editors.SynchronizeNativeInput(id);
+        return _view.Editors.TryGetSource(id, out var live) ? live : _session.GetState(id).Source;
+    }
     internal void RouteRename(string argument) => Track(_renamePanel.RouteAsync(argument));
     private void ReportRename(string message) => _renamePanel.Report(message);
 
@@ -183,6 +195,8 @@ public sealed class NotebookWorkspace : IAsyncDisposable
 
     internal bool CanExecuteCommand(EditorCommand command, string binding)
         => command.Id == EditorCommandId.QuickOpen && !_disposed
+            || command.Id is EditorCommandId.DocumentSymbols or EditorCommandId.WorkspaceSymbols
+                && !_disposed && _view.Editors.TryResolveCellId(binding, out _)
             || command.Context == CommandContext.Notebook && _view.Editors.TryResolveCellId(binding, out _)
             || _view.Editors.CanExecuteCommand(binding, command);
 
@@ -190,12 +204,21 @@ public sealed class NotebookWorkspace : IAsyncDisposable
     {
         if (command.Id == EditorCommandId.QuickOpen) {
             if (_disposed) return false;
-            _filePicker.Open(() => {
+            _navigationPicker.Open(() => {
                 if (_view.Editors.TryResolveCellId(binding, out var origin)) _view.Editors.Focus(origin);
             });
             return true;
         }
         if (!_view.Editors.TryResolveCellId(binding, out var cellId)) return false;
+        if (command.Id is EditorCommandId.DocumentSymbols or EditorCommandId.WorkspaceSymbols) {
+            if (_disposed) return false;
+            var workspace = command.Id == EditorCommandId.WorkspaceSymbols;
+            Track(_navigationPicker.OpenSymbolsAsync(workspace, token => _view.Editors.QuerySymbolsAsync(binding, workspace, token),
+                target => !_disposed && _session.Scripts.Any(script => script.Id == target.DocumentId)
+                    && ReadScriptSource(target.DocumentId) == target.Source,
+                NavigateEditorSource, () => _view.Editors.Focus(cellId)));
+            return true;
+        }
         if (command.IsEditor) {
             var handled = _view.Editors.ExecuteCommand(binding, command);
             if (handled) _view.UpdateEditorDirty(cellId);
@@ -578,7 +601,7 @@ public sealed class NotebookWorkspace : IAsyncDisposable
         }
         _disposed = true;
         _renamePanel.Dispose();
-        _filePicker.Dispose();
+        _navigationPicker.Dispose();
         _workspaceEdits.Dispose();
         _lifetime.Cancel();
         _session.Interrupt();
