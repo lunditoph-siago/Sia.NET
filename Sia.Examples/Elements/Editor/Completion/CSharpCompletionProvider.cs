@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Completion;
@@ -57,7 +58,7 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
             var items = list.ItemsList.Where(item => local is null || item.FilterText.TrimStart('@') != local.Identifier.ValueText
                 || !item.Tags.Contains(WellKnownTags.Local)).Select(item => new CompletionCandidate(
                 item.DisplayTextPrefix + item.DisplayText + item.DisplayTextSuffix,
-                item.DisplayText, start, start + list.Span.Length) { Item = item }).ToArray();
+                item.DisplayText, start, start + list.Span.Length) { Item = item.WithTags(item.Tags.ToArray().ToImmutableArray()) }).ToArray();
             return new CompletionResult(items) {
                 Query = new(document, service, snapshot.Projection,
                     snapshot.Projection is null ? null : (text, caret, cancellation) => QueryAsync(documentId, text, caret, cancellation)),
@@ -269,7 +270,7 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
                 if (fresh is not null && original.Item is { } item) {
                     var current = fresh.ItemsList.FirstOrDefault(next => original.SameIdentity(original with { Item = next }));
                     if (current is null) continue;
-                    candidate = candidate with { Item = current, ReplaceStart = fresh.Span.Start, ReplaceEnd = fresh.Span.End };
+                    candidate = candidate with { Item = current.WithTags(current.Tags.ToArray().ToImmutableArray()), ReplaceStart = fresh.Span.Start, ReplaceEnd = fresh.Span.End };
                 }
                 var context = completion with { Query = query };
                 var reuse = query is not null && ReferenceEquals(candidate.PreparedQuery, query);
