@@ -18,6 +18,7 @@ public sealed class NotebookWorkspace : IAsyncDisposable
     private readonly EditorReferenceResults _referenceResults;
     private readonly EditorWorkspaceEdits _workspaceEdits;
     private readonly EditorRenamePanel _renamePanel;
+    private readonly EditorFilePicker _filePicker;
     private string? _renameReturnBinding;
     private string? _referenceReturnBinding;
     private readonly ReactiveMount<NotebookViewProps> _mount;
@@ -70,6 +71,13 @@ public sealed class NotebookWorkspace : IAsyncDisposable
             _renameReturnBinding = binding; _renamePanel.Open(binding, target, source, position);
         };
         _view.Editors.LanguageContext = CaptureLanguageSnapshot;
+        _filePicker = new("notebook-file-picker", CaptureFileChoices, choice => {
+            if (_disposed || !_session.Scripts.Any(script => script.Id == choice.Id)) return;
+            UpdateCell(state => NotebookCellLayout.OpenTabIntoHome(state,
+                state.GetTabForWindow(state.GetScriptWindow(choice.Id).Id).Id));
+            _view.RevealEditor(choice.Id);
+            _view.Editors.Focus(choice.Id);
+        });
         _view.Editors.SourceChanged += HandleEditorSourceChanged;
         _view.Editors.DefinitionReady += HandleEditorDefinition;
         _view.Editors.ReferencesReady += HandleEditorReferences;
@@ -121,6 +129,12 @@ public sealed class NotebookWorkspace : IAsyncDisposable
     }
 
     internal bool RouteReferences(string argument) => !_disposed && _referenceResults.Route(argument);
+    internal bool RouteFilePicker(string argument) => !_disposed && _filePicker.Route(argument);
+
+    private IReadOnlyList<EditorFileChoice> CaptureFileChoices()
+        => [.. _session.ToDocument().Sections.SelectMany(section => section.Blocks.OfType<CodeCellBlock>()
+            .SelectMany(cell => cell.Scripts.Select(script => new EditorFileChoice(script.Id,
+                script.Name ?? "Script", $"{section.Title}/{script.Name ?? "Script"}"))))];
     internal void RouteRename(string argument) => Track(_renamePanel.RouteAsync(argument));
     private void ReportRename(string message) => _renamePanel.Report(message);
 
@@ -168,11 +182,19 @@ public sealed class NotebookWorkspace : IAsyncDisposable
     }
 
     internal bool CanExecuteCommand(EditorCommand command, string binding)
-        => command.Context == CommandContext.Notebook && _view.Editors.TryResolveCellId(binding, out _)
+        => command.Id == EditorCommandId.QuickOpen && !_disposed
+            || command.Context == CommandContext.Notebook && _view.Editors.TryResolveCellId(binding, out _)
             || _view.Editors.CanExecuteCommand(binding, command);
 
     internal bool ExecuteCommand(EditorCommand command, string binding)
     {
+        if (command.Id == EditorCommandId.QuickOpen) {
+            if (_disposed) return false;
+            _filePicker.Open(() => {
+                if (_view.Editors.TryResolveCellId(binding, out var origin)) _view.Editors.Focus(origin);
+            });
+            return true;
+        }
         if (!_view.Editors.TryResolveCellId(binding, out var cellId)) return false;
         if (command.IsEditor) {
             var handled = _view.Editors.ExecuteCommand(binding, command);
@@ -556,6 +578,7 @@ public sealed class NotebookWorkspace : IAsyncDisposable
         }
         _disposed = true;
         _renamePanel.Dispose();
+        _filePicker.Dispose();
         _workspaceEdits.Dispose();
         _lifetime.Cancel();
         _session.Interrupt();
