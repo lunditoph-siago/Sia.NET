@@ -1,6 +1,6 @@
-using Sia;
 using Sia_Examples.Dom;
 using Sia_Examples.Notebook;
+using Sia;
 
 namespace Sia_Examples.Editor;
 
@@ -11,9 +11,6 @@ internal sealed partial class BrowserEditorPage
     private readonly List<DomElement> _languageElements = [];
     private IReadOnlyList<SourcePosition> _definitionTargets = [];
     private int _definitionGeneration;
-    private int _diagnosticsGeneration;
-    private int _liveDiagnosticsGeneration;
-    private CancellationTokenSource? _liveDiagnosticsCancellation;
     private readonly List<NavigationBookmark> _navigationBack = [];
     private readonly List<NavigationBookmark> _navigationForward = [];
     private SourcePosition? _generatedNavigationTarget;
@@ -187,65 +184,6 @@ internal sealed partial class BrowserEditorPage
             UpdateCursorStatus();
             return;
         }
-    }
-
-    private void ScheduleLanguageDiagnostics(string? binding, bool immediate = false)
-    {
-        var generation = ++_liveDiagnosticsGeneration;
-        _liveDiagnosticsCancellation?.Cancel();
-        if (_disposed || binding is null) return;
-        var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
-        _liveDiagnosticsCancellation = cancellation;
-        Track(CheckLanguageDiagnosticsAsync(binding, generation, cancellation, immediate));
-    }
-
-    private void ClearDiagnostics() { _diagnosticsGeneration++; _diagnostics.Text(string.Empty); }
-
-    private void CancelLanguageDiagnostics()
-    {
-        _liveDiagnosticsGeneration++;
-        _liveDiagnosticsCancellation?.Cancel();
-        _liveDiagnosticsCancellation = null;
-    }
-
-    private async Task CheckLanguageDiagnosticsAsync(string binding, int generation, CancellationTokenSource cancellation, bool immediate)
-    {
-        try {
-            if (!immediate) await Task.Delay(750, cancellation.Token);
-            if (!_editors.TryResolveCellId(binding, out _)) return;
-            var issues = await _editors.QueryDiagnosticsAsync(binding, cancellation.Token, sourceBoundary: immediate);
-            if (_disposed || cancellation.IsCancellationRequested || generation != _liveDiagnosticsGeneration) return;
-            var diagnostics = issues.Select(issue => {
-                string? key = null;
-                if (issue.Location is { Generated: false } target && _workspace.TryGetEntity(target.DocumentId, out var file) && file.IsValid) key = KeyFor(file);
-                return new CSharpCompilationDiagnostic(issue.Id, issue.Message, issue.Error ? NotebookDiagnosticSeverity.Error : NotebookDiagnosticSeverity.Warning,
-                    key, issue.Location?.Path, issue.Location?.Line ?? 0, issue.Location?.Column ?? 0);
-            }).ToArray();
-            RenderDiagnostics(diagnostics);
-            _diagnosticStatus.Attr("title", "Editor diagnostics for the current source snapshot");
-            if (immediate) OpenPanelWindow("compilation");
-        }
-        catch (OperationCanceledException) when (cancellation.IsCancellationRequested || !_editors.TryResolveCellId(binding, out _)) { }
-        catch (Exception error) { if (!_disposed && !cancellation.IsCancellationRequested && generation == _liveDiagnosticsGeneration) ShowOperationError("Could not check the current code", error); }
-        finally {
-            if (ReferenceEquals(_liveDiagnosticsCancellation, cancellation)) _liveDiagnosticsCancellation = null;
-            cancellation.Dispose();
-        }
-    }
-
-    private async Task NavigateDiagnosticAsync(string arguments)
-    {
-        var parts = arguments.Split(':');
-        if (parts.Length != 4 || !int.TryParse(parts[0], out var generation) || generation != _diagnosticsGeneration
-            || !TryResolve(Uri.UnescapeDataString(parts[1]), out var entity) || !entity.IsValid
-            || !int.TryParse(parts[2], out var line) || !int.TryParse(parts[3], out var column)) return;
-        var origin = CaptureNavigationBookmark();
-        await OpenEntryAsync(entity, pin: true);
-        if (_disposed || generation != _diagnosticsGeneration || _activeEntity != entity || ActiveLanguageGroup(entity) is not { } group) return;
-        PushNavigation(_navigationBack, origin);
-        _navigationForward.Clear();
-        _editors.NavigateToLine(group, line, column);
-        UpdateCursorStatus();
     }
 
     private bool RouteLanguageTools(string eventName, string argument)

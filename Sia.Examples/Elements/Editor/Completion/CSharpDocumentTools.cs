@@ -5,15 +5,15 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace Sia_Examples.Editor;
 
-internal sealed record SourcePosition(string DocumentId, string Path, int Start, int Length, int Line, int Column,
-    string Source, bool Generated);
+internal sealed record SourcePosition(
+    string DocumentId, string Path, int Start, int Length, int Line, int Column, string Source, bool Generated);
 internal sealed record SymbolDefinition(string Display, IReadOnlyList<SourcePosition> Locations);
 internal sealed record LanguageIssue(string Id, string Message, bool Error, SourcePosition? Location);
 
 internal static class CSharpDocumentTools
 {
-    internal static async Task<SymbolDefinition?> DefinitionAsync(Document document, int position,
-        Func<Document, string?> documentKey, CancellationToken cancellation)
+    internal static async Task<SymbolDefinition?> DefinitionAsync(
+        Document document, int position, Func<Document, string?> documentKey, CancellationToken cancellation)
     {
         var text = await document.GetTextAsync(cancellation);
         var symbol = await SymbolFinder.FindSymbolAtPositionAsync(document, Math.Clamp(position, 0, text.Length), cancellation);
@@ -48,18 +48,25 @@ internal static class CSharpDocumentTools
     {
         var compilation = await document.Project.GetCompilationAsync(cancellation);
         if (compilation is null) return [];
-        if (selectOutputKind is not null) compilation = compilation.WithOptions(compilation.Options.WithOutputKind(selectOutputKind(compilation, cancellation)));
+        if (selectOutputKind is not null) {
+            var outputKind = selectOutputKind(compilation, cancellation);
+            compilation = compilation.WithOptions(compilation.Options.WithOutputKind(outputKind));
+        }
         var issues = new List<LanguageIssue>();
         var sources = new Dictionary<DocumentId, (SourceText Text, string Source)>();
-        foreach (var diagnostic in compilation.GetDiagnostics(cancellation).Concat(generatorDiagnostics ?? []).Where(static diagnostic =>
-            diagnostic.Severity is DiagnosticSeverity.Error or DiagnosticSeverity.Warning)) {
+        foreach (var diagnostic in compilation.GetDiagnostics(cancellation).Concat(generatorDiagnostics ?? [])) {
+            if (diagnostic.Severity is not (DiagnosticSeverity.Error or DiagnosticSeverity.Warning)) continue;
             cancellation.ThrowIfCancellationRequested();
             var target = diagnostic.Location.IsInSource
-                ? await PositionAsync(document.Project, diagnostic.Location, documentKey, cancellation, sources) : null;
+                ? await PositionAsync(document.Project, diagnostic.Location, documentKey, cancellation, sources)
+                : null;
             issues.Add(new(diagnostic.Id, diagnostic.GetMessage(), diagnostic.Severity == DiagnosticSeverity.Error, target));
         }
-        return issues.OrderByDescending(static issue => issue.Error).ThenBy(static issue => issue.Location?.Path, StringComparer.Ordinal)
-            .ThenBy(static issue => issue.Location?.Start ?? -1).ThenBy(static issue => issue.Id, StringComparer.Ordinal).ToArray();
+        return issues.OrderByDescending(static issue => issue.Error)
+            .ThenBy(static issue => issue.Location?.Path, StringComparer.Ordinal)
+            .ThenBy(static issue => issue.Location?.Start ?? -1)
+            .ThenBy(static issue => issue.Id, StringComparer.Ordinal)
+            .ToArray();
     }
 
     private static async Task<SourcePosition?> PositionAsync(Project project, Location location,
@@ -67,18 +74,9 @@ internal static class CSharpDocumentTools
         Dictionary<DocumentId, (SourceText Text, string Source)> sources)
     {
         cancellation.ThrowIfCancellationRequested();
-        var document = project.Solution.GetDocument(location.SourceTree!);
-        if (document is null && location.SourceTree is { } sourceTree) {
-            foreach (var candidate in project.Documents.Where(candidate => candidate.FilePath == sourceTree.FilePath)) {
-                if ((await candidate.GetTextAsync(cancellation)).ContentEquals(await sourceTree.GetTextAsync(cancellation))) { document = candidate; break; }
-            }
-        }
-        if (document is null) {
-            foreach (var generated in await project.GetSourceGeneratedDocumentsAsync(cancellation)) {
-                if (ReferenceEquals(await generated.GetSyntaxTreeAsync(cancellation), location.SourceTree)) { document = generated; break; }
-            }
-        }
+        var document = await FindDocumentAsync(project, location.SourceTree!, cancellation);
         if (document is null) return null;
+
         if (!sources.TryGetValue(document.Id, out var source)) {
             var text = await document.GetTextAsync(cancellation);
             source = (text, text.ToString());
@@ -87,7 +85,26 @@ internal static class CSharpDocumentTools
         var span = location.SourceSpan;
         var point = source.Text.Lines.GetLinePosition(span.Start);
         var key = documentKey(document);
-        return new(key ?? "$generated:" + document.Id, document.FilePath ?? document.Name, span.Start, span.Length,
-            point.Line + 1, point.Character + 1, source.Source, key is null);
+        return new(
+            key ?? "$generated:" + document.Id, document.FilePath ?? document.Name,
+            span.Start, span.Length, point.Line + 1, point.Character + 1, source.Source, key is null);
+    }
+
+    private static async ValueTask<Document?> FindDocumentAsync(Project project, SyntaxTree sourceTree, CancellationToken cancellation)
+    {
+        var document = project.Solution.GetDocument(sourceTree);
+        if (document is not null) return document;
+
+        foreach (var candidate in project.Documents.Where(candidate => candidate.FilePath == sourceTree.FilePath)) {
+            var candidateText = await candidate.GetTextAsync(cancellation);
+            var sourceText = await sourceTree.GetTextAsync(cancellation);
+            if (candidateText.ContentEquals(sourceText)) return candidate;
+        }
+
+        foreach (var generated in await project.GetSourceGeneratedDocumentsAsync(cancellation)) {
+            var tree = await generated.GetSyntaxTreeAsync(cancellation);
+            if (ReferenceEquals(tree, sourceTree)) return generated;
+        }
+        return null;
     }
 }

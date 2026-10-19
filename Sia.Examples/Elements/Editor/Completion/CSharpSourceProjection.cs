@@ -68,6 +68,20 @@ internal sealed class CSharpSourceProjection(string activeId, IReadOnlyList<CSha
     internal CompletionEdit? ToSource(string path, IReadOnlyList<TextChange> edits, int position, CancellationToken cancellation = default,
         CompilationUnitSyntax? projectRoot = null)
     {
+        var changes = MapEdits(path, edits, projectRoot, cancellation);
+        if (changes is null) return null;
+
+        var caret = MapCaret(path, changes, position);
+        if (caret is null) return null;
+
+        return new(
+            [.. changes.Select(static change => change.Source).OrderBy(static change => change.From)],
+            caret.Value);
+    }
+
+    private List<(TextChange Project, ChangeSpec Source)>? MapEdits(
+        string path, IReadOnlyList<TextChange> edits, CompilationUnitSyntax? projectRoot, CancellationToken cancellation)
+    {
         var changes = new List<(TextChange Project, ChangeSpec Source)>();
         var pending = edits.OrderBy(static edit => edit.Span.Start).ToArray();
         if (pending.Any(edit => !TryToSource(path, edit.Span.Start, edit.Span.Length, out var id, out _) || id != ActiveId)) {
@@ -76,51 +90,65 @@ internal sealed class CSharpSourceProjection(string activeId, IReadOnlyList<CSha
             var headerEnd = Math.Max(projectRoot.Usings.LastOrDefault()?.FullSpan.End ?? 0, projectRoot.Externs.LastOrDefault()?.FullSpan.End ?? 0);
             var headerEdits = pending.Where(edit => edit.Span.End <= headerEnd).ToArray();
             if (headerEdits.Length == 0) return null;
-            var text = projectRoot.SyntaxTree.GetText(cancellation);
-            var newHeaderEnd = headerEnd + headerEdits.Sum(static edit => (edit.NewText?.Length ?? 0) - edit.Span.Length);
-            var header = text.WithChanges(headerEdits).ToString(TextSpan.FromBounds(0, newHeaderEnd));
-            var root = CSharpSyntaxTree.ParseText(header, CSharpLanguageOptions.Parse, cancellationToken: cancellation).GetCompilationUnitRoot(cancellation);
-            if (root.ContainsDiagnostics || root.Members.Count != 0
-                || projectRoot.Usings.Any(old => !root.Usings.Any(next => old.IsEquivalentTo(next)))
-                || projectRoot.Externs.Count != root.Externs.Count
-                || projectRoot.Externs.Where((old, index) => !old.IsEquivalentTo(root.Externs[index])).Any()) return null;
-            var before = CSharpSyntaxTree.ParseText(text.ToString(TextSpan.FromBounds(0, headerEnd)), CSharpLanguageOptions.Parse,
-                cancellationToken: cancellation).GetCompilationUnitRoot(cancellation);
-            static IEnumerable<string> Trivia(CompilationUnitSyntax unit) => unit.DescendantTrivia()
-                .Where(static trivia => !trivia.IsKind(SyntaxKind.WhitespaceTrivia) && !trivia.IsKind(SyntaxKind.EndOfLineTrivia)).Select(static trivia => trivia.ToFullString());
-            if (!Trivia(before).SequenceEqual(Trivia(root))) return null;
-            var imports = root.Usings.Where(next => !projectRoot.Usings.Any(old => old.IsEquivalentTo(next))).ToArray();
-            if (imports.Length == 0) return null;
-            changes.Add((new(TextSpan.FromBounds(0, headerEnd), header), ImportIntoSource(imports, cancellation)));
+            var headerChange = MapImportHeader(projectRoot, headerEdits, headerEnd, cancellation);
+            if (headerChange is null) return null;
+            changes.Add(headerChange.Value);
             pending = pending.Where(edit => edit.Span.End > headerEnd).ToArray();
         }
         foreach (var edit in pending) {
-            if (TryToSource(path, edit.Span.Start, edit.Span.Length, out var id, out var start) && id == ActiveId)
-                changes.Add((edit, new(start, start + edit.Span.Length, edit.NewText ?? "")));
-            else return null;
+            if (!TryToSource(path, edit.Span.Start, edit.Span.Length, out var id, out var start) || id != ActiveId) return null;
+            changes.Add((edit, new(start, start + edit.Span.Length, edit.NewText ?? "")));
         }
-        var delta = 0;
-        int? caret = null;
+        return changes;
+    }
+
+    private (TextChange Project, ChangeSpec Source)? MapImportHeader(
+        CompilationUnitSyntax projectRoot, TextChange[] edits, int headerEnd, CancellationToken cancellation)
+    {
+        var text = projectRoot.SyntaxTree.GetText(cancellation);
+        var newHeaderEnd = headerEnd + edits.Sum(static edit => (edit.NewText?.Length ?? 0) - edit.Span.Length);
+        var header = text.WithChanges(edits).ToString(TextSpan.FromBounds(0, newHeaderEnd));
+        var updatedRoot = CSharpSyntaxTree.ParseText(header, CSharpLanguageOptions.Parse, cancellationToken: cancellation)
+            .GetCompilationUnitRoot(cancellation);
+        if (updatedRoot.ContainsDiagnostics || updatedRoot.Members.Count != 0) return null;
+
+        var preservesUsings = projectRoot.Usings.All(old => updatedRoot.Usings.Any(next => old.IsEquivalentTo(next)));
+        var preservesExterns = projectRoot.Externs.Count == updatedRoot.Externs.Count
+            && projectRoot.Externs.Select((old, index) => old.IsEquivalentTo(updatedRoot.Externs[index])).All(static equal => equal);
+        if (!preservesUsings || !preservesExterns) return null;
+
+        var originalHeader = CSharpSyntaxTree.ParseText(text.ToString(TextSpan.FromBounds(0, headerEnd)), CSharpLanguageOptions.Parse,
+            cancellationToken: cancellation).GetCompilationUnitRoot(cancellation);
+        static IEnumerable<string> SignificantTrivia(CompilationUnitSyntax unit) => unit.DescendantTrivia()
+            .Where(static trivia => !trivia.IsKind(SyntaxKind.WhitespaceTrivia) && !trivia.IsKind(SyntaxKind.EndOfLineTrivia))
+            .Select(static trivia => trivia.ToFullString());
+        if (!SignificantTrivia(originalHeader).SequenceEqual(SignificantTrivia(updatedRoot))) return null;
+
+        var imports = updatedRoot.Usings.Where(next => !projectRoot.Usings.Any(old => old.IsEquivalentTo(next))).ToArray();
+        if (imports.Length == 0) return null;
+        return (new(TextSpan.FromBounds(0, headerEnd), header), ImportIntoSource(imports, cancellation));
+    }
+
+    private int? MapCaret(string path, IReadOnlyList<(TextChange Project, ChangeSpec Source)> changes, int position)
+    {
+        var projectDelta = 0;
         for (var index = 0; index < changes.Count; index++) {
             var (project, source) = changes[index];
-            var newStart = project.Span.Start + delta;
-            var length = project.NewText?.Length ?? 0;
-            if (newStart <= position && position <= newStart + length) {
-                var preceding = changes.Select((change, order) => (change, order))
+            var editedStart = project.Span.Start + projectDelta;
+            var insertedLength = project.NewText?.Length ?? 0;
+            if (editedStart <= position && position <= editedStart + insertedLength) {
+                var sourceDelta = changes.Select((change, order) => (change, order))
                     .Where(item => item.change.Source.From < source.From || item.change.Source.From == source.From && item.order < index)
                     .Sum(static item => (item.change.Source.Insert?.Length ?? 0) - ((item.change.Source.To ?? item.change.Source.From) - item.change.Source.From));
-                caret = source.From + preceding + position - newStart;
-                break;
+                return source.From + sourceDelta + position - editedStart;
             }
-            if (position < newStart) break;
-            delta += length - project.Span.Length;
+            if (position < editedStart) break;
+            projectDelta += insertedLength - project.Span.Length;
         }
-        if (caret is null) {
-            if (!TryToSource(path, position - delta, 0, out var id, out var start) || id != ActiveId) return null;
-            caret = start + changes.Where(change => change.Source.From < start)
-                .Sum(static change => (change.Source.Insert?.Length ?? 0) - ((change.Source.To ?? change.Source.From) - change.Source.From));
-        }
-        return new([.. changes.Select(static change => change.Source).OrderBy(static change => change.From)], caret.Value);
+
+        if (!TryToSource(path, position - projectDelta, 0, out var id, out var start) || id != ActiveId) return null;
+        return start + changes.Where(change => change.Source.From < start)
+            .Sum(static change => (change.Source.Insert?.Length ?? 0) - ((change.Source.To ?? change.Source.From) - change.Source.From));
     }
 
     private ChangeSpec ImportIntoSource(IReadOnlyList<UsingDirectiveSyntax> imports, CancellationToken cancellation)

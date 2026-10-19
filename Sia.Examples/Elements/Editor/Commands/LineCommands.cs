@@ -20,39 +20,11 @@ public static class LineCommands
         var shift = 0;
         for (var index = 0; index < ranges.Count; index++) {
             var range = ranges[index];
-            var line = state.Doc.LineAt(range.From);
-            var prefix = line.Text.AsSpan(0, range.From - line.From);
-            var length = 0;
-            while (length < prefix.Length && prefix[length] is ' ' or '\t') length++;
-            var indentation = prefix[..length].ToString();
-            var inner = indentation;
-            var closing = '\0';
-            var trimmed = prefix.TrimEnd();
-            var mayIndent = trimmed.Length > 0 && (trimmed[^1] is '(' or '[' or '{')
-                || prefix.IndexOfAny('(', '[', '{') >= 0
-                    && (prefix.IndexOf("//", StringComparison.Ordinal) >= 0 || prefix.IndexOf("/*", StringComparison.Ordinal) >= 0);
-            if (mayIndent) {
-                closing = ClosingDelimiter(state.Doc, line.From, range.From);
-                if (closing != '\0') inner += new string(' ', EditorState.TabSize);
-            }
-            var newline = state.Doc.NewlineAt(range.From);
-            var insertion = newline + inner;
-            var to = range.To;
-            if (closing != '\0') {
-                var rightLine = state.Doc.LineAt(to);
-                var right = rightLine.Text.AsSpan(to - rightLine.From);
-                var whitespace = 0;
-                while (whitespace < right.Length && right[whitespace] is ' ' or '\t') whitespace++;
-                var end = to + whitespace;
-                if (whitespace < right.Length && right[whitespace] == closing
-                    && (index + 1 == ranges.Count || end <= ranges[index + 1].From)) {
-                    to = end;
-                    insertion += newline + indentation;
-                }
-            }
-            changes[index] = new(range.From, to, insertion);
-            selection[index] = EditorSelection.Cursor(range.From + shift + newline.Length + inner.Length);
-            shift += insertion.Length - (to - range.From);
+            var nextRangeStart = index + 1 < ranges.Count ? ranges[index + 1].From : state.Doc.Length;
+            var (change, caret) = PlanNewline(state.Doc, range, nextRangeStart);
+            changes[index] = change;
+            selection[index] = EditorSelection.Cursor(caret + shift);
+            shift += (change.Insert?.Length ?? 0) - ((change.To ?? change.From) - change.From);
         }
         target.Apply(state.Apply(new() {
             Changes = changes,
@@ -61,43 +33,87 @@ public static class LineCommands
         return true;
     }
 
-    private static char ClosingDelimiter(Text document, int lineFrom, int position)
+    private static (ChangeSpec Change, int Caret) PlanNewline(Text document, SelectionRange range, int nextRangeStart)
     {
-        var source = document.SliceDoc();
-        using var parser = SyntaxFactory.CreateTokenParser(SourceText.From(source), CSharpLanguageOptions.Parse);
-        SyntaxToken token;
-        var offset = 0;
-        do {
-            if (offset < lineFrom) {
-                var marker = source.AsSpan(offset, lineFrom - offset).IndexOfAny(_contextStarts);
-                var start = marker < 0 ? lineFrom
-                    : offset + source.AsSpan(offset, marker).LastIndexOfAny("\r\n\u0085\u2028\u2029") + 1;
-                if (start > offset) parser.SkipForwardTo(start);
-            }
-            token = parser.ParseNextToken().Token;
-            offset = token.FullSpan.End;
-        } while (offset < position && !token.IsKind(SyntaxKind.EndOfFileToken));
+        var line = document.LineAt(range.From);
+        var prefix = line.Text.AsSpan(0, range.From - line.From);
+        var indentationLength = 0;
+        while (indentationLength < prefix.Length && prefix[indentationLength] is ' ' or '\t') indentationLength++;
+        var indentation = prefix[..indentationLength].ToString();
+        var closing = ClosingDelimiter(document, line.From, range.From, prefix);
+        var innerIndentation = closing == '\0' ? indentation : indentation + new string(' ', EditorState.TabSize);
+        var newline = document.NewlineAt(range.From);
+        var insertion = newline + innerIndentation;
+        var end = range.To;
 
+        if (closing != '\0') {
+            var rightLine = document.LineAt(end);
+            var suffix = rightLine.Text.AsSpan(end - rightLine.From);
+            var whitespace = 0;
+            while (whitespace < suffix.Length && suffix[whitespace] is ' ' or '\t') whitespace++;
+            var closingPosition = end + whitespace;
+            if (whitespace < suffix.Length && suffix[whitespace] == closing && closingPosition <= nextRangeStart) {
+                end = closingPosition;
+                insertion += newline + indentation;
+            }
+        }
+
+        return (new(range.From, end, insertion), range.From + newline.Length + innerIndentation.Length);
+    }
+
+    private static char ClosingDelimiter(Text document, int lineFrom, int position, ReadOnlySpan<char> prefix)
+    {
+        var trimmed = prefix.TrimEnd();
+        var endsWithOpener = trimmed.Length > 0 && trimmed[^1] is '(' or '[' or '{';
+        var containsOpenerAndComment = prefix.IndexOfAny('(', '[', '{') >= 0
+            && (prefix.IndexOf("//", StringComparison.Ordinal) >= 0 || prefix.IndexOf("/*", StringComparison.Ordinal) >= 0);
+        if (!endsWithOpener && !containsOpenerAndComment) return '\0';
+
+        var token = ReadTokenAtCaret(document.SliceDoc(), lineFrom, position);
+        var tokenOffset = 0;
         SyntaxTrivia trivia;
-        var basis = 0;
         if (token.IsKind(SyntaxKind.InterpolatedStringToken) && token.Span.Contains(position - 1)) {
-            basis = token.SpanStart;
+            tokenOffset = token.SpanStart;
             var expression = SyntaxFactory.ParseExpression(token.Text, options: CSharpLanguageOptions.Parse);
-            token = expression.FindToken(position - basis - 1);
-            trivia = expression.FindTrivia(position - basis - 1);
+            token = expression.FindToken(position - tokenOffset - 1);
+            trivia = expression.FindTrivia(position - tokenOffset - 1);
         }
         else {
             trivia = token.TrailingTrivia.FirstOrDefault(item => item.FullSpan.Contains(position - 1));
         }
-        if (token.SpanStart + basis < lineFrom || token.SpanStart + basis >= position) return '\0';
-        if ((trivia.IsKind(SyntaxKind.MultiLineCommentTrivia) || trivia.IsKind(SyntaxKind.MultiLineDocumentationCommentTrivia))
-            && (position < trivia.Span.End + basis || !trivia.ToFullString().EndsWith("*/", StringComparison.Ordinal))) return '\0';
+
+        var tokenStart = token.SpanStart + tokenOffset;
+        if (tokenStart < lineFrom || tokenStart >= position) return '\0';
+        var isBlockComment = trivia.IsKind(SyntaxKind.MultiLineCommentTrivia)
+            || trivia.IsKind(SyntaxKind.MultiLineDocumentationCommentTrivia);
+        if (isBlockComment && (position < trivia.Span.End + tokenOffset
+            || !trivia.ToFullString().EndsWith("*/", StringComparison.Ordinal))) return '\0';
+
         return token.Kind() switch {
             SyntaxKind.OpenParenToken => ')',
             SyntaxKind.OpenBracketToken => ']',
             SyntaxKind.OpenBraceToken => '}',
             _ => '\0',
         };
+    }
+
+    private static SyntaxToken ReadTokenAtCaret(string source, int lineFrom, int position)
+    {
+        using var parser = SyntaxFactory.CreateTokenParser(SourceText.From(source), CSharpLanguageOptions.Parse);
+        SyntaxToken token;
+        var offset = 0;
+        do {
+            if (offset < lineFrom) {
+                var marker = source.AsSpan(offset, lineFrom - offset).IndexOfAny(_contextStarts);
+                var contextLineStart = marker < 0 ? lineFrom
+                    : offset + source.AsSpan(offset, marker).LastIndexOfAny("\r\n\u0085\u2028\u2029") + 1;
+                if (contextLineStart > offset) parser.SkipForwardTo(contextLineStart);
+            }
+            token = parser.ParseNextToken().Token;
+            offset = token.FullSpan.End;
+        } while (offset < position && !token.IsKind(SyntaxKind.EndOfFileToken));
+
+        return token;
     }
 
     public static bool InsertTab(CommandTarget target)

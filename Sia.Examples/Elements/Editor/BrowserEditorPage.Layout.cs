@@ -1,8 +1,8 @@
 using System.Collections.Immutable;
 using System.Globalization;
-using Sia;
 using Sia_Examples.Dom;
 using Sia_Examples.Notebook;
+using Sia;
 
 namespace Sia_Examples.Editor;
 
@@ -454,5 +454,87 @@ internal sealed partial class BrowserEditorPage
             Tab.Dispose();
             Root.Dispose();
         }
+    }
+
+    private void UpdateState(
+        Func<NotebookCellState, NotebookCellState> update,
+        long? expectedRevision = null,
+        bool acknowledge = false)
+    {
+        if (_disposed) {
+            return;
+        }
+        if (expectedRevision is { } expected && expected != _state.Revision) {
+            return;
+        }
+        var next = update(_state);
+        if (next == _state && !acknowledge) {
+            return;
+        }
+        if (!NotebookCellLayout.IsValid(next)) {
+            throw new InvalidOperationException("The editor layout operation produced an invalid state.");
+        }
+        _state = next with { Revision = _state.Revision + 1 };
+        ApplyLayout();
+        UpdateChrome();
+    }
+
+    private void CellMove(string arguments)
+    {
+        var parts = arguments.Split(':');
+        if (parts.Length != 5
+            || !long.TryParse(parts[0], out var revision)
+            || !Enum.TryParse<CellDropPosition>(parts[3], ignoreCase: true, out var position)
+            || !int.TryParse(parts[4], out var targetIndex)) {
+            return;
+        }
+        UpdateState(
+            state => NotebookCellLayout.Cell(state, parts[1], parts[2], position, targetIndex),
+            revision,
+            acknowledge: true);
+    }
+
+    private void CellDetach(string arguments)
+    {
+        var parts = arguments.Split(':');
+        if (parts.Length != 6
+            || !long.TryParse(parts[0], out var revision)
+            || !int.TryParse(parts[2], out var pointerX)
+            || !int.TryParse(parts[3], out var pointerY)
+            || !int.TryParse(parts[4], out var viewportWidth)
+            || !int.TryParse(parts[5], out var viewportHeight)) {
+            return;
+        }
+        UpdateState(
+            state => NotebookCellLayout.Detach(
+                state, parts[1], pointerX, pointerY, viewportWidth, viewportHeight),
+            revision,
+            acknowledge: true);
+    }
+
+    private void CellResize(string arguments)
+    {
+        var parts = arguments.Split(':');
+        if (parts.Length != 3
+            || !long.TryParse(parts[0], out var revision)
+            || !double.TryParse(parts[2], CultureInfo.InvariantCulture, out var ratio)) {
+            return;
+        }
+        UpdateState(
+            state => NotebookCellLayout.ResizeSplit(state, parts[1], ratio),
+            revision,
+            acknowledge: true);
+    }
+
+    private void CellNormalize(string arguments)
+    {
+        var parts = arguments.Split(':');
+        if (parts.Length != 2
+            || !int.TryParse(parts[0], out var viewportWidth)
+            || !int.TryParse(parts[1], out var viewportHeight)) {
+            return;
+        }
+        UpdateState(
+            state => NotebookCellLayout.NormalizeFloatingHosts(state, viewportWidth, viewportHeight));
     }
 }
