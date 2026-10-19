@@ -13,6 +13,10 @@ internal sealed class CSharpSourceProjection(string activeId, IReadOnlyList<CSha
     internal string ActiveId { get; } = activeId;
     internal IReadOnlyList<CSharpSourceDocument> Sources => originals;
     internal CSharpSourceDocument ActiveSource => originals.First(source => source.Id == ActiveId);
+    private IReadOnlyList<CSharpSourceMapping> Mappings => mappings;
+
+    internal bool HasSameContext(CSharpSourceProjection other)
+        => ActiveId == other.ActiveId && originals.SequenceEqual(other.Sources) && mappings.SequenceEqual(other.Mappings);
 
     internal static async Task<Document> PrepareEditingDocumentAsync(Document document, CancellationToken cancellation)
     {

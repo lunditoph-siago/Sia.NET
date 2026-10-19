@@ -29,6 +29,7 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
     private IReadOnlyList<Diagnostic> _generatorDiagnostics = [];
     private IReadOnlyList<MetadataReference>? _expandedReferenceProbe;
     private IReadOnlyList<MetadataReference>? _expandedReferences;
+    private (string Id, Document Document, int Position, CSharpProjectSnapshot Snapshot, CompletionResult Result)? _completionCache;
     private bool _disposed;
     private Task _cleanup = Task.CompletedTask;
 
@@ -40,6 +41,12 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
             var service = CompletionService.GetService(document)
                 ?? throw new InvalidOperationException("C# completion services are unavailable.");
             var cursor = snapshot.Projection?.ToProject(position).Position ?? Math.Clamp(position, 0, source.Length);
+            if (_completionCache is { } cached && cached.Id == documentId && cached.Position == position
+                && ReferenceEquals(cached.Document, document) && cached.Snapshot.ActiveDocumentId == snapshot.ActiveDocumentId
+                && cached.Snapshot.Documents.SequenceEqual(snapshot.Documents)
+                && (cached.Snapshot.Projection is null ? snapshot.Projection is null
+                    : snapshot.Projection is { } current && cached.Snapshot.Projection.HasSameContext(current))) return cached.Result;
+            _completionCache = null;
             var list = await service.GetCompletionsAsync(document, cursor, cancellationToken: token);
             if (list is null || list.ItemsList.Count == 0) return CompletionResult.Empty;
             var start = list.Span.Start;
@@ -59,11 +66,13 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
                 || !item.Tags.Contains(WellKnownTags.Local)).Select(item => new CompletionCandidate(
                 item.DisplayTextPrefix + item.DisplayText + item.DisplayTextSuffix,
                 item.DisplayText, start, start + list.Span.Length) { Item = item.WithTags(item.Tags.ToArray().ToImmutableArray()) }).ToArray();
-            return new CompletionResult(items) {
+            var result = new CompletionResult(items) {
                 Query = new(document, service, snapshot.Projection,
                     snapshot.Projection is null ? null : (text, caret, cancellation) => QueryAsync(documentId, text, caret, cancellation)),
                 SuggestionMode = IsSuggestionMode(list.Span.Length, start, list.SuggestionModeItem is not null, source)
             };
+            _completionCache = (documentId, document, position, snapshot, result);
+            return result;
         }, cancellationToken, position: position);
 
     internal Task<SignatureHelp?> QuerySignatureAsync(string documentId, string source, int position,
@@ -147,12 +156,12 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
         var probe = await references.GetReferencesAsync(snapshot.GlobalUsings + "\n"
             + string.Join('\n', snapshot.Documents.Select(static file => file.Source)), token);
         var previousProbe = _expandedReferenceProbe;
-        var expanded = expandReferences && (previousProbe is null || !probe.SequenceEqual(previousProbe))
+        var expanded = expandReferences && (previousProbe is null || !ReferencesEqual(probe, previousProbe))
             ? await references.GetAllReferencesAsync(token) : null;
         return await CSharpCompilationEngine.RunRoslynAsync(async () => {
             token.ThrowIfCancellationRequested();
             if (expanded is not null) { _expandedReferenceProbe = probe; _expandedReferences = expanded; }
-            var metadata = _expandedReferenceProbe is not null && probe.SequenceEqual(_expandedReferenceProbe) ? _expandedReferences! : probe;
+            var metadata = _expandedReferenceProbe is not null && ReferencesEqual(probe, _expandedReferenceProbe) ? _expandedReferences! : probe;
             var activeId = snapshot.Projection is { } projection
                 ? snapshot.Documents.First(file => file.Path == projection.ToProject(position).Path).Id : snapshot.ActiveDocumentId;
             try {
@@ -162,6 +171,9 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
             catch { _generationPending = true; throw; }
         }, token);
     }
+
+    private static bool ReferencesEqual(IEnumerable<MetadataReference> first, IEnumerable<MetadataReference> second)
+        => first.SequenceEqual(second) || first.ToHashSet().SetEquals(second);
 
     private static async Task<CompletionEdit?> GetChangeAsync(CompletionResult completion, CompletionCandidate candidate,
         string source, string newline, CancellationToken cancellationToken, char? character = null)
@@ -324,7 +336,7 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
             _generatorVersion = DynamicAssemblyRegistry.Version;
             _generatorDriver = CSharpGeneratorDriver.Create(GeneratorPipeline.GetGenerators(), parseOptions: CSharpLanguageOptions.Parse);
         }
-        if (!_project.MetadataReferences.SequenceEqual(references)) _project = _project.WithMetadataReferences(references);
+        if (!ReferencesEqual(_project.MetadataReferences, references)) _project = _project.WithMetadataReferences(references);
         var files = snapshot.Documents.Append(new CSharpSourceDocument("$global-usings", "GlobalUsings.g.cs",
             "GlobalUsings.g.cs", snapshot.GlobalUsings, false)).ToArray();
         await SynchronizeDocumentsAsync(files, generated: false, cancellationToken);
@@ -396,6 +408,7 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
             _generatorDiagnostics = [];
             _expandedReferenceProbe = null;
             _expandedReferences = null;
+            _completionCache = null;
             _lifetime.Dispose();
             return true;
         }, CancellationToken.None);
