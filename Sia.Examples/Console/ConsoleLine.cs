@@ -1,7 +1,7 @@
 #if !BROWSER
 using System.Text;
 
-namespace Sia_Examples.Console;
+namespace Sia.Examples.Console;
 
 internal sealed class ConsoleLine
 {
@@ -31,7 +31,7 @@ internal sealed class ConsoleLine
             if (visible >= width) {
                 break;
             }
-            var count = Math.Min(span.Text.Length, width - visible);
+            var count = System.Math.Min(span.Text.Length, width - visible);
             if (currentStyle != span.Style) {
                 output.Append("\e[0m").Append(span.Style.EscapeSequence());
                 currentStyle = span.Style;

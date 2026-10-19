@@ -1,10 +1,10 @@
 using System.Text;
 
-namespace Sia_Examples.Notebook;
+namespace Sia.Examples.Notebook;
 
 internal sealed class ProgramConsole(int capacity = 65536) : IDisposable
 {
-    private static readonly AsyncLocal<ProgramConsole?> Current = new();
+    private static readonly AsyncLocal<ProgramConsole?> s_Current = new();
     private readonly StringBuilder _output = new();
     private readonly StringBuilder _error = new();
     private readonly StringBuilder _text = new();
@@ -20,8 +20,8 @@ internal sealed class ProgramConsole(int capacity = 65536) : IDisposable
 
     public IDisposable Capture()
     {
-        var previous = Current.Value;
-        Current.Value = this;
+        var previous = s_Current.Value;
+        s_Current.Value = this;
         return new Scope(previous);
     }
 
@@ -54,7 +54,7 @@ internal sealed class ProgramConsole(int capacity = 65536) : IDisposable
 
     private sealed class Scope(ProgramConsole? previous) : IDisposable
     {
-        public void Dispose() => Current.Value = previous;
+        public void Dispose() => s_Current.Value = previous;
     }
 
     private sealed class Router(TextWriter fallback, bool error) : TextWriter
@@ -63,7 +63,7 @@ internal sealed class ProgramConsole(int capacity = 65536) : IDisposable
         public override void Write(char value) => Write(value.ToString());
         public override void Write(string? value)
         {
-            if (Current.Value is { } owner) owner.Write(value, error);
+            if (s_Current.Value is { } owner) owner.Write(value, error);
             else fallback.Write(value);
         }
         public override void WriteLine(string? value) => Write(value + NewLine);

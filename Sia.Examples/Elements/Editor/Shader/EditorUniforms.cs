@@ -6,7 +6,7 @@ using Sia.Reactive;
 using System.Runtime.InteropServices.JavaScript;
 #endif
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public static class EditorUniformHooks
 {
@@ -45,7 +45,7 @@ internal sealed partial class EditorUniformInspector : IDisposable
 
 internal sealed partial class EditorUniformSession : IDisposable
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions s_JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly Dictionary<string, Registration> _registrations = [];
     private bool _dirty;
 #if BROWSER
@@ -73,7 +73,7 @@ internal sealed partial class EditorUniformSession : IDisposable
         if (json.Length > 0) {
             var edits = JsonSerializer.Deserialize<Dictionary<string, double[]>>(json)!;
             foreach (var registration in _registrations.Values) {
-                object value = registration.Read();
+                var value = registration.Read();
                 var changed = false;
                 foreach (var field in registration.Fields) {
                     if (!edits.TryGetValue(registration.Key(field), out var numbers)) continue;
@@ -97,7 +97,7 @@ internal sealed partial class EditorUniformSession : IDisposable
             type = field.Type, values = field.Read(registration.Read()), color = field.Color,
             min = field.Minimum, max = field.Maximum,
         }));
-        Configure(_binding, JsonSerializer.Serialize(fields.Cast<object>().Concat(ImageFields()), JsonOptions));
+        Configure(_binding, JsonSerializer.Serialize(fields.Cast<object>().Concat(ImageFields()), s_JsonOptions));
 #endif
     }
 
@@ -159,7 +159,7 @@ internal sealed class UniformField(string name, string type, FieldInfo[] path, i
 
     public double[] Read(object value)
     {
-        object current = value;
+        var current = value;
         foreach (var field in path) current = field.GetValue(current)!;
         return current switch {
             float2 v => [v.x, v.y],
@@ -177,13 +177,13 @@ internal sealed class UniformField(string name, string type, FieldInfo[] path, i
         foreach (var number in numbers) {
             var represented = Type == "f32" ? (double)(float)number : number;
             if (!double.IsFinite(number) || represented < minimum || represented > maximum
-                || Type == "f32" && Math.Abs(number) > float.MaxValue
-                || Type == "i32" && (number < int.MinValue || number > int.MaxValue || number != Math.Truncate(number))
-                || Type == "u32" && (number < 0 || number > uint.MaxValue || number != Math.Truncate(number))
+                || Type == "f32" && System.Math.Abs(number) > float.MaxValue
+                || Type == "i32" && (number < int.MinValue || number > int.MaxValue || number != System.Math.Truncate(number))
+                || Type == "u32" && (number < 0 || number > uint.MaxValue || number != System.Math.Truncate(number))
                 || Type == "bool" && number is not (0 or 1))
                 throw new InvalidDataException($"Invalid {Type} value for {Name}.");
         }
-        object scalar = Components switch {
+        var scalar = Components switch {
             2 => new float2((float)numbers[0], (float)numbers[1]),
             3 => new float3((float)numbers[0], (float)numbers[1], (float)numbers[2]),
             4 => new float4((float)numbers[0], (float)numbers[1], (float)numbers[2], (float)numbers[3]),

@@ -1,3 +1,3 @@
-namespace Sia_Examples.Notebook;
+namespace Sia.Examples.Notebook;
 
 public sealed record NotebookExecuteResult(bool Success, string StdOut, string StdErr);

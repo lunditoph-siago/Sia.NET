@@ -1,4 +1,4 @@
-namespace Sia_Examples.Notebook;
+namespace Sia.Examples.Notebook;
 
 public enum WorkspaceEntryKind
 {
@@ -31,25 +31,25 @@ public sealed class WorkspaceEntryExistsException(string path)
 
 public interface IWorkspaceStorage
 {
-    ValueTask<IReadOnlyList<WorkspaceStorageEntry>> ListTreeAsync(
+    public ValueTask<IReadOnlyList<WorkspaceStorageEntry>> ListTreeAsync(
         CancellationToken cancellationToken = default);
 
-    ValueTask<WorkspaceFileContent?> ReadFileAsync(
+    public ValueTask<WorkspaceFileContent?> ReadFileAsync(
         string path, CancellationToken cancellationToken = default);
 
-    ValueTask<WorkspaceFileContent> WriteFileAsync(
+    public ValueTask<WorkspaceFileContent> WriteFileAsync(
         string path, string? expectedVersion, string content,
         CancellationToken cancellationToken = default);
 
-    ValueTask CreateFileAsync(
+    public ValueTask CreateFileAsync(
         string path, string content, CancellationToken cancellationToken = default);
 
-    ValueTask CreateFolderAsync(
+    public ValueTask CreateFolderAsync(
         string path, CancellationToken cancellationToken = default);
 
-    ValueTask DeleteEntryAsync(
+    public ValueTask DeleteEntryAsync(
         string path, string? expectedVersion = null, CancellationToken cancellationToken = default);
 
-    ValueTask RenameEntryAsync(
+    public ValueTask RenameEntryAsync(
         string oldPath, string newPath, CancellationToken cancellationToken = default);
 }

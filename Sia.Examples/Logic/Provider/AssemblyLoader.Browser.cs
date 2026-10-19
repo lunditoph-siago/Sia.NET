@@ -3,13 +3,13 @@ using System.Collections.Immutable;
 using System.Runtime.InteropServices.JavaScript;
 using System.Runtime.InteropServices;
 using Microsoft.CodeAnalysis;
-using Sia_Examples.Browser;
+using Sia.Examples.Browser;
 
-namespace Sia_Examples.Notebook;
+namespace Sia.Examples.Notebook;
 
 public sealed partial class AssemblyLoader
 {
-    private static ImmutableArray<AssemblyAsset> _manifest;
+    private static ImmutableArray<AssemblyAsset> s_Manifest;
 
     private readonly BrowserMainThread _mainThread;
     private readonly BrowserResourceLoader _resources;
@@ -39,7 +39,7 @@ public sealed partial class AssemblyLoader
                 assets.Add(new(name, assemblyUrls[index]));
             }
         }
-        _manifest = assets.MoveToImmutable();
+        s_Manifest = assets.MoveToImmutable();
         return Task.CompletedTask;
     }
 
@@ -47,14 +47,14 @@ public sealed partial class AssemblyLoader
 
     public AssemblyLoader(BrowserMainThread mainThread, BrowserResourceLoader resources)
     {
-        if (_manifest.IsDefault) {
+        if (s_Manifest.IsDefault) {
             throw new InvalidOperationException(
                 "The browser assembly manifest has not been initialized.");
         }
 
         _mainThread = mainThread;
         _resources = resources;
-        _urls = _manifest.ToDictionary(
+        _urls = s_Manifest.ToDictionary(
             static asset => asset.Name,
             static asset => asset.Url,
             StringComparer.OrdinalIgnoreCase);

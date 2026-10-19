@@ -1,5 +1,5 @@
 #if !BROWSER
-namespace Sia_Examples.Console.Layout;
+namespace Sia.Examples.Console.Layout;
 
 internal static class LayoutEngine
 {
@@ -22,7 +22,7 @@ internal static class LayoutEngine
     private static int[] Resolve(int total, Constraint[] constraints)
     {
         var sizes = new int[constraints.Length];
-        var remaining = Math.Max(total, 0);
+        var remaining = System.Math.Max(total, 0);
         var fillTotalWeight = 0;
         var fillCount = 0;
 
@@ -30,15 +30,15 @@ internal static class LayoutEngine
             var constraint = constraints[i];
             switch (constraint.Kind) {
                 case ConstraintKind.Length:
-                    sizes[i] = Math.Clamp(constraint.Value, 0, remaining);
+                    sizes[i] = System.Math.Clamp(constraint.Value, 0, remaining);
                     remaining -= sizes[i];
                     break;
                 case ConstraintKind.Percentage:
-                    sizes[i] = Math.Clamp(total * constraint.Value / 100, 0, remaining);
+                    sizes[i] = System.Math.Clamp(total * constraint.Value / 100, 0, remaining);
                     remaining -= sizes[i];
                     break;
                 case ConstraintKind.Fill:
-                    fillTotalWeight += Math.Max(constraint.Value, 1);
+                    fillTotalWeight += System.Math.Max(constraint.Value, 1);
                     fillCount++;
                     break;
             }
@@ -52,7 +52,7 @@ internal static class LayoutEngine
                     continue;
                 }
                 seen++;
-                var weight = Math.Max(constraints[i].Value, 1);
+                var weight = System.Math.Max(constraints[i].Value, 1);
                 var share = seen == fillCount
                     ? remaining - distributed
                     : remaining * weight / fillTotalWeight;

@@ -1,6 +1,6 @@
-using Sia_Examples.Dom;
+using Sia.Examples.Dom;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 internal sealed class EditorFindPanel(DomElement container, string binding) : IDisposable
 {

@@ -1,18 +1,18 @@
-using Sia_Examples.Dom;
+using Sia.Examples.Dom;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 internal interface IEditorLinesOwner : IDisposable
 {
-    bool Apply(in EditorLinesView view, IReadOnlySet<int> identities);
-    void Restore();
-    void SetActiveLine(int? identity);
-    void Clear();
+    public bool Apply(in EditorLinesView view, IReadOnlySet<int> identities);
+    public void Restore();
+    public void SetActiveLine(int? identity);
+    public void Clear();
 }
 
 internal interface IEditorLinesOwnerFactory
 {
-    IEditorLinesOwner CreateEditorLines(
+    public IEditorLinesOwner CreateEditorLines(
         DomElement gutter, DomElement lines, DomElement gutterBefore,
         DomElement gutterAfter, DomElement linesBefore, DomElement linesAfter);
 }

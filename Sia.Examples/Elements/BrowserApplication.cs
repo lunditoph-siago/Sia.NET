@@ -1,9 +1,9 @@
 #if BROWSER
-using Sia_Examples.Browser;
-using Sia_Examples.Editor;
-using Sia_Examples.Notebook;
+using Sia.Examples.Browser;
+using Sia.Examples.Editor;
+using Sia.Examples.Notebook;
 
-namespace Sia_Examples;
+namespace Sia.Examples;
 
 public static class BrowserApplication
 {

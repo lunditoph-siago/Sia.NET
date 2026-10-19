@@ -1,20 +1,20 @@
-namespace Sia_Examples.Dom;
+namespace Sia.Examples.Dom;
 
 internal static class DomRuntime
 {
-    private static IDomBackend? _backend;
+    private static IDomBackend? s_Backend;
 
     public static void Initialize(IDomBackend backend)
     {
         ArgumentNullException.ThrowIfNull(backend);
-        if (_backend is not null) {
+        if (s_Backend is not null) {
             throw new InvalidOperationException("The DOM backend is already initialized.");
         }
-        _backend = backend;
+        s_Backend = backend;
     }
 
     public static IDomBackend Backend
-        => _backend ?? throw new InvalidOperationException(
+        => s_Backend ?? throw new InvalidOperationException(
             "The DOM backend is not initialized.");
 
     public static void BeginUpdate(DomElement element) => Backend.BeginUpdate(element.Node);
@@ -109,7 +109,7 @@ internal static class DomRuntime
 
     public static void Dispose()
     {
-        _backend?.Dispose();
-        _backend = null;
+        s_Backend?.Dispose();
+        s_Backend = null;
     }
 }

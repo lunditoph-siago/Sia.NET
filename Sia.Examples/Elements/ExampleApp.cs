@@ -1,7 +1,7 @@
 using Sia.Reactive;
-using Sia_Examples.Notebook;
+using Sia.Examples.Notebook;
 
-namespace Sia_Examples;
+namespace Sia.Examples;
 
 [ReactiveComponent]
 public static partial class ExampleApp
@@ -9,7 +9,7 @@ public static partial class ExampleApp
     public static ReactiveNode Render(in ExampleAppProps props, ref Hooks hooks)
     {
         var state = hooks.UseState(ExampleAppState.Initial);
-        return Reactive.ForEach(
+        return Reactive.Reactive.ForEach(
             RenderItem,
             BuildItems(props, state.Value.SelectedIndex));
     }

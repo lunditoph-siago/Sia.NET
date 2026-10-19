@@ -1,4 +1,4 @@
-namespace Sia_Examples.Dom;
+namespace Sia.Examples.Dom;
 
 internal interface IDomBackend : IDisposable
 {

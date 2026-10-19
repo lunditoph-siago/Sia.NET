@@ -1,11 +1,11 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public static class CharUtil
 {
-    private static readonly Regex _nonAsciiSingleCase = new(
+    private static readonly Regex s_NonAsciiSingleCase = new(
         @"[ßև֐-״؀-ۿ぀-ゟ゠-ヿ㐀-䶵一-鿌가-힯]",
         RegexOptions.Compiled);
 
@@ -14,7 +14,7 @@ public static class CharUtil
         if (string.IsNullOrEmpty(text)) {
             return position;
         }
-        position = Math.Clamp(position, 0, text.Length);
+        position = System.Math.Clamp(position, 0, text.Length);
         if (forward) {
             if (position + 1 < text.Length && text[position] <= '\x7f' && text[position + 1] <= '\x7f') {
                 return position + (text[position] == '\r' && text[position + 1] == '\n' ? 2 : 1);
@@ -70,7 +70,7 @@ public static class CharUtil
             }
             if (character > '\x80'
                 && (char.ToUpperInvariant(character) != char.ToLowerInvariant(character)
-                    || _nonAsciiSingleCase.IsMatch(character.ToString()))) {
+                    || s_NonAsciiSingleCase.IsMatch(character.ToString()))) {
                 return true;
             }
         }

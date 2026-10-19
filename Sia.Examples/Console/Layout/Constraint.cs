@@ -1,5 +1,5 @@
 #if !BROWSER
-namespace Sia_Examples.Console.Layout;
+namespace Sia.Examples.Console.Layout;
 
 internal enum ConstraintKind
 {

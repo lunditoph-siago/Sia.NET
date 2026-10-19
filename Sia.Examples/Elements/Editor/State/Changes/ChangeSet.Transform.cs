@@ -1,4 +1,4 @@
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public partial class ChangeSet
 {
@@ -53,7 +53,7 @@ public partial class ChangeSet
             }
             var leftOp = leftOps[leftIndex];
             var rightOp = rightOps[rightIndex];
-            var length = Math.Min(leftOp.Length - leftOffset, rightOp.Length - rightOffset);
+            var length = System.Math.Min(leftOp.Length - leftOffset, rightOp.Length - rightOffset);
             if (!rightOp.Delete) {
                 ChangeSectionBuilder.Add(leftSections, length, leftOp.Delete ? 0 : -1);
             }

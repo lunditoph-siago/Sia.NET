@@ -1,10 +1,10 @@
 using System.Text;
 
-namespace Sia_Examples.Notebook;
+namespace Sia.Examples.Notebook;
 
 internal static class ResilientFile
 {
-    private const int MaxRetries = 9;
+    private const int k_MaxRetries = 9;
 
     public static string? TryReadText(string path)
     {
@@ -53,7 +53,7 @@ internal static class ResilientFile
                 action();
                 return;
             }
-            catch (Exception error) when (attempt < MaxRetries && IsTransient(error)) {
+            catch (Exception error) when (attempt < k_MaxRetries && IsTransient(error)) {
                 Thread.Sleep(5 * (attempt + 1));
             }
         }

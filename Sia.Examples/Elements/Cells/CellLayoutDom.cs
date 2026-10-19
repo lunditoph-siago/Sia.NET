@@ -1,9 +1,9 @@
 using System.Globalization;
 using System.Text;
 
-using Sia_Examples.Dom;
+using Sia.Examples.Dom;
 
-namespace Sia_Examples.Notebook;
+namespace Sia.Examples.Notebook;
 
 internal static class CellLayoutDom
 {

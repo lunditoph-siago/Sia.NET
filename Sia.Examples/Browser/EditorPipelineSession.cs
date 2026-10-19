@@ -9,11 +9,11 @@ using Sia.Reactive;
 using Sia.RenderGraph;
 using Sia.WebGPU;
 using Sia.Window;
-using Sia_Examples.Notebook;
+using Sia.Examples.Notebook;
 using System.Runtime.InteropServices.JavaScript;
 using System.Runtime.InteropServices;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 internal sealed partial class EditorPipelineSession : IDisposable
 {
@@ -37,8 +37,8 @@ internal sealed partial class EditorPipelineSession : IDisposable
     public bool Paused { get; set; }
     private readonly TaskCompletionSource _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private JSObject? _canvas;
-    private static int _canvasNumber;
-    private static readonly RenderGraphTextureKey Output = new("editor.canvas");
+    private static int s_CanvasNumber;
+    private static readonly RenderGraphTextureKey s_Output = new("editor.canvas");
     private readonly List<double> _frameInputs = [];
     private readonly EditorUniformSession _uniforms;
     private readonly ProgramConsole _console;
@@ -75,7 +75,7 @@ internal sealed partial class EditorPipelineSession : IDisposable
     private async Task InitializeAsync(CancellationToken cancellationToken)
     {
         _status("Creating programmable pipeline…");
-        var canvasId = "editor-pipeline-canvas-" + Interlocked.Increment(ref _canvasNumber);
+        var canvasId = "editor-pipeline-canvas-" + Interlocked.Increment(ref s_CanvasNumber);
         _canvas = CreateCanvas("editor-pipeline-preview", canvasId);
         await NextFrame(_canvas).WaitAsync(cancellationToken);
         await Task.Yield();
@@ -101,7 +101,7 @@ internal sealed partial class EditorPipelineSession : IDisposable
             _canvas.Dispose();
             _canvas = null;
             try {
-                canvasId = "editor-pipeline-canvas-" + Interlocked.Increment(ref _canvasNumber);
+                canvasId = "editor-pipeline-canvas-" + Interlocked.Increment(ref s_CanvasNumber);
                 _canvas = CreateCanvas("editor-pipeline-preview", canvasId);
                 await NextFrame(_canvas).WaitAsync(cancellationToken);
                 await Task.Yield();
@@ -151,7 +151,7 @@ internal sealed partial class EditorPipelineSession : IDisposable
 
     private ReactiveNode Render(in EditorPipelineFrame frame, ref Hooks hooks)
     {
-        hooks.UseImportedRenderGraphTexture(frame.Graph, Output,
+        hooks.UseImportedRenderGraphTexture(frame.Graph, s_Output,
             new("Canvas", frame.Format == WGPUTextureFormat.RGBA8Unorm ? RenderGraphTextureFormat.RGBA8Unorm : RenderGraphTextureFormat.BGRA8Unorm,
                 (uint)frame.Width, (uint)frame.Height,
                 usage: RenderGraphTextureUsage.RenderAttachment));
@@ -161,10 +161,10 @@ internal sealed partial class EditorPipelineSession : IDisposable
     private unsafe bool Frame(double milliseconds, double cssWidth, double cssHeight, double scale, ReadOnlySpan<double> inputs)
     {
         if (_disposed || _graph is null) return false;
-        var maximum = Math.Min(EditorShaderPreview.MaxRenderDimension, _maxTextureDimension);
-        var renderScale = Math.Min(Math.Min(scale, 1), maximum / Math.Max(cssWidth, cssHeight));
-        var width = Math.Clamp((int)Math.Round(cssWidth * renderScale), 1, maximum);
-        var height = Math.Clamp((int)Math.Round(cssHeight * renderScale), 1, maximum);
+        var maximum = System.Math.Min(EditorShaderPreview.k_MaxRenderDimension, _maxTextureDimension);
+        var renderScale = System.Math.Min(System.Math.Min(scale, 1), maximum / System.Math.Max(cssWidth, cssHeight));
+        var width = System.Math.Clamp((int)System.Math.Round(cssWidth * renderScale), 1, maximum);
+        var height = System.Math.Clamp((int)System.Math.Round(cssHeight * renderScale), 1, maximum);
         if (!_target!.TryAcquireFrame(width, height, out var output)) return false;
         using (output) {
             var validate = _firstFrameValidation is null;
@@ -173,7 +173,7 @@ internal sealed partial class EditorPipelineSession : IDisposable
                 UpdateWindow(width, height, cssWidth, cssHeight, scale);
                 if (_startTime == 0) _startTime = milliseconds;
                 var frame = new EditorPipelineFrame(_world, _window, _graph, _device, _queue,
-                    Output, output.Format, output.Width, output.Height,
+                    s_Output, output.Format, output.Width, output.Height,
                     (milliseconds - _startTime) / 1000, _previousTime == 0 ? 0 : (milliseconds - _previousTime) / 1000) {
                     Assembly = _assembly, Shaders = _shaders, Uniforms = _uniforms,
                 };
@@ -184,7 +184,7 @@ internal sealed partial class EditorPipelineSession : IDisposable
                     Input((int)inputs[i], inputs[i + 1], inputs[i + 2], (int)inputs[i + 3], (int)inputs[i + 4]);
                 _world.FlushReactive();
                 _uniforms.Sync();
-                using var binding = _graph.BindImportedTexture(Output, output.Texture);
+                using var binding = _graph.BindImportedTexture(s_Output, output.Texture);
                 _world.ExecuteWgpuRenderGraph();
                 output.Present();
             }

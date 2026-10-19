@@ -1,10 +1,10 @@
-using Sia_Examples.Dom;
+using Sia.Examples.Dom;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 internal sealed class EditorReferenceResults : IDisposable
 {
-    private const int PageSize = 50;
+    private const int k_PageSize = 50;
     private readonly string _event;
     private readonly string _instance = Guid.NewGuid().ToString("N");
     private readonly Action<SourcePosition> _navigate;
@@ -49,8 +49,8 @@ internal sealed class EditorReferenceResults : IDisposable
         if (index == -4) { _preview = null; Render(); return true; }
         if (_references is not { } references) return false;
         if (index is -2 or -3) {
-            if (index == -2 && _offset == 0 || index == -3 && _offset + PageSize >= references.Occurrences.Count) return true;
-            _offset = Math.Clamp(_offset + (index == -2 ? -PageSize : PageSize), 0, Math.Max(0, (references.Occurrences.Count - 1) / PageSize * PageSize));
+            if (index == -2 && _offset == 0 || index == -3 && _offset + k_PageSize >= references.Occurrences.Count) return true;
+            _offset = System.Math.Clamp(_offset + (index == -2 ? -k_PageSize : k_PageSize), 0, System.Math.Max(0, (references.Occurrences.Count - 1) / k_PageSize * k_PageSize));
             Render(); return true;
         }
         if (index < 0 || index >= references.Occurrences.Count) return false;
@@ -80,9 +80,9 @@ internal sealed class EditorReferenceResults : IDisposable
         _body = Row(DomElement.Create("div").Class("editor-reference-body"));
         var total = _references?.Occurrences.Count ?? 0;
         var preview = _preview;
-        if (preview is null && total > PageSize) {
+        if (preview is null && total > k_PageSize) {
             header.Append(Button("Previous page", "‹").Attr("aria-disabled", _offset == 0 ? "true" : "false").On("click", Payload(-2)))
-                .Append(Button("Next page", "›").Attr("aria-disabled", _offset + PageSize >= total ? "true" : "false").On("click", Payload(-3)));
+                .Append(Button("Next page", "›").Attr("aria-disabled", _offset + k_PageSize >= total ? "true" : "false").On("click", Payload(-3)));
         }
         if (preview is not null && _references is not null) header.Append(Button("Back to references", "Back").On("click", Payload(-4)));
         Element.Append(header.Append(_close)).Append(_body);
@@ -100,9 +100,9 @@ internal sealed class EditorReferenceResults : IDisposable
         title.Text(_references is null ? "No symbol at the cursor" : _references.Display);
         var definitions = _references?.Occurrences.Count(static occurrence => occurrence.Definition) ?? 0;
         summary.Text($"{total - definitions} references · {definitions} declarations"
-            + (total > PageSize ? $" · {_offset + 1}–{Math.Min(_offset + PageSize, total)} / {total}" : ""));
+            + (total > k_PageSize ? $" · {_offset + 1}–{System.Math.Min(_offset + k_PageSize, total)} / {total}" : ""));
         if (_references is null) return;
-        for (var index = _offset; index < Math.Min(_offset + PageSize, total); index++) {
+        for (var index = _offset; index < System.Math.Min(_offset + k_PageSize, total); index++) {
             var occurrence = _references.Occurrences[index];
             var location = occurrence.Location;
             var kind = occurrence.Definition ? "declaration" : occurrence.Implicit ? "implicit" : occurrence.Candidate ? "possible" : "reference";

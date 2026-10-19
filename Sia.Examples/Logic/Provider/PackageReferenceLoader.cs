@@ -2,11 +2,11 @@ using System.Collections.Concurrent;
 using System.IO.Compression;
 using System.Text.Json;
 
-namespace Sia_Examples.Notebook;
+namespace Sia.Examples.Notebook;
 
 public sealed class PackageReferenceLoader
 {
-    private const string _baseUrl = "https://api.nuget.org/v3-flatcontainer";
+    private const string k_BaseUrl = "https://api.nuget.org/v3-flatcontainer";
 
     private readonly IResourceLoader _resources;
     private readonly ConcurrentDictionary<string, Lazy<Task<IReadOnlyList<FetchedAssembly>>>> _cache = new();
@@ -59,7 +59,7 @@ public sealed class PackageReferenceLoader
         CancellationToken cancellationToken)
     {
         var json = await _resources.FetchTextAsync(
-            $"{_baseUrl}/{id.ToLowerInvariant()}/index.json",
+            $"{k_BaseUrl}/{id.ToLowerInvariant()}/index.json",
             cancellationToken);
         using var doc = JsonDocument.Parse(json);
         var versions = doc.RootElement.GetProperty("versions")
@@ -77,6 +77,6 @@ public sealed class PackageReferenceLoader
     {
         var normalizedId = id.ToLowerInvariant();
         var normalizedVersion = version.ToLowerInvariant();
-        return $"{_baseUrl}/{normalizedId}/{normalizedVersion}/{normalizedId}.{normalizedVersion}.nupkg";
+        return $"{k_BaseUrl}/{normalizedId}/{normalizedVersion}/{normalizedId}.{normalizedVersion}.nupkg";
     }
 }

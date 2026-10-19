@@ -1,4 +1,4 @@
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 internal static partial class CompilerTemplate
 {
@@ -8,7 +8,7 @@ internal static partial class CompilerTemplate
         using Sia.Math;
         using Sia.Graphics.Reactive;
         using Sia.WebGPU;
-        using Sia_Examples.Editor;
+        using Sia.Examples.Editor;
 
         internal sealed class DrawResources : IDisposable
         {

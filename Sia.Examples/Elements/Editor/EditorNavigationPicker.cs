@@ -1,6 +1,6 @@
-using Sia_Examples.Dom;
+using Sia.Examples.Dom;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 internal sealed record EditorNavigationChoice(string Id, string Name, string Path, SourcePosition? Target = null)
 {
@@ -13,7 +13,7 @@ internal sealed record EditorNavigationChoice(string Id, string Name, string Pat
         var terms = query.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (terms.Length == 0) return [.. files];
         return [.. files.Select(file => (File: file, Ranks: terms.Select(term =>
-                Math.Max(CompletionMatch.Rank(file.Name, term), CompletionMatch.Rank(file.Path, term))).ToArray()))
+                System.Math.Max(CompletionMatch.Rank(file.Name, term), CompletionMatch.Rank(file.Path, term))).ToArray()))
             .Where(static item => item.Ranks.All(static rank => rank >= 0))
             .OrderByDescending(static item => item.Ranks.Sum()).ThenBy(static item => item.File.Path, StringComparer.OrdinalIgnoreCase)
             .ThenBy(static item => item.File.Id, StringComparer.Ordinal).Select(static item => item.File)];
@@ -23,7 +23,7 @@ internal sealed record EditorNavigationChoice(string Id, string Name, string Pat
 internal sealed class EditorNavigationPicker(string eventName, Func<IReadOnlyList<EditorNavigationChoice>> files,
     Action<EditorNavigationChoice> open) : IDisposable
 {
-    private const int PageSize = 50;
+    private const int k_PageSize = 50;
     private readonly DomElement _root = DomElement.Find("app");
     private readonly string _instance = Guid.NewGuid().ToString("N");
     private readonly List<DomElement> _elements = [];
@@ -117,14 +117,14 @@ internal sealed class EditorNavigationPicker(string eventName, Func<IReadOnlyLis
                 && int.TryParse(parts[4], out var direction) && direction is -1 or 1:
                 if (_query != _input.Value()) { Filter(); return true; }
                 if (_matches.Length == 0) return true;
-                _selected = Math.Clamp(_offset + direction * PageSize, 0, _matches.Length - 1);
+                _selected = System.Math.Clamp(_offset + direction * k_PageSize, 0, _matches.Length - 1);
                 RenderRows(); _input.Focus(); return true;
             case "move" when parts.Length == 5 && int.TryParse(parts[3], out var visibleRevision) && visibleRevision == _revision
                 && int.TryParse(parts[4], out var step):
                 if (_query != _input.Value()) { Filter(); return true; }
                 if (_matches.Length == 0) return true;
                 _selected = (int)(((long)_selected + step) % _matches.Length + _matches.Length) % _matches.Length;
-                if (_selected < _offset || _selected >= _offset + PageSize) RenderRows(); else SelectRow();
+                if (_selected < _offset || _selected >= _offset + k_PageSize) RenderRows(); else SelectRow();
                 return true;
             case "accept":
             case "pick":
@@ -161,12 +161,12 @@ internal sealed class EditorNavigationPicker(string eventName, Func<IReadOnlyLis
     private void RenderRows()
     {
         _dialog!.Attr("data-editor-dialog-revision", _revision.ToString());
-        _offset = _selected / PageSize * PageSize;
-        _pages.ToggleClass("hidden", _matches.Length <= PageSize);
+        _offset = _selected / k_PageSize * k_PageSize;
+        _pages.ToggleClass("hidden", _matches.Length <= k_PageSize);
         foreach (var button in _pageButtons) { button.Remove(); button.Dispose(); }
         _pageButtons.Clear();
-        if (_matches.Length > PageSize) {
-            foreach (var (label, direction, disabled) in new[] { ("Previous page", -1, _offset == 0), ("Next page", 1, _offset + PageSize >= _matches.Length) }) {
+        if (_matches.Length > k_PageSize) {
+            foreach (var (label, direction, disabled) in new[] { ("Previous page", -1, _offset == 0), ("Next page", 1, _offset + k_PageSize >= _matches.Length) }) {
                 var button = DomElement.Create("button").Class("btn").Attr("type", "button").Text(label)
                     .Attr("aria-disabled", disabled ? "true" : "false").On("click", Payload($"page:{_revision}:{direction}"));
                 _pageButtons.Add(button); _pages.Append(button);
@@ -176,7 +176,7 @@ internal sealed class EditorNavigationPicker(string eventName, Func<IReadOnlyLis
         try {
             foreach (var row in _rows) { row.Remove(); row.Dispose(); }
             _rows.Clear();
-            for (var index = _offset; index < Math.Min(_offset + PageSize, _matches.Length); index++) {
+            for (var index = _offset; index < System.Math.Min(_offset + k_PageSize, _matches.Length); index++) {
                 var file = _matches[index];
                 var row = DomElement.Create("button").Class("editor-dialog-row").Attr("type", "button").Attr("role", "option")
                     .Attr("tabindex", "-1")

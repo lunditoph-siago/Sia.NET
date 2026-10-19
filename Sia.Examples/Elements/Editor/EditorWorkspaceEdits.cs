@@ -1,4 +1,4 @@
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 internal sealed record WorkspaceEditBuffer(string Source, EditorMemento Position, bool Editable = true);
 internal sealed record WorkspaceBufferChange(string DocumentId, WorkspaceEditBuffer Before, WorkspaceEditBuffer After, ChangeSpec[] Changes);
@@ -41,7 +41,7 @@ internal sealed class EditorWorkspaceEdits(
                 var history = CurrentHistory(buffer);
                 var undo = history.Undo.Add(edit);
                 var total = undo.Sum(static item => item.Size);
-                while (undo.Length > 1 && (undo.Length > BrowserEditorHost.HistoryLimit || total > BrowserEditorHost.HistoryTextLimit)) {
+                while (undo.Length > 1 && (undo.Length > BrowserEditorHost.k_HistoryLimit || total > BrowserEditorHost.k_HistoryTextLimit)) {
                     total -= undo[0].Size; undo = undo.RemoveAt(0);
                 }
                 var position = buffer.Position with { Selection = afterSelection, History = new(source, undo, []) };

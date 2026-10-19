@@ -1,3 +1,3 @@
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public readonly record struct EditorLinesView(ReadOnlyMemory<EditorLineView> Lines);

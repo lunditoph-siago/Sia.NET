@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public readonly record struct EditorLinesProps(
     IEditorView View,

@@ -1,4 +1,4 @@
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public static class LineDecorator
 {
@@ -14,8 +14,8 @@ public static class LineDecorator
             if (mark.Value.Kind != DecorationKind.Mark) {
                 continue;
             }
-            var from = Math.Max(0, mark.From - lineFrom);
-            var to = Math.Min(lineText.Length, mark.To - lineFrom);
+            var from = System.Math.Max(0, mark.From - lineFrom);
+            var to = System.Math.Min(lineText.Length, mark.To - lineFrom);
             if (to <= from) {
                 continue;
             }

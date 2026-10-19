@@ -1,4 +1,4 @@
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 internal static partial class CompilerTemplate
 {
@@ -12,7 +12,7 @@ internal static partial class CompilerTemplate
         using Sia.Graphics.Reactive;
         using Sia.WebGPU;
         using Sia.Window;
-        using Sia_Examples.Editor;
+        using Sia.Examples.Editor;
 
         public static class Program
         {

@@ -1,7 +1,7 @@
-namespace Sia_Examples.Editor;
-
 using Sia;
 using Sia.Reactors;
+
+namespace Sia.Examples.Editor;
 
 public sealed class WorkspaceTreeTag;
 

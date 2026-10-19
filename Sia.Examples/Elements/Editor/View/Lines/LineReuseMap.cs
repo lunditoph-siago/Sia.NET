@@ -1,4 +1,4 @@
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public static class LineReuseMap
 {
@@ -28,9 +28,9 @@ public static class LineReuseMap
                 map[oldPos] = oldPos + delta;
             }
 
-            var oldCount = Math.Max(0, endLine - startLine + 1);
-            var newCount = Math.Max(0, newEndLine - newStartLine + 1);
-            var shared = Math.Min(oldCount, newCount);
+            var oldCount = System.Math.Max(0, endLine - startLine + 1);
+            var newCount = System.Math.Max(0, newEndLine - newStartLine + 1);
+            var shared = System.Math.Min(oldCount, newCount);
             for (var offset = 0; offset < shared && oldPos < oldLines; offset++, oldPos++) {
                 map[oldPos] = newStartLine + offset;
             }

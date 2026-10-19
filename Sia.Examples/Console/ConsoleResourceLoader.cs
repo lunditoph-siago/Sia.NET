@@ -1,7 +1,7 @@
 #if !BROWSER
-using Sia_Examples.Notebook;
+using Sia.Examples.Notebook;
 
-namespace Sia_Examples.Console;
+namespace Sia.Examples.Console;
 
 internal sealed class ConsoleResourceLoader : IResourceLoader, IDisposable
 {

@@ -1,9 +1,9 @@
 using System.Linq;
 using Sia;
 using Sia.Reactors;
-using Sia_Examples.Notebook;
+using Sia.Examples.Notebook;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public sealed class EditorWorkspace(World world, IWorkspaceStorage storage) : IDisposable
 {
@@ -33,7 +33,8 @@ public sealed class EditorWorkspace(World world, IWorkspaceStorage storage) : ID
         foreach (var entry in await _storage.ListTreeAsync(cancellationToken)) {
             if (entry.Kind == WorkspaceEntryKind.Folder) {
                 EnsureFolderPath(entry.Path);
-            } else {
+            }
+            else {
                 EnsureFileEntity(entry.Path, entry.Version);
             }
         }
@@ -96,7 +97,8 @@ public sealed class EditorWorkspace(World world, IWorkspaceStorage storage) : ID
         }
         if (pin) {
             Pin(fileEntity);
-        } else if (!fileEntity.Contains<PreviewTab>()) {
+        }
+        else if (!fileEntity.Contains<PreviewTab>()) {
             DemotePreview();
             fileEntity.Add<PreviewTab>();
             _previewEntity = fileEntity;

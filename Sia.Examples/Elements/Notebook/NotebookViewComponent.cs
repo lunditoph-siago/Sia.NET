@@ -1,6 +1,6 @@
 using Sia.Reactive;
 
-namespace Sia_Examples.Notebook;
+namespace Sia.Examples.Notebook;
 
 [ReactiveComponent]
 public static partial class NotebookViewComponent
@@ -8,11 +8,11 @@ public static partial class NotebookViewComponent
     public static ReactiveNode Render(in NotebookViewProps props, ref Hooks hooks)
     {
         var cellState = hooks.UseState(props.InitialCellState);
-        return Reactive.Group(
-            Reactive.Component<NotebookCellsProps>(
+        return Reactive.Reactive.Group(
+            Reactive.Reactive.Component<NotebookCellsProps>(
                 NotebookCellsComponent.Render,
                 new(props.View, props.Snapshot.Cells)),
-            Reactive.Component<NotebookPackagesProps>(
+            Reactive.Reactive.Component<NotebookPackagesProps>(
                 NotebookPackagesComponent.Render,
                 new(props.View, props.Snapshot.Packages)),
             RenderPackageCount(new(props.View, new(props.Snapshot.Packages.Length))),

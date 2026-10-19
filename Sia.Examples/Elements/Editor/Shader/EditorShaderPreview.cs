@@ -3,12 +3,12 @@ using System.Text.Json;
 using System.Runtime.InteropServices.JavaScript;
 #endif
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 internal sealed partial class EditorShaderPreview : IDisposable
 {
-    internal const int MaxRenderDimension = 1280;
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    internal const int k_MaxRenderDimension = 1280;
+    private static readonly JsonSerializerOptions s_JsonOptions = new(JsonSerializerDefaults.Web);
 #if BROWSER
     private readonly JSObject _handle;
 #endif
@@ -17,7 +17,7 @@ internal sealed partial class EditorShaderPreview : IDisposable
     public EditorShaderPreview(string containerId, string statusId, EditorUniformInspector inspector)
     {
 #if BROWSER
-        _handle = Create(containerId, statusId, inspector.Handle, MaxRenderDimension);
+        _handle = Create(containerId, statusId, inspector.Handle, k_MaxRenderDimension);
 #endif
     }
 
@@ -34,7 +34,7 @@ internal sealed partial class EditorShaderPreview : IDisposable
         if (artifact.Preview.UnsupportedReason is { } reason) throw new InvalidOperationException(reason);
 #if BROWSER
         return Show(_handle, artifact.Wgsl,
-            artifact.EntryName, JsonSerializer.Serialize(artifact.Preview, JsonOptions), revision,
+            artifact.EntryName, JsonSerializer.Serialize(artifact.Preview, s_JsonOptions), revision,
             "WGSL");
 #else
         return Task.FromException<double>(new PlatformNotSupportedException("GPU preview is available in the browser editor."));

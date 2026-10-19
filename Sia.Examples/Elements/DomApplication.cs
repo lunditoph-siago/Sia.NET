@@ -1,11 +1,11 @@
 using Sia;
 using Sia.Reactive;
-using Sia_Examples.Dom;
-using Sia_Examples.Editor;
-using Sia_Examples.Notebook;
-using Destination = Sia_Examples.ApplicationDestination;
+using Sia.Examples.Dom;
+using Sia.Examples.Editor;
+using Sia.Examples.Notebook;
+using Destination = Sia.Examples.ApplicationDestination;
 
-namespace Sia_Examples;
+namespace Sia.Examples;
 
 internal static class DomApplication
 {

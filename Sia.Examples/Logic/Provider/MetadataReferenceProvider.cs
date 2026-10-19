@@ -1,10 +1,10 @@
 using Microsoft.CodeAnalysis;
 
-namespace Sia_Examples.Notebook;
+namespace Sia.Examples.Notebook;
 
 public sealed class MetadataReferenceProvider : ICompilationReferenceResolver
 {
-    private static readonly string[] _coreAssemblyNames =
+    private static readonly string[] s_CoreAssemblyNames =
         ["System.Private.CoreLib", "System.Runtime", "System.Console", "netstandard", "mscorlib"];
 
     private readonly AssemblyLoader _assemblies;
@@ -120,7 +120,7 @@ public sealed class MetadataReferenceProvider : ICompilationReferenceResolver
             _assemblies.KnownAssemblyNames);
 
         var wanted = new HashSet<string>(names, StringComparer.OrdinalIgnoreCase);
-        foreach (var coreAssemblyName in _coreAssemblyNames) {
+        foreach (var coreAssemblyName in s_CoreAssemblyNames) {
             if (_assemblies.KnownAssemblyNames.Contains(coreAssemblyName)) {
                 wanted.Add(coreAssemblyName);
             }

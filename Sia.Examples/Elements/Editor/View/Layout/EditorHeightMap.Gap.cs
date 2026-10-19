@@ -1,4 +1,4 @@
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public sealed class EditorHeightMapGap(int length, bool isSingleLine = false) : EditorHeightMap(length, 0)
 {
@@ -13,13 +13,14 @@ public sealed class EditorHeightMapGap(int length, bool isSingleLine = false) : 
         double perLine;
         var perChar = 0.0;
         if (oracle.LineWrapping) {
-            var totalPerLine = Math.Min(Height, oracle.LineHeight * lines);
+            var totalPerLine = System.Math.Min(Height, oracle.LineHeight * lines);
             perLine = totalPerLine / lines;
             var textLength = Length - lines + 1;
             if (textLength > 0) {
                 perChar = (Height - totalPerLine) / textLength;
             }
-        } else {
+        }
+        else {
             perLine = Height / lines;
         }
         return (firstLine, lastLine, perLine, perChar);
@@ -37,13 +38,13 @@ public sealed class EditorHeightMapGap(int length, bool isSingleLine = false) : 
                 var linesAbove = middle - firstLine;
                 var lineHeight = perLine + line.Length * perChar;
                 var lineTop = top + perLine * linesAbove + perChar * (line.From - offset - linesAbove);
-                lineTop = Math.Max(top, Math.Min(lineTop, top + Height - lineHeight));
+                lineTop = System.Math.Max(top, System.Math.Min(lineTop, top + Height - lineHeight));
                 if (lineTop > height) high = middle - 1;
                 else low = middle;
             }
             return LineAt(oracle.Doc.Line(low).From, QueryType.ByPos, oracle, top, offset);
         }
-        var lineIndex = Math.Max(0, Math.Min(lastLine - firstLine, (int)Math.Floor((height - top) / perLine)));
+        var lineIndex = System.Math.Max(0, System.Math.Min(lastLine - firstLine, (int)System.Math.Floor((height - top) / perLine)));
         var target = oracle.Doc.Line(firstLine + lineIndex);
         return new EditorBlockInfo(target.From, target.Length, top + perLine * lineIndex, perLine);
     }
@@ -65,15 +66,15 @@ public sealed class EditorHeightMapGap(int length, bool isSingleLine = false) : 
         var lineTop = top + perLine * linesAbove + perChar * (line.From - offset - linesAbove);
         return new EditorBlockInfo(
             line.From, line.Length,
-            Math.Max(top, Math.Min(lineTop, top + Height - lineHeight)),
+            System.Math.Max(top, System.Math.Min(lineTop, top + Height - lineHeight)),
             lineHeight);
     }
 
     public override void ForEachLine(
         int from, int to, EditorHeightOracle oracle, double top, int offset, Action<EditorBlockInfo> action)
     {
-        from = Math.Max(from, offset);
-        to = Math.Min(to, offset + Length);
+        from = System.Math.Max(from, offset);
+        to = System.Math.Min(to, offset + Length);
         var (firstLine, _, perLine, perChar) = HeightMetrics(oracle, offset);
         var lineTop = top;
         for (var pos = from; pos <= to;) {
@@ -96,7 +97,8 @@ public sealed class EditorHeightMapGap(int length, bool isSingleLine = false) : 
         if (after > 0) {
             if (built[^1] is EditorHeightMapGap last) {
                 built[^1] = new EditorHeightMapGap(last.Length + after);
-            } else {
+            }
+            else {
                 built.Add(null);
                 built.Add(new EditorHeightMapGap(after - 1));
             }
@@ -104,7 +106,8 @@ public sealed class EditorHeightMapGap(int length, bool isSingleLine = false) : 
         if (from > 0) {
             if (built[0] is EditorHeightMapGap first) {
                 built[0] = new EditorHeightMapGap(from + first.Length);
-            } else {
+            }
+            else {
                 built.Insert(0, null);
                 built.Insert(0, new EditorHeightMapGap(from - 1));
             }
@@ -130,7 +133,7 @@ public sealed class EditorHeightMapGap(int length, bool isSingleLine = false) : 
         var end = offset + Length;
         if (measured is not null && measured.From <= offset + Length && measured.More) {
             var nodes = new List<EditorHeightMap?>();
-            var pos = Math.Max(offset, measured.From);
+            var pos = System.Math.Max(offset, measured.From);
             double? singleHeight = null;
             var mixedHeights = false;
             if (measured.From > offset) {
@@ -144,7 +147,8 @@ public sealed class EditorHeightMapGap(int length, bool isSingleLine = false) : 
                 var height = measured.Heights[measured.Index++];
                 if (singleHeight is null) {
                     singleHeight = height;
-                } else if (!mixedHeights && Math.Abs(height - singleHeight.Value) >= Epsilon) {
+                }
+                else if (!mixedHeights && System.Math.Abs(height - singleHeight.Value) >= Epsilon) {
                     mixedHeights = true;
                 }
                 var line = new EditorHeightMapText(len, height) { Outdated = false };
@@ -158,8 +162,8 @@ public sealed class EditorHeightMapGap(int length, bool isSingleLine = false) : 
             var result = Of(nodes);
             if (mixedHeights
                 || singleHeight is null
-                || Math.Abs(result.Height - Height) >= Epsilon
-                || Math.Abs(singleHeight.Value - HeightMetrics(oracle, offset).PerLine) >= Epsilon) {
+                || System.Math.Abs(result.Height - Height) >= Epsilon
+                || System.Math.Abs(singleHeight.Value - HeightMetrics(oracle, offset).PerLine) >= Epsilon) {
                 EditorHeightMapChangeTracker.MarkChanged();
             }
             return ReplaceInstance(this, result);

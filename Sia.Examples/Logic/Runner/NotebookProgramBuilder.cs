@@ -3,16 +3,16 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace Sia_Examples.Notebook;
+namespace Sia.Examples.Notebook;
 
 public static class NotebookProgramBuilder
 {
     public const string WrapperNamespace = "NotebookCell";
 
-    private const char _marker = '\uE000';
+    private const char k_Marker = '\uE000';
 
-    private static string StartToken(int index) => $"{_marker}S{index}{_marker}";
-    private static string EndToken(int index) => $"{_marker}E{index}{_marker}";
+    private static string StartToken(int index) => $"{k_Marker}S{index}{k_Marker}";
+    private static string EndToken(int index) => $"{k_Marker}E{index}{k_Marker}";
 
     public static NotebookProgram Build(IReadOnlyList<NotebookProgramCell> cells)
         => Build(cells, CancellationToken.None);

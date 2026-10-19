@@ -1,15 +1,15 @@
 #if BROWSER
 using System.Runtime.InteropServices.JavaScript;
 using System.Text.Json;
-using Sia_Examples.Notebook;
+using Sia.Examples.Notebook;
 
-namespace Sia_Examples.Browser;
+namespace Sia.Examples.Browser;
 
 public sealed partial class IndexedDbNotebookStorage(BrowserMainThread mainThread) : IWorkspaceStorage
 {
-    private const string Extension = ".notebook.xml";
+    private const string k_Extension = ".notebook.xml";
 
-    private static readonly JsonSerializerOptions JsonOptions = new() {
+    private static readonly JsonSerializerOptions s_JsonOptions = new() {
         PropertyNameCaseInsensitive = true,
     };
 
@@ -21,7 +21,7 @@ public sealed partial class IndexedDbNotebookStorage(BrowserMainThread mainThrea
         mainThread.VerifyAccess();
         cancellationToken.ThrowIfCancellationRequested();
 
-        var records = JsonSerializer.Deserialize<RawRecord[]>(json, JsonOptions) ?? [];
+        var records = JsonSerializer.Deserialize<RawRecord[]>(json, s_JsonOptions) ?? [];
         List<WorkspaceStorageEntry> entries = [];
         foreach (var record in records) {
             entries.Add(Describe(record));
@@ -40,7 +40,7 @@ public sealed partial class IndexedDbNotebookStorage(BrowserMainThread mainThrea
         if (json is null) {
             return null;
         }
-        var record = JsonSerializer.Deserialize<RawRecord>(json, JsonOptions)!;
+        var record = JsonSerializer.Deserialize<RawRecord>(json, s_JsonOptions)!;
         return new WorkspaceFileContent(record.Xml, WorkspaceVersioning.ComputeVersion(record.Xml));
     }
 
@@ -103,7 +103,7 @@ public sealed partial class IndexedDbNotebookStorage(BrowserMainThread mainThrea
         }
         cancellationToken.ThrowIfCancellationRequested();
 
-        var record = JsonSerializer.Deserialize<RawRecord>(json, JsonOptions)!;
+        var record = JsonSerializer.Deserialize<RawRecord>(json, s_JsonOptions)!;
         await PutAsync(newKey, record.Xml, record.SavedAt);
         await RemoveAsync(oldKey);
         mainThread.VerifyAccess();
@@ -117,22 +117,22 @@ public sealed partial class IndexedDbNotebookStorage(BrowserMainThread mainThrea
         var json = await GetJsonAsync(key);
         var actual = json is null
             ? null
-            : WorkspaceVersioning.ComputeVersion(JsonSerializer.Deserialize<RawRecord>(json, JsonOptions)!.Xml);
+            : WorkspaceVersioning.ComputeVersion(JsonSerializer.Deserialize<RawRecord>(json, s_JsonOptions)!.Xml);
         if (actual != expected) {
-            throw new WorkspaceConflictException(key + Extension, expected, actual);
+            throw new WorkspaceConflictException(key + k_Extension, expected, actual);
         }
     }
 
     private static WorkspaceStorageEntry Describe(RawRecord record)
         => new(
-            record.Key + Extension,
+            record.Key + k_Extension,
             WorkspaceEntryKind.File,
             WorkspaceVersioning.ComputeVersion(record.Xml),
             DateTimeOffset.Parse(record.SavedAt));
 
     private static string KeyOf(string path)
-        => path.EndsWith(Extension, StringComparison.Ordinal)
-            ? path[..^Extension.Length]
+        => path.EndsWith(k_Extension, StringComparison.Ordinal)
+            ? path[..^k_Extension.Length]
             : throw new ArgumentException($"'{path}' is not a notebook path.", nameof(path));
 
     private sealed record RawRecord(string Key, string Xml, string SavedAt);

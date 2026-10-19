@@ -1,7 +1,7 @@
 #if !BROWSER
 using System.Text;
 
-namespace Sia_Examples.Console;
+namespace Sia.Examples.Console;
 
 internal sealed class SystemConsoleTerminal : IConsoleTerminal
 {
@@ -24,9 +24,9 @@ internal sealed class SystemConsoleTerminal : IConsoleTerminal
         System.Console.Write("\e[?1049h\e[?25l\e[2J");
     }
 
-    public int Width => Math.Max(System.Console.WindowWidth, 40);
+    public int Width => System.Math.Max(System.Console.WindowWidth, 40);
 
-    public int Height => Math.Max(System.Console.WindowHeight, 12);
+    public int Height => System.Math.Max(System.Console.WindowHeight, 12);
 
     public async ValueTask<ConsoleKeyInfo> ReadKeyAsync(CancellationToken cancellationToken)
     {

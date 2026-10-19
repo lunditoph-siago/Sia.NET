@@ -9,15 +9,15 @@ using Sia.Spirv.Compiler.Model;
 using Sia.Spirv.Compiler.Translation;
 using Sia.Spirv.Compiler.Translation.Back;
 using Sia.Spirv.Compiler.Translation.IR;
-using Sia_Examples.Notebook;
+using Sia.Examples.Notebook;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 // Owns reference preparation. Transformations below operate only on immutable job inputs.
 internal sealed class EditorShaderCompiler(MetadataReferenceProvider references)
 {
     private readonly CSharpCompilationEngine _engine = new(references);
-    private static int _assemblyNumber;
+    private static int s_AssemblyNumber;
     public int ReferenceVersion => references.Version;
 
     internal static SpirvCompilationTarget Target { get; } = new() {
@@ -42,7 +42,7 @@ internal sealed class EditorShaderCompiler(MetadataReferenceProvider references)
         var intrinsicImage = await PrepareReferencesAsync(cancellationToken);
         var referenceVersion = ReferenceVersion;
         var output = await _engine.CompileAsync(new(
-            $"EditorShader_{Interlocked.Increment(ref _assemblyNumber)}",
+            $"EditorShader_{Interlocked.Increment(ref s_AssemblyNumber)}",
             files, SelectOutputKind: ChooseOutputKind), cancellationToken);
         var diagnostics = output.Diagnostics.ToList();
         var csharpMilliseconds = clock.Elapsed.TotalMilliseconds;
@@ -80,7 +80,7 @@ internal sealed class EditorShaderCompiler(MetadataReferenceProvider references)
     internal static OutputKind ChooseOutputKind(Compilation compilation, CancellationToken cancellationToken)
     {
         var renderType = compilation.GetTypeByMetadataName("Sia.Reactive.ReactiveNode");
-        var frameType = compilation.GetTypeByMetadataName("Sia_Examples.Editor.EditorPipelineFrame");
+        var frameType = compilation.GetTypeByMetadataName("Sia.Examples.Editor.EditorPipelineFrame");
         var hooksType = compilation.GetTypeByMetadataName("Sia.Reactive.Hooks");
         var hasRender = compilation.GetSymbolsWithName("Render", SymbolFilter.Member, cancellationToken)
             .OfType<IMethodSymbol>().Any(method => method.IsStatic && !method.IsAbstract && !method.IsGenericMethod

@@ -1,5 +1,5 @@
 #if !BROWSER
-namespace Sia_Examples.Console;
+namespace Sia.Examples.Console;
 
 [Flags]
 internal enum ConsoleDecoration

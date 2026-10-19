@@ -1,6 +1,6 @@
 using System.Collections.Immutable;
 
-namespace Sia_Examples.Notebook;
+namespace Sia.Examples.Notebook;
 
 public static partial class NotebookCellLayout
 {
@@ -49,7 +49,7 @@ public static partial class NotebookCellLayout
         if (sourceIndex < targetIndex) {
             targetIndex--;
         }
-        var insertion = Math.Clamp(targetIndex, 0, tabs.Length);
+        var insertion = System.Math.Clamp(targetIndex, 0, tabs.Length);
         tabs = tabs.Insert(insertion, tabId);
         return UpdateGroup(
             state,
@@ -162,7 +162,8 @@ public static partial class NotebookCellLayout
                 var root = RemoveTab(floating[index].Root, tabId);
                 if (root is null) {
                     floating.RemoveAt(index);
-                } else {
+                }
+                else {
                     floating[index] = floating[index] with { Root = root };
                 }
                 removed = true;

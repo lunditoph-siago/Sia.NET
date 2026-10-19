@@ -1,5 +1,5 @@
 #if BROWSER
-namespace Sia_Examples.Browser;
+namespace Sia.Examples.Browser;
 
 public sealed class BrowserMainThread : IUiThread
 {

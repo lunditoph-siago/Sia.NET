@@ -1,4 +1,4 @@
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 internal static class GroupMovement
 {
@@ -74,8 +74,8 @@ internal static class GroupMovement
             line.Text,
             position - line.From,
             forward);
-        var from = Math.Min(position, next) - line.From;
-        var to = Math.Max(position, next) - line.From;
+        var from = System.Math.Min(position, next) - line.From;
+        var to = System.Math.Max(position, next) - line.From;
         return (next, line.Text[from..to]);
     }
 }

@@ -1,11 +1,11 @@
 #if BROWSER
 using System.Runtime.InteropServices.JavaScript;
 using System.Text.Json;
-using Sia_Examples.Dom;
+using Sia.Examples.Dom;
 
-namespace Sia_Examples.Browser;
+namespace Sia.Examples.Browser;
 
-internal sealed partial class BrowserDomBackend(BrowserMainThread mainThread) : IDomBackend, Sia_Examples.Editor.IEditorLinesOwnerFactory
+internal sealed partial class BrowserDomBackend(BrowserMainThread mainThread) : IDomBackend, Sia.Examples.Editor.IEditorLinesOwnerFactory
 {
     private readonly BrowserMainThread _mainThread = mainThread;
     private readonly List<BrowserDomNode> _nodes = [];
@@ -169,7 +169,8 @@ internal sealed partial class BrowserDomBackend(BrowserMainThread mainThread) : 
         VerifyAccess();
         if (_updates.Count > 0) {
             Write(DomWriteKind.Insert, Index(parent), Index(child), before is null ? -1 : Index(before));
-        } else {
+        }
+        else {
             BrowserInterop.InsertBefore(Handle(parent), Handle(child), before is null ? null : Handle(before));
         }
     }

@@ -4,7 +4,7 @@ using Sia.Graphics.Reactive;
 using Sia.RenderGraph;
 using Sia.WebGPU;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 /// <summary>Borrowed resources for an editor-mounted ReactiveComponent. GPU handles belong to the session.</summary>
 public readonly record struct EditorPipelineFrame(

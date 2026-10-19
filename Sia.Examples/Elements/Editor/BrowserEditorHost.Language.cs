@@ -1,4 +1,4 @@
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public sealed partial class BrowserEditorHost
 {
@@ -12,8 +12,8 @@ public sealed partial class BrowserEditorHost
     internal void NavigateTo(int start, int length)
     {
         var state = State.Value;
-        start = Math.Clamp(start, 0, state.Doc.Length);
-        Commit(state.Apply(new() { Selection = EditorSelection.Single(start, Math.Clamp(start + length, start, state.Doc.Length)) }));
+        start = System.Math.Clamp(start, 0, state.Doc.Length);
+        Commit(state.Apply(new() { Selection = EditorSelection.Single(start, System.Math.Clamp(start + length, start, state.Doc.Length)) }));
         _view.RevealSelection();
         _view.Focus();
     }
@@ -21,8 +21,8 @@ public sealed partial class BrowserEditorHost
     internal void NavigateToLine(int line, int column, int length = 0)
     {
         var document = State.Value.Doc;
-        var target = document.Line(Math.Clamp(line, 1, document.Lines));
-        NavigateTo(target.From + Math.Clamp(column - 1, 0, target.Length), length);
+        var target = document.Line(System.Math.Clamp(line, 1, document.Lines));
+        NavigateTo(target.From + System.Math.Clamp(column - 1, 0, target.Length), length);
     }
 
     private bool StartLanguageCommand(EditorCommand command, BrowserSelection nativeSelection)
@@ -65,7 +65,7 @@ public sealed partial class BrowserEditorHost
             }
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
-        catch (Exception error) { if (!cancellation.IsCancellationRequested && generation == _languageGeneration) Sia_Examples.Dom.DomRuntime.ReportError(error.ToString()); }
+        catch (Exception error) { if (!cancellation.IsCancellationRequested && generation == _languageGeneration) Sia.Examples.Dom.DomRuntime.ReportError(error.ToString()); }
         finally {
             if (ReferenceEquals(_languageCancellation, cancellation)) _languageCancellation = null;
             cancellation.Dispose();

@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 [Flags]
 internal enum ShortcutModifiers { None = 0, Control = 1, Meta = 2, Alt = 4, Shift = 8, Primary = 16 }
@@ -158,7 +158,7 @@ internal sealed record EditorKeymap(IReadOnlyDictionary<string, KeyBinding[]> Ov
             && current is CommandContext.EditorLab or CommandContext.Notebook or CommandContext.Suggestions or CommandContext.Signatures;
 
     private static bool Prefix(KeyStroke[] first, KeyStroke[] second)
-        => first.Take(Math.Min(first.Length, second.Length)).Zip(second).All(pair => Matches(pair.First, pair.Second));
+        => first.Take(System.Math.Min(first.Length, second.Length)).Zip(second).All(pair => Matches(pair.First, pair.Second));
 
     private static bool Matches(KeyStroke first, KeyStroke second)
     {

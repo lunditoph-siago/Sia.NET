@@ -1,10 +1,10 @@
-namespace Sia_Examples.Notebook;
-
 using System.Text;
+
+namespace Sia.Examples.Notebook;
 
 public sealed class FileSystemWorkspaceStorage(string rootPath) : IWorkspaceStorage
 {
-    private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
+    private static readonly UTF8Encoding s_Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
     public string RootPath { get; } = Path.TrimEndingDirectorySeparator(Path.GetFullPath(rootPath));
 
@@ -32,7 +32,7 @@ public sealed class FileSystemWorkspaceStorage(string rootPath) : IWorkspaceStor
             var absolute = AbsoluteOf(normalized);
             CheckVersion(absolute, normalized, expectedVersion);
             CreateParentDirectory(absolute);
-            ResilientFile.WriteAtomic(absolute, content, Utf8NoBom);
+            ResilientFile.WriteAtomic(absolute, content, s_Utf8NoBom);
             return new WorkspaceFileContent(content, WorkspaceVersioning.ComputeVersion(content));
         }, cancellationToken);
 
@@ -43,7 +43,7 @@ public sealed class FileSystemWorkspaceStorage(string rootPath) : IWorkspaceStor
             var absolute = AbsoluteOf(normalized);
             EnsureAbsent(absolute, normalized);
             CreateParentDirectory(absolute);
-            ResilientFile.WriteAtomic(absolute, content, Utf8NoBom);
+            ResilientFile.WriteAtomic(absolute, content, s_Utf8NoBom);
         }, cancellationToken);
 
     public ValueTask CreateFolderAsync(

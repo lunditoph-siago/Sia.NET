@@ -1,4 +1,4 @@
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public abstract class EditorHeightMap(int length, double height, bool outdated = true)
 {
@@ -27,7 +27,7 @@ public abstract class EditorHeightMap(int length, double height, bool outdated =
 
     protected void SetHeight(double value)
     {
-        if (Math.Abs(Height - value) > Epsilon) {
+        if (System.Math.Abs(Height - value) > Epsilon) {
             EditorHeightMapChangeTracker.MarkChanged();
         }
         Height = value;
@@ -45,7 +45,7 @@ public abstract class EditorHeightMap(int length, double height, bool outdated =
         EditorHeightOracle oracle,
         IReadOnlyList<(int FromA, int ToA, int FromB, int ToB)> changes)
     {
-        EditorHeightMap current = this;
+        var current = this;
         var newDocument = oracle.Doc;
         for (var index = changes.Count - 1; index >= 0; index--) {
             var (fromA, toA, fromB, toB) = changes[index];
@@ -92,21 +92,25 @@ public abstract class EditorHeightMap(int length, double height, bool outdated =
                     nodes.InsertRange(i, split.Break ? [split.Left, null, split.Right] : [split.Left, split.Right]);
                     j += 1 + (split.Break ? 1 : 0);
                     before -= split.Size;
-                } else if (after > before * 2) {
+                }
+                else if (after > before * 2) {
                     var split = (EditorHeightMapBranch)nodes[j]!;
                     nodes.RemoveAt(j);
                     nodes.InsertRange(j, split.Break ? [split.Left, null, split.Right] : [split.Left, split.Right]);
                     j += 2 + (split.Break ? 1 : 0);
                     after -= split.Size;
-                } else {
+                }
+                else {
                     break;
                 }
-            } else if (before < after) {
+            }
+            else if (before < after) {
                 var next = nodes[i++];
                 if (next is not null) {
                     before += next.Size;
                 }
-            } else {
+            }
+            else {
                 var next = nodes[--j];
                 if (next is not null) {
                     after += next.Size;
@@ -118,7 +122,8 @@ public abstract class EditorHeightMap(int length, double height, bool outdated =
         if (IsBreakAt(nodes, i - 1)) {
             brk = 1;
             i--;
-        } else if (IsBreakAt(nodes, i)) {
+        }
+        else if (IsBreakAt(nodes, i)) {
             brk = 1;
             j++;
         }

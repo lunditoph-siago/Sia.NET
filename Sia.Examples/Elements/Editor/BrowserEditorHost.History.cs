@@ -1,11 +1,11 @@
 using System.Collections.Immutable;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public sealed partial class BrowserEditorHost
 {
-    internal const int HistoryLimit = 128;
-    internal const long HistoryTextLimit = 2_000_000;
+    internal const int k_HistoryLimit = 128;
+    internal const long k_HistoryTextLimit = 2_000_000;
     private readonly List<HistoryEdit> _undoHistory = [];
     private readonly List<HistoryEdit> _redoHistory = [];
     private EditGroup _historyGroup;
@@ -88,7 +88,7 @@ public sealed partial class BrowserEditorHost
         _historyGroup = group;
         _lastHistoryEdit = now;
         var totalSize = _undoHistory.Sum(static item => item.Size);
-        while (_undoHistory.Count > 1 && (_undoHistory.Count > HistoryLimit || totalSize > HistoryTextLimit)) {
+        while (_undoHistory.Count > 1 && (_undoHistory.Count > k_HistoryLimit || totalSize > k_HistoryTextLimit)) {
             totalSize -= _undoHistory[0].Size;
             _undoHistory.RemoveAt(0);
         }

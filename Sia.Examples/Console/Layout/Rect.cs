@@ -1,5 +1,5 @@
 #if !BROWSER
-namespace Sia_Examples.Console.Layout;
+namespace Sia.Examples.Console.Layout;
 
 internal readonly record struct Rect(int X, int Y, int Width, int Height)
 {
@@ -13,8 +13,8 @@ internal readonly record struct Rect(int X, int Y, int Width, int Height)
 
     public Rect Inset(int horizontal, int vertical)
     {
-        var width = Math.Max(0, Width - horizontal * 2);
-        var height = Math.Max(0, Height - vertical * 2);
+        var width = System.Math.Max(0, Width - horizontal * 2);
+        var height = System.Math.Max(0, Height - vertical * 2);
         return new(X + horizontal, Y + vertical, width, height);
     }
 }

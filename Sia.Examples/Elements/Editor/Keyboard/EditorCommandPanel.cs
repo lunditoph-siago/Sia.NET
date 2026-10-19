@@ -1,7 +1,7 @@
 using System.Text.Json;
-using Sia_Examples.Dom;
+using Sia.Examples.Dom;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 internal sealed class EditorCommandPanel : IDisposable
 {
@@ -100,7 +100,7 @@ internal sealed class EditorCommandPanel : IDisposable
                     break;
                 case "keymap-filter": Render(); break;
                 case "keymap-move" when !_settings && int.TryParse(value, out var step) && _matches.Length > 0:
-                    _selected = Math.Clamp(_selected + step, 0, _matches.Length - 1);
+                    _selected = System.Math.Clamp(_selected + step, 0, _matches.Length - 1);
                     SelectRow();
                     break;
                 case "keymap-accept" when !_settings && _matches.Length > 0:

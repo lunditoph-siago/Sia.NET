@@ -1,4 +1,4 @@
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public sealed partial class BrowserEditorHost
 {
@@ -72,7 +72,7 @@ public sealed partial class BrowserEditorHost
         if (!ReferenceEquals(state.Doc, _find.Document)) _find.Refresh(state.Doc);
         var result = _find.Result;
         if (result.Error is not null || result.Matches.Count == 0) return;
-        IReadOnlyList<EditorSearchMatch> matches = result.Matches;
+        var matches = result.Matches;
         if (!all) {
             var index = _find.Selected;
             if (index < 0 || index >= matches.Count || !IsFindSelection(state, matches[index])) { FindNext(1, includeCurrent: true); return; }
@@ -82,7 +82,7 @@ public sealed partial class BrowserEditorHost
         var after = state.Apply(new() { Changes = changes });
         if (!all) {
             var match = matches[0];
-            var next = Math.Min(after.Doc.Length, match.From + match.Replacement.Length + (match.From == match.To ? 1 : 0));
+            var next = System.Math.Min(after.Doc.Length, match.From + match.Replacement.Length + (match.From == match.To ? 1 : 0));
             after = after.Apply(new() { Selection = EditorSelection.Single(next) });
         }
         Commit(after, historySelection: state.Selection);

@@ -4,27 +4,27 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Emit;
 using Microsoft.CodeAnalysis.Text;
 
-namespace Sia_Examples.Notebook;
+namespace Sia.Examples.Notebook;
 
 internal sealed class CSharpCompilationEngine(ICompilationReferenceResolver references)
 {
     private readonly ICompilationReferenceResolver _references = references;
-    private static readonly SemaphoreSlim _roslynWork = new(1, 1);
+    private static readonly SemaphoreSlim s_RoslynWork = new(1, 1);
     internal static bool IsMissingReference(string diagnosticId) => diagnosticId is "CS0246" or "CS0234" or "CS0012";
 
     internal static async Task<T> RunRoslynAsync<T>(Func<T> work, CancellationToken cancellationToken)
     {
         // Completion and Emit share metadata; all compilations also share the generator pipeline.
-        await _roslynWork.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await s_RoslynWork.WaitAsync(cancellationToken).ConfigureAwait(false);
         try { return await Task.Run(work, cancellationToken).ConfigureAwait(false); }
-        finally { _roslynWork.Release(); }
+        finally { s_RoslynWork.Release(); }
     }
 
     internal static async Task<T> RunRoslynAsync<T>(Func<Task<T>> work, CancellationToken cancellationToken)
     {
-        await _roslynWork.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await s_RoslynWork.WaitAsync(cancellationToken).ConfigureAwait(false);
         try { return await Task.Run(work, cancellationToken).ConfigureAwait(false); }
-        finally { _roslynWork.Release(); }
+        finally { s_RoslynWork.Release(); }
     }
 
     public async Task<CSharpCompilationOutput> CompileAsync(

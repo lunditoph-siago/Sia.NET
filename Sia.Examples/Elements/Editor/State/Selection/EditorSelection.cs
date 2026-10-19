@@ -1,4 +1,4 @@
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public sealed class EditorSelection : IEquatable<EditorSelection>
 {
@@ -71,7 +71,7 @@ public sealed class EditorSelection : IEquatable<EditorSelection>
         };
         flags |= bidiLevel is null
             ? SelFlag.BidiMask
-            : (SelFlag)Math.Min(6, bidiLevel.Value);
+            : (SelFlag)System.Math.Min(6, bidiLevel.Value);
         return new(pos, pos, flags, goalColumn);
     }
 
@@ -84,7 +84,7 @@ public sealed class EditorSelection : IEquatable<EditorSelection>
     {
         var flags = bidiLevel is null
             ? SelFlag.BidiMask
-            : (SelFlag)Math.Min(6, bidiLevel.Value);
+            : (SelFlag)System.Math.Min(6, bidiLevel.Value);
         var association = assoc ?? (anchor != head ? head < anchor ? 1 : -1 : 0);
         if (association != 0) {
             flags |= association < 0 ? SelFlag.AssocBefore : SelFlag.AssocAfter;
@@ -123,7 +123,7 @@ public sealed class EditorSelection : IEquatable<EditorSelection>
             }
 
             var from = previous.From;
-            var to = Math.Max(current.To, previous.To);
+            var to = System.Math.Max(current.To, previous.To);
             if (index <= mainIndex) {
                 mainIndex--;
             }

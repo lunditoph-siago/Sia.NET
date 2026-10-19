@@ -1,4 +1,4 @@
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public partial class ChangeSet : ChangeDesc
 {
@@ -165,7 +165,7 @@ public partial class ChangeSet : ChangeDesc
                 throw new InvalidOperationException("Cannot compose mismatched change sets.");
             }
 
-            var length = Math.Min(
+            var length = System.Math.Min(
                 firstIterator.EffectiveLength,
                 secondIterator.Length);
             var sectionCount = sections.Count;
@@ -182,7 +182,8 @@ public partial class ChangeSet : ChangeDesc
                         sections,
                         secondIterator.InsertedText);
                 }
-            } else if (secondIterator.InsertedLength == -1) {
+            }
+            else if (secondIterator.InsertedLength == -1) {
                 ChangeSectionBuilder.Add(
                     sections,
                     firstIterator.Offset != 0 ? 0 : firstIterator.Length,
@@ -192,7 +193,8 @@ public partial class ChangeSet : ChangeDesc
                     inserted,
                     sections,
                     firstIterator.SliceInsertedText(length));
-            } else {
+            }
+            else {
                 ChangeSectionBuilder.Add(
                     sections,
                     firstIterator.Offset != 0 ? 0 : firstIterator.Length,

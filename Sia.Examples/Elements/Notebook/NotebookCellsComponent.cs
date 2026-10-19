@@ -1,12 +1,12 @@
 using Sia.Reactive;
 
-namespace Sia_Examples.Notebook;
+namespace Sia.Examples.Notebook;
 
 [ReactiveComponent]
 public static partial class NotebookCellsComponent
 {
     public static ReactiveNode Render(in NotebookCellsProps props, ref Hooks hooks)
-        => Reactive.ForEach(RenderCell, BuildCells(props));
+        => Reactive.Reactive.ForEach(RenderCell, BuildCells(props));
 
     private static (string Key, CellItem Value)[] BuildCells(
         scoped in NotebookCellsProps props)

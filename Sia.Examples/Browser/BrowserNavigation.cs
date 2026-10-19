@@ -1,7 +1,7 @@
 #if BROWSER
 using System.Runtime.InteropServices.JavaScript;
 
-namespace Sia_Examples.Browser;
+namespace Sia.Examples.Browser;
 
 internal sealed partial class BrowserNavigation : IApplicationNavigation
 {

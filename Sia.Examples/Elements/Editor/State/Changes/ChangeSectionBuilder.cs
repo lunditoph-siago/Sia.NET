@@ -1,4 +1,4 @@
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 internal static class ChangeSectionBuilder
 {
@@ -17,12 +17,15 @@ internal static class ChangeSectionBuilder
             && insertedLength <= 0
             && insertedLength == sections[last + 1]) {
             sections[last] += length;
-        } else if (last >= 0 && length == 0 && sections[last] == 0) {
+        }
+        else if (last >= 0 && length == 0 && sections[last] == 0) {
             sections[last + 1] += insertedLength;
-        } else if (force) {
+        }
+        else if (force) {
             sections[last] += length;
             sections[last + 1] += insertedLength;
-        } else {
+        }
+        else {
             sections.Add(length);
             sections.Add(insertedLength);
         }

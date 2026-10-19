@@ -1,6 +1,6 @@
-using Sia_Examples.Notebook;
+using Sia.Examples.Notebook;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 internal sealed record RenameTarget(string Name, string? Error = null);
 internal sealed record RenameConflict(string Message, SourcePosition? Location = null);

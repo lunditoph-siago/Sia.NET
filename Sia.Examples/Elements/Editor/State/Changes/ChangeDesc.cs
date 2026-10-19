@@ -1,4 +1,4 @@
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public class ChangeDesc
 {
@@ -36,7 +36,8 @@ public class ChangeDesc
                     return newPosition + position - oldPosition;
                 }
                 newPosition += length;
-            } else {
+            }
+            else {
                 if (IsTrackedDeletion(position, mode, oldPosition, oldEnd)) {
                     return null;
                 }

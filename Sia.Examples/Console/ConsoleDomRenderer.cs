@@ -1,11 +1,11 @@
 #if !BROWSER
-using Sia_Examples.Console.Layout;
+using Sia.Examples.Console.Layout;
 
-namespace Sia_Examples.Console;
+namespace Sia.Examples.Console;
 
 internal sealed class ConsoleDomRenderer
 {
-    private const int SidebarWidth = 22;
+    private const int k_SidebarWidth = 22;
 
     private int _sidebarScroll;
     private int _notebookScroll;
@@ -27,7 +27,7 @@ internal sealed class ConsoleDomRenderer
         var horizontal = LayoutEngine.Split(
             inner,
             Direction.Horizontal,
-            Constraint.Length(SidebarWidth),
+            Constraint.Length(k_SidebarWidth),
             Constraint.Length(1),
             Constraint.Fill());
         var sidebarArea = horizontal[0];
@@ -53,7 +53,7 @@ internal sealed class ConsoleDomRenderer
                 preserveWhitespace: false);
         }
 
-        var notebookHeight = Math.Max(contentArea.Height - 1, 0);
+        var notebookHeight = System.Math.Max(contentArea.Height - 1, 0);
         var focusedInActivePane = request.ActivePane == Pane.Content ? request.Focused : null;
         KeepVisible(sidebarLines, request.Focused, sidebarArea.Height, ref _sidebarScroll);
         KeepVisible(notebookLines, focusedInActivePane, notebookHeight, ref _notebookScroll);
@@ -118,7 +118,7 @@ internal sealed class ConsoleDomRenderer
 
     private static string[] Materialize(List<ConsoleLine> lines, int scrollOffset, int width, int height)
     {
-        var rows = new string[Math.Max(height, 0)];
+        var rows = new string[System.Math.Max(height, 0)];
         for (var row = 0; row < rows.Length; row++) {
             var index = scrollOffset + row;
             rows[row] = index < lines.Count
@@ -393,7 +393,7 @@ internal sealed class ConsoleDomRenderer
         int height,
         ref int scrollOffset)
     {
-        scrollOffset = Math.Clamp(scrollOffset, 0, Math.Max(lines.Count - height, 0));
+        scrollOffset = System.Math.Clamp(scrollOffset, 0, System.Math.Max(lines.Count - height, 0));
         if (focused is null) {
             return;
         }

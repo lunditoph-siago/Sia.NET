@@ -1,4 +1,4 @@
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 public sealed class EditorHeightMapBranch : EditorHeightMap
 {
@@ -59,7 +59,8 @@ public sealed class EditorHeightMapBranch : EditorHeightMap
             if (to >= rightOffset) {
                 Right.ForEachLine(from, to, oracle, rightTop, rightOffset, action);
             }
-        } else {
+        }
+        else {
             var mid = LineAt(rightOffset, QueryType.ByPos, oracle, top, offset);
             if (from < mid.From) {
                 Left.ForEachLine(from, mid.From - 1, oracle, top, offset, action);
@@ -163,13 +164,15 @@ public sealed class EditorHeightMapBranch : EditorHeightMap
         if (measured is not null && measured.From <= offset + Left.Length && measured.More) {
             left = Left.UpdateHeight(oracle, offset, force, measured);
             rebalance = true;
-        } else {
+        }
+        else {
             Left.UpdateHeight(oracle, offset, force);
         }
         if (measured is not null && measured.From <= rightStart + Right.Length && measured.More) {
             right = Right.UpdateHeight(oracle, rightStart, force, measured);
             rebalance = true;
-        } else {
+        }
+        else {
             Right.UpdateHeight(oracle, rightStart, force);
         }
         if (rebalance) {

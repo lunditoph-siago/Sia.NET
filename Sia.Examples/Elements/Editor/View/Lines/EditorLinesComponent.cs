@@ -1,6 +1,6 @@
 using Sia.Reactive;
 
-namespace Sia_Examples.Editor;
+namespace Sia.Examples.Editor;
 
 [ReactiveComponent]
 public static partial class EditorLinesComponent
