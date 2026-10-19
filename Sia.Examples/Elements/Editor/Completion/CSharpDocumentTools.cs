@@ -20,8 +20,9 @@ internal static class CSharpDocumentTools
         if (symbol is null) return null;
         var definition = await SymbolFinder.FindSourceDefinitionAsync(symbol, document.Project.Solution, cancellation) ?? symbol;
         var locations = new List<SourcePosition>();
+        var sources = new Dictionary<DocumentId, (SourceText Text, string Source)>();
         foreach (var location in definition.Locations.Where(static location => location.IsInSource)) {
-            var target = await PositionAsync(document.Project, location, documentKey, cancellation);
+            var target = await PositionAsync(document.Project, location, documentKey, cancellation, sources);
             if (target is not null) locations.Add(target);
         }
         return new(definition.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat), locations);
@@ -49,11 +50,12 @@ internal static class CSharpDocumentTools
         if (compilation is null) return [];
         if (selectOutputKind is not null) compilation = compilation.WithOptions(compilation.Options.WithOutputKind(selectOutputKind(compilation, cancellation)));
         var issues = new List<LanguageIssue>();
+        var sources = new Dictionary<DocumentId, (SourceText Text, string Source)>();
         foreach (var diagnostic in compilation.GetDiagnostics(cancellation).Concat(generatorDiagnostics ?? []).Where(static diagnostic =>
             diagnostic.Severity is DiagnosticSeverity.Error or DiagnosticSeverity.Warning)) {
             cancellation.ThrowIfCancellationRequested();
             var target = diagnostic.Location.IsInSource
-                ? await PositionAsync(document.Project, diagnostic.Location, documentKey, cancellation) : null;
+                ? await PositionAsync(document.Project, diagnostic.Location, documentKey, cancellation, sources) : null;
             issues.Add(new(diagnostic.Id, diagnostic.GetMessage(), diagnostic.Severity == DiagnosticSeverity.Error, target));
         }
         return issues.OrderByDescending(static issue => issue.Error).ThenBy(static issue => issue.Location?.Path, StringComparer.Ordinal)
@@ -61,8 +63,10 @@ internal static class CSharpDocumentTools
     }
 
     private static async Task<SourcePosition?> PositionAsync(Project project, Location location,
-        Func<Document, string?> documentKey, CancellationToken cancellation)
+        Func<Document, string?> documentKey, CancellationToken cancellation,
+        Dictionary<DocumentId, (SourceText Text, string Source)> sources)
     {
+        cancellation.ThrowIfCancellationRequested();
         var document = project.Solution.GetDocument(location.SourceTree!);
         if (document is null && location.SourceTree is { } sourceTree) {
             foreach (var candidate in project.Documents.Where(candidate => candidate.FilePath == sourceTree.FilePath)) {
@@ -75,11 +79,15 @@ internal static class CSharpDocumentTools
             }
         }
         if (document is null) return null;
-        var text = await document.GetTextAsync(cancellation);
+        if (!sources.TryGetValue(document.Id, out var source)) {
+            var text = await document.GetTextAsync(cancellation);
+            source = (text, text.ToString());
+            sources.Add(document.Id, source);
+        }
         var span = location.SourceSpan;
-        var point = text.Lines.GetLinePosition(span.Start);
+        var point = source.Text.Lines.GetLinePosition(span.Start);
         var key = documentKey(document);
         return new(key ?? "$generated:" + document.Id, document.FilePath ?? document.Name, span.Start, span.Length,
-            point.Line + 1, point.Character + 1, text.ToString(), key is null);
+            point.Line + 1, point.Character + 1, source.Source, key is null);
     }
 }
