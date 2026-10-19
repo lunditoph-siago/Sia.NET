@@ -359,6 +359,8 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         Release(() => _liveDiagnosticsCancellation?.Cancel());
         Release(ClearLanguageResults);
         Release(() => _referenceResults.Dispose());
+        Release(_renamePanel.Dispose);
+        Release(_workspaceEdits.Dispose);
         Release(CancelCloseDialog);
         Release(StopRendering);
         Release(() => _uniformInspector?.Dispose());

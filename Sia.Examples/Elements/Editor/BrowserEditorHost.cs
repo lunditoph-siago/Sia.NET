@@ -429,6 +429,7 @@ public sealed partial class BrowserEditorHost : IDisposable
         SourceChanged = null;
         DefinitionReady = null;
         ReferencesReady = null;
+        RenameReady = null;
         CancelLanguageCommand();
         CancelCompletion();
         CancelSignature();
@@ -819,7 +820,7 @@ public sealed partial class BrowserEditorHost : IDisposable
         }
         if (command.Id is EditorCommandId.Undo or EditorCommandId.Redo)
             return ReplayHistory(command.Id == EditorCommandId.Redo);
-        if (command.Id is EditorCommandId.GoToDefinition or EditorCommandId.FindReferences or EditorCommandId.FormatDocument) return StartLanguageCommand(command, nativeSelection);
+        if (command.Id is EditorCommandId.GoToDefinition or EditorCommandId.FindReferences or EditorCommandId.RenameSymbol or EditorCommandId.FormatDocument) return StartLanguageCommand(command, nativeSelection);
         if (command.Id == EditorCommandId.Suggest) return HandleManualCompletion(nativeSelection);
         if (command.Id == EditorCommandId.SignatureHelp) {
             var state = ApplyNativeSelection(State.Value, nativeSelection);

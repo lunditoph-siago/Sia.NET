@@ -36,13 +36,4 @@ internal sealed partial class BrowserEditorPage
             SelectOutputKind = EditorShaderCompiler.ChooseOutputKind
         };
     }
-    private IEnumerable<Entity> LanguageFiles(Entity active)
-    {
-        var activeId = EditorWorkspace.PathOf(active);
-        var folder = WorkspacePath.Parent(activeId) ?? "";
-        return _workspace.AllFiles().Where(file => file == active || !file.Contains<UntitledFile>()
-            && EditorWorkspace.PathOf(file).EndsWith(".cs", StringComparison.OrdinalIgnoreCase)
-            && (folder.Length == 0 || WorkspacePath.IsDescendantOf(EditorWorkspace.PathOf(file), folder)));
-    }
-
 }

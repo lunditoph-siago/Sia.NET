@@ -76,6 +76,16 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
             };
         }, cancellationToken, position: position, kind: CSharpQueryKind.References);
 
+    internal Task<RenamePlan> PrepareRenameAsync(string documentId, string source, int position, string name, CancellationToken cancellationToken)
+        => WithDocumentAsync(documentId, source, (document, snapshot, token) => CSharpRename.PrepareAsync(document,
+            snapshot.Projection?.ToProject(position).Position ?? position, name, DocumentKey, snapshot, token),
+            cancellationToken, position: position, kind: CSharpQueryKind.References);
+
+    internal Task<RenameTarget> QueryRenameTargetAsync(string documentId, string source, int position, CancellationToken cancellationToken)
+        => WithDocumentAsync(documentId, source, (document, snapshot, token) => CSharpRename.TargetAsync(document,
+            snapshot.Projection?.ToProject(position).Position ?? position, token), cancellationToken, position: position,
+            kind: CSharpQueryKind.References);
+
     internal async Task<LanguageIssue[]> QueryDiagnosticsAsync(string documentId, string source, CancellationToken cancellationToken)
     {
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);

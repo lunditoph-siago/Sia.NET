@@ -16,6 +16,9 @@ public sealed class NotebookWorkspace : IAsyncDisposable
     private readonly HashSet<Task> _operations = [];
     private readonly BrowserNotebookView _view;
     private readonly EditorReferenceResults _referenceResults;
+    private readonly EditorWorkspaceEdits _workspaceEdits;
+    private readonly EditorRenamePanel _renamePanel;
+    private string? _renameReturnBinding;
     private string? _referenceReturnBinding;
     private readonly ReactiveMount<NotebookViewProps> _mount;
     private NotebookSessionSnapshot _previousSnapshot;
@@ -59,6 +62,13 @@ public sealed class NotebookWorkspace : IAsyncDisposable
             }
         });
         _view.AttachLanguageResults(_referenceResults.Element);
+        _workspaceEdits = new(CaptureWorkspaceBuffers, CommitWorkspaceBuffers, ReportRename);
+        _renamePanel = new(_view.Editors, _workspaceEdits, "notebook-rename", () => {
+            if (_view.Editors.TryResolveCellId(_renameReturnBinding ?? "", out var id)) { _view.RevealEditor(id); _view.Editors.Focus(id); }
+        });
+        _view.Editors.RenameReady += (binding, target, source, position) => {
+            _renameReturnBinding = binding; _renamePanel.Open(binding, target, source, position);
+        };
         _view.Editors.LanguageContext = CaptureLanguageSnapshot;
         _view.Editors.SourceChanged += HandleEditorSourceChanged;
         _view.Editors.DefinitionReady += HandleEditorDefinition;
@@ -87,6 +97,7 @@ public sealed class NotebookWorkspace : IAsyncDisposable
     private void HandleEditorSourceChanged(string binding)
     {
         if (!_disposed && _view.Editors.TryResolveCellId(binding, out var cellId)) {
+            _renamePanel.Invalidate();
             _referenceResults.Clear();
             _view.UpdateEditorDirty(cellId);
         }
@@ -110,6 +121,27 @@ public sealed class NotebookWorkspace : IAsyncDisposable
     }
 
     internal bool RouteReferences(string argument) => !_disposed && _referenceResults.Route(argument);
+    internal void RouteRename(string argument) => Track(_renamePanel.RouteAsync(argument));
+    private void ReportRename(string message) => _renamePanel.Report(message);
+
+    private IReadOnlyDictionary<string, WorkspaceEditBuffer> CaptureWorkspaceBuffers(RenamePlan plan)
+    {
+        var buffers = new Dictionary<string, WorkspaceEditBuffer>(StringComparer.Ordinal);
+        if (!_session.Scripts.Any(script => script.Id == plan.Origin)) return buffers;
+        foreach (var file in _session.GetProgramCells(plan.Origin, id => _session.GetState(id).Source, includeFollowing: true).SelectMany(static cell => cell.Files)) {
+            if (_view.Editors.TryCaptureWorkspaceBuffer(file.Id, out var buffer)) buffers.Add(file.Id, buffer with { Editable = _session.IsScriptEditable(file.Id) });
+            else buffers.Add(file.Id, new(file.Source, new(EditorSelection.Single(0), 0, 0, 0, 0, 0), false));
+        }
+        return buffers;
+    }
+
+    private void CommitWorkspaceBuffers(IReadOnlyList<WorkspaceBufferChange> changes)
+    {
+        foreach (var change in changes) {
+            if (!_view.Editors.ApplyWorkspaceChange(change.DocumentId, change)) throw new InvalidOperationException("An affected editor is no longer available.");
+            _view.UpdateEditorDirty(change.DocumentId);
+        }
+    }
 
     private void NavigateEditorSource(SourcePosition target)
     {
@@ -523,6 +555,8 @@ public sealed class NotebookWorkspace : IAsyncDisposable
             return;
         }
         _disposed = true;
+        _renamePanel.Dispose();
+        _workspaceEdits.Dispose();
         _lifetime.Cancel();
         _session.Interrupt();
         foreach (var operation in _operations.ToArray()) {
@@ -618,6 +652,7 @@ public sealed class NotebookWorkspace : IAsyncDisposable
             ReconcileDocument();
         }
         if (structural || _languageReferenceVersion != _references.Version) {
+            _renamePanel.Invalidate();
             _languageReferenceVersion = _references.Version;
             _view.Editors.InvalidateLanguageContext();
             _referenceResults.Clear();
