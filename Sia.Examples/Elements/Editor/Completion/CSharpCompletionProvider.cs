@@ -68,7 +68,7 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
                 item.DisplayText, start, start + list.Span.Length) { Item = item.WithTags(item.Tags.ToArray().ToImmutableArray()) }).ToArray();
             var result = new CompletionResult(items) {
                 Query = new(document, service, snapshot.Projection,
-                    snapshot.Projection is null ? null : (text, caret, cancellation) => QueryAsync(documentId, text, caret, cancellation)),
+                    (text, caret, cancellation) => QueryAsync(documentId, text, caret, cancellation)),
                 SuggestionMode = IsSuggestionMode(list.Span.Length, start, list.SuggestionModeItem is not null, source)
             };
             _completionCache = (documentId, document, position, snapshot, result);
@@ -257,20 +257,14 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
     private static async Task<CompletionResult> PrepareAsync(CompletionResult completion, string source, int position,
         CancellationToken cancellationToken, Func<int, char, bool> prepareCharacter)
     {
-        if (completion.Query is { Projection: { } projection, Refresh: { } refresh } && projection.ActiveSource.Source != source) {
-            var fresh = await refresh(source, position, cancellationToken);
+        if (completion.Query is { } context
+            && (context.Projection?.ActiveSource.Source ?? (await context.Document.GetTextAsync(cancellationToken)).ToString()) != source) {
+            var fresh = await context.Refresh(source, position, cancellationToken);
             completion = fresh with { Items = completion.Items.SelectMany(original => fresh.Items.Where(original.SameIdentity).Take(1)).ToArray() };
         }
         return await CSharpCompilationEngine.RunRoslynAsync(async () => {
-            CompletionList? fresh = null;
             var newline = Text.OfString(source).PreferredNewline;
             var query = completion.Query;
-            if (query is not null && (query.Projection?.ActiveSource.Source ?? (await query.Document.GetTextAsync(cancellationToken)).ToString()) != source) {
-                var document = query.Document.WithText(SourceText.From(source));
-                fresh = await query.Service.GetCompletionsAsync(document, position, cancellationToken: cancellationToken);
-                if (fresh is null) return CompletionResult.Empty;
-                query = new(document, query.Service);
-            }
             if (query is { Projection: not null, EditingDocument: null })
                 query = query with { EditingDocument = await CSharpSourceProjection.PrepareEditingDocumentAsync(query.Document, cancellationToken) };
             var prepared = new List<CompletionCandidate>(completion.Items.Count);
@@ -279,11 +273,6 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
                 var original = completion.Items[index];
                 cancellationToken.ThrowIfCancellationRequested();
                 var candidate = original;
-                if (fresh is not null && original.Item is { } item) {
-                    var current = fresh.ItemsList.FirstOrDefault(next => original.SameIdentity(original with { Item = next }));
-                    if (current is null) continue;
-                    candidate = candidate with { Item = current.WithTags(current.Tags.ToArray().ToImmutableArray()), ReplaceStart = fresh.Span.Start, ReplaceEnd = fresh.Span.End };
-                }
                 var context = completion with { Query = query };
                 var reuse = query is not null && ReferenceEquals(candidate.PreparedQuery, query);
                 var edit = reuse ? candidate.Edit : null;
@@ -302,12 +291,9 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
                 }
                 prepared.Add(candidate with { Edit = edit, CommitEdits = commits, CommitEditsComplete = complete, PreparedQuery = query });
             }
-            return new CompletionResult(prepared) { Query = query, SuggestionMode = fresh is null ? completion.SuggestionMode : IsSuggestionMode(fresh, source) };
+            return new CompletionResult(prepared) { Query = query, SuggestionMode = completion.SuggestionMode };
         }, cancellationToken);
     }
-
-    private static bool IsSuggestionMode(CompletionList list, string source)
-        => IsSuggestionMode(list.Span.Length, list.Span.Start, list.SuggestionModeItem is not null, source);
 
     private static bool IsSuggestionMode(int length, int start, bool suggestion, string source)
         => suggestion || length == 0 && (start == 0
@@ -438,8 +424,8 @@ internal sealed record CSharpProjectSnapshot(string ActiveDocumentId, IReadOnlyL
         };
     }
 }
-internal sealed record CompletionQuery(Document Document, CompletionService Service, CSharpSourceProjection? Projection = null,
-    Func<string, int, CancellationToken, Task<CompletionResult>>? Refresh = null)
+internal sealed record CompletionQuery(Document Document, CompletionService Service, CSharpSourceProjection? Projection,
+    Func<string, int, CancellationToken, Task<CompletionResult>> Refresh)
 {
     internal Document? EditingDocument { get; init; }
 }

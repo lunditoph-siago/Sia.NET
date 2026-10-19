@@ -81,30 +81,18 @@ public sealed partial class BrowserEditorHost
         var cancellation = new CancellationTokenSource();
         _completionCancellation = cancellation;
         var generation = _completionGeneration;
-        if (cached is { } source
-            && source.TryFilter(
-                state.Doc,
-                position,
-                int.MaxValue,
-                out var filtered)) {
-            if (filtered.HasItems) {
-                _completionPending = true;
-                _completionQueryRunning = true;
-                PublishCompletion(filtered, state);
-                _ = QueryCompletionAsync(state, cancellation, generation, source);
-            }
-            else {
-                _completionPending = false;
-                HideCompletionPopup();
-                CancelCompletionQuery();
-            }
-            return;
-        }
-
-        HideCompletionPopup();
         _completionPending = true;
-        _completion = null;
-        _completionSource = null;
+        if (cached is { HasItems: true } source
+            && (source.Items[0].ReplaceStart == queryAnchor || source.Items[0].ReplaceStart == queryAnchor - 1
+                && queryAnchor > 0 && state.Doc.SliceDoc(queryAnchor - 1, queryAnchor) == "@")) {
+            _completionDocument = null;
+            RenderCompletionPopup();
+        }
+        else {
+            HideCompletionPopup();
+            _completion = null;
+            _completionSource = null;
+        }
         DomRuntime.ScheduleEvent(
             CompletionScheduleKey,
             $"complete:{_cellId}:{generation}",
@@ -124,7 +112,7 @@ public sealed partial class BrowserEditorHost
         }
 
         _completionQueryRunning = true;
-        _ = QueryCompletionAsync(State.Value, cancellation, generation);
+        _ = QueryCompletionAsync(State.Value, cancellation, generation, _completionSource);
         return true;
     }
 
@@ -137,22 +125,16 @@ public sealed partial class BrowserEditorHost
         try {
             cancellation.Token.ThrowIfCancellationRequested();
 
-            var result = cached ?? await _completionProvider.QueryAsync(
-                _cellId,
-                state.Doc.SliceDoc(),
-                state.Selection.Main.Head,
-                cancellation.Token);
+            Func<string, int, CancellationToken, Task<CompletionResult>>? refresh = cached is null
+                ? (source, position, token) => _completionProvider.QueryAsync(_cellId, source, position, token)
+                : cached.Query?.Refresh;
+            var result = refresh is null ? cached! : await refresh(state.Doc.SliceDoc(), state.Selection.Main.Head, cancellation.Token);
             if (generation != _completionGeneration || cancellation.IsCancellationRequested) {
                 return;
             }
 
-            if (!result.HasItems) {
-                _completionPending = false;
-                CloseCompletionPopup();
-                return;
-            }
-
-            _completionSource = result;
+            var queryDocument = state.Doc;
+            var queryPosition = state.Selection.Main.Head;
             while (generation == _completionGeneration && !cancellation.IsCancellationRequested) {
                 var current = State.Value;
                 var position = current.Selection.Main.Head;
@@ -161,7 +143,24 @@ public sealed partial class BrowserEditorHost
                     CancelCompletion();
                     return;
                 }
-                if (!result.TryFilter(current.Doc, position, int.MaxValue, out var filtered)) {
+                if (refresh is not null && (!ReferenceEquals(queryDocument, current.Doc) || queryPosition != position)) {
+                    result = await refresh(current.Doc.SliceDoc(), position, cancellation.Token);
+                    if (generation != _completionGeneration || cancellation.IsCancellationRequested) return;
+                    queryDocument = current.Doc;
+                    queryPosition = position;
+                    if (!ReferenceEquals(current.Doc, State.Value.Doc) || !current.Selection.Eq(State.Value.Selection)) continue;
+                }
+                if (!result.HasItems) {
+                    _completionPending = false;
+                    CloseCompletionPopup();
+                    return;
+                }
+                _completionSource = result;
+                CompletionResult? Filter() => result.TryFilter(current.Doc, position, int.MaxValue, out var value) ? value : null;
+                var filtered = result.Items.Count <= _maximumRenderedCompletions ? Filter() : await Task.Run(Filter, cancellation.Token);
+                if (generation != _completionGeneration || cancellation.IsCancellationRequested) return;
+                if (!ReferenceEquals(current.Doc, State.Value.Doc) || !current.Selection.Eq(State.Value.Selection)) continue;
+                if (filtered is null) {
                     _completionPending = false;
                     CloseCompletionPopup();
                     return;
@@ -171,6 +170,7 @@ public sealed partial class BrowserEditorHost
                     HideCompletionPopup();
                     return;
                 }
+                if (cached is not null) PublishCompletion(filtered, current);
                 var selectedIndex = CompletionSelection(filtered);
                 var prepared = await CSharpCompletionProvider.PrepareWindowAsync(filtered.Window(selectedIndex, 1),
                     current.Doc.SliceDoc(), position, -1, cancellation.Token);
@@ -291,6 +291,7 @@ public sealed partial class BrowserEditorHost
             var start = _completionWindowStart;
             var length = Math.Min(_maximumRenderedCompletions, completion.Items.Count - start);
             _completionList!.Attr("data-completion-binding", _cellId)
+                .Attr("aria-busy", _completionPending ? "true" : "false")
                 .Attr("data-completion-generation", _completionGeneration.ToString(CultureInfo.InvariantCulture))
                 .Attr("data-completion-start", start.ToString(CultureInfo.InvariantCulture))
                 .Attr("data-completion-total", completion.Items.Count.ToString(CultureInfo.InvariantCulture));
@@ -319,7 +320,8 @@ public sealed partial class BrowserEditorHost
                 item.ToggleClass("soft-selected", selected && _completionSoft);
                 item.Id($"{_cellId}-suggestion-{index}").Attr("role", "option")
                     .Attr("aria-selected", selected && !_completionSoft ? "true" : "false")
-                    .Attr("aria-disabled", candidate.Edit is null ? "true" : "false")
+                    .Attr("aria-disabled", candidate.Edit is null || !ReferenceEquals(_completionDocument, State.Value.Doc)
+                        || State.Value.Selection.Main.Head != _completionPosition ? "true" : "false")
                     .Attr("aria-posinset", (index + 1).ToString(CultureInfo.InvariantCulture))
                     .Attr("aria-setsize", completion.Items.Count.ToString(CultureInfo.InvariantCulture))
                     .Attr("data-completion-generation", _completionGeneration.ToString(CultureInfo.InvariantCulture))
@@ -442,6 +444,14 @@ public sealed partial class BrowserEditorHost
     {
         if (_completion is not { } completion || _completionDescription is not { } description) return;
         var candidate = completion.Items[_completionIndex];
+        if (candidate.Edit is null || _completionDocument is null) {
+            _completionDescriptionCancellation?.Cancel();
+            _completionDescriptionCancellation = null;
+            _completionDescriptionCandidate = null;
+            _completionDescriptionDocument = null;
+            description.Text("").Attr("aria-busy", "true");
+            return;
+        }
         if (_completionDescriptionCandidate is { } previous && previous.SameIdentity(candidate)
             && ReferenceEquals(previous.PreparedQuery, candidate.PreparedQuery)
             && ReferenceEquals(_completionDescriptionDocument, _completionDocument)) return;
