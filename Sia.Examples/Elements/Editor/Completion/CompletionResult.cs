@@ -62,7 +62,11 @@ public sealed record CompletionResult(IReadOnlyList<CompletionCandidate> Items)
                 if (items[index].SameIdentity(candidate)) { items[index] = candidate; break; }
             }
         }
-        return this with { Items = items, SuggestionMode = SuggestionMode || prepared.SuggestionMode };
+        return this with {
+            Items = items,
+            Query = Query is not null && ReferenceEquals(Query.Document, prepared.Query?.Document) ? prepared.Query : Query,
+            SuggestionMode = SuggestionMode || prepared.SuggestionMode
+        };
     }
 }
 

@@ -1,6 +1,7 @@
 using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Completion;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.CodeAnalysis.Operations;
@@ -18,10 +19,13 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
             .Add(Assembly.Load("Microsoft.CodeAnalysis.Features"))
             .Add(Assembly.Load("Microsoft.CodeAnalysis.CSharp.Features")).Distinct()));
     private readonly CancellationTokenSource _lifetime = new();
-    private readonly Dictionary<string, (DocumentId Id, SourceText Text)> _documents = [];
+    private readonly Dictionary<string, (DocumentId Id, SourceText Text, bool Generated)> _documents = [];
     private AdhocWorkspace? _workspace;
     private Project? _project;
     private int _generatorVersion = -1;
+    private GeneratorDriver? _generatorDriver;
+    private bool _generationPending = true;
+    private IReadOnlyList<Diagnostic> _generatorDiagnostics = [];
     private IReadOnlyList<MetadataReference>? _expandedReferenceProbe;
     private IReadOnlyList<MetadataReference>? _expandedReferences;
     private bool _disposed;
@@ -104,7 +108,7 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
         Task<LanguageIssue[]> Query(bool expand) => WithDocumentAsync(documentId, source,
             async (document, snapshot, token) => {
-                var issues = await CSharpDocumentTools.DiagnosticsAsync(document, DocumentKey, snapshot.SelectOutputKind, token);
+                var issues = await CSharpDocumentTools.DiagnosticsAsync(document, DocumentKey, snapshot.SelectOutputKind, token, _generatorDiagnostics);
                 return snapshot.Projection is null ? issues : issues.Select(issue => issue.Location is { } location
                     ? issue with { Location = snapshot.Projection.ToSource(location) } : issue).ToArray();
             }, cancellation.Token, expand);
@@ -114,7 +118,7 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
     }
 
     private string? DocumentKey(Document document)
-        => _documents.FirstOrDefault(entry => entry.Value.Id == document.Id).Key;
+        => _documents.FirstOrDefault(entry => entry.Value.Id == document.Id && !entry.Value.Generated).Key;
 
     internal async Task<DocumentSymbol[]> QuerySymbolsAsync(string documentId, string source, bool workspace,
         CancellationToken cancellationToken)
@@ -150,25 +154,54 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
             var metadata = _expandedReferenceProbe is not null && probe.SequenceEqual(_expandedReferenceProbe) ? _expandedReferences! : probe;
             var activeId = snapshot.Projection is { } projection
                 ? snapshot.Documents.First(file => file.Path == projection.ToProject(position).Path).Id : snapshot.ActiveDocumentId;
-            var document = await UpdateProjectAsync(snapshot, metadata, activeId, token);
-            return await query(document, snapshot, token);
+            try {
+                var document = await UpdateProjectAsync(snapshot, metadata, activeId, token);
+                return await query(document, snapshot, token);
+            }
+            catch { _generationPending = true; throw; }
         }, token);
     }
 
     private static async Task<CompletionEdit?> GetChangeAsync(CompletionResult completion, CompletionCandidate candidate,
-        string source, CancellationToken cancellationToken, char? character = null)
+        string source, string newline, CancellationToken cancellationToken, char? character = null)
     {
         if (completion.Query is not { } query || candidate.Item is not { } item)
             return new([new(candidate.ReplaceStart, candidate.ReplaceEnd, candidate.InsertText)],
                 candidate.ReplaceStart + candidate.InsertText.Length);
-        var edit = await query.Service.GetChangeAsync(query.Document, item, character, cancellationToken);
+        var document = query.EditingDocument ?? query.Document;
+        var edit = await query.Service.GetChangeAsync(document, item, character, cancellationToken);
         var position = edit.NewPosition ?? edit.TextChange.Span.Start + (edit.TextChange.NewText?.Length ?? 0);
-        var result = query.Projection is { } projection ? projection.ToSource(query.Document.FilePath!, edit.TextChanges, position)
-            : new CompletionEdit([.. edit.TextChanges.OrderBy(static change => change.Span.Start)
+        var (changes, caret) = NormalizeImportNewlines(edit.TextChanges, position, newline, cancellationToken);
+        var result = query.Projection is { } projection ? projection.ToSource(query.Document.FilePath!, changes, caret, cancellationToken,
+            (CompilationUnitSyntax?)await document.GetSyntaxRootAsync(cancellationToken))
+            : new CompletionEdit([.. changes
             .Select(static change => new ChangeSpec(change.Span.Start, change.Span.End, change.NewText ?? ""))],
-            position);
+            caret);
         return result is { } change && character is { } commit
             ? change.WithCharacter(commit, source.Length, edit.IncludesCommitCharacter) : result;
+    }
+
+    private static (TextChange[] Changes, int Position) NormalizeImportNewlines(IReadOnlyList<TextChange> edits, int position,
+        string newline, CancellationToken cancellation)
+    {
+        var changes = edits.OrderBy(static change => change.Span.Start).ToArray();
+        var delta = 0;
+        var caret = position;
+        for (var index = 0; index < changes.Length; index++) {
+            var change = changes[index];
+            var text = change.NewText ?? "";
+            var end = change.Span.Start + delta + text.Length;
+            delta += text.Length - change.Span.Length;
+            if (change.Span.Length != 0 || end > position || !text.Contains('\n') || !text.TrimStart().StartsWith("using ", StringComparison.Ordinal)) continue;
+            var root = CSharpSyntaxTree.ParseText(text, CSharpLanguageOptions.Parse, cancellationToken: cancellation).GetCompilationUnitRoot(cancellation);
+            if (root.ContainsDiagnostics || root.Usings.Count == 0 || root.Members.Count != 0 || root.Externs.Count != 0
+                || root.DescendantTrivia().Any(static trivia => !trivia.IsKind(SyntaxKind.WhitespaceTrivia) && !trivia.IsKind(SyntaxKind.EndOfLineTrivia))) continue;
+            var normalized = root.ReplaceTrivia(root.DescendantTrivia().Where(static trivia => trivia.IsKind(SyntaxKind.EndOfLineTrivia)),
+                (_, _) => SyntaxFactory.EndOfLine(newline)).ToFullString();
+            changes[index] = new(change.Span, normalized);
+            caret += normalized.Length - text.Length;
+        }
+        return (changes, caret);
     }
 
     internal static char[] CommitCharacters(CompletionItem item, CompletionRules rules)
@@ -199,8 +232,17 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
         }
     }
 
-    internal static async Task<CompletionResult> PrepareAsync(CompletionResult completion, string source, int position,
+    internal static Task<CompletionResult> PrepareAsync(CompletionResult completion, string source, int position,
         CancellationToken cancellationToken)
+        => PrepareAsync(completion, source, position, cancellationToken, static (_, _) => true);
+
+    internal static Task<CompletionResult> PrepareWindowAsync(CompletionResult completion, string source, int position,
+        int selectedIndex, CancellationToken cancellationToken)
+        => PrepareAsync(completion, source, position, cancellationToken,
+            (index, character) => index == selectedIndex && character is '.' or '(' or ';');
+
+    private static async Task<CompletionResult> PrepareAsync(CompletionResult completion, string source, int position,
+        CancellationToken cancellationToken, Func<int, char, bool> prepareCharacter)
     {
         if (completion.Query is { Projection: { } projection, Refresh: { } refresh } && projection.ActiveSource.Source != source) {
             var fresh = await refresh(source, position, cancellationToken);
@@ -208,6 +250,7 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
         }
         return await CSharpCompilationEngine.RunRoslynAsync(async () => {
             CompletionList? fresh = null;
+            var newline = Text.OfString(source).PreferredNewline;
             var query = completion.Query;
             if (query is not null && (query.Projection?.ActiveSource.Source ?? (await query.Document.GetTextAsync(cancellationToken)).ToString()) != source) {
                 var document = query.Document.WithText(SourceText.From(source));
@@ -215,9 +258,12 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
                 if (fresh is null) return CompletionResult.Empty;
                 query = new(document, query.Service);
             }
+            if (query is { Projection: not null, EditingDocument: null })
+                query = query with { EditingDocument = await CSharpSourceProjection.PrepareEditingDocumentAsync(query.Document, cancellationToken) };
             var prepared = new List<CompletionCandidate>(completion.Items.Count);
             var rules = query?.Service.GetRules();
-            foreach (var original in completion.Items) {
+            for (var index = 0; index < completion.Items.Count; index++) {
+                var original = completion.Items[index];
                 cancellationToken.ThrowIfCancellationRequested();
                 var candidate = original;
                 if (fresh is not null && original.Item is { } item) {
@@ -226,16 +272,22 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
                     candidate = candidate with { Item = current, ReplaceStart = fresh.Span.Start, ReplaceEnd = fresh.Span.End };
                 }
                 var context = completion with { Query = query };
-                if (await GetChangeAsync(context, candidate, source, cancellationToken) is not { } edit) continue;
+                var reuse = query is not null && ReferenceEquals(candidate.PreparedQuery, query);
+                var edit = reuse ? candidate.Edit : null;
+                edit ??= await GetChangeAsync(context, candidate, source, newline, cancellationToken);
+                if (edit is null) continue;
                 Dictionary<char, CompletionEdit>? commits = null;
+                var complete = true;
                 if (candidate.Item is { } itemWithRules && rules is not null) {
-                    commits = [];
-                    foreach (var character in CommitCharacters(itemWithRules, rules)) {
-                        if (await GetChangeAsync(context, candidate, source, cancellationToken, character) is { } committed)
+                    commits = reuse && candidate.CommitEdits is { } previous ? new(previous) : [];
+                    var characters = CommitCharacters(itemWithRules, rules);
+                    complete = characters.All(character => commits.ContainsKey(character) || prepareCharacter(index, character));
+                    foreach (var character in characters.Where(character => !commits.ContainsKey(character) && prepareCharacter(index, character))) {
+                        if (await GetChangeAsync(context, candidate, source, newline, cancellationToken, character) is { } committed)
                             commits.Add(character, committed);
                     }
                 }
-                prepared.Add(candidate with { Edit = edit, CommitEdits = commits, PreparedQuery = query });
+                prepared.Add(candidate with { Edit = edit, CommitEdits = commits, CommitEditsComplete = complete, PreparedQuery = query });
             }
             return new CompletionResult(prepared) { Query = query, SuggestionMode = fresh is null ? completion.SuggestionMode : IsSuggestionMode(fresh, source) };
         }, cancellationToken);
@@ -264,26 +316,53 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
         _project ??= _workspace.AddProject(ProjectInfo.Create(ProjectId.CreateNewId(), VersionStamp.Create(),
             "Editor", "Editor", LanguageNames.CSharp, parseOptions: CSharpLanguageOptions.Parse,
             compilationOptions: CSharpLanguageOptions.Library));
-        var options = CSharpLanguageOptions.Library.WithOutputKind(snapshot.OutputKind);
-        if (!_project.CompilationOptions!.Equals(options)) _project = _project.WithCompilationOptions(options);
-        if (_generatorVersion != DynamicAssemblyRegistry.Version) {
+        if (_project.CompilationOptions!.OutputKind != snapshot.OutputKind)
+            _project = _project.WithCompilationOptions(_project.CompilationOptions.WithOutputKind(snapshot.OutputKind));
+        var generatorChanged = _generatorVersion != DynamicAssemblyRegistry.Version;
+        if (generatorChanged) {
             _generatorVersion = DynamicAssemblyRegistry.Version;
-            _project = _project.WithAnalyzerReferences([new EditorGeneratorReference(_generatorVersion)]);
+            _generatorDriver = CSharpGeneratorDriver.Create(GeneratorPipeline.GetGenerators(), parseOptions: CSharpLanguageOptions.Parse);
         }
         if (!_project.MetadataReferences.SequenceEqual(references)) _project = _project.WithMetadataReferences(references);
         var files = snapshot.Documents.Append(new CSharpSourceDocument("$global-usings", "GlobalUsings.g.cs",
             "GlobalUsings.g.cs", snapshot.GlobalUsings, false)).ToArray();
+        await SynchronizeDocumentsAsync(files, generated: false, cancellationToken);
+        _generationPending |= generatorChanged || _project != previous;
+        if (_generationPending) {
+            var input = _project.RemoveDocuments([.. _documents.Values.Where(static entry => entry.Generated).Select(static entry => entry.Id)]);
+            var compilation = await input.GetCompilationAsync(cancellationToken)
+                ?? throw new InvalidOperationException("The C# project could not be compiled.");
+            _generatorDriver = _generatorDriver!.RunGenerators(compilation, cancellationToken);
+            var generated = _generatorDriver.GetRunResult();
+            _generatorDiagnostics = generated.Diagnostics;
+            await SynchronizeDocumentsAsync(generated.GeneratedTrees.Select(tree => new CSharpSourceDocument(
+                "$generated:" + tree.FilePath, tree.FilePath, tree.FilePath, tree.GetText(cancellationToken).ToString(), false)),
+                generated: true, cancellationToken);
+            _generationPending = false;
+        }
+        var activeDocument = _documents[activeId];
+        if (_project != previous && ReferenceEquals(activeBefore.Text, activeDocument.Text))
+            _project = _project.GetDocument(activeDocument.Id)!.WithText(SourceText.From(activeDocument.Text.ToString())).Project;
+        if (!_workspace.TryApplyChanges(_project.Solution))
+            throw new InvalidOperationException("The C# project could not be synchronized.");
+        _project = _workspace.CurrentSolution.GetProject(_project.Id)!;
+        return _project.GetDocument(_documents[activeId].Id)!;
+    }
+
+    private async Task SynchronizeDocumentsAsync(IEnumerable<CSharpSourceDocument> sources, bool generated, CancellationToken cancellationToken)
+    {
+        var files = sources.ToArray();
         var retained = files.Select(static file => file.Id).ToHashSet(StringComparer.Ordinal);
-        foreach (var id in _documents.Keys.Where(id => !retained.Contains(id)).ToArray()) {
-            _project = _project.RemoveDocument(_documents[id].Id);
+        foreach (var id in _documents.Where(entry => entry.Value.Generated == generated && !retained.Contains(entry.Key)).Select(static entry => entry.Key).ToArray()) {
+            _project = _project!.RemoveDocument(_documents[id].Id);
             _documents.Remove(id);
         }
         foreach (var file in files) {
             cancellationToken.ThrowIfCancellationRequested();
             if (!_documents.TryGetValue(file.Id, out var existing)) {
-                var document = _project.AddDocument(file.Path, SourceText.From(file.Source), filePath: file.Path);
+                var document = _project!.AddDocument(file.Path, SourceText.From(file.Source), filePath: file.Path);
                 _project = document.Project;
-                _documents.Add(file.Id, (document.Id, await document.GetTextAsync(cancellationToken)));
+                _documents.Add(file.Id, (document.Id, await document.GetTextAsync(cancellationToken), generated));
             }
             else if (!existing.Text.ContentEquals(SourceText.From(file.Source))) {
                 var before = existing.Text.ToString();
@@ -293,20 +372,13 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
                 var newEnd = file.Source.Length;
                 while (end > start && newEnd > start && before[end - 1] == file.Source[newEnd - 1]) { end--; newEnd--; }
                 var text = existing.Text.WithChanges(new TextChange(TextSpan.FromBounds(start, end), file.Source[start..newEnd]));
-                _project = _project.GetDocument(existing.Id)!.WithText(text).WithFilePath(file.Path).Project;
-                _documents[file.Id] = (existing.Id, text);
+                _project = _project!.GetDocument(existing.Id)!.WithText(text).WithFilePath(file.Path).Project;
+                _documents[file.Id] = (existing.Id, text, generated);
             }
-            else if (_project.GetDocument(existing.Id)!.FilePath != file.Path) {
+            else if (_project!.GetDocument(existing.Id)!.FilePath != file.Path) {
                 _project = _project.GetDocument(existing.Id)!.WithFilePath(file.Path).Project;
             }
         }
-        var activeDocument = _documents[activeId];
-        if (_project != previous && ReferenceEquals(activeBefore.Text, activeDocument.Text))
-            _project = _project.GetDocument(activeDocument.Id)!.WithText(SourceText.From(activeDocument.Text.ToString())).Project;
-        if (!_workspace.TryApplyChanges(_project.Solution))
-            throw new InvalidOperationException("The C# project could not be synchronized.");
-        _project = _workspace.CurrentSolution.GetProject(_project.Id)!;
-        return _project.GetDocument(_documents[activeId].Id)!;
     }
 
     public void Dispose()
@@ -319,6 +391,8 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
             _workspace?.Dispose();
             _documents.Clear();
             _project = null;
+            _generatorDriver = null;
+            _generatorDiagnostics = [];
             _expandedReferenceProbe = null;
             _expandedReferences = null;
             _lifetime.Dispose();
@@ -351,7 +425,10 @@ internal sealed record CSharpProjectSnapshot(string ActiveDocumentId, IReadOnlyL
     }
 }
 internal sealed record CompletionQuery(Document Document, CompletionService Service, CSharpSourceProjection? Projection = null,
-    Func<string, int, CancellationToken, Task<CompletionResult>>? Refresh = null);
+    Func<string, int, CancellationToken, Task<CompletionResult>>? Refresh = null)
+{
+    internal Document? EditingDocument { get; init; }
+}
 internal readonly record struct CompletionEdit(ChangeSpec[] Changes, int Position)
 {
     internal CompletionEdit WithCharacter(char character, int sourceLength, bool includesCharacter = false)

@@ -9,7 +9,9 @@ public readonly record struct CompletionCandidate(
     internal Microsoft.CodeAnalysis.Completion.CompletionItem? Item { get; init; }
     internal CompletionEdit? Edit { get; init; }
     internal IReadOnlyDictionary<char, CompletionEdit>? CommitEdits { get; init; }
+    internal bool CommitEditsComplete { get; init; }
     internal CompletionQuery? PreparedQuery { get; init; }
+    internal string DisplayLabel => Item?.InlineDescription is { Length: > 0 } detail ? $"{Label} — {detail}" : Label;
 
     internal bool SameIdentity(CompletionCandidate other)
     {
