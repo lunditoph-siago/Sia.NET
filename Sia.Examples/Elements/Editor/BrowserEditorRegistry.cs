@@ -12,10 +12,14 @@ public sealed class BrowserEditorRegistry(
     private readonly CSharpCompletionProvider _completionProvider = new(references);
     private readonly Dictionary<string, (DomElement Container, BrowserEditorHost Editor)> _editors = [];
     internal event Action<string>? SourceChanged;
+    internal event Action<string, SymbolDefinition?>? DefinitionReady;
+    internal event Action<string, SymbolReferences?>? ReferencesReady;
 
     private void OnSourceChanged(BrowserEditorHost editor) { InvalidateLanguageContext(editor); SourceChanged?.Invoke(editor.BindingId); }
+    private void OnDefinitionReady(BrowserEditorHost editor, SymbolDefinition? definition) => DefinitionReady?.Invoke(editor.BindingId, definition);
+    private void OnReferencesReady(BrowserEditorHost editor, SymbolReferences? references) => ReferencesReady?.Invoke(editor.BindingId, references);
 
-    internal Func<string, string, CancellationToken, ValueTask<CSharpProjectSnapshot>>? LanguageContext {
+    internal Func<string, string, CSharpQueryKind, CancellationToken, ValueTask<CSharpProjectSnapshot>>? LanguageContext {
         set {
             _completionProvider.CaptureSnapshot = value;
             InvalidateLanguageContext();
@@ -52,6 +56,8 @@ public sealed class BrowserEditorRegistry(
             _completionProvider);
         _editors.Add(cellId, (container, editor));
         editor.SourceChanged += OnSourceChanged;
+        editor.DefinitionReady += OnDefinitionReady;
+        editor.ReferencesReady += OnReferencesReady;
         InvalidateLanguageContext(editor);
         return editor;
     }
@@ -97,6 +103,36 @@ public sealed class BrowserEditorRegistry(
         => _editors.TryGetValue(cellId, out var entry)
             ? entry.Editor.Source
             : throw new KeyNotFoundException($"Editor '{cellId}' is not mounted.");
+
+    internal string? GetBindingId(string cellId)
+        => _editors.TryGetValue(cellId, out var entry) ? entry.Editor.BindingId : null;
+
+    internal void Focus(string cellId)
+    {
+        if (_editors.TryGetValue(cellId, out var entry)) entry.Editor.Focus();
+    }
+
+    internal bool NavigateTo(string cellId, int start, int length)
+    {
+        if (!_editors.TryGetValue(cellId, out var entry)) return false;
+        entry.Editor.NavigateTo(start, length);
+        return true;
+    }
+
+    internal bool NavigateToLine(string cellId, int line, int column, int length = 0)
+    {
+        if (!_editors.TryGetValue(cellId, out var entry)) return false;
+        entry.Editor.NavigateToLine(line, column, length);
+        return true;
+    }
+
+    internal Task<LanguageIssue[]> QueryDiagnosticsAsync(string binding, CancellationToken cancellation, bool sourceBoundary = false)
+    {
+        if (!TryResolveCellId(binding, out var cellId)) throw new OperationCanceledException(cancellation);
+        var editor = _editors[cellId].Editor;
+        editor.SynchronizeNativeInput(sourceBoundary);
+        return _completionProvider.QueryDiagnosticsAsync(binding, editor.Source, cancellation);
+    }
 
     public void SynchronizeNativeInput(string cellId)
     {
@@ -176,6 +212,8 @@ public sealed class BrowserEditorRegistry(
     public void Dispose()
     {
         SourceChanged = null;
+        DefinitionReady = null;
+        ReferencesReady = null;
         foreach (var entry in _editors.Values) {
             entry.Editor.Dispose();
         }

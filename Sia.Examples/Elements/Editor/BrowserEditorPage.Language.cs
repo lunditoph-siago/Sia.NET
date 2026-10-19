@@ -6,7 +6,7 @@ namespace Sia_Examples.Editor;
 internal sealed partial class BrowserEditorPage
 {
     private async ValueTask<CSharpProjectSnapshot> CaptureLanguageSnapshotAsync(string bindingId,
-        string source, CancellationToken cancellationToken)
+        string source, CSharpQueryKind kind, CancellationToken cancellationToken)
     {
         await _shaderCompiler.PrepareReferencesAsync(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
@@ -33,6 +33,7 @@ internal sealed partial class BrowserEditorPage
         }
         return new(activeId, documents) {
             OutputKind = Microsoft.CodeAnalysis.OutputKind.ConsoleApplication,
+            SelectOutputKind = EditorShaderCompiler.ChooseOutputKind
         };
     }
     private IEnumerable<Entity> LanguageFiles(Entity active)
@@ -44,5 +45,4 @@ internal sealed partial class BrowserEditorPage
             && (folder.Length == 0 || WorkspacePath.IsDescendantOf(EditorWorkspace.PathOf(file), folder)));
     }
 
-    private void InvalidateLanguageContext() => _editors.InvalidateLanguageContext();
 }

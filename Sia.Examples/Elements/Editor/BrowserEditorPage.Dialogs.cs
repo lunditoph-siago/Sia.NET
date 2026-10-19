@@ -246,6 +246,7 @@ internal sealed partial class BrowserEditorPage
         try {
             saved = await _workspace.SaveAsAsync(entity, path, _lifetime.Token);
             InvalidateLanguageContext();
+            ScheduleLanguageDiagnostics(ActiveLanguageBinding());
         }
         catch (Exception error) when (error is WorkspaceEntryExistsException or ArgumentException) {
             ShowOperationError($"Could not save as '{path}': {error.Message}", error);
@@ -299,6 +300,7 @@ internal sealed partial class BrowserEditorPage
                 Tab: _state.Tabs.GetValueOrDefault(TabIdFor(file))));
         await _workspace.DeleteEntryAsync(entity, _lifetime.Token);
         InvalidateLanguageContext();
+        ScheduleLanguageDiagnostics(ActiveLanguageBinding());
         if (_disposed) {
             return;
         }

@@ -6,12 +6,14 @@ public sealed class NotebookProgram
         string source,
         bool needsWrapperUsing,
         IReadOnlyList<CellRange> cellRanges,
-        IReadOnlyList<CSharpSourceDocument> compilationSources)
+        IReadOnlyList<CSharpSourceDocument> compilationSources,
+        IReadOnlyList<CSharpSourceMapping>? sourceMappings = null)
     {
         Source = source;
         NeedsWrapperUsing = needsWrapperUsing;
         CellRanges = cellRanges;
         CompilationSources = compilationSources;
+        SourceMappings = sourceMappings ?? [];
     }
 
     public string Source { get; }
@@ -21,4 +23,5 @@ public sealed class NotebookProgram
     public IReadOnlyList<CellRange> CellRanges { get; }
 
     internal IReadOnlyList<CSharpSourceDocument> CompilationSources { get; }
+    internal IReadOnlyList<CSharpSourceMapping> SourceMappings { get; }
 }

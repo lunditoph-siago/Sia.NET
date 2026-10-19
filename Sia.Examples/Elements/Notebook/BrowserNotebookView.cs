@@ -56,6 +56,18 @@ public sealed class BrowserNotebookView :
 
     public BrowserEditorRegistry Editors => _editors;
 
+    internal void AttachLanguageResults(DomElement element)
+        => _root.InsertBefore(element, _sectionElements.Values.FirstOrDefault() ?? _floatingLayer);
+
+    internal void RevealLanguageResults(DomElement element) => DomRuntime.EnsureVisible(_container, element);
+
+    internal void RevealEditor(string scriptId)
+    {
+        if (_cellsByScript.TryGetValue(scriptId, out var cell)
+            && cell.Scripts.FirstOrDefault(window => window.Window.SourceId == scriptId) is { } script)
+            DomRuntime.EnsureVisible(_container, script.Content);
+    }
+
     public void UpdateCellScope(string cellId, string? scope)
     {
         if (_cellsByBlock.TryGetValue(cellId, out var cell)) {

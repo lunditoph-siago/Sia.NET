@@ -15,10 +15,13 @@ public sealed class NotebookWorkspace : IAsyncDisposable
     private readonly CancellationTokenSource _lifetime = new();
     private readonly HashSet<Task> _operations = [];
     private readonly BrowserNotebookView _view;
+    private readonly EditorReferenceResults _referenceResults;
+    private string? _referenceReturnBinding;
     private readonly ReactiveMount<NotebookViewProps> _mount;
     private NotebookSessionSnapshot _previousSnapshot;
     private NotebookDocument _previousDocument;
     private bool _disposed;
+    private int _languageReferenceVersion;
 
     private NotebookInfo _info;
 
@@ -37,6 +40,7 @@ public sealed class NotebookWorkspace : IAsyncDisposable
     {
         _world = world;
         _references = references;
+        _languageReferenceVersion = references.Version;
         _storage = storage;
         _library = library;
         _info = info;
@@ -45,6 +49,20 @@ public sealed class NotebookWorkspace : IAsyncDisposable
         _session = new(mainThread, document, references);
         var cellState = NotebookCellState.Create(document);
         _view = new(world, document, references, cellState);
+        _referenceResults = new("notebook-reference", NavigateEditorSource, () => {
+            if (_view.Editors.TryResolveCellId(_referenceReturnBinding ?? "", out var script)) {
+                var layout = _mount.GetState<NotebookCellState>().Value;
+                if (NotebookCellLayout.FindGroupContaining(layout, layout.GetTabForWindow(layout.GetScriptWindow(script).Id).Id) is not null) {
+                    _view.RevealEditor(script);
+                    _view.Editors.Focus(script);
+                }
+            }
+        });
+        _view.AttachLanguageResults(_referenceResults.Element);
+        _view.Editors.LanguageContext = CaptureLanguageSnapshot;
+        _view.Editors.SourceChanged += HandleEditorSourceChanged;
+        _view.Editors.DefinitionReady += HandleEditorDefinition;
+        _view.Editors.ReferencesReady += HandleEditorReferences;
         _mount = world.Mount(
             NotebookViewComponent.Definition,
             new(_view, _session.Snapshot, cellState));
@@ -55,6 +73,67 @@ public sealed class NotebookWorkspace : IAsyncDisposable
     }
 
     public NotebookInfo Info => _info;
+
+    private ValueTask<CSharpProjectSnapshot> CaptureLanguageSnapshot(string binding, string source, CSharpQueryKind kind, CancellationToken cancellation)
+    {
+        cancellation.ThrowIfCancellationRequested();
+        if (_disposed || !_view.Editors.TryResolveCellId(binding, out var active)) throw new OperationCanceledException(cancellation);
+        var cells = _session.GetProgramCells(active, id => id == active ? source
+            : _view.Editors.TryGetSource(id, out var live) ? live : _session.GetState(id).Source, includeFollowing: kind == CSharpQueryKind.References);
+        var readOnly = cells.SelectMany(static cell => cell.Files).Where(file => !_session.IsScriptEditable(file.Id)).Select(static file => file.Id).ToHashSet(StringComparer.Ordinal);
+        return new(CSharpCompilationEngine.RunRoslynAsync(() => CSharpProjectSnapshot.ForNotebook(active, cells, cancellation, readOnly), cancellation));
+    }
+
+    private void HandleEditorSourceChanged(string binding)
+    {
+        if (!_disposed && _view.Editors.TryResolveCellId(binding, out var cellId)) {
+            _referenceResults.Clear();
+            _view.UpdateEditorDirty(cellId);
+        }
+    }
+
+    private void HandleEditorDefinition(string binding, SymbolDefinition? definition)
+    {
+        if (_disposed || definition?.Locations.FirstOrDefault() is not { } target) return;
+        _referenceReturnBinding = binding;
+        _referenceResults.Clear();
+        NavigateEditorSource(target);
+    }
+
+    private void HandleEditorReferences(string binding, SymbolReferences? references)
+    {
+        if (_disposed || !_view.Editors.TryResolveCellId(binding, out _)) return;
+        _referenceReturnBinding = binding;
+        _referenceResults.Show(references);
+        _view.RevealLanguageResults(_referenceResults.Element);
+        _referenceResults.Focus();
+    }
+
+    internal bool RouteReferences(string argument) => !_disposed && _referenceResults.Route(argument);
+
+    private void NavigateEditorSource(SourcePosition target)
+    {
+        if (_disposed) return;
+        if (target.Generated) {
+            _referenceResults.ShowSource(target);
+            _view.RevealLanguageResults(_referenceResults.Element);
+            return;
+        }
+        if (!_session.Scripts.Any(script => script.Id == target.DocumentId)) return;
+        UpdateCell(state => NotebookCellLayout.OpenTabIntoHome(state,
+            state.GetTabForWindow(state.GetScriptWindow(target.DocumentId).Id).Id));
+        var targetBinding = _view.Editors.GetBindingId(target.DocumentId) ?? target.DocumentId;
+        if (_view.Editors.TryResolveCellId(targetBinding, out var cellId)
+            && _view.Editors.GetSource(cellId) == target.Source) {
+            _view.Editors.NavigateToLine(cellId, target.Line, target.Column, target.Length);
+            _view.RevealEditor(cellId);
+            _referenceReturnBinding = targetBinding;
+        }
+        else if (!_session.IsScriptEditable(target.DocumentId) && _session.GetState(target.DocumentId).Source == target.Source) {
+            _referenceResults.ShowSource(target);
+            _view.RevealLanguageResults(_referenceResults.Element);
+        }
+    }
 
     internal bool CanExecuteCommand(EditorCommand command, string binding)
         => command.Context == CommandContext.Notebook && _view.Editors.TryResolveCellId(binding, out _)
@@ -455,9 +534,12 @@ public sealed class NotebookWorkspace : IAsyncDisposable
             _mount.Unmount();
         }
         _session.Dispose();
-        try { _view.Dispose(); }
-        finally { await _view.Editors.DisposeAsync(); }
-        _lifetime.Dispose();
+        try { await _view.Editors.DisposeAsync(); }
+        finally {
+            _referenceResults.Dispose();
+            _view.Dispose();
+            _lifetime.Dispose();
+        }
     }
 
     private void SynchronizeEditors()
@@ -534,6 +616,11 @@ public sealed class NotebookWorkspace : IAsyncDisposable
         }
         if (structural) {
             ReconcileDocument();
+        }
+        if (structural || _languageReferenceVersion != _references.Version) {
+            _languageReferenceVersion = _references.Version;
+            _view.Editors.InvalidateLanguageContext();
+            _referenceResults.Clear();
         }
         SynchronizeSurfaceWindows(snapshot);
         _mount.Update(_mount.Props with { Snapshot = snapshot });

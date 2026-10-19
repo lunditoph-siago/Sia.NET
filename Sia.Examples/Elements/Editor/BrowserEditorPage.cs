@@ -84,8 +84,8 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         menus.Append(filesToggle.Append(filesIcon));
         CreateMenu(menus, "File", [
             ("New File", "editor-page-new-file", "Open a new untitled file"),
-            ("Save", "editor-page-save", "Save the active file (Ctrl+S)"),
-            ("Save All", "editor-page-save-all", "Save every open file (Ctrl+Shift+S)"),
+            ("Save", "editor-page-save", "Save the active file"),
+            ("Save All", "editor-page-save-all", "Save every open file"),
             ("Save As…", "editor-page-save-as-begin", "Save the active file under a new path"),
             ("Revert", "editor-page-revert", "Discard unsaved edits in the active file"),
         ]);
@@ -163,6 +163,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
 
         _editors = new(world, references);
         _editors.LanguageContext = CaptureLanguageSnapshotAsync;
+        InitializeLanguageTools();
         _state = CreateLayoutState();
         ApplyLayout();
         UpdateChrome();
@@ -211,6 +212,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         var eventName = separator < 0 ? payload : payload[..separator];
         var argument = separator < 0 ? string.Empty : payload[(separator + 1)..];
         if (RouteShader(eventName)) return true;
+        if (RouteLanguageTools(eventName, argument)) return true;
 
         switch (eventName) {
             case "editor-page-tab":
@@ -316,7 +318,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
                         SyncDirtyIndicators();
                         CheckShaderSources();
                     }
-                    if (handled && eventName is "input" or "text" or "paste" or "mut" or "key" or "sel" or "complete")
+                    if (handled && eventName is "input" or "text" or "paste" or "mut" or "key" or "sel" or "complete" or "find")
                         UpdateCursorStatus();
                     return handled;
                 }
@@ -324,7 +326,12 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
     }
 
     internal bool CanExecuteCommand(EditorCommand command, string binding)
-        => command.Context == CommandContext.EditorLab || _editors.CanExecuteCommand(binding, command);
+        => command.Context == CommandContext.EditorLab ? command.Id switch {
+            EditorCommandId.NavigateBack => _navigationBack.Any(static bookmark => bookmark.Entity.IsValid),
+            EditorCommandId.NavigateForward => _navigationForward.Any(static bookmark => bookmark.Entity.IsValid),
+            EditorCommandId.CheckCode => ActiveLanguageBinding() is not null,
+            _ => true,
+        } : _editors.CanExecuteCommand(binding, command);
 
     internal bool ExecuteCommand(EditorCommand command, string binding)
     {
@@ -349,6 +356,9 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             catch (Exception error) { (failures ??= []).Add(error); }
         }
         Release(_lifetime.Cancel);
+        Release(() => _liveDiagnosticsCancellation?.Cancel());
+        Release(ClearLanguageResults);
+        Release(() => _referenceResults.Dispose());
         Release(CancelCloseDialog);
         Release(StopRendering);
         Release(() => _uniformInspector?.Dispose());
@@ -426,6 +436,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             return showConsole ? NotebookCellLayout.OpenWindow(opened, ConsoleWindowId) : opened;
         });
         RefreshExplorerSelection();
+        ScheduleLanguageDiagnostics(ActiveLanguageBinding());
     }
 
     private void ActivateTab(string tabId)
@@ -440,6 +451,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         }
         UpdateState(state => NotebookCellLayout.Activate(state, tabId));
         RefreshExplorerSelection();
+        ScheduleLanguageDiagnostics(ActiveLanguageBinding());
     }
 
     private void OpenPanelWindow(string windowKey)
@@ -643,7 +655,8 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             .Attr("title", "Diagnostics for the compiled C# snapshot")
             .ToggleClass("is-empty", errors == 0 && warnings == 0)
             .ToggleClass("has-errors", errors != 0);
-        _diagnostics.Text(string.Empty);
+        ClearDiagnostics();
+        var generation = _diagnosticsGeneration;
         foreach (var diagnostic in diagnostics) {
             var location = diagnostic.SourcePath is null
                 ? string.Empty
@@ -657,7 +670,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
                     : "diagnostic-warning")
                 .Text(text);
             if (diagnostic.SourceId is { } fileId) {
-                line.Attr("type", "button").On("click", $"editor-page-tree-open:{fileId}");
+                line.Attr("type", "button").On("click", $"editor-language-diagnostic:{generation}:{Uri.EscapeDataString(fileId)}:{diagnostic.Line}:{diagnostic.Column}");
             }
             _diagnostics.Append(line);
         }
@@ -691,7 +704,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         ResetDiagnosticStatus();
         _operationError.Text(string.Empty);
         ShowCompilationDetails(false);
-        _diagnostics.Text(string.Empty);
+        ClearDiagnostics();
         _compilationOutput.Text(string.Empty).ToggleClass("output-error", false);
         _programConsole?.Clear();
         _programOutput.Text(string.Empty).ToggleClass("output-error", false);

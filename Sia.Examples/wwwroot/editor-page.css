@@ -267,6 +267,23 @@
         overflow: hidden;
     }
 
+    .editor-language-results {
+        flex: 0 1 auto;
+        min-height: 0;
+        max-height: 70%;
+        overflow: auto;
+        padding: 0.4rem 0.65rem;
+        border-bottom: 1px solid var(--border-subtle);
+        font-size: 0.75rem;
+
+        .editor-generated-source {
+            margin: 0.4rem 0 0;
+            font: 0.75rem/1.5 var(--font-mono);
+
+            mark { background: var(--surface-hover); color: inherit; outline: 1px solid var(--focus-muted); }
+        }
+    }
+
     .editor-page-diagnostics {
         display: flex;
         flex-direction: column;

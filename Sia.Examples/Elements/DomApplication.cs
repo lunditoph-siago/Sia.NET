@@ -472,6 +472,10 @@ internal static class DomApplication
                                 workspace.CloseWindow(argument);
                                 break;
 
+                            case "notebook-reference" when workspace is not null:
+                                workspace.RouteReferences(argument);
+                                break;
+
                             case "cell" when workspace is not null:
                                 workspace.Cell(argument);
                                 break;

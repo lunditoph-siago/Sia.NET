@@ -201,12 +201,13 @@ internal sealed partial class BrowserEditorPage
         }
         _selectedShaderName = request.EntryName;
         CheckShaderSources();
+        CancelLanguageDiagnostics();
         _busy = true;
         _shaderCancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         UpdateActions();
         var revision = ++_shaderRevision;
         _shaderPreview?.Invalidate(revision);
-        _diagnostics.Text(string.Empty);
+        ClearDiagnostics();
         ResetDiagnosticStatus();
         _operationError.Text(string.Empty);
         ShowCompilationDetails(false);
@@ -253,7 +254,7 @@ internal sealed partial class BrowserEditorPage
         _shaderArtifact = null;
         _shaderArtifacts.Clear();
         _shaderEntry.Text(string.Empty);
-        _diagnostics.Text(string.Empty);
+        ClearDiagnostics();
         ResetDiagnosticStatus();
         _shaderArtifactActions.ToggleClass("hidden", true);
         _shaderOutput.Text("Source changed · compile to update the artifacts");
