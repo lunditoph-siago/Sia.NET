@@ -357,7 +357,8 @@ public sealed class NotebookSession : IDisposable
         }
         catch (OperationCanceledException) when (operation.IsCancellationRequested) {
             SetPhases(scope.Cells, targetIndex, CellPhase.Interrupted);
-        } finally {
+        }
+        finally {
             VerifyAccess();
             _operationCancellation = null;
             Publish();
@@ -399,7 +400,8 @@ public sealed class NotebookSession : IDisposable
         }
         catch (OperationCanceledException) when (operation.IsCancellationRequested) {
             SetPhases(scope.Cells, targetIndex, CellPhase.Interrupted);
-        } finally {
+        }
+        finally {
             VerifyAccess();
             _activeRun = null;
             _operationCancellation = null;
@@ -605,7 +607,8 @@ public sealed class NotebookSession : IDisposable
                 && SameCellStructure(previousScope.Cells, scopeCells)) {
                 previousScope.UpdateCells(scopeCells);
                 scopes[scopeKey] = previousScope;
-            } else {
+            }
+            else {
                 changedScopeKeys.Add(scopeKey);
                 scopes[scopeKey] = new ScopeState(scopeCells);
             }
@@ -617,7 +620,8 @@ public sealed class NotebookSession : IDisposable
                 states[script.Id] = CellState.Create(script.InitialSource) with {
                     Highlights = CSharpHighlighter.Classify(script.InitialSource).ToImmutableArray(),
                 };
-            } else if (changedScopeKeys.Contains(scopeKeys[script.Id])) {
+            }
+            else if (changedScopeKeys.Contains(scopeKeys[script.Id])) {
                 states[script.Id] = existing with {
                     Phase = CellPhase.Idle,
                     Diagnostics = [],
@@ -626,7 +630,8 @@ public sealed class NotebookSession : IDisposable
                     RenderRequested = false,
                     RenderOutput = "",
                 };
-            } else {
+            }
+            else {
                 states[script.Id] = existing;
             }
         }
@@ -799,15 +804,24 @@ public sealed class NotebookSession : IDisposable
     private NotebookProgram BuildProgram(
         IReadOnlyList<CodeCellBlock> scopeCells,
         int targetIndex)
-        => NotebookProgramBuilder.Build(scopeCells
+        => NotebookProgramBuilder.Build(ProgramCells(scopeCells, targetIndex, id => _states[id].Source));
+
+    internal IReadOnlyList<NotebookProgramCell> GetProgramCells(string scriptId, Func<string, string> source, bool includeFollowing = false)
+    {
+        if (!TryGetTarget(scriptId, out var scope, out var targetIndex)) throw new ArgumentException("Unknown notebook script.", nameof(scriptId));
+        return ProgramCells(scope.Cells, includeFollowing ? scope.Cells.Count - 1 : targetIndex, source);
+    }
+
+    private static NotebookProgramCell[] ProgramCells(IReadOnlyList<CodeCellBlock> scopeCells, int targetIndex, Func<string, string> source)
+        => scopeCells
             .Take(targetIndex + 1)
             .Select(cell => new NotebookProgramCell(
                 cell.Id,
                 [.. cell.Scripts.Select(script => new NotebookProgramFile(
                     script.Id,
                     script.Name ?? $"{script.Id}.cs",
-                    _states[script.Id].Source))]))
-            .ToArray());
+                    source(script.Id)))]))
+            .ToArray();
 
     private void SetPhases(
         IReadOnlyList<CodeCellBlock> cells,
@@ -886,7 +900,8 @@ public sealed class NotebookSession : IDisposable
         {
             if (Compiler is null) {
                 Compiler = new(program, references);
-            } else {
+            }
+            else {
                 Compiler.UpdateProgram(program);
             }
         }

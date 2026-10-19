@@ -72,7 +72,7 @@ public sealed partial class BrowserEditorHost : IDisposable
 
     internal event Action<BrowserEditorHost>? SourceChanged;
 
-    internal void InvalidateLanguageContext() { CancelCompletion(); CancelSignature(); }
+    internal void InvalidateLanguageContext() { CancelCompletion(); CancelSignature(); CancelLanguageCommand(); }
 
     internal (int Line, int Column, int Selected) CursorPosition {
         get {
@@ -427,6 +427,8 @@ public sealed partial class BrowserEditorHost : IDisposable
         }
         _disposed = true;
         SourceChanged = null;
+        DefinitionReady = null;
+        CancelLanguageCommand();
         CancelCompletion();
         CancelSignature();
         CancelHighlight();
@@ -816,6 +818,7 @@ public sealed partial class BrowserEditorHost : IDisposable
         }
         if (command.Id is EditorCommandId.Undo or EditorCommandId.Redo)
             return ReplayHistory(command.Id == EditorCommandId.Redo);
+        if (command.Id is EditorCommandId.GoToDefinition or EditorCommandId.FormatDocument) return StartLanguageCommand(command, nativeSelection);
         if (command.Id == EditorCommandId.Suggest) return HandleManualCompletion(nativeSelection);
         if (command.Id == EditorCommandId.SignatureHelp) {
             var state = ApplyNativeSelection(State.Value, nativeSelection);
@@ -908,6 +911,7 @@ public sealed partial class BrowserEditorHost : IDisposable
             _view.SetDocumentRevision(_documentRevision);
         }
         State.Set(state);
+        if (documentChanges is not null || _languageCommand != EditorCommandId.FormatDocument && !state.Selection.Eq(before.Selection, true)) CancelLanguageCommand();
         if (documentChanges is not null) SourceChanged?.Invoke(this);
         if (documentChanges is { } edit && recordHistory) {
             RecordHistory(edit, before, state, historySelection ?? before.Selection, historyGroup);

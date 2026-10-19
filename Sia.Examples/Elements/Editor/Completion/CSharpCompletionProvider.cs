@@ -19,6 +19,8 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
     private AdhocWorkspace? _workspace;
     private Project? _project;
     private int _generatorVersion = -1;
+    private IReadOnlyList<MetadataReference>? _expandedReferenceProbe;
+    private IReadOnlyList<MetadataReference>? _expandedReferences;
     private bool _disposed;
     private Task _cleanup = Task.CompletedTask;
 
@@ -29,26 +31,62 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
         => WithDocumentAsync(documentId, source, async (document, snapshot, token) => {
             var service = CompletionService.GetService(document)
                 ?? throw new InvalidOperationException("C# completion services are unavailable.");
-            var cursor = Math.Clamp(position, 0, source.Length);
+            var cursor = snapshot.Projection?.ToProject(position).Position ?? Math.Clamp(position, 0, source.Length);
             var list = await service.GetCompletionsAsync(document, cursor, cancellationToken: token);
             if (list is null || list.ItemsList.Count == 0) return CompletionResult.Empty;
             var start = list.Span.Start;
+            if (snapshot.Projection is { } projection
+                && (!projection.TryToSource(document.FilePath!, list.Span.Start, list.Span.Length, out var id, out start)
+                    || id != projection.ActiveId)) return CompletionResult.Empty;
             var items = list.ItemsList.Select(item => new CompletionCandidate(
                 item.DisplayTextPrefix + item.DisplayText + item.DisplayTextSuffix,
                 item.DisplayText, start, start + list.Span.Length) { Item = item }).ToArray();
             return new CompletionResult(items) {
-                Query = new(document, service),
+                Query = new(document, service, snapshot.Projection,
+                    snapshot.Projection is null ? null : (text, caret, cancellation) => QueryAsync(documentId, text, caret, cancellation)),
                 SuggestionMode = IsSuggestionMode(list.Span.Length, start, list.SuggestionModeItem is not null, source)
             };
-        }, cancellationToken);
+        }, cancellationToken, position: position);
 
     internal Task<SignatureHelp?> QuerySignatureAsync(string documentId, string source, int position,
         CancellationToken cancellationToken = default)
-        => WithDocumentAsync(documentId, source, (document, snapshot, token) =>
-            CSharpSignatureHelp.QueryAsync(document, Math.Clamp(position, 0, source.Length), token), cancellationToken);
+        => WithDocumentAsync(documentId, source, async (document, snapshot, token) => {
+            var result = await CSharpSignatureHelp.QueryAsync(document, snapshot.Projection?.ToProject(position).Position ?? Math.Clamp(position, 0, source.Length), token);
+            if (result is null || snapshot.Projection is not { } projection) return result;
+            return result with { Start = projection.TryToSource(document.FilePath!, result.Start, 0, out var id, out var start) && id == projection.ActiveId ? start : 0 };
+        }, cancellationToken, position: position);
+
+    internal Task<SymbolDefinition?> QueryDefinitionAsync(string documentId, string source, int position, CancellationToken cancellationToken)
+        => WithDocumentAsync(documentId, source, async (document, snapshot, token) => {
+            var result = await CSharpDocumentTools.DefinitionAsync(document, snapshot.Projection?.ToProject(position).Position ?? position, DocumentKey, token);
+            return result is null || snapshot.Projection is null ? result
+                : result with { Locations = result.Locations.Select(snapshot.Projection.ToSource).Distinct().ToArray() };
+        }, cancellationToken, position: position);
+
+    internal Task<ChangeSpec[]> FormatAsync(string documentId, string source, int indentationSize, CancellationToken cancellationToken)
+        => WithDocumentAsync(documentId, source, (document, snapshot, token) => CSharpDocumentTools.FormatAsync(
+            snapshot.Projection is null ? document : document.WithText(SourceText.From(source)), indentationSize, token), cancellationToken);
+
+    internal async Task<LanguageIssue[]> QueryDiagnosticsAsync(string documentId, string source, CancellationToken cancellationToken)
+    {
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
+        Task<LanguageIssue[]> Query(bool expand) => WithDocumentAsync(documentId, source,
+            async (document, snapshot, token) => {
+                var issues = await CSharpDocumentTools.DiagnosticsAsync(document, DocumentKey, snapshot.SelectOutputKind, token);
+                return snapshot.Projection is null ? issues : issues.Select(issue => issue.Location is { } location
+                    ? issue with { Location = snapshot.Projection.ToSource(location) } : issue).ToArray();
+            }, cancellation.Token, expand);
+        var issues = await Query(false);
+        cancellation.Token.ThrowIfCancellationRequested();
+        return issues.Any(static issue => issue.Error && CSharpCompilationEngine.IsMissingReference(issue.Id)) ? await Query(true) : issues;
+    }
+
+    private string? DocumentKey(Document document)
+        => _documents.FirstOrDefault(entry => entry.Value.Id == document.Id).Key;
 
     private async Task<T> WithDocumentAsync<T>(string documentId, string source,
-        Func<Document, CSharpProjectSnapshot, CancellationToken, Task<T>> query, CancellationToken cancellationToken)
+        Func<Document, CSharpProjectSnapshot, CancellationToken, Task<T>> query, CancellationToken cancellationToken, bool expandReferences = false,
+        int position = 0)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
@@ -56,11 +94,18 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
         var snapshot = CaptureSnapshot is { } capture
             ? await capture(documentId, source, token)
             : new CSharpProjectSnapshot(documentId, [new(documentId, "Completion.cs", "Completion.cs", source)]);
-        var metadata = await references.GetReferencesAsync(snapshot.GlobalUsings + "\n"
+        var probe = await references.GetReferencesAsync(snapshot.GlobalUsings + "\n"
             + string.Join('\n', snapshot.Documents.Select(static file => file.Source)), token);
+        var previousProbe = _expandedReferenceProbe;
+        var expanded = expandReferences && (previousProbe is null || !probe.SequenceEqual(previousProbe))
+            ? await references.GetAllReferencesAsync(token) : null;
         return await CSharpCompilationEngine.RunRoslynAsync(async () => {
             token.ThrowIfCancellationRequested();
-            var document = await UpdateProjectAsync(snapshot, metadata, snapshot.ActiveDocumentId, token);
+            if (expanded is not null) { _expandedReferenceProbe = probe; _expandedReferences = expanded; }
+            var metadata = _expandedReferenceProbe is not null && probe.SequenceEqual(_expandedReferenceProbe) ? _expandedReferences! : probe;
+            var activeId = snapshot.Projection is { } projection
+                ? snapshot.Documents.First(file => file.Path == projection.ToProject(position).Path).Id : snapshot.ActiveDocumentId;
+            var document = await UpdateProjectAsync(snapshot, metadata, activeId, token);
             return await query(document, snapshot, token);
         }, token);
     }
@@ -73,6 +118,7 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
                 candidate.ReplaceStart + candidate.InsertText.Length);
         var edit = await query.Service.GetChangeAsync(query.Document, item, cancellationToken: cancellationToken);
         var position = edit.NewPosition ?? edit.TextChange.Span.Start + (edit.TextChange.NewText?.Length ?? 0);
+        if (query.Projection is { } projection) return projection.ToSource(query.Document.FilePath!, edit.TextChanges, position);
         return new CompletionEdit([.. edit.TextChanges.OrderBy(static change => change.Span.Start)
             .Select(static change => new ChangeSpec(change.Span.Start, change.Span.End, change.NewText ?? ""))],
             position);
@@ -81,10 +127,14 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
     internal static async Task<CompletionResult> PrepareAsync(CompletionResult completion, string source, int position,
         CancellationToken cancellationToken)
     {
+        if (completion.Query is { Projection: { } projection, Refresh: { } refresh } && projection.ActiveSource.Source != source) {
+            var fresh = await refresh(source, position, cancellationToken);
+            completion = fresh with { Items = completion.Items.SelectMany(original => fresh.Items.Where(original.SameIdentity).Take(1)).ToArray() };
+        }
         return await CSharpCompilationEngine.RunRoslynAsync(async () => {
             CompletionList? fresh = null;
             var query = completion.Query;
-            if (query is not null && (await query.Document.GetTextAsync(cancellationToken)).ToString() != source) {
+            if (query is not null && (query.Projection?.ActiveSource.Source ?? (await query.Document.GetTextAsync(cancellationToken)).ToString()) != source) {
                 var document = query.Document.WithText(SourceText.From(source));
                 fresh = await query.Service.GetCompletionsAsync(document, position, cancellationToken: cancellationToken);
                 if (fresh is null) return CompletionResult.Empty;
@@ -185,6 +235,8 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
             _workspace?.Dispose();
             _documents.Clear();
             _project = null;
+            _expandedReferenceProbe = null;
+            _expandedReferences = null;
             _lifetime.Dispose();
             return true;
         }, CancellationToken.None);
@@ -196,7 +248,24 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
 internal sealed record CSharpProjectSnapshot(string ActiveDocumentId, IReadOnlyList<CSharpSourceDocument> Documents)
 {
     internal OutputKind OutputKind { get; init; } = Microsoft.CodeAnalysis.OutputKind.DynamicallyLinkedLibrary;
+    internal Func<Compilation, CancellationToken, OutputKind>? SelectOutputKind { get; init; }
     internal string GlobalUsings { get; init; } = NotebookLanguageContext.GlobalUsings;
+    internal CSharpSourceProjection? Projection { get; init; }
+
+    internal static CSharpProjectSnapshot ForNotebook(string activeId, IReadOnlyList<NotebookProgramCell> cells, CancellationToken cancellationToken = default,
+        IReadOnlySet<string>? readOnly = null)
+    {
+        var program = NotebookProgramBuilder.Build(cells, cancellationToken);
+        var originals = cells.SelectMany(static cell => cell.Files).Select(file =>
+            new CSharpSourceDocument(file.Id, file.Name, file.Name, file.Source, readOnly?.Contains(file.Id) != true)).ToArray();
+        return new(activeId, [.. program.CompilationSources, new("$render-support", "Notebook/Render.g.cs", "Render.g.cs",
+            NotebookProgramBuilder.BuildStandaloneRenderSupport(), false)]) {
+            OutputKind = Microsoft.CodeAnalysis.OutputKind.ConsoleApplication,
+            GlobalUsings = NotebookLanguageContext.GetGlobalUsings(program.NeedsWrapperUsing),
+            Projection = new(activeId, originals, program.SourceMappings)
+        };
+    }
 }
-internal sealed record CompletionQuery(Document Document, CompletionService Service);
+internal sealed record CompletionQuery(Document Document, CompletionService Service, CSharpSourceProjection? Projection = null,
+    Func<string, int, CancellationToken, Task<CompletionResult>>? Refresh = null);
 internal readonly record struct CompletionEdit(ChangeSpec[] Changes, int Position);

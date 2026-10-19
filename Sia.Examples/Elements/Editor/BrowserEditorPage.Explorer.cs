@@ -221,6 +221,7 @@ internal sealed partial class BrowserEditorPage
         }
         await _workspace.RenameAsync(entity, name, _lifetime.Token);
         InvalidateLanguageContext();
+        ScheduleLanguageDiagnostics(ActiveLanguageBinding());
         if (_disposed || !entity.IsValid) {
             return;
         }
@@ -247,6 +248,7 @@ internal sealed partial class BrowserEditorPage
             ? await _workspace.CreateFolderAsync(folderPath, name, _lifetime.Token)
             : await _workspace.CreateFileAsync(folderPath, name, _lifetime.Token);
         InvalidateLanguageContext();
+        ScheduleLanguageDiagnostics(ActiveLanguageBinding());
         if (_disposed) {
             return;
         }

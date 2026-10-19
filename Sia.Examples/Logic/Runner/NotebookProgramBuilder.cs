@@ -15,14 +15,19 @@ public static class NotebookProgramBuilder
     private static string EndToken(int index) => $"{_marker}E{index}{_marker}";
 
     public static NotebookProgram Build(IReadOnlyList<NotebookProgramCell> cells)
+        => Build(cells, CancellationToken.None);
+
+    internal static NotebookProgram Build(IReadOnlyList<NotebookProgramCell> cells, CancellationToken cancellationToken)
     {
         var builder = new StringBuilder();
         var ranges = new List<CellRange>(cells.Count);
         var sources = new List<CSharpSourceDocument>();
+        var mappings = new List<CSharpSourceMapping>();
         var line = 0;
 
         void Emit(string text)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             builder.Append(text);
             foreach (var character in text) {
                 if (character == '\n') {
@@ -36,14 +41,15 @@ public static class NotebookProgramBuilder
             cell.Id,
             Files: cell.Files.Select(file => {
                 var path = $"Notebook/File{fileIndex++}.cs";
-                return (File: file, Path: path, Parts: Split(file.Source));
+                return (File: file, Path: path, Parts: Split(file.Source, cancellationToken));
             }).ToArray())).ToArray();
         var emittedUsings = new HashSet<string>(StringComparer.Ordinal);
         foreach (var (_, files) in splitCells) {
-            foreach (var (_, _, parts) in files) {
+            foreach (var (file, _, parts) in files) {
                 foreach (var usingDirective in parts.RunnerUsings) {
-                    if (emittedUsings.Add(usingDirective)) {
-                        Emit(EnsureTrailingNewline(usingDirective));
+                    if (emittedUsings.Add(usingDirective.Text)) {
+                        mappings.Add(new("Notebook/Runner.g.cs", builder.Length, file.Id, usingDirective.Start, usingDirective.Text.Length));
+                        Emit(EnsureTrailingNewline(usingDirective.Text));
                     }
                 }
             }
@@ -60,11 +66,14 @@ public static class NotebookProgramBuilder
             Emit($"global::System.Console.Out.Write(\"{startToken}\");\n");
             Emit($"global::System.Console.Error.Write(\"{startToken}\");\n");
             var statementsStartLine = line;
-            foreach (var (_, path, parts) in files) {
+            foreach (var (file, path, parts) in files) {
                 if (parts.Statements.Length == 0) {
+                    if (parts.RunnerUsings.Count == 0 || parts.RunnerUsings[^1].Text.EndsWith(';'))
+                        mappings.Add(new("Notebook/Runner.g.cs", builder.Length, file.Id, parts.Usings.Length, 0));
                     continue;
                 }
                 Emit($"#line {parts.StatementsStartLine} \"{EscapeDirectivePath(path)}\"\n");
+                mappings.Add(new("Notebook/Runner.g.cs", builder.Length, file.Id, parts.Usings.Length, parts.Statements.Length));
                 Emit(EnsureTrailingNewline(parts.Statements));
                 Emit("#line default\n");
                 Emit("#line hidden\n");
@@ -92,20 +101,22 @@ public static class NotebookProgramBuilder
                     file.Id,
                     path,
                     file.Name,
-                    BuildFileSource(path, parts)));
+                    BuildFileSource(file.Id, path, parts, mappings)));
             }
         }
 
-        return new NotebookProgram(builder.ToString(), true, ranges, sources);
+        return new NotebookProgram(builder.ToString(), true, ranges, sources, mappings);
     }
 
-    private static string BuildFileSource(string path, SourceParts parts)
+    private static string BuildFileSource(string id, string path, SourceParts parts, List<CSharpSourceMapping> mappings)
     {
         var builder = new StringBuilder();
+        mappings.Add(new(path, 0, id, 0, parts.Usings.Length));
         builder.Append(EnsureTrailingNewline(parts.Usings));
         if (parts.Types.Length > 0) {
             builder.Append("#line ").Append(parts.TypesStartLine)
                 .Append(" \"").Append(EscapeDirectivePath(path)).Append("\"\n");
+            mappings.Add(new(path, builder.Length, id, parts.Usings.Length + parts.Statements.Length, parts.Types.Length));
             builder.Append(EnsureTrailingNewline(parts.Types));
             builder.Append("#line default\n");
         }
@@ -143,15 +154,15 @@ public static class NotebookProgramBuilder
         => path.Replace("\\", "\\\\", StringComparison.Ordinal)
             .Replace("\"", "\\\"", StringComparison.Ordinal);
 
-    private static SourceParts Split(string source)
+    private static SourceParts Split(string source, CancellationToken cancellationToken)
     {
-        var tree = CSharpSyntaxTree.ParseText(source);
-        var root = (CompilationUnitSyntax)tree.GetRoot();
-        var text = tree.GetText();
+        var tree = CSharpSyntaxTree.ParseText(source, cancellationToken: cancellationToken);
+        var root = (CompilationUnitSyntax)tree.GetRoot(cancellationToken);
+        var text = tree.GetText(cancellationToken);
 
         var usingsEnd = root.Usings.Count > 0 ? root.Usings[^1].FullSpan.End : 0;
         var runnerUsings = root.Usings
-            .Select(static usingDirective => usingDirective.WithoutTrivia().ToFullString())
+            .Select(static usingDirective => new RunnerUsing(usingDirective.WithoutTrivia().ToFullString(), usingDirective.SpanStart))
             .ToArray();
         var statementsStartLine = text.Lines.GetLineFromPosition(usingsEnd).LineNumber + 1;
 
@@ -183,5 +194,7 @@ public static class NotebookProgramBuilder
         string Types,
         int StatementsStartLine,
         int TypesStartLine,
-        IReadOnlyList<string> RunnerUsings);
+        IReadOnlyList<RunnerUsing> RunnerUsings);
+
+    private readonly record struct RunnerUsing(string Text, int Start);
 }

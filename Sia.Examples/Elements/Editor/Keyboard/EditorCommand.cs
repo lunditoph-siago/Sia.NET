@@ -7,9 +7,9 @@ internal enum EditorCommandId
     Commands, Keybindings, NewFile, Save, SaveAll, SaveAs, Revert, CloseFile,
     Compile, Run, Console, Compilation, Render, ClearOutput, NotebookRun, NotebookSave,
     Undo, Redo, Suggest, AcceptSuggestion, NextSuggestion, PreviousSuggestion, HideSuggestions,
-
     SignatureHelp, NextSignature, PreviousSignature, HideSignature,
     NextSuggestionPage, PreviousSuggestionPage,
+    GoToDefinition, FormatDocument, NavigateBack, NavigateForward, CheckCode,
 
     Left, Right, Up, Down, SelectLeft, SelectRight, SelectUp, SelectDown,
     WordLeft, WordRight, SelectWordLeft, SelectWordRight,
@@ -43,6 +43,11 @@ internal sealed record EditorCommand(
         new(EditorCommandId.NotebookSave, "Notebook: Save Cell", CommandContext.Notebook, [new("Mod+S")]),
         new(EditorCommandId.Undo, "Edit: Undo", CommandContext.Editor, [new("Mod+Z")]),
         new(EditorCommandId.Redo, "Edit: Redo", CommandContext.Editor, [new("Mod+Shift+Z"), new("Mod+Y")]),
+        new(EditorCommandId.GoToDefinition, "Go: Definition", CommandContext.Editor, [new("F12")]),
+        new(EditorCommandId.FormatDocument, "Edit: Format Document", CommandContext.Editor, [new("Alt+Shift+F")]),
+        new(EditorCommandId.NavigateBack, "Go: Back", CommandContext.EditorLab, [new("Alt+ArrowLeft")], Event: "editor-language-back"),
+        new(EditorCommandId.NavigateForward, "Go: Forward", CommandContext.EditorLab, [new("Alt+ArrowRight")], Event: "editor-language-forward"),
+        new(EditorCommandId.CheckCode, "Build: Check Code", CommandContext.EditorLab, [], Event: "editor-language-check"),
         new(EditorCommandId.Suggest, "Suggest: Trigger Completion", CommandContext.Editor, [new("Mod+Space")]),
         new(EditorCommandId.SignatureHelp, "Suggest: Parameter Hints", CommandContext.Editor, [new("Mod+Shift+Space")]),
         new(EditorCommandId.NextSignature, "Parameters: Next Overload", CommandContext.Signatures, [new("Alt+ArrowDown")]),

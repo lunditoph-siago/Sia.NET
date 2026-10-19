@@ -77,7 +77,7 @@ internal sealed class EditorShaderCompiler(MetadataReferenceProvider references)
         return intrinsicImage;
     }
 
-    private static OutputKind ChooseOutputKind(Compilation compilation, CancellationToken cancellationToken)
+    internal static OutputKind ChooseOutputKind(Compilation compilation, CancellationToken cancellationToken)
     {
         var renderType = compilation.GetTypeByMetadataName("Sia.Reactive.ReactiveNode");
         var frameType = compilation.GetTypeByMetadataName("Sia_Examples.Editor.EditorPipelineFrame");

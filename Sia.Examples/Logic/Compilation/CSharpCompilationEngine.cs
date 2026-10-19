@@ -10,6 +10,7 @@ internal sealed class CSharpCompilationEngine(ICompilationReferenceResolver refe
 {
     private readonly ICompilationReferenceResolver _references = references;
     private static readonly SemaphoreSlim _roslynWork = new(1, 1);
+    internal static bool IsMissingReference(string diagnosticId) => diagnosticId is "CS0246" or "CS0234" or "CS0012";
 
     internal static async Task<T> RunRoslynAsync<T>(Func<T> work, CancellationToken cancellationToken)
     {
@@ -37,7 +38,7 @@ internal sealed class CSharpCompilationEngine(ICompilationReferenceResolver refe
         var result = await RunRoslynAsync(() => Compile(request, metadata, cancellationToken), cancellationToken);
         if (!result.Success && result.Diagnostics.Any(static diagnostic =>
             diagnostic.Severity == NotebookDiagnosticSeverity.Error
-            && diagnostic.Id is "CS0246" or "CS0234" or "CS0012")) {
+            && IsMissingReference(diagnostic.Id))) {
             metadata = await _references.GetAllReferencesAsync(cancellationToken);
             result = await RunRoslynAsync(() => Compile(request, metadata, cancellationToken), cancellationToken);
         }
