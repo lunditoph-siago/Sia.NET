@@ -32,7 +32,7 @@ public sealed partial class BrowserEditorHost
     private int _completionGeneration;
     private int _completionQueryAnchor = -1;
     private bool _completionPending;
-    private bool _completionQueryRunning;
+    private EditorState? _completionQueryState;
 
     private void ScheduleCompletion(EditorState before, EditorState after)
     {
@@ -65,8 +65,10 @@ public sealed partial class BrowserEditorHost
     {
         var position = state.Selection.Main.Head;
         var queryAnchor = CompletionIdentifier.FindStart(state.Doc, position);
-        if (_completionPending && queryAnchor == _completionQueryAnchor) {
-            if (!_completionQueryRunning) {
+        if (_completionPending && queryAnchor == _completionQueryAnchor
+            && (_completionQueryState is not { } queryState
+                || ReferenceEquals(queryState.Doc, state.Doc) && queryState.Selection.Eq(state.Selection))) {
+            if (_completionQueryState is null) {
                 DomRuntime.ScheduleEvent(
                     CompletionScheduleKey,
                     $"complete:{_cellId}:{_completionGeneration}",
@@ -107,12 +109,13 @@ public sealed partial class BrowserEditorHost
             || cancellation.IsCancellationRequested) {
             return false;
         }
-        if (_completionQueryRunning) {
+        if (_completionQueryState is not null) {
             return true;
         }
 
-        _completionQueryRunning = true;
-        _ = QueryCompletionAsync(State.Value, cancellation, generation, _completionSource);
+        var state = State.Value;
+        _completionQueryState = state;
+        _ = QueryCompletionAsync(state, cancellation, generation, _completionSource);
         return true;
     }
 
@@ -194,7 +197,7 @@ public sealed partial class BrowserEditorHost
         finally {
             if (ReferenceEquals(_completionCancellation, cancellation)) {
                 _completionCancellation = null;
-                _completionQueryRunning = false;
+                _completionQueryState = null;
                 PrepareCompletionWindow();
             }
             cancellation.Dispose();
@@ -378,7 +381,7 @@ public sealed partial class BrowserEditorHost
 
     private void PrepareCompletionWindow()
     {
-        if (_completionQueryRunning || _completion is not { } completion || _completionDocument is not { } document) return;
+        if (_completionQueryState is not null || _completion is not { } completion || _completionDocument is not { } document) return;
         var start = _completionWindowStart;
         var index = _completionIndex;
         if (_completionWindowCancellation is not null && (_completionWindowPreparingStart != start || _completionWindowPreparingIndex != index)) {
@@ -522,10 +525,10 @@ public sealed partial class BrowserEditorHost
         _completionGeneration++;
         DomRuntime.CancelScheduledEvent(CompletionScheduleKey);
         var cancellation = _completionCancellation;
-        var queryWasRunning = _completionQueryRunning;
+        var queryWasRunning = _completionQueryState is not null;
         _completionCancellation = null;
         _completionQueryAnchor = -1;
-        _completionQueryRunning = false;
+        _completionQueryState = null;
         cancellation?.Cancel();
         if (!queryWasRunning) {
             cancellation?.Dispose();
