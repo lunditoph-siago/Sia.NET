@@ -14,6 +14,7 @@ public sealed class BrowserApplicationView :
     private readonly DomElement _newButton;
     private readonly DomElement _home;
     private readonly DomElement[] _homeButtons;
+    private readonly DomElement _loading;
     private readonly DomElement _notebookBar;
     private readonly DomElement _status;
     private readonly DomElement _deleteButton;
@@ -59,6 +60,11 @@ public sealed class BrowserApplicationView :
         _conflictMessage = DomElement.Create("span").Class("save-conflict-message");
         _conflictBanner.Append(_conflictMessage);
         content.InsertBefore(_conflictBanner, notebook);
+        _loading = DomElement.Create("div")
+            .Class("notebook-loading")
+            .Class("hidden")
+            .Attr("role", "status");
+        content.InsertBefore(_loading, notebook);
     }
 
     public void ShowNotebookBar(NotebookInfo info, string? version)
@@ -77,10 +83,22 @@ public sealed class BrowserApplicationView :
 
     public void HideNotebookBar()
     {
-        using var notebook = DomElement.Find("notebook");
-        notebook.Text(string.Empty).Append(_home);
         _notebookBar.ToggleClass("hidden", true);
         HideConflict();
+    }
+
+    internal void ShowHome()
+    {
+        using var notebook = DomElement.Find("notebook");
+        notebook.Text(string.Empty).Append(_home);
+        HideNotebookBar();
+    }
+
+    internal void SetNotebookLoading(string? name)
+    {
+        _loading.Text(name is null ? string.Empty : $"Loading {name}…")
+            .ToggleClass("hidden", name is null);
+        DomRuntime.Flush();
     }
 
     public void ShowConflict(WorkspaceConflictException error)
@@ -156,6 +174,8 @@ public sealed class BrowserApplicationView :
         _status.Dispose();
         _notebookBar.Dispose();
         _newButton.Dispose();
+        _loading.Remove();
+        _loading.Dispose();
         foreach (var button in _homeButtons) {
             button.Dispose();
         }
