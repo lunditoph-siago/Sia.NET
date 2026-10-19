@@ -45,6 +45,8 @@ public sealed class DomElement : IDisposable
 
     public string Value() => DomRuntime.Backend.GetValue(Node);
 
+    public void Focus() => DomRuntime.Backend.Focus(Node);
+
     public DomElement Attr(string name, string value)
     {
         DomRuntime.Backend.SetAttribute(Node, name, value);

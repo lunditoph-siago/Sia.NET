@@ -43,6 +43,10 @@ public sealed class BrowserEditorView : IEditorView
         _lines = DomElement.Create("div")
             .Class("editor-lines")
             .Attr("contenteditable", "true")
+            .Attr("role", "textbox")
+            .Attr("aria-label", "C# editor")
+            .Attr("aria-multiline", "true")
+            .Attr("aria-autocomplete", "list")
             .Attr("spellcheck", "false")
             .Attr("autocorrect", "off")
             .Attr("autocapitalize", "off");
@@ -180,6 +184,11 @@ public sealed class BrowserEditorView : IEditorView
         _container.Append(overlay);
         PlaceOverlay(overlay, lineIndex, column);
     }
+
+    internal void SetCompletionSelection(string listId, string itemId)
+        => _lines.Attr("aria-controls", listId).Attr("aria-activedescendant", itemId);
+
+    internal void Focus() => _lines.Focus();
 
     public void PlaceOverlay(DomElement overlay, int lineIndex, int column)
     {

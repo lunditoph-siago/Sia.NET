@@ -254,8 +254,7 @@ public sealed class BrowserCellView : IDisposable
                     .Class("cell-edit-actions")
                     .Class("hidden");
                 using (var save = CreateIconButton("▣", "Save changes", $"save:{script.Id}")
-                    .Attr("title", "Save changes (Ctrl+S)")
-                    .Attr("aria-keyshortcuts", "Control+S Meta+S")) {
+                    .Attr("title", "Save changes")) {
                     _editActions.Append(save);
                 }
                 using (var discard = CreateIconButton(
@@ -265,8 +264,7 @@ public sealed class BrowserCellView : IDisposable
                     _editActions.Append(discard);
                 }
                 _runStop = CreateIconButton("▶", "Run cell", $"toggle-run:{script.Id}")
-                    .Attr("title", "Run cell (Ctrl+Enter)")
-                    .Attr("aria-keyshortcuts", "Control+Enter Meta+Enter");
+                    .Attr("title", "Run cell");
                 using var more = DomElement.Create("details").Class("menu-toggle");
                 using var summary = DomElement.Create("summary")
                     .Class("icon-btn")
@@ -373,7 +371,7 @@ public sealed class BrowserCellView : IDisposable
                 _runStop
                     .Text(active ? "■" : "▶")
                     .Attr("aria-label", active ? "Stop cell" : "Run cell")
-                    .Attr("title", active ? "Stop cell (Ctrl+Enter)" : "Run cell (Ctrl+Enter)");
+                    .Attr("title", active ? "Stop cell" : "Run cell");
             }
 
             if (previous is null
@@ -385,7 +383,8 @@ public sealed class BrowserCellView : IDisposable
                         && (previous.Value.Source != state.Source || _editor.Source == state.Source)) {
                         _editor = editors.Update(ScriptId, state.Source, state.Highlights);
                     }
-                } else {
+                }
+                else {
                     RenderHighlightedCode(_code, state.Source, state.Highlights);
                 }
             }

@@ -56,6 +56,25 @@ public sealed class NotebookWorkspace : IAsyncDisposable
 
     public NotebookInfo Info => _info;
 
+    internal bool CanExecuteCommand(EditorCommand command, string binding)
+        => command.Context == CommandContext.Notebook && _view.Editors.TryResolveCellId(binding, out _)
+            || _view.Editors.CanExecuteCommand(binding, command);
+
+    internal bool ExecuteCommand(EditorCommand command, string binding)
+    {
+        if (!_view.Editors.TryResolveCellId(binding, out var cellId)) return false;
+        if (command.IsEditor) {
+            var handled = _view.Editors.ExecuteCommand(binding, command);
+            if (handled) _view.UpdateEditorDirty(cellId);
+            return handled;
+        }
+        switch (command.Id) {
+            case EditorCommandId.NotebookRun: ToggleRun(cellId); return true;
+            case EditorCommandId.NotebookSave: Save(cellId); return true;
+            default: return false;
+        }
+    }
+
     public string? Version => _version;
 
     public bool CanDelete
@@ -106,7 +125,8 @@ public sealed class NotebookWorkspace : IAsyncDisposable
         var phase = _session.GetState(cellId).Phase;
         if (phase is CellPhase.Compiling or CellPhase.Running) {
             Stop();
-        } else {
+        }
+        else {
             StartRun(cellId);
         }
     }
@@ -565,7 +585,8 @@ public sealed class NotebookWorkspace : IAsyncDisposable
                 || CompletedRun(old, m.State));
             if (hasOutput && (!hadOutput || outputChanged)) {
                 next = OpenCellWindow(next, presentationId, CellWindowKind.Output);
-            } else if (!hasOutput && hadOutput) {
+            }
+            else if (!hasOutput && hadOutput) {
                 next = CloseCellWindow(next, presentationId, CellWindowKind.Output);
             }
 
@@ -579,7 +600,8 @@ public sealed class NotebookWorkspace : IAsyncDisposable
                     || CompletedRun(old, m.State)));
             if (rendering && renderChanged) {
                 next = OpenCellWindow(next, presentationId, CellWindowKind.Render);
-            } else if (!rendering && wasRendering) {
+            }
+            else if (!rendering && wasRendering) {
                 next = CloseCellWindow(next, presentationId, CellWindowKind.Render);
             }
         }

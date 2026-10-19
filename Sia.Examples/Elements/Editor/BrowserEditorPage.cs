@@ -90,6 +90,8 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             ("Revert", "editor-page-revert", "Discard unsaved edits in the active file"),
         ]);
         CreateMenu(menus, "View", [
+            ("Command Palette…", "workbench-command:Commands", "Search and run commands"),
+            ("Keyboard Shortcuts…", "workbench-command:Keybindings", "Configure keyboard shortcuts"),
             ("Compilation", "editor-page-open:compilation", "Open diagnostics and compiler outputs"),
             ("Console", "editor-page-open:console", "Open program logs"),
             ("Render", "editor-page-open:render", "Open the Render window"),
@@ -320,6 +322,19 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         }
     }
 
+    internal bool CanExecuteCommand(EditorCommand command, string binding)
+        => command.Context == CommandContext.EditorLab || _editors.CanExecuteCommand(binding, command);
+
+    internal bool ExecuteCommand(EditorCommand command, string binding)
+    {
+        if (!command.IsEditor) return command is { Context: CommandContext.EditorLab, Event: { } action } && Route(action);
+        if (!_editors.ExecuteCommand(binding, command)) return false;
+        SyncDirtyIndicators();
+        CheckShaderSources();
+        UpdateCursorStatus();
+        return true;
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (_disposed) {
@@ -484,7 +499,8 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
                 if (entity.Get<WorkspaceFile>().Content == content) {
                     break;
                 }
-            } else {
+            }
+            else {
                 if (!await SaveEntityAsync(entity) || !IsCurrentTab(entity, tab)) {
                     return;
                 }
@@ -730,12 +746,16 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
     }
 
     private DomElement CreateAction(string label, string payload, string title)
-        => Own(DomElement.Create("button")
+    {
+        var action = Own(DomElement.Create("button")
             .Class("btn")
             .Attr("type", "button")
             .Attr("title", title)
-            .On("click", payload)
             .Text(label));
+        return payload.StartsWith("workbench-command:", StringComparison.Ordinal)
+            ? action.Attr("data-workbench-command", payload["workbench-command:".Length..])
+            : action.On("click", payload);
+    }
 
     private DomElement CreateIconAction(string label, string payload)
     {

@@ -126,6 +126,16 @@ internal sealed partial class BrowserDomBackend(BrowserMainThread mainThread) : 
         return BrowserInterop.GetValue(Handle(node));
     }
 
+    public void Focus(IDomNode node)
+    {
+        VerifyAccess();
+        BrowserInterop.Focus(Handle(node));
+    }
+
+    public string? ReadKeymap() { VerifyAccess(); return BrowserInterop.ReadKeymap(); }
+
+    public void WriteKeymap(string json) { VerifyAccess(); BrowserInterop.WriteKeymap(json); }
+
     public void SetId(IDomNode node, string id)
     {
         VerifyAccess();
@@ -504,6 +514,15 @@ internal static partial class BrowserInterop
 
     [JSImport("getValue", "main.js")]
     public static partial string GetValue(JSObject element);
+
+    [JSImport("focus", "main.js")]
+    public static partial void Focus(JSObject element);
+
+    [JSImport("readKeymap", "main.js")]
+    public static partial string? ReadKeymap();
+
+    [JSImport("writeKeymap", "main.js")]
+    public static partial void WriteKeymap(string json);
 
     [JSImport("setId", "main.js")]
     public static partial void SetId(JSObject element, string id);

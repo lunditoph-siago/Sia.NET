@@ -254,6 +254,9 @@ const domImports = {
         }, element),
     getText: getEditorText,
     getValue: (element) => element.value ?? '',
+    focus: (element) => element.focus({ preventScroll: true }),
+    readKeymap: () => localStorage.getItem('sia.editor.keybindings.v1'),
+    writeKeymap: (json) => localStorage.setItem('sia.editor.keybindings.v1', json),
     setId: (element, id) =>
         writeEditorDom(() => {
             element.id = id;
