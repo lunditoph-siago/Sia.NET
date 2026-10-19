@@ -1,4 +1,22 @@
 @layer components {
+    #content {
+        position: relative;
+
+        > .notebook-loading {
+            position: absolute;
+            z-index: var(--z-page-header);
+            inset: 0;
+            display: grid;
+            place-items: center;
+            background: var(--color-bg);
+            color: var(--color-muted);
+
+            &:not(.hidden) + #notebook {
+                visibility: hidden;
+            }
+        }
+    }
+
     .title-actions,
     .section-actions,
     .notebook-bar,

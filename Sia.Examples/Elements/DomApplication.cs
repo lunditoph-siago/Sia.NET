@@ -143,38 +143,46 @@ internal static class DomApplication
 
                 var generation = ++navigationGeneration;
                 pendingNavigation = new(request, owner, generation);
-                NotebookDocument? document = null;
-                string? version = null;
+                if (request.Target is Destination.Notebook or Destination.NewNotebook) {
+                    view.SetNotebookLoading(request.Info?.Name ?? "Untitled");
+                }
                 try {
-                    if (request.Target == Destination.Notebook) {
-                        (document, version) = await library.LoadAsync(request.Info!);
+                    NotebookDocument? document = null;
+                    string? version = null;
+                    try {
+                        if (request.Target == Destination.Notebook) {
+                            (document, version) = await library.LoadAsync(request.Info!);
+                        }
                     }
-                }
-                catch (Exception error) {
-                    if (navigation is not null) await navigation.HoldAsync(request.HistoryTicket);
-                    if (navigation?.IsCurrent(request.HistoryTicket) == false) return;
-                    view.ShowNotice($"Could not open notebook: {error.Message}",
-                        ("Retry", $"navigation-retry:{generation}"),
-                        ("Cancel", $"navigation-cancel:{generation}"));
-                    return;
-                }
+                    catch (Exception error) {
+                        if (navigation is not null) await navigation.HoldAsync(request.HistoryTicket);
+                        if (navigation?.IsCurrent(request.HistoryTicket) == false) return;
+                        view.ShowNotice($"Could not open notebook: {error.Message}",
+                            ("Retry", $"navigation-retry:{generation}"),
+                            ("Cancel", $"navigation-cancel:{generation}"));
+                        return;
+                    }
 
-                if (!ReferenceEquals(owner, CurrentOwner())
-                    || navigation?.IsCurrent(request.HistoryTicket) == false) {
-                    return;
+                    if (!ReferenceEquals(owner, CurrentOwner())
+                        || navigation?.IsCurrent(request.HistoryTicket) == false) {
+                        return;
+                    }
+                    var loaded = ApplicationNavigation.Update(CaptureNavigationState(), request with { Before = before });
+                    if (loaded.Effect == NavigationEffect.Confirm) {
+                        await PromptNavigationAsync(request, owner);
+                        return;
+                    }
+                    if (loaded.Effect == NavigationEffect.Open) {
+                        await ShowPageAsync(loaded.Page, document, version);
+                    }
+                    else {
+                        ClearNavigation();
+                    }
+                    if (!quitting) await CommitCurrentRouteAsync(request.Replace, request.HistoryTicket);
                 }
-                var loaded = ApplicationNavigation.Update(CaptureNavigationState(), request with { Before = before });
-                if (loaded.Effect == NavigationEffect.Confirm) {
-                    await PromptNavigationAsync(request, owner);
-                    return;
+                finally {
+                    view.SetNotebookLoading(null);
                 }
-                if (loaded.Effect == NavigationEffect.Open) {
-                    await ShowPageAsync(loaded.Page, document, version);
-                }
-                else {
-                    ClearNavigation();
-                }
-                if (!quitting) await CommitCurrentRouteAsync(request.Replace, request.HistoryTicket);
             }
 
             async Task ShowPageAsync(ApplicationRoute page, NotebookDocument? document, string? version)
@@ -189,6 +197,7 @@ internal static class DomApplication
                     return;
                 }
                 if (page.Target == Destination.Home) {
+                    view.ShowHome();
                     RefreshSidebarSelection();
                     return;
                 }
@@ -375,7 +384,7 @@ internal static class DomApplication
                                         await workspace.DisposeAsync();
                                         workspace = null;
                                         RefreshSidebarSelection();
-                                        view.HideNotebookBar();
+                                        view.ShowHome();
                                         await CommitCurrentRouteAsync(replace: true);
                                     }
                                 }
