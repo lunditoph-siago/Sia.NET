@@ -13,11 +13,13 @@ public sealed class BrowserEditorRegistry(
     private readonly Dictionary<string, (DomElement Container, BrowserEditorHost Editor)> _editors = [];
     internal event Action<string>? SourceChanged;
     internal event Action<string, SymbolDefinition?>? DefinitionReady;
+    internal event Action<string, SymbolReferences?>? ReferencesReady;
 
     private void OnSourceChanged(BrowserEditorHost editor) { InvalidateLanguageContext(editor); SourceChanged?.Invoke(editor.BindingId); }
     private void OnDefinitionReady(BrowserEditorHost editor, SymbolDefinition? definition) => DefinitionReady?.Invoke(editor.BindingId, definition);
+    private void OnReferencesReady(BrowserEditorHost editor, SymbolReferences? references) => ReferencesReady?.Invoke(editor.BindingId, references);
 
-    internal Func<string, string, CancellationToken, ValueTask<CSharpProjectSnapshot>>? LanguageContext {
+    internal Func<string, string, CSharpQueryKind, CancellationToken, ValueTask<CSharpProjectSnapshot>>? LanguageContext {
         set {
             _completionProvider.CaptureSnapshot = value;
             InvalidateLanguageContext();
@@ -55,6 +57,7 @@ public sealed class BrowserEditorRegistry(
         _editors.Add(cellId, (container, editor));
         editor.SourceChanged += OnSourceChanged;
         editor.DefinitionReady += OnDefinitionReady;
+        editor.ReferencesReady += OnReferencesReady;
         InvalidateLanguageContext(editor);
         return editor;
     }
@@ -210,6 +213,7 @@ public sealed class BrowserEditorRegistry(
     {
         SourceChanged = null;
         DefinitionReady = null;
+        ReferencesReady = null;
         foreach (var entry in _editors.Values) {
             entry.Editor.Dispose();
         }

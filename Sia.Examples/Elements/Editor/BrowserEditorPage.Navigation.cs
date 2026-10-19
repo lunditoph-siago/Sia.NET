@@ -7,6 +7,7 @@ namespace Sia_Examples.Editor;
 internal sealed partial class BrowserEditorPage
 {
     private DomElement _languageResults = null!;
+    private EditorReferenceResults _referenceResults = null!;
     private readonly List<DomElement> _languageElements = [];
     private IReadOnlyList<SourcePosition> _definitionTargets = [];
     private int _definitionGeneration;
@@ -22,8 +23,22 @@ internal sealed partial class BrowserEditorPage
     {
         _languageResults = Own(DomElement.Create("section").Class("editor-language-results").Class("hidden"));
         _compilationPanel.InsertBefore(_languageResults, _diagnostics);
+        _referenceResults = new("editor-language-reference", target => Track(NavigateToSourceAsync(target)), () => {
+            if (ActiveLanguageBinding() is { } binding && _editors.TryResolveCellId(binding, out var group)) _editors.Focus(group);
+        });
+        _compilationPanel.InsertBefore(_referenceResults.Element, _languageResults);
         _editors.SourceChanged += HandleLanguageSourceChanged;
         _editors.DefinitionReady += HandleDefinitionReady;
+        _editors.ReferencesReady += HandleReferencesReady;
+    }
+
+    private void HandleReferencesReady(string binding, SymbolReferences? references)
+    {
+        if (_disposed || !_editors.TryResolveCellId(binding, out _)) return;
+        ClearLanguageResults();
+        _referenceResults.Show(references);
+        OpenPanelWindow("compilation");
+        _referenceResults.Focus();
     }
 
     private string? ActiveLanguageBinding()
@@ -37,6 +52,7 @@ internal sealed partial class BrowserEditorPage
 
     private void InvalidateLanguageContext()
     {
+        _referenceResults.Clear();
         _editors.InvalidateLanguageContext();
     }
 
@@ -69,6 +85,7 @@ internal sealed partial class BrowserEditorPage
     {
         if (_disposed) return;
         ClearLanguageResults();
+        _referenceResults.Clear();
         ClearDiagnostics();
         SyncDirtyIndicators();
         CheckShaderSources();
@@ -79,6 +96,7 @@ internal sealed partial class BrowserEditorPage
     private void HandleDefinitionReady(string binding, SymbolDefinition? definition)
     {
         if (_disposed || !_editors.TryResolveCellId(binding, out _)) return;
+        _referenceResults.Clear();
         if (definition is null || definition.Locations.Count == 0) {
             _workspaceStatus.Text(definition is null ? "No symbol at the cursor" : $"{definition.Display} · external definition");
             return;
@@ -233,6 +251,7 @@ internal sealed partial class BrowserEditorPage
             case "editor-language-forward": Track(NavigateHistoryAsync(true)); return true;
             case "editor-language-check": ScheduleLanguageDiagnostics(ActiveLanguageBinding(), immediate: true); return true;
             case "editor-language-diagnostic": Track(NavigateDiagnosticAsync(argument)); return true;
+            case "editor-language-reference": return _referenceResults.Route(argument);
             case "editor-language-definition":
                 var parts = argument.Split(':');
                 if (parts.Length == 2 && int.TryParse(parts[0], out var generation) && generation == _definitionGeneration

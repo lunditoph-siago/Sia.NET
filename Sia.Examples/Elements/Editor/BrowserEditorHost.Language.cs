@@ -6,6 +6,7 @@ public sealed partial class BrowserEditorHost
     private int _languageGeneration;
     private EditorCommandId _languageCommand;
     internal event Action<BrowserEditorHost, SymbolDefinition?>? DefinitionReady;
+    internal event Action<BrowserEditorHost, SymbolReferences?>? ReferencesReady;
 
     internal void NavigateTo(int start, int length)
     {
@@ -43,6 +44,11 @@ public sealed partial class BrowserEditorHost
                 var definition = await _completionProvider.QueryDefinitionAsync(_cellId, state.Doc.SliceDoc(), state.Selection.Main.Head, cancellation.Token);
                 if (generation == _languageGeneration && !cancellation.IsCancellationRequested
                     && ReferenceEquals(state.Doc, State.Value.Doc) && state.Selection.Eq(State.Value.Selection)) DefinitionReady?.Invoke(this, definition);
+            }
+            else if (command == EditorCommandId.FindReferences) {
+                var references = await _completionProvider.QueryReferencesAsync(_cellId, state.Doc.SliceDoc(), state.Selection.Main.Head, cancellation.Token);
+                if (generation == _languageGeneration && !cancellation.IsCancellationRequested
+                    && ReferenceEquals(state.Doc, State.Value.Doc) && state.Selection.Eq(State.Value.Selection)) ReferencesReady?.Invoke(this, references);
             }
             else {
                 var changes = await _completionProvider.FormatAsync(_cellId, state.Doc.SliceDoc(), EditorState.TabSize, cancellation.Token);

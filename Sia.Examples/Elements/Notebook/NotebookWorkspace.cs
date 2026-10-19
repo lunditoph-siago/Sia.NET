@@ -62,6 +62,7 @@ public sealed class NotebookWorkspace : IAsyncDisposable
         _view.Editors.LanguageContext = CaptureLanguageSnapshot;
         _view.Editors.SourceChanged += HandleEditorSourceChanged;
         _view.Editors.DefinitionReady += HandleEditorDefinition;
+        _view.Editors.ReferencesReady += HandleEditorReferences;
         _mount = world.Mount(
             NotebookViewComponent.Definition,
             new(_view, _session.Snapshot, cellState));
@@ -73,12 +74,12 @@ public sealed class NotebookWorkspace : IAsyncDisposable
 
     public NotebookInfo Info => _info;
 
-    private ValueTask<CSharpProjectSnapshot> CaptureLanguageSnapshot(string binding, string source, CancellationToken cancellation)
+    private ValueTask<CSharpProjectSnapshot> CaptureLanguageSnapshot(string binding, string source, CSharpQueryKind kind, CancellationToken cancellation)
     {
         cancellation.ThrowIfCancellationRequested();
         if (_disposed || !_view.Editors.TryResolveCellId(binding, out var active)) throw new OperationCanceledException(cancellation);
         var cells = _session.GetProgramCells(active, id => id == active ? source
-            : _view.Editors.TryGetSource(id, out var live) ? live : _session.GetState(id).Source);
+            : _view.Editors.TryGetSource(id, out var live) ? live : _session.GetState(id).Source, includeFollowing: kind == CSharpQueryKind.References);
         var readOnly = cells.SelectMany(static cell => cell.Files).Where(file => !_session.IsScriptEditable(file.Id)).Select(static file => file.Id).ToHashSet(StringComparer.Ordinal);
         return new(CSharpCompilationEngine.RunRoslynAsync(() => CSharpProjectSnapshot.ForNotebook(active, cells, cancellation, readOnly), cancellation));
     }
@@ -97,6 +98,15 @@ public sealed class NotebookWorkspace : IAsyncDisposable
         _referenceReturnBinding = binding;
         _referenceResults.Clear();
         NavigateEditorSource(target);
+    }
+
+    private void HandleEditorReferences(string binding, SymbolReferences? references)
+    {
+        if (_disposed || !_view.Editors.TryResolveCellId(binding, out _)) return;
+        _referenceReturnBinding = binding;
+        _referenceResults.Show(references);
+        _view.RevealLanguageResults(_referenceResults.Element);
+        _referenceResults.Focus();
     }
 
     internal bool RouteReferences(string argument) => !_disposed && _referenceResults.Route(argument);

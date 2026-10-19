@@ -6,7 +6,7 @@ namespace Sia_Examples.Editor;
 internal sealed partial class BrowserEditorPage
 {
     private async ValueTask<CSharpProjectSnapshot> CaptureLanguageSnapshotAsync(string bindingId,
-        string source, CancellationToken cancellationToken)
+        string source, CSharpQueryKind kind, CancellationToken cancellationToken)
     {
         await _shaderCompiler.PrepareReferencesAsync(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();

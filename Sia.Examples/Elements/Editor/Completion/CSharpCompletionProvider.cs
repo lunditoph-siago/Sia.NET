@@ -24,7 +24,7 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
     private bool _disposed;
     private Task _cleanup = Task.CompletedTask;
 
-    internal Func<string, string, CancellationToken, ValueTask<CSharpProjectSnapshot>>? CaptureSnapshot { get; set; }
+    internal Func<string, string, CSharpQueryKind, CancellationToken, ValueTask<CSharpProjectSnapshot>>? CaptureSnapshot { get; set; }
 
     public Task<CompletionResult> QueryAsync(string documentId, string source, int position,
         CancellationToken cancellationToken = default)
@@ -67,6 +67,15 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
         => WithDocumentAsync(documentId, source, (document, snapshot, token) => CSharpDocumentTools.FormatAsync(
             snapshot.Projection is null ? document : document.WithText(SourceText.From(source)), indentationSize, token), cancellationToken);
 
+    internal Task<SymbolReferences?> QueryReferencesAsync(string documentId, string source, int position, CancellationToken cancellationToken)
+        => WithDocumentAsync(documentId, source, async (document, snapshot, token) => {
+            var result = await CSharpSymbolReferences.QueryAsync(document, snapshot.Projection?.ToProject(position).Position ?? position, DocumentKey, token);
+            return result is null || snapshot.Projection is null ? result : result with {
+                Occurrences = result.Occurrences.Select(occurrence => occurrence with { Location = snapshot.Projection.ToSource(occurrence.Location) })
+                    .DistinctBy(static occurrence => (occurrence.Location.DocumentId, occurrence.Location.Start, occurrence.Location.Length, occurrence.Definition)).ToArray()
+            };
+        }, cancellationToken, position: position, kind: CSharpQueryKind.References);
+
     internal async Task<LanguageIssue[]> QueryDiagnosticsAsync(string documentId, string source, CancellationToken cancellationToken)
     {
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
@@ -86,13 +95,13 @@ public sealed class CSharpCompletionProvider(ICompilationReferenceResolver refer
 
     private async Task<T> WithDocumentAsync<T>(string documentId, string source,
         Func<Document, CSharpProjectSnapshot, CancellationToken, Task<T>> query, CancellationToken cancellationToken, bool expandReferences = false,
-        int position = 0)
+        int position = 0, CSharpQueryKind kind = CSharpQueryKind.Language)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
         var token = cancellation.Token;
         var snapshot = CaptureSnapshot is { } capture
-            ? await capture(documentId, source, token)
+            ? await capture(documentId, source, kind, token)
             : new CSharpProjectSnapshot(documentId, [new(documentId, "Completion.cs", "Completion.cs", source)]);
         var probe = await references.GetReferencesAsync(snapshot.GlobalUsings + "\n"
             + string.Join('\n', snapshot.Documents.Select(static file => file.Source)), token);
