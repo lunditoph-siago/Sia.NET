@@ -84,6 +84,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         menus.Append(filesToggle.Append(filesIcon));
         CreateMenu(menus, "File", [
             ("New File", "editor-page-new-file", "Open a new untitled file"),
+            ("Quick Open…", "workbench-command:QuickOpen", "Search workspace files"),
             ("Save", "editor-page-save", "Save the active file"),
             ("Save All", "editor-page-save-all", "Save every open file"),
             ("Save As…", "editor-page-save-as-begin", "Save the active file under a new path"),
@@ -326,7 +327,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
     }
 
     internal bool CanExecuteCommand(EditorCommand command, string binding)
-        => command.Context == CommandContext.EditorLab ? command.Id switch {
+        => command.Id == EditorCommandId.QuickOpen ? _initialized && !_disposed : command.Context == CommandContext.EditorLab ? command.Id switch {
             EditorCommandId.NavigateBack => _navigationBack.Any(static bookmark => bookmark.Entity.IsValid),
             EditorCommandId.NavigateForward => _navigationForward.Any(static bookmark => bookmark.Entity.IsValid),
             EditorCommandId.CheckCode => ActiveLanguageBinding() is not null,
@@ -335,6 +336,10 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
 
     internal bool ExecuteCommand(EditorCommand command, string binding)
     {
+        if (command.Id == EditorCommandId.QuickOpen) {
+            if (!_initialized || _disposed) return false;
+            OpenFilePicker(binding); return true;
+        }
         if (!command.IsEditor) return command is { Context: CommandContext.EditorLab, Event: { } action } && Route(action);
         if (!_editors.ExecuteCommand(binding, command)) return false;
         SyncDirtyIndicators();
@@ -360,6 +365,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         Release(ClearLanguageResults);
         Release(() => _referenceResults.Dispose());
         Release(_renamePanel.Dispose);
+        Release(_filePicker.Dispose);
         Release(_workspaceEdits.Dispose);
         Release(CancelCloseDialog);
         Release(StopRendering);

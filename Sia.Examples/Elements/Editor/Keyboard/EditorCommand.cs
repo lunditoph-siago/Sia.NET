@@ -4,7 +4,7 @@ internal enum CommandContext { Workbench, Editor, EditorLab, Notebook, Suggestio
 
 internal enum EditorCommandId
 {
-    Commands, Keybindings, NewFile, Save, SaveAll, SaveAs, Revert, CloseFile,
+    Commands, Keybindings, QuickOpen, NewFile, Save, SaveAll, SaveAs, Revert, CloseFile,
     Compile, Run, Console, Compilation, Render, ClearOutput, NotebookRun, NotebookSave,
     Undo, Redo, Suggest, AcceptSuggestion, NextSuggestion, PreviousSuggestion, HideSuggestions,
     SignatureHelp, NextSignature, PreviousSignature, HideSignature,
@@ -28,6 +28,8 @@ internal sealed record EditorCommand(
     internal static IReadOnlyList<EditorCommand> All { get; } = [
         new(EditorCommandId.Commands, "Show All Commands", CommandContext.Workbench, [new("Mod+Shift+P"), new("F1")]),
         new(EditorCommandId.Keybindings, "Preferences: Keyboard Shortcuts", CommandContext.Workbench, [new("Mod+K Mod+S")]),
+        new(EditorCommandId.QuickOpen, "Go: Quick Open File", CommandContext.Workbench,
+            [new("Mod+P", CommandContext.EditorLab), new("Mod+P", CommandContext.Notebook)]),
         new(EditorCommandId.NewFile, "File: New File", CommandContext.EditorLab, [new("Mod+Alt+N")], Event: "editor-page-new-file"),
         new(EditorCommandId.Save, "File: Save", CommandContext.EditorLab, [new("Mod+S")], Event: "editor-page-save"),
         new(EditorCommandId.SaveAll, "File: Save All", CommandContext.EditorLab, [new("Mod+Shift+S")], Event: "editor-page-save-all"),

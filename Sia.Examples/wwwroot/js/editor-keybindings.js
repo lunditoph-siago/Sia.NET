@@ -98,7 +98,9 @@ export function invokeWorkbenchCommand(command, surface = lastEditor) {
 
 function panelEvent(action, value = '') {
     if (dialog?.dataset.editorDialog) {
-        emit(`${dialog.dataset.editorDialog}:${dialog.dataset.editorDialogStamp}:${action}`);
+        if (dialog.hasAttribute('data-editor-dialog-list') && (action === 'accept' || action === 'move'))
+            value = `${dialog.dataset.editorDialogRevision}${value ? `:${value}` : ''}`;
+        emit(`${dialog.dataset.editorDialog}:${dialog.dataset.editorDialogStamp}:${action}${value ? `:${value}` : ''}`);
         return;
     }
     if (dialog) emit(`keymap-${action}:${dialog.dataset.keymapGeneration}:${value}`);
@@ -153,7 +155,8 @@ document.addEventListener('keydown', event => {
         else if (dialog.dataset.editorDialog && event.key === 'Enter' && event.target.matches('input')) {
             event.preventDefault(); panelEvent('accept');
         }
-        else if (dialog.dataset.keymapDialog === 'commands') {
+        else if (dialog.dataset.keymapDialog === 'commands'
+            || dialog.hasAttribute('data-editor-dialog-list') && event.target.matches('input')) {
             if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
                 event.preventDefault(); panelEvent('move', event.key === 'ArrowDown' ? '1' : '-1');
             } else if (event.key === 'Enter') { event.preventDefault(); panelEvent('accept'); }
