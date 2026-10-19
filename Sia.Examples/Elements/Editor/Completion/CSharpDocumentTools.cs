@@ -42,13 +42,14 @@ internal static class CSharpDocumentTools
     }
 
     internal static async Task<LanguageIssue[]> DiagnosticsAsync(Document document, Func<Document, string?> documentKey,
-        Func<Compilation, CancellationToken, OutputKind>? selectOutputKind, CancellationToken cancellation)
+        Func<Compilation, CancellationToken, OutputKind>? selectOutputKind, CancellationToken cancellation,
+        IReadOnlyList<Diagnostic>? generatorDiagnostics = null)
     {
         var compilation = await document.Project.GetCompilationAsync(cancellation);
         if (compilation is null) return [];
         if (selectOutputKind is not null) compilation = compilation.WithOptions(compilation.Options.WithOutputKind(selectOutputKind(compilation, cancellation)));
         var issues = new List<LanguageIssue>();
-        foreach (var diagnostic in compilation.GetDiagnostics(cancellation).Where(static diagnostic =>
+        foreach (var diagnostic in compilation.GetDiagnostics(cancellation).Concat(generatorDiagnostics ?? []).Where(static diagnostic =>
             diagnostic.Severity is DiagnosticSeverity.Error or DiagnosticSeverity.Warning)) {
             cancellation.ThrowIfCancellationRequested();
             var target = diagnostic.Location.IsInSource
@@ -63,6 +64,11 @@ internal static class CSharpDocumentTools
         Func<Document, string?> documentKey, CancellationToken cancellation)
     {
         var document = project.Solution.GetDocument(location.SourceTree!);
+        if (document is null && location.SourceTree is { } sourceTree) {
+            foreach (var candidate in project.Documents.Where(candidate => candidate.FilePath == sourceTree.FilePath)) {
+                if ((await candidate.GetTextAsync(cancellation)).ContentEquals(await sourceTree.GetTextAsync(cancellation))) { document = candidate; break; }
+            }
+        }
         if (document is null) {
             foreach (var generated in await project.GetSourceGeneratedDocumentsAsync(cancellation)) {
                 if (ReferenceEquals(await generated.GetSyntaxTreeAsync(cancellation), location.SourceTree)) { document = generated; break; }
