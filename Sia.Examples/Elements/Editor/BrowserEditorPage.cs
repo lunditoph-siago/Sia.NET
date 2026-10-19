@@ -359,6 +359,8 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         Release(() => _liveDiagnosticsCancellation?.Cancel());
         Release(ClearLanguageResults);
         Release(() => _referenceResults.Dispose());
+        Release(_renamePanel.Dispose);
+        Release(_workspaceEdits.Dispose);
         Release(CancelCloseDialog);
         Release(StopRendering);
         Release(() => _uniformInspector?.Dispose());
@@ -689,14 +691,15 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         UpdateChrome("reverted to the saved version");
     }
 
-    private async Task CreateUntitledAsync()
+    private Task CreateUntitledAsync()
     {
         ++_activationGeneration;
         var entity = _workspace.CreateUntitled();
         EnsureFileWindow(entity);
         _activeEntity = entity;
         UpdateState(state => NotebookCellLayout.OpenTabIntoHome(state, TabIdFor(entity)));
-        await Task.CompletedTask;
+        if (ActiveLanguageGroup(entity) is { } group) _editors.Focus(group);
+        return Task.CompletedTask;
     }
 
     private void ClearOutput()

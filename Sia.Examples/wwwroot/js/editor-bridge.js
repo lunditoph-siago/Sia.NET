@@ -7,6 +7,7 @@ const editorHandlers = new Map();
 const selectionSyncPending = new WeakSet();
 const editorSelectionUpdates = new WeakMap();
 const editorSurfaceHandlers = new WeakMap();
+const findSelectionRanges = new WeakMap();
 const caretMarkerText = '\u200b';
 const caretMarkerSelector = '[data-editor-caret-marker]';
 
@@ -937,6 +938,7 @@ export function attachEditorSurface(cellId, surface, restoreFocus) {
 }
 
 export function detachEditorSurface(cellId, surface) {
+    clearFindSelection(surface);
     const handlers = editorHandlers.get(cellId);
     if (!handlers) {
         return;
@@ -1018,12 +1020,17 @@ function scheduleEditorSelection(surface, update) {
 
 function applyEditorSelection(surface, update) {
     const { anchorLineIndex, anchorColumn, headLineIndex, headColumn } = update;
+    clearFindSelection(surface);
+    const findPreview = surface.dataset.editorFindMatch === 'true'
+        && document.activeElement?.closest?.('[data-editor-find]')?.closest('.editor-container') === surface.closest('.editor-container');
     const ownsNativeSelection = document.activeElement === surface
         && surface.contains(window.getSelection()?.anchorNode);
     ignoreOwnWrites(() => clearCaretMarkers(surface, false), surface);
     let selectionRows = null;
     const physicalLine = index => surface.querySelector(`[data-ln="${index}"]`);
-    if (update.reveal && document.activeElement === surface) pinEditorLines(surface, headLineIndex);
+    if (update.reveal && (document.activeElement === surface || findPreview)) {
+        pinEditorLines(surface, headLineIndex);
+    }
     const findLine = index => selectionRows ? selectionRows.find(row => Number(row.dataset.ln) === index) : physicalLine(index);
     const pointIn = (line, column) => {
         const lineLength = getEditorText(line).length;
@@ -1070,7 +1077,7 @@ function applyEditorSelection(surface, update) {
         return last ? { node: last, offset: last.nodeValue.length } : { node: line, offset: 0 };
     };
 
-    if (anchorLineIndex !== headLineIndex) {
+    if (anchorLineIndex !== headLineIndex && !findPreview) {
         if (update.reveal && document.activeElement === surface) {
             const head = physicalLine(headLineIndex);
             const point = head && pointIn(head, headColumn);
@@ -1093,6 +1100,21 @@ function applyEditorSelection(surface, update) {
     let headLine = findLine(headLineIndex);
     editorSurfaceHandlers.get(surface)?.rememberSelection(update, Boolean(anchorLine && headLine));
     if (document.activeElement !== surface) {
+        if (findPreview && anchorLine && headLine) {
+            const anchor = pointIn(anchorLine, anchorColumn), head = pointIn(headLine, headColumn);
+            if (anchor && head) {
+                if (update.reveal) revealEditorPoint(surface, head);
+                if (globalThis.CSS?.highlights && globalThis.Highlight) {
+                    const range = document.createRange();
+                    const backwards = anchorLineIndex > headLineIndex || anchorLineIndex === headLineIndex && anchorColumn > headColumn;
+                    const start = backwards ? head : anchor, end = backwards ? anchor : head;
+                    range.setStart(start.node, start.offset); range.setEnd(end.node, end.offset);
+                    const highlights = CSS.highlights.get('sia-editor-find') ?? new Highlight();
+                    highlights.add(range); CSS.highlights.set('sia-editor-find', highlights);
+                    findSelectionRanges.set(surface, range);
+                }
+            }
+        }
         selectionSyncPending.delete(surface);
         return true;
     }
@@ -1129,21 +1151,28 @@ function applyEditorSelection(surface, update) {
     const selection = window.getSelection();
     selectionSyncPending.add(surface);
     selection.setBaseAndExtent(anchor.node, anchor.offset, head.node, head.offset);
-    if (update.reveal) {
-        const range = document.createRange();
-        range.setStart(head.node, head.offset);
-        range.collapse(true);
-        const rect = range.getBoundingClientRect();
-        const scroll = surface.parentElement;
-        const box = scroll.getBoundingClientRect();
-        const top = box.top + scroll.clientTop;
-        const left = box.left + scroll.clientLeft;
-        if (rect.top < top) scroll.scrollTop += rect.top - top;
-        else if (rect.bottom > top + scroll.clientHeight) scroll.scrollTop += rect.bottom - top - scroll.clientHeight;
-        if (rect.left < left) scroll.scrollLeft += rect.left - left;
-        else if (rect.right > left + scroll.clientWidth) scroll.scrollLeft += rect.right - left - scroll.clientWidth;
-    }
+    if (update.reveal) revealEditorPoint(surface, head);
     return true;
+}
+
+function revealEditorPoint(surface, head) {
+    const range = document.createRange();
+    range.setStart(head.node, head.offset); range.collapse(true);
+    const rect = range.getBoundingClientRect(), scroll = surface.parentElement;
+    const box = scroll.getBoundingClientRect(), top = box.top + scroll.clientTop, left = box.left + scroll.clientLeft;
+    if (rect.top < top) scroll.scrollTop += rect.top - top;
+    else if (rect.bottom > top + scroll.clientHeight) scroll.scrollTop += rect.bottom - top - scroll.clientHeight;
+    if (rect.left < left) scroll.scrollLeft += rect.left - left;
+    else if (rect.right > left + scroll.clientWidth) scroll.scrollLeft += rect.right - left - scroll.clientWidth;
+}
+
+function clearFindSelection(surface) {
+    const range = findSelectionRanges.get(surface);
+    if (!range) return;
+    findSelectionRanges.delete(surface);
+    const highlights = globalThis.CSS?.highlights?.get('sia-editor-find');
+    highlights?.delete(range);
+    if (highlights?.size === 0) CSS.highlights.delete('sia-editor-find');
 }
 
 export function refreshEditorSelection(surface) {

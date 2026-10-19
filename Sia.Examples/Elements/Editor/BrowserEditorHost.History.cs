@@ -4,8 +4,8 @@ namespace Sia_Examples.Editor;
 
 public sealed partial class BrowserEditorHost
 {
-    private const int _historyLimit = 128;
-    private const long _historyTextLimit = 2_000_000;
+    internal const int HistoryLimit = 128;
+    internal const long HistoryTextLimit = 2_000_000;
     private readonly List<HistoryEdit> _undoHistory = [];
     private readonly List<HistoryEdit> _redoHistory = [];
     private EditGroup _historyGroup;
@@ -31,6 +31,19 @@ public sealed partial class BrowserEditorHost
         _undoHistory.Clear();
         _redoHistory.Clear();
         EndHistoryGroup();
+    }
+
+    internal void ApplyWorkspaceChange(WorkspaceBufferChange change)
+    {
+        if (Source != change.Before.Source && Source != change.After.Source)
+            throw new InvalidOperationException("The workspace edit no longer matches the mounted editor.");
+        if (Source != change.After.Source) {
+            var state = State.Value.Apply(new() { Changes = change.Changes, Selection = change.After.Position.Selection });
+            if (state.Doc.SliceDoc() != change.After.Source) throw new InvalidOperationException("The workspace edit produced inconsistent text.");
+            Commit(state, recordHistory: false, revealSelection: false);
+        }
+        ClearHistory();
+        RestorePosition(change.After.Position);
     }
 
     private static EditGroup NativeHistoryGroup(
@@ -67,14 +80,15 @@ public sealed partial class BrowserEditorHost
                 ChangeSet.Compose(edit.Backward, previous.Backward), previous.Before, after.Selection,
                 previous.Size + size);
             _undoHistory[^1] = edit;
-        } else {
+        }
+        else {
             _undoHistory.Add(edit);
         }
         _redoHistory.Clear();
         _historyGroup = group;
         _lastHistoryEdit = now;
         var totalSize = _undoHistory.Sum(static item => item.Size);
-        while (_undoHistory.Count > 1 && (_undoHistory.Count > _historyLimit || totalSize > _historyTextLimit)) {
+        while (_undoHistory.Count > 1 && (_undoHistory.Count > HistoryLimit || totalSize > HistoryTextLimit)) {
             totalSize -= _undoHistory[0].Size;
             _undoHistory.RemoveAt(0);
         }
@@ -88,6 +102,7 @@ public sealed partial class BrowserEditorHost
         if (source.Count == 0) return true;
         var destination = redo ? _undoHistory : _redoHistory;
         var edit = source[^1];
+        if (edit.WorkspaceEdit is { } workspaceEdit) { workspaceEdit.Replay(redo); return true; }
         var before = State.Value;
         var after = before.Apply(new() {
             Changes = (redo ? edit.Forward : edit.Backward).ToSpecs(),
@@ -112,7 +127,7 @@ public sealed partial class BrowserEditorHost
         ImmutableArray<HistoryEdit> Undo, ImmutableArray<HistoryEdit> Redo);
 
     internal sealed record HistoryEdit(ChangeSet Forward, ChangeSet Backward,
-        EditorSelection Before, EditorSelection After, long Size);
+        EditorSelection Before, EditorSelection After, long Size, WorkspaceEditTransaction? WorkspaceEdit = null);
 
     private enum EditGroup { None, Typing, Backward, Forward }
 }

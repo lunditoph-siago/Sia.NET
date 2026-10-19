@@ -1,5 +1,5 @@
 @layer components {
-    .keymap-dialog {
+    :is(.keymap-dialog, .editor-dialog) {
         width: min(48rem, calc(100vw - 1rem));
         max-height: min(80dvh, 44rem);
         margin: 8dvh auto auto;
@@ -16,7 +16,7 @@
         &[open] { display: flex; flex-direction: column; }
         &::backdrop { background: color-mix(in srgb, var(--color-bg) 65%, transparent); }
 
-        .keymap-header {
+        :is(.keymap-header, .editor-dialog-header) {
             display: flex;
             flex: none;
             justify-content: space-between;
@@ -42,7 +42,7 @@
 
         > input { flex: none; margin: 0 0.8rem 0.6rem; }
 
-        .keymap-list {
+        :is(.keymap-list, .editor-dialog-list) {
             min-height: 0;
             overflow: auto;
             overscroll-behavior: contain;
@@ -50,7 +50,7 @@
             border-block: 1px solid var(--border-control);
         }
 
-        .keymap-row {
+        :is(.keymap-row, .editor-dialog-row) {
             display: grid;
             grid-template-columns: minmax(0, 1fr) auto;
             align-items: center;
@@ -97,8 +97,8 @@
         }
 
         :is(.keymap-message, .keymap-empty, .editor-dialog-message) { flex: none; margin: 0; padding: 0.6rem 0.8rem; color: var(--color-text-dim); }
-        .keymap-message:empty { display: none; }
-        .keymap-footer { display: flex; flex: none; align-items: center; gap: 1rem; padding: 0.6rem 0.8rem; font-size: 0.72rem; color: var(--color-text-dim); }
+        :is(.keymap-message, .editor-dialog-message):empty { display: none; }
+        :is(.keymap-footer, .editor-dialog-footer) { display: flex; flex: none; align-items: center; gap: 1rem; padding: 0.6rem 0.8rem; font-size: 0.72rem; color: var(--color-text-dim); }
         .keymap-edit { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.6rem; padding: 0.8rem; }
         .keymap-edit > h3 { grid-column: 1 / -1; margin: 0; font-size: 0.9rem; }
         &.is-editing > :is(.keymap-list, input) { display: none; }
@@ -106,7 +106,7 @@
         @media (max-width: 640px) {
             max-height: calc(100dvh - 1rem);
             margin-top: 0.5rem;
-            .keymap-row { grid-template-columns: minmax(0, 1fr); }
+            :is(.keymap-row, .editor-dialog-row) { grid-template-columns: minmax(0, 1fr); }
             .keymap-bindings { justify-content: start; }
             .keymap-bindings button, .btn { min-width: 2.75rem; min-height: 2.75rem; }
             input, select { font-size: 16px; }
@@ -249,6 +249,59 @@
         font-size: 13px;
         line-height: 1.5;
 
+        &.editor-find-open {
+            grid-template-rows: auto minmax(0, 1fr) auto;
+            > .editor-scroll { grid-row: 2; }
+            > .editor-status { grid-row: 3; }
+        }
+
+        > .editor-find {
+            grid-column: 1 / -1;
+            grid-row: 1;
+            min-width: 0;
+            padding: 0.3rem 0.4rem;
+            border-bottom: 1px solid var(--color-border);
+            background: var(--color-bg-secondary);
+            font: 0.75rem/1.4 var(--font-mono);
+
+            .editor-find-row {
+                display: flex;
+                align-items: center;
+                gap: 0.2rem;
+                &.hidden { display: none; }
+                + .editor-find-row { margin-top: 0.2rem; }
+            }
+
+            input {
+                width: 0;
+                min-width: 3rem;
+                flex: 1;
+                min-height: 2rem;
+                padding: 0.2rem 0.4rem;
+                border: 1px solid var(--border-control);
+                background: var(--color-bg);
+                color: inherit;
+                font: inherit;
+            }
+
+            button {
+                flex: none;
+                min-width: 1.8rem;
+                min-height: 2rem;
+                padding: 0.2rem;
+                border: 1px solid transparent;
+                background: transparent;
+                color: inherit;
+                font: inherit;
+                cursor: pointer;
+                > svg { display: block; margin-inline: auto; }
+                &:hover, &[aria-pressed="true"] { background: var(--surface-hover); border-color: var(--border-control); }
+            }
+
+            :is(input, button):focus-visible { outline: 1px solid var(--focus-muted); outline-offset: 1px; }
+            .editor-find-summary { display: block; overflow-wrap: anywhere; padding-top: 0.15rem; color: var(--color-text-dim); }
+        }
+
         @media (max-width: 720px) {
             --editor-gutter-width: 34px;
             max-height: min(58dvh, 540px);
@@ -278,6 +331,8 @@
         white-space: pre-wrap;
         word-break: break-all;
         caret-color: var(--color-accent);
+
+        &::highlight(sia-editor-find) { background-color: var(--selection-bg); color: inherit; }
 
         &::selection {
             background: var(--selection-bg);
@@ -319,6 +374,66 @@
         overflow: hidden;
         pointer-events: none;
         user-select: none;
+    }
+
+    .signature-help {
+        position: absolute;
+        z-index: var(--z-editor-popup);
+        width: 26rem;
+        max-height: 12rem;
+        overflow: auto;
+        overscroll-behavior: contain;
+        border: 1px solid var(--border-control);
+        border-radius: var(--radius-control);
+        background: var(--color-bg);
+        box-shadow: var(--shadow-completion);
+        font-size: 0.8rem;
+        line-height: 1.4;
+
+        &.combined {
+            position: static;
+            flex: none;
+            width: auto;
+            max-height: 5.5rem;
+            border: 0;
+            border-bottom: 1px solid var(--border-control);
+            border-radius: 0;
+            box-shadow: none;
+        }
+
+        .signature-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.15rem 0.4rem;
+            color: var(--color-text-dim);
+
+            span { margin-right: auto; }
+
+            button {
+                min-width: 1.75rem;
+                min-height: 1.75rem;
+                border: 0;
+                border-radius: var(--radius-control);
+                background: transparent;
+                color: inherit;
+                cursor: pointer;
+
+                &:hover, &:focus-visible { background: var(--surface-hover); }
+
+                @media (pointer: coarse) { min-width: 2.75rem; min-height: 2.75rem; }
+            }
+        }
+
+        .signature-label, p {
+            margin: 0;
+            padding: 0.25rem 0.5rem;
+            overflow-wrap: anywhere;
+        }
+
+        .signature-label { font-family: var(--font-mono); }
+        .inapplicable, p { color: var(--color-text-dim); }
+        .signature-parameter-doc { color: inherit; }
     }
 
     .completion-popup {

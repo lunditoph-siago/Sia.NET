@@ -21,6 +21,7 @@ internal sealed partial class BrowserEditorPage
 
     private void InitializeLanguageTools()
     {
+        InitializeRenameTools();
         _languageResults = Own(DomElement.Create("section").Class("editor-language-results").Class("hidden"));
         _compilationPanel.InsertBefore(_languageResults, _diagnostics);
         _referenceResults = new("editor-language-reference", target => Track(NavigateToSourceAsync(target)), () => {
@@ -52,6 +53,7 @@ internal sealed partial class BrowserEditorPage
 
     private void InvalidateLanguageContext()
     {
+        _renamePanel.Invalidate();
         _referenceResults.Clear();
         _editors.InvalidateLanguageContext();
     }
@@ -84,6 +86,7 @@ internal sealed partial class BrowserEditorPage
     private void HandleLanguageSourceChanged(string binding)
     {
         if (_disposed) return;
+        _renamePanel.Invalidate();
         ClearLanguageResults();
         _referenceResults.Clear();
         ClearDiagnostics();
@@ -252,6 +255,7 @@ internal sealed partial class BrowserEditorPage
             case "editor-language-check": ScheduleLanguageDiagnostics(ActiveLanguageBinding(), immediate: true); return true;
             case "editor-language-diagnostic": Track(NavigateDiagnosticAsync(argument)); return true;
             case "editor-language-reference": return _referenceResults.Route(argument);
+            case "editor-language-rename": Track(_renamePanel.RouteAsync(argument)); return true;
             case "editor-language-definition":
                 var parts = argument.Split(':');
                 if (parts.Length == 2 && int.TryParse(parts[0], out var generation) && generation == _definitionGeneration

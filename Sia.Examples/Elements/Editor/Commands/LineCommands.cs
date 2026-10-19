@@ -63,26 +63,47 @@ public static class LineCommands
         return ApplyChanges(target, changes);
     }
 
+    public static bool ToggleLineComment(CommandTarget target) => CommentLines(target, null);
+    public static bool AddLineComment(CommandTarget target) => CommentLines(target, true);
+    public static bool RemoveLineComment(CommandTarget target) => CommentLines(target, false);
+
+    private static bool CommentLines(CommandTarget target, bool? add)
+    {
+        var lines = SelectedLines(target.State).Where(static line => !string.IsNullOrWhiteSpace(line.Text)).ToArray();
+        var comment = add ?? !lines.All(static line => line.Text.TrimStart(' ', '\t').StartsWith("//", StringComparison.Ordinal));
+        var changes = new List<ChangeSpec>();
+        foreach (var line in lines) {
+            var offset = 0;
+            while (offset < line.Length && line.Text[offset] is ' ' or '\t') offset++;
+            if (comment) changes.Add(new(line.From + offset, line.From + offset, "// "));
+            else if (line.Text.AsSpan(offset).StartsWith("//", StringComparison.Ordinal)) {
+                var length = offset + 2 < line.Length && line.Text[offset + 2] == ' ' ? 3 : 2;
+                changes.Add(new(line.From + offset, line.From + offset + length, ""));
+            }
+        }
+        return ApplyChanges(target, changes);
+    }
+
     private static List<ChangeSpec> VisitSelectedLines(
         EditorState state,
         Func<Line, ChangeSpec?> createChange)
+        => SelectedLines(state).Select(createChange).OfType<ChangeSpec>().ToList();
+
+    private static IEnumerable<Line> SelectedLines(EditorState state)
     {
-        var changes = new List<ChangeSpec>();
         var lastLineNumber = -1;
         foreach (var range in state.Selection.Ranges) {
             for (var position = range.From; position <= range.To;) {
                 var line = state.Doc.LineAt(position);
                 if (line.Number > lastLineNumber
-                    && (range.Empty || range.To > line.From)
-                    && createChange(line) is { } change) {
-                    changes.Add(change);
+                    && (range.Empty || range.To > line.From)) {
+                    lastLineNumber = line.Number;
+                    yield return line;
                 }
-                lastLineNumber = Math.Max(lastLineNumber, line.Number);
                 position = line.EndIncludingLineBreak;
                 if (line.BreakLength == 0) break;
             }
         }
-        return changes;
     }
 
     private static bool ApplyChanges(CommandTarget target, List<ChangeSpec> changes)

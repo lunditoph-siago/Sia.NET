@@ -14,10 +14,12 @@ public sealed class BrowserEditorRegistry(
     internal event Action<string>? SourceChanged;
     internal event Action<string, SymbolDefinition?>? DefinitionReady;
     internal event Action<string, SymbolReferences?>? ReferencesReady;
+    internal event Action<string, RenameTarget, string, int>? RenameReady;
 
     private void OnSourceChanged(BrowserEditorHost editor) { InvalidateLanguageContext(editor); SourceChanged?.Invoke(editor.BindingId); }
     private void OnDefinitionReady(BrowserEditorHost editor, SymbolDefinition? definition) => DefinitionReady?.Invoke(editor.BindingId, definition);
     private void OnReferencesReady(BrowserEditorHost editor, SymbolReferences? references) => ReferencesReady?.Invoke(editor.BindingId, references);
+    private void OnRenameReady(BrowserEditorHost editor, RenameTarget target, string source, int position) => RenameReady?.Invoke(editor.BindingId, target, source, position);
 
     internal Func<string, string, CSharpQueryKind, CancellationToken, ValueTask<CSharpProjectSnapshot>>? LanguageContext {
         set {
@@ -58,6 +60,7 @@ public sealed class BrowserEditorRegistry(
         editor.SourceChanged += OnSourceChanged;
         editor.DefinitionReady += OnDefinitionReady;
         editor.ReferencesReady += OnReferencesReady;
+        editor.RenameReady += OnRenameReady;
         InvalidateLanguageContext(editor);
         return editor;
     }
@@ -103,6 +106,29 @@ public sealed class BrowserEditorRegistry(
         => _editors.TryGetValue(cellId, out var entry)
             ? entry.Editor.Source
             : throw new KeyNotFoundException($"Editor '{cellId}' is not mounted.");
+
+    internal bool TryCaptureWorkspaceBuffer(string cellId, out WorkspaceEditBuffer buffer)
+    {
+        if (_editors.TryGetValue(cellId, out var entry)) {
+            entry.Editor.SynchronizeNativeInput();
+            if (entry.Editor.TryGetPosition(out var position)) { buffer = new(entry.Editor.Source, position); return true; }
+        }
+        buffer = null!; return false;
+    }
+
+    internal bool ApplyWorkspaceChange(string cellId, WorkspaceBufferChange change)
+    {
+        if (!_editors.TryGetValue(cellId, out var entry)) return false;
+        entry.Editor.ApplyWorkspaceChange(change); return true;
+    }
+
+    internal Task<RenamePlan> PrepareRenameAsync(string binding, string source, int position, string name, CancellationToken cancellation)
+    {
+        if (!TryResolveCellId(binding, out var cellId)) throw new OperationCanceledException(cancellation);
+        _editors[cellId].Editor.SynchronizeNativeInput();
+        if (_editors[cellId].Editor.Source != source) throw new OperationCanceledException(cancellation);
+        return _completionProvider.PrepareRenameAsync(binding, source, position, name, cancellation);
+    }
 
     internal string? GetBindingId(string cellId)
         => _editors.TryGetValue(cellId, out var entry) ? entry.Editor.BindingId : null;
@@ -214,6 +240,7 @@ public sealed class BrowserEditorRegistry(
         SourceChanged = null;
         DefinitionReady = null;
         ReferencesReady = null;
+        RenameReady = null;
         foreach (var entry in _editors.Values) {
             entry.Editor.Dispose();
         }

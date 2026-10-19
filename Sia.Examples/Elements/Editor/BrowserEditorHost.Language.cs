@@ -7,6 +7,7 @@ public sealed partial class BrowserEditorHost
     private EditorCommandId _languageCommand;
     internal event Action<BrowserEditorHost, SymbolDefinition?>? DefinitionReady;
     internal event Action<BrowserEditorHost, SymbolReferences?>? ReferencesReady;
+    internal event Action<BrowserEditorHost, RenameTarget, string, int>? RenameReady;
 
     internal void NavigateTo(int start, int length)
     {
@@ -49,6 +50,13 @@ public sealed partial class BrowserEditorHost
                 var references = await _completionProvider.QueryReferencesAsync(_cellId, state.Doc.SliceDoc(), state.Selection.Main.Head, cancellation.Token);
                 if (generation == _languageGeneration && !cancellation.IsCancellationRequested
                     && ReferenceEquals(state.Doc, State.Value.Doc) && state.Selection.Eq(State.Value.Selection)) ReferencesReady?.Invoke(this, references);
+            }
+            else if (command == EditorCommandId.RenameSymbol) {
+                var source = state.Doc.SliceDoc();
+                var position = state.Selection.Main.Head;
+                var target = await _completionProvider.QueryRenameTargetAsync(_cellId, source, position, cancellation.Token);
+                if (generation == _languageGeneration && !cancellation.IsCancellationRequested
+                    && ReferenceEquals(state.Doc, State.Value.Doc) && state.Selection.Eq(State.Value.Selection)) RenameReady?.Invoke(this, target, source, position);
             }
             else {
                 var changes = await _completionProvider.FormatAsync(_cellId, state.Doc.SliceDoc(), EditorState.TabSize, cancellation.Token);

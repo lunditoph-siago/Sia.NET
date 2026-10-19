@@ -218,6 +218,21 @@ public sealed partial class BrowserEditorHost
         }));
     }
 
+    private bool TryCommitCompletionCharacter(EditorState state, string text)
+    {
+        if (text.Length != 1 || _completionSoft || _completion is not { HasItems: true } completion
+            || !ReferenceEquals(state.Doc, _completionDocument) || state.Selection.Ranges.Count != 1
+            || !state.Selection.Main.Empty || state.Selection.Main.Head != _completionPosition) return false;
+        var candidate = completion.Items[_completionIndex];
+        if (candidate.Edit is null || candidate.CommitEdits is null
+            || !candidate.CommitEdits.TryGetValue(text[0], out var edit)) return false;
+        CancelCompletion();
+        var after = state.Apply(new() { Changes = edit.Changes, Selection = EditorSelection.Single(edit.Position) });
+        Commit(after, historySelection: state.Selection);
+        ScheduleCompletion(state, after);
+        return true;
+    }
+
     private bool HandleCompletionClick(string arguments)
     {
         var parts = arguments.Split(':');
