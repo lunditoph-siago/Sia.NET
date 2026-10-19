@@ -187,10 +187,6 @@ public static partial class NotebookCellLayout
             if (key != window.Id || !regionIds.Contains(window.HomeRegionId)) {
                 return false;
             }
-            if (window.Kind == CellWindowKind.Script
-                && !placedTabs.Contains(state.GetTabForWindow(window.Id).Id)) {
-                return false;
-            }
         }
         return true;
     }
@@ -295,7 +291,8 @@ public static partial class NotebookCellLayout
                 return false;
             }
             foreach (var tabId in group.TabIds) {
-                if (!state.Tabs.ContainsKey(tabId) || !placedTabs.Add(tabId)) {
+                if (!state.Tabs.TryGetValue(tabId, out var tab) || !state.Windows.ContainsKey(tab.WindowId)
+                    || !placedTabs.Add(tabId)) {
                     return false;
                 }
             }

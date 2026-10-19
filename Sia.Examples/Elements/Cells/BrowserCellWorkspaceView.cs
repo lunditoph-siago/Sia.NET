@@ -358,15 +358,12 @@ public sealed class BrowserCellWorkspaceView(DomElement floatingLayer, BrowserEd
             view.Close = null;
             return;
         }
-        var payload = window.Kind == CellWindowKind.Script
-            ? $"remove-script:{window.SourceId}"
-            : $"close-window:{window.Id}";
         view.Close = DomElement.Create("button")
             .Class("close")
             .Attr("type", "button")
             .Attr("aria-label", $"Close {window.Title}")
             .Attr("title", $"Close {window.Title}")
-            .On("click", payload)
+            .On("click", $"close-window:{window.Id}")
             .Text("×");
         view.Root.Append(view.Close);
     }

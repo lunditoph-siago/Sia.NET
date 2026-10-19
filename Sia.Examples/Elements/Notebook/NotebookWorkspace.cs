@@ -112,7 +112,7 @@ public sealed class NotebookWorkspace : IAsyncDisposable
     }
 
     public void ActivateTab(string tabId)
-        => UpdateCell(state => NotebookCellLayout.Activate(state, tabId));
+        => UpdateCell(state => NotebookCellLayout.OpenTabIntoHome(state, tabId));
 
     public void OpenWindow(string windowId)
         => UpdateCell(state => NotebookCellLayout.OpenWindow(state, windowId));
