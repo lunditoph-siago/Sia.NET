@@ -24,6 +24,12 @@ internal interface IDomBackend : IDisposable
 
     public string GetValue(IDomNode node);
 
+    public void Focus(IDomNode node) { }
+
+    public string? ReadKeymap() => null;
+
+    public void WriteKeymap(string json) => throw new NotSupportedException("This host cannot save keyboard shortcuts.");
+
     public void SetId(IDomNode node, string id);
 
     public void SetAttribute(IDomNode node, string name, string value);

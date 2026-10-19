@@ -47,18 +47,6 @@ document.addEventListener('keydown', (event) => {
     }
 });
 
-document.addEventListener('keydown', (event) => {
-    if (!document.querySelector('.editor-page')) {
-        return;
-    }
-    if (event.key.toLowerCase() === 's' && (event.ctrlKey || event.metaKey)) {
-        event.preventDefault();
-        emit(event.shiftKey ? 'editor-page-save-all' : 'editor-page-save');
-    } else if (event.key.toLowerCase() === 'w' && event.altKey) {
-        event.preventDefault();
-        emit('editor-page-close-active-tab');
-    }
-});
 
 document.getElementById('sidebar')?.addEventListener('click', (event) => {
     if (
@@ -589,18 +577,6 @@ document.addEventListener('keydown', (event) => {
         }
     }
 
-    const script = event.target.closest?.('[data-script-id]');
-    const control = (event.ctrlKey || event.metaKey) && !event.altKey;
-    if (!script || !control || event.isComposing) {
-        return;
-    }
-    if (event.key === 'Enter') {
-        event.preventDefault();
-        emit(`toggle-run:${script.dataset.scriptId}`);
-    } else if (event.key.toLowerCase() === 's' && script.dataset.scriptEditable === 'true') {
-        event.preventDefault();
-        emit(`save:${script.dataset.scriptId}`);
-    }
 });
 
 document.getElementById('packages-toggle')?.addEventListener('click', (event) => {

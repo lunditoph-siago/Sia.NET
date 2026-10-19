@@ -31,6 +31,7 @@ internal static class DomApplication
         try {
             using var world = new World();
             using var view = new BrowserApplicationView();
+            using var commands = new EditorCommandPanel();
             var app = world.Mount(ExampleApp.Definition, new(library, view));
             world.FlushReactive();
             DomRuntime.Flush();
@@ -113,7 +114,8 @@ internal static class DomApplication
                 if (navigation?.IsCurrent(ticket) == false) return;
                 if (ApplicationRoute.Resolve(path, library.Notebooks) is { } route) {
                     await NavigateAsync(new(route.Target, route.Info, HistoryTicket: ticket, Replace: replace));
-                } else {
+                }
+                else {
                     if (navigation is not null) await navigation.HoldAsync(ticket);
                     if (navigation?.IsCurrent(ticket) == false) return;
                     ClearNavigation();
@@ -168,7 +170,8 @@ internal static class DomApplication
                 }
                 if (loaded.Effect == NavigationEffect.Open) {
                     await ShowPageAsync(loaded.Page, document, version);
-                } else {
+                }
+                else {
                     ClearNavigation();
                 }
                 if (!quitting) await CommitCurrentRouteAsync(request.Replace, request.HistoryTicket);
@@ -176,6 +179,7 @@ internal static class DomApplication
 
             async Task ShowPageAsync(ApplicationRoute page, NotebookDocument? document, string? version)
             {
+                commands.Close();
                 ClearNavigation();
                 view.HideNotebookBar();
                 await CloseEditorPageAsync();
@@ -215,6 +219,19 @@ internal static class DomApplication
                 await workspace.InitializeAsync();
             }
 
+            void ExecuteCommand(EditorCommand command, string binding)
+            {
+                if (command.Id is EditorCommandId.Commands or EditorCommandId.Keybindings) {
+                    commands.Open(command.Id == EditorCommandId.Keybindings, binding, candidate =>
+                        candidate.Context == CommandContext.Workbench
+                        || editorPage?.CanExecuteCommand(candidate, binding) == true
+                        || workspace?.CanExecuteCommand(candidate, binding) == true);
+                }
+                else if (editorPage?.ExecuteCommand(command, binding) != true) {
+                    workspace?.ExecuteCommand(command, binding);
+                }
+            }
+
             try {
                 if (navigation is not null) await NavigatePathAsync(navigation.InitialPath, replace: true);
                 DomRuntime.Flush();
@@ -224,6 +241,11 @@ internal static class DomApplication
                     var (eventName, argument) = Split(payload);
                     try {
                         switch (eventName) {
+                            case "workbench-command": {
+                                    var (commandId, binding) = Split(argument);
+                                    if (EditorCommand.Find(commandId) is { } command) ExecuteCommand(command, binding);
+                                    break;
+                                }
                             case "navigate": {
                                     var (ticketText, path) = Split(argument);
                                     if (int.TryParse(ticketText, out var ticket)) await NavigatePathAsync(path, ticket);
@@ -285,7 +307,8 @@ internal static class DomApplication
                                                 view.ShowNotebookBar(workspace.Info, version);
                                                 RefreshSidebarSelection();
                                                 await CommitCurrentRouteAsync(replace: true);
-                                            } else if (editorPage is not null
+                                            }
+                                            else if (editorPage is not null
                                                 && !await editorPage.SaveForNavigationAsync()) {
                                                 ClearNavigation();
                                                 break;
@@ -337,7 +360,8 @@ internal static class DomApplication
                                     var (version, conflict) = await workspace.SaveToStorageAsync();
                                     if (conflict is not null) {
                                         view.ShowConflict(conflict);
-                                    } else {
+                                    }
+                                    else {
                                         view.ShowNotebookBar(workspace.Info, version);
                                         RefreshSidebarSelection();
                                         await CommitCurrentRouteAsync(replace: true);
@@ -364,7 +388,8 @@ internal static class DomApplication
                                     var (version, conflict) = await workspace.SaveToStorageAsync(force: true);
                                     if (conflict is not null) {
                                         view.ShowConflict(conflict);
-                                    } else {
+                                    }
+                                    else {
                                         view.ShowNotebookBar(workspace.Info, version);
                                         RefreshSidebarSelection();
                                         await CommitCurrentRouteAsync(replace: true);
@@ -464,7 +489,10 @@ internal static class DomApplication
                                 break;
 
                             default:
-                                if (editorPage?.Route(payload) != true) {
+                                if (commands.Route(eventName, argument, out var invocation, out var commandBinding)) {
+                                    if (invocation is not null) ExecuteCommand(invocation, commandBinding);
+                                }
+                                else if (editorPage?.Route(payload) != true) {
                                     workspace?.RouteEditorEvent(payload);
                                 }
                                 break;
@@ -475,14 +503,16 @@ internal static class DomApplication
                     }
                     DomRuntime.Flush();
                 }
-            } finally {
+            }
+            finally {
                 await CloseEditorPageAsync();
                 await CloseWorkspaceAsync();
                 if (app.IsMounted) {
                     app.Unmount();
                 }
             }
-        } finally {
+        }
+        finally {
             DomRuntime.Dispose();
         }
     }

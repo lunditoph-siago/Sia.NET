@@ -35,6 +35,8 @@ public sealed partial class BrowserEditorHost : IDisposable
     private int _completionQueryAnchor = -1;
     private bool _completionPending;
     private bool _completionQueryRunning;
+    private Text? _completionDocument;
+    private int _completionPosition;
     private bool _disposed;
     private Text? _sourceDocument;
     private string _source = string.Empty;
@@ -81,8 +83,7 @@ public sealed partial class BrowserEditorHost : IDisposable
 
     public string Source => ReadSource(State.Value.Doc);
 
-    internal (int Line, int Column, int Selected) CursorPosition
-    {
+    internal (int Line, int Column, int Selected) CursorPosition {
         get {
             var state = State.Value;
             var head = state.Selection.Main.Head;
@@ -102,6 +103,22 @@ public sealed partial class BrowserEditorHost : IDisposable
     }
 
     internal string BindingId => _cellId;
+
+    internal void Focus() => _view.Focus();
+
+    internal bool CanExecuteCommand(EditorCommand command) => command.Context switch {
+        CommandContext.Editor => true,
+        CommandContext.Suggestions => _completion is { HasItems: true }
+            && (command.Id != EditorCommandId.AcceptSuggestion || ReferenceEquals(_completionDocument, State.Value.Doc)
+                && State.Value.Selection.Main.Empty && State.Value.Selection.Main.Head == _completionPosition),
+        _ => false,
+    };
+
+    internal bool ExecuteWorkbenchCommand(EditorCommand command)
+    {
+        SynchronizeNativeInput();
+        return CanExecuteCommand(command) && ExecuteCommand(command, new(-1, -1, -1, -1), _completionGeneration);
+    }
 
     public void SynchronizeNativeInput()
     {
@@ -135,6 +152,7 @@ public sealed partial class BrowserEditorHost : IDisposable
                 "clipboard" => HandleClipboard(arguments),
                 "noop" => true,
                 "key" => HandleKey(arguments),
+                "command" => HandleCommand(arguments),
                 "text" => HandleTextInput(arguments),
                 "paste" => HandleTextInput(arguments, isolateHistory: true),
                 "mut" => HandleDomMutation(arguments),
@@ -176,7 +194,7 @@ public sealed partial class BrowserEditorHost : IDisposable
             return false;
         }
         var separator = input.IndexOf(':');
-        if (separator < 0 || input[..separator] is not ("key" or "text" or "paste" or "mut" or "sel" or "clipboard" or "noop")) {
+        if (separator < 0 || input[..separator] is not ("key" or "command" or "text" or "paste" or "mut" or "sel" or "clipboard" or "noop")) {
             return false;
         }
         if (sequence <= _lastInputSequence) {
@@ -750,59 +768,80 @@ public sealed partial class BrowserEditorHost : IDisposable
             || !bool.TryParse(parts[7], out var alt)) {
             return false;
         }
-        var key = parts[4];
-        if (control && !alt && key is "z" or "y") {
-            return ReplayHistory(key == "y" || shift);
-        }
-        if (key == "Tab" && shift && (_completionPending || _completion is not null)) {
-            CancelCompletion();
-        }
+        var modifiers = (control ? ShortcutModifiers.Primary : ShortcutModifiers.None)
+            | (alt ? ShortcutModifiers.Alt : ShortcutModifiers.None) | (shift ? ShortcutModifiers.Shift : ShortcutModifiers.None);
+        var key = parts[4] == " " ? "Space" : parts[4].Length == 1 ? parts[4].ToUpperInvariant() : parts[4];
+        var context = _completion is { HasItems: true } ? CommandContext.Suggestions
+            : CommandContext.Editor;
+        var command = EditorKeymap.Default.Resolve(new(key, modifiers), context);
+        var fallback = context == CommandContext.Suggestions ? EditorKeymap.Default.Resolve(new(key, modifiers), CommandContext.Editor) : null;
+        return command?.IsEditor == true && ExecuteCommand(command, nativeSelection, _completionGeneration, fallback);
+    }
 
-        if (_completion is not null
-            && key is "ArrowUp" or "ArrowDown" or "Enter" or "Tab" or "Escape") {
-            HandleCompletionKey(key);
+    private bool HandleCommand(string arguments)
+    {
+        if (!TryReadCommand(arguments, out var sequence, out var commandArguments)) return false;
+        try {
+            var parts = commandArguments.Split(':', 7);
+            if (parts.Length < 5 || !TryReadSelection(parts, 0, out var selection)
+                || EditorCommand.Find(parts[4]) is not { IsEditor: true } command) return false;
+            var fallback = parts.Length > 5 ? EditorCommand.Find(parts[5]) : null;
+            var generation = parts.Length > 6 && int.TryParse(parts[6], out var value) ? value : -1;
+            return ExecuteCommand(command, selection, generation, fallback);
+        }
+        finally { DomRuntime.AcknowledgeEditorCommand(_cellId, sequence); }
+    }
+
+    private bool ExecuteCommand(EditorCommand command, BrowserSelection nativeSelection, int generation,
+        EditorCommand? fallback = null)
+    {
+        if (command.Context == CommandContext.Suggestions) {
+            if (generation != _completionGeneration || _completion is not { HasItems: true })
+                return fallback is { IsEditor: true, Context: not CommandContext.Suggestions }
+                    && ExecuteCommand(fallback, nativeSelection, generation);
+            switch (command.Id) {
+                case EditorCommandId.AcceptSuggestion:
+                    if (!ReferenceEquals(_completionDocument, State.Value.Doc)
+                        || !State.Value.Selection.Main.Empty || State.Value.Selection.Main.Head != _completionPosition
+                        || fallback?.Id == EditorCommandId.Newline && State.Value.Doc.SliceDoc(
+                            _completion.Items[_completionIndex].ReplaceStart, _completion.Items[_completionIndex].ReplaceEnd)
+                            == _completion.Items[_completionIndex].InsertText) {
+                        CancelCompletion();
+                        return fallback is { IsEditor: true } && ExecuteCommand(fallback, nativeSelection, generation);
+                    }
+                    AcceptCompletion(_completion); break;
+                case EditorCommandId.NextSuggestion: SelectCompletion((_completionIndex + 1) % _completion.Items.Count); break;
+                case EditorCommandId.PreviousSuggestion: SelectCompletion((_completionIndex - 1 + _completion.Items.Count) % _completion.Items.Count); break;
+                case EditorCommandId.NextSuggestionPage: SelectCompletion(Math.Min(_completionIndex + 8, _completion.Items.Count - 1)); break;
+                case EditorCommandId.PreviousSuggestionPage: SelectCompletion(Math.Max(0, _completionIndex - 8)); break;
+                case EditorCommandId.HideSuggestions: CancelCompletion(); break;
+            }
             return true;
         }
-
-        if (_completionPending
-            && key is "ArrowUp" or "ArrowDown" or "Enter" or "Tab" or "Escape") {
-            if (key == "Tab"
-                && !control
-                && !shift
-                && HandleManualCompletion(nativeSelection)) {
-                return true;
-            }
+        if (command.Id is EditorCommandId.Undo or EditorCommandId.Redo)
+            return ReplayHistory(command.Id == EditorCommandId.Redo);
+        if (command.Id == EditorCommandId.Suggest) return HandleManualCompletion(nativeSelection);
+        if (command.Edit is not { } edit) return false;
+        if ((_completionPending || _completion is not null) && command.Id is
+            EditorCommandId.Indent or EditorCommandId.Outdent or EditorCommandId.Newline or EditorCommandId.Escape
+            or EditorCommandId.Up or EditorCommandId.Down or EditorCommandId.SelectUp or EditorCommandId.SelectDown) {
             CancelCompletion();
-            if (key == "Escape") {
-                return true;
-            }
+            if (command.Id == EditorCommandId.Escape) return true;
         }
-
-        if (key == "Tab"
-            && !control
-            && !shift
-            && HandleManualCompletion(nativeSelection)) {
-            return true;
-        }
-
-        var command = GetCommand(key, control, shift);
-        if (command is null) {
-            return false;
-        }
-
         var before = State.Value;
         var editBefore = ApplyNativeSelection(before, nativeSelection);
         var after = editBefore;
-        if (!command(new(after, state => after = state))) {
+        if (!edit(new(after, state => after = state))) {
             var viewport = EnsureSelectionVisible(after, Viewport.Value);
+            _view.RevealSelection();
             ApplyViewport(viewport);
             _world.FlushReactive();
             return false;
         }
         Commit(after, keyboardNavigation: ReferenceEquals(after.Doc, before.Doc)
             && !after.Selection.Eq(before.Selection, true), historySelection: editBefore.Selection,
-            historyGroup: !control && editBefore.Selection.Ranges.All(static range => range.Empty)
-                ? key switch { "Backspace" => EditGroup.Backward, "Delete" => EditGroup.Forward, _ => EditGroup.None }
+            historyGroup: editBefore.Selection.Ranges.All(static range => range.Empty)
+                ? command.Id switch { EditorCommandId.Backspace => EditGroup.Backward, EditorCommandId.Delete => EditGroup.Forward, _ => EditGroup.None }
                 : EditGroup.None);
         ScheduleCompletion(before, after);
         return true;
@@ -858,7 +897,8 @@ public sealed partial class BrowserEditorHost : IDisposable
         State.Set(state);
         if (documentChanges is { } edit && recordHistory) {
             RecordHistory(edit, before, state, historySelection ?? before.Selection, historyGroup);
-        } else if (documentChanges is not null || !state.Selection.Eq(before.Selection, true)) {
+        }
+        else if (documentChanges is not null || !state.Selection.Eq(before.Selection, true)) {
             EndHistoryGroup();
         }
 
@@ -1193,8 +1233,13 @@ public sealed partial class BrowserEditorHost : IDisposable
             return;
         }
 
+        _completionDocument = State.Value.Doc;
+        _completionPosition = State.Value.Selection.Main.Head;
         var isNew = _completionPopup is null;
         var popup = _completionPopup ??= DomElement.Create("div").Class("completion-popup");
+        var listId = $"completion-{_cellId}";
+        popup.Attr("id", listId).Attr("role", "listbox")
+            .Attr("data-completion-generation", _completionGeneration.ToString());
         for (var index = 0; index < completion.Items.Count; index++) {
             var label = completion.Items[index].Label;
             DomElement item;
@@ -1211,7 +1256,9 @@ public sealed partial class BrowserEditorHost : IDisposable
                 popup.Append(item);
                 _completionItems.Add((item, label));
             }
-            item.ToggleClass("selected", index == _completionIndex);
+            item.Attr("id", $"{listId}-{index}").Attr("role", "option")
+                .Attr("aria-selected", index == _completionIndex ? "true" : "false")
+                .ToggleClass("selected", index == _completionIndex);
         }
         while (_completionItems.Count > completion.Items.Count) {
             var item = _completionItems[^1].Element;
@@ -1219,6 +1266,7 @@ public sealed partial class BrowserEditorHost : IDisposable
             item.Dispose();
             _completionItems.RemoveAt(_completionItems.Count - 1);
         }
+        _view.SetCompletionSelection(listId, $"{listId}-{_completionIndex}");
         var anchorPosition = completion.Items.Min(static item => item.ReplaceStart);
         var anchorLine = State.Value.Doc.LineAt(anchorPosition);
         var anchorLineIndex = anchorLine.Number - 1;
@@ -1234,10 +1282,11 @@ public sealed partial class BrowserEditorHost : IDisposable
 
     private void SelectCompletion(int index)
     {
-        _completionItems[_completionIndex].Element.ToggleClass("selected", false);
+        _completionItems[_completionIndex].Element.Attr("aria-selected", "false").ToggleClass("selected", false);
         _completionIndex = index;
         var selected = _completionItems[_completionIndex].Element;
-        selected.ToggleClass("selected", true);
+        selected.Attr("aria-selected", "true").ToggleClass("selected", true);
+        _view.SetCompletionSelection($"completion-{_cellId}", $"completion-{_cellId}-{index}");
         if (_completionPopup is { } popup) {
             DomRuntime.EnsureVisible(popup, selected);
         }
@@ -1282,6 +1331,8 @@ public sealed partial class BrowserEditorHost : IDisposable
 
     private void HideCompletionPopup()
     {
+        _view.SetCompletionSelection("", "");
+        _completionDocument = null;
         ClearCompletionItems();
         if (_completionPopup is { } popup) {
             DomRuntime.ClearOverlayPlacement(popup);
@@ -1291,45 +1342,6 @@ public sealed partial class BrowserEditorHost : IDisposable
         _completionPopup = null;
         _completion = null;
     }
-
-    private static StateCommand? GetCommand(string key, bool control, bool shift)
-        => (key, control, shift) switch {
-            ("ArrowLeft", false, false) => CursorCommands.CharLeft,
-            ("ArrowLeft", false, true) => CursorCommands.SelectCharLeft,
-            ("ArrowRight", false, false) => CursorCommands.CharRight,
-            ("ArrowRight", false, true) => CursorCommands.SelectCharRight,
-            ("ArrowUp", false, false) => CursorCommands.LineUp,
-            ("ArrowUp", false, true) => CursorCommands.SelectLineUp,
-            ("ArrowDown", false, false) => CursorCommands.LineDown,
-            ("ArrowDown", false, true) => CursorCommands.SelectLineDown,
-            ("Home", false, false) => CursorCommands.LineStart,
-            ("Home", false, true) => CursorCommands.SelectLineStart,
-            ("End", false, false) => CursorCommands.LineEnd,
-            ("End", false, true) => CursorCommands.SelectLineEnd,
-            ("Home", true, false) => CursorCommands.DocumentStart,
-            ("Home", true, true) => CursorCommands.SelectDocumentStart,
-            ("End", true, false) => CursorCommands.DocumentEnd,
-            ("End", true, true) => CursorCommands.SelectDocumentEnd,
-            ("PageUp", false, false) => CursorCommands.PageUp,
-            ("PageUp", false, true) => CursorCommands.SelectPageUp,
-            ("PageDown", false, false) => CursorCommands.PageDown,
-            ("PageDown", false, true) => CursorCommands.SelectPageDown,
-            ("ArrowLeft", true, false) => CursorCommands.GroupLeft,
-            ("ArrowLeft", true, true) => CursorCommands.SelectGroupLeft,
-            ("ArrowRight", true, false) => CursorCommands.GroupRight,
-            ("ArrowRight", true, true) => CursorCommands.SelectGroupRight,
-            ("Enter", false, _) => LineCommands.InsertNewlineAndIndent,
-            ("Backspace", false, _) => DeleteCommands.CharBackward,
-            ("Backspace", true, _) => DeleteCommands.GroupBackward,
-            ("Delete", false, _) => DeleteCommands.CharForward,
-            ("Delete", true, _) => DeleteCommands.GroupForward,
-            ("Tab", false, false) => LineCommands.InsertTab,
-            ("Tab", false, true) => LineCommands.IndentLess,
-            ("a", true, _) => SelectionCommands.SelectAll,
-            ("k", true, _) => DeleteCommands.ToLineEnd,
-            ("Escape", false, _) => SelectionCommands.SimplifySelection,
-            _ => null,
-        };
 
     private enum NativeSelectionSource
     {

@@ -1,0 +1,91 @@
+namespace Sia_Examples.Editor;
+
+internal enum CommandContext { Workbench, Editor, EditorLab, Notebook, Suggestions }
+
+internal enum EditorCommandId
+{
+    Commands, Keybindings, NewFile, Save, SaveAll, SaveAs, Revert, CloseFile,
+    Compile, Run, Console, Compilation, Render, ClearOutput, NotebookRun, NotebookSave,
+    Undo, Redo, Suggest, AcceptSuggestion, NextSuggestion, PreviousSuggestion, HideSuggestions,
+
+    NextSuggestionPage, PreviousSuggestionPage,
+
+    Left, Right, Up, Down, SelectLeft, SelectRight, SelectUp, SelectDown,
+    WordLeft, WordRight, SelectWordLeft, SelectWordRight,
+    LineStart, LineEnd, SelectLineStart, SelectLineEnd, Start, End, SelectStart, SelectEnd,
+    PageUp, PageDown, SelectPageUp, SelectPageDown, Newline, Backspace, Delete,
+    DeleteWordLeft, DeleteWordRight, DeleteLineEnd, Indent, Outdent, SelectAll, Escape,
+}
+
+internal sealed record EditorCommand(
+    EditorCommandId Id, string Title, CommandContext Context, KeyBinding[] Defaults,
+    StateCommand? Edit = null, string? Event = null)
+{
+    internal bool IsEditor => Context is CommandContext.Editor or CommandContext.Suggestions;
+
+    internal static IReadOnlyList<EditorCommand> All { get; } = [
+        new(EditorCommandId.Commands, "Show All Commands", CommandContext.Workbench, [new("Mod+Shift+P"), new("F1")]),
+        new(EditorCommandId.Keybindings, "Preferences: Keyboard Shortcuts", CommandContext.Workbench, [new("Mod+K Mod+S")]),
+        new(EditorCommandId.NewFile, "File: New File", CommandContext.EditorLab, [new("Mod+Alt+N")], Event: "editor-page-new-file"),
+        new(EditorCommandId.Save, "File: Save", CommandContext.EditorLab, [new("Mod+S")], Event: "editor-page-save"),
+        new(EditorCommandId.SaveAll, "File: Save All", CommandContext.EditorLab, [new("Mod+Shift+S")], Event: "editor-page-save-all"),
+        new(EditorCommandId.SaveAs, "File: Save As…", CommandContext.EditorLab, [], Event: "editor-page-save-as-begin"),
+        new(EditorCommandId.Revert, "File: Revert", CommandContext.EditorLab, [], Event: "editor-page-revert"),
+        new(EditorCommandId.CloseFile, "File: Close Editor", CommandContext.EditorLab, [new("Alt+W")], Event: "editor-page-close-active-tab"),
+        new(EditorCommandId.Compile, "Build: Compile", CommandContext.EditorLab, [new("Mod+Shift+B")], Event: "editor-compile-action"),
+        new(EditorCommandId.Run, "Run: Run or Stop", CommandContext.EditorLab, [new("Mod+Enter")], Event: "editor-run-action"),
+        new(EditorCommandId.Console, "View: Console", CommandContext.EditorLab, [], Event: "editor-page-open:console"),
+        new(EditorCommandId.Compilation, "View: Compilation", CommandContext.EditorLab, [], Event: "editor-page-open:compilation"),
+        new(EditorCommandId.Render, "View: Render", CommandContext.EditorLab, [], Event: "editor-page-open:render"),
+        new(EditorCommandId.ClearOutput, "View: Clear Output", CommandContext.EditorLab, [], Event: "editor-page-clear"),
+        new(EditorCommandId.NotebookRun, "Notebook: Run or Stop Cell", CommandContext.Notebook, [new("Mod+Enter")]),
+        new(EditorCommandId.NotebookSave, "Notebook: Save Cell", CommandContext.Notebook, [new("Mod+S")]),
+        new(EditorCommandId.Undo, "Edit: Undo", CommandContext.Editor, [new("Mod+Z")]),
+        new(EditorCommandId.Redo, "Edit: Redo", CommandContext.Editor, [new("Mod+Shift+Z"), new("Mod+Y")]),
+        new(EditorCommandId.Suggest, "Suggest: Trigger Completion", CommandContext.Editor, [new("Mod+Space")]),
+        new(EditorCommandId.AcceptSuggestion, "Suggest: Accept", CommandContext.Suggestions, [new("Enter"), new("Tab")]),
+        new(EditorCommandId.NextSuggestion, "Suggest: Next", CommandContext.Suggestions, [new("ArrowDown")]),
+        new(EditorCommandId.PreviousSuggestion, "Suggest: Previous", CommandContext.Suggestions, [new("ArrowUp")]),
+        new(EditorCommandId.NextSuggestionPage, "Suggest: Next Page", CommandContext.Suggestions, [new("PageDown")]),
+        new(EditorCommandId.PreviousSuggestionPage, "Suggest: Previous Page", CommandContext.Suggestions, [new("PageUp")]),
+        new(EditorCommandId.HideSuggestions, "Suggest: Dismiss", CommandContext.Suggestions, [new("Escape")]),
+        new(EditorCommandId.Left, "Cursor: Left", CommandContext.Editor, [new("ArrowLeft")], CursorCommands.CharLeft),
+        new(EditorCommandId.Right, "Cursor: Right", CommandContext.Editor, [new("ArrowRight")], CursorCommands.CharRight),
+        new(EditorCommandId.Up, "Cursor: Up", CommandContext.Editor, [new("ArrowUp")], CursorCommands.LineUp),
+        new(EditorCommandId.Down, "Cursor: Down", CommandContext.Editor, [new("ArrowDown")], CursorCommands.LineDown),
+        new(EditorCommandId.SelectLeft, "Select: Left", CommandContext.Editor, [new("Shift+ArrowLeft")], CursorCommands.SelectCharLeft),
+        new(EditorCommandId.SelectRight, "Select: Right", CommandContext.Editor, [new("Shift+ArrowRight")], CursorCommands.SelectCharRight),
+        new(EditorCommandId.SelectUp, "Select: Up", CommandContext.Editor, [new("Shift+ArrowUp")], CursorCommands.SelectLineUp),
+        new(EditorCommandId.SelectDown, "Select: Down", CommandContext.Editor, [new("Shift+ArrowDown")], CursorCommands.SelectLineDown),
+        new(EditorCommandId.WordLeft, "Cursor: Previous Word", CommandContext.Editor, [new("Mod+ArrowLeft")], CursorCommands.GroupLeft),
+        new(EditorCommandId.WordRight, "Cursor: Next Word", CommandContext.Editor, [new("Mod+ArrowRight")], CursorCommands.GroupRight),
+        new(EditorCommandId.SelectWordLeft, "Select: Previous Word", CommandContext.Editor, [new("Mod+Shift+ArrowLeft")], CursorCommands.SelectGroupLeft),
+        new(EditorCommandId.SelectWordRight, "Select: Next Word", CommandContext.Editor, [new("Mod+Shift+ArrowRight")], CursorCommands.SelectGroupRight),
+        new(EditorCommandId.LineStart, "Cursor: Line Start", CommandContext.Editor, [new("Home")], CursorCommands.LineStart),
+        new(EditorCommandId.LineEnd, "Cursor: Line End", CommandContext.Editor, [new("End")], CursorCommands.LineEnd),
+        new(EditorCommandId.SelectLineStart, "Select: Line Start", CommandContext.Editor, [new("Shift+Home")], CursorCommands.SelectLineStart),
+        new(EditorCommandId.SelectLineEnd, "Select: Line End", CommandContext.Editor, [new("Shift+End")], CursorCommands.SelectLineEnd),
+        new(EditorCommandId.Start, "Cursor: Document Start", CommandContext.Editor, [new("Mod+Home")], CursorCommands.DocumentStart),
+        new(EditorCommandId.End, "Cursor: Document End", CommandContext.Editor, [new("Mod+End")], CursorCommands.DocumentEnd),
+        new(EditorCommandId.SelectStart, "Select: Document Start", CommandContext.Editor, [new("Mod+Shift+Home")], CursorCommands.SelectDocumentStart),
+        new(EditorCommandId.SelectEnd, "Select: Document End", CommandContext.Editor, [new("Mod+Shift+End")], CursorCommands.SelectDocumentEnd),
+        new(EditorCommandId.PageUp, "Cursor: Page Up", CommandContext.Editor, [new("PageUp")], CursorCommands.PageUp),
+        new(EditorCommandId.PageDown, "Cursor: Page Down", CommandContext.Editor, [new("PageDown")], CursorCommands.PageDown),
+        new(EditorCommandId.SelectPageUp, "Select: Page Up", CommandContext.Editor, [new("Shift+PageUp")], CursorCommands.SelectPageUp),
+        new(EditorCommandId.SelectPageDown, "Select: Page Down", CommandContext.Editor, [new("Shift+PageDown")], CursorCommands.SelectPageDown),
+        new(EditorCommandId.Newline, "Edit: Insert Newline", CommandContext.Editor, [new("Enter"), new("Shift+Enter")], LineCommands.InsertNewlineAndIndent),
+        new(EditorCommandId.Backspace, "Edit: Delete Left", CommandContext.Editor, [new("Backspace"), new("Shift+Backspace")], DeleteCommands.CharBackward),
+        new(EditorCommandId.Delete, "Edit: Delete Right", CommandContext.Editor, [new("Delete"), new("Shift+Delete")], DeleteCommands.CharForward),
+        new(EditorCommandId.DeleteWordLeft, "Edit: Delete Previous Word", CommandContext.Editor, [new("Mod+Backspace")], DeleteCommands.GroupBackward),
+        new(EditorCommandId.DeleteWordRight, "Edit: Delete Next Word", CommandContext.Editor, [new("Mod+Delete")], DeleteCommands.GroupForward),
+        new(EditorCommandId.DeleteLineEnd, "Edit: Delete to Line End", CommandContext.Editor, [new("Alt+Delete")], DeleteCommands.ToLineEnd),
+        new(EditorCommandId.Indent, "Edit: Indent", CommandContext.Editor, [new("Tab")], LineCommands.InsertTab),
+        new(EditorCommandId.Outdent, "Edit: Outdent", CommandContext.Editor, [new("Shift+Tab")], LineCommands.IndentLess),
+        new(EditorCommandId.SelectAll, "Select: All", CommandContext.Editor, [new("Mod+A")], SelectionCommands.SelectAll),
+        new(EditorCommandId.Escape, "Select: Clear Secondary Selections", CommandContext.Editor, [new("Escape"), new("Shift+Escape")], SelectionCommands.SimplifySelection),
+    ];
+
+    private static readonly IReadOnlyDictionary<string, EditorCommand> _byId = All.ToDictionary(static command => command.Id.ToString(), StringComparer.Ordinal);
+
+    internal static EditorCommand? Find(string id) => _byId.GetValueOrDefault(id);
+}

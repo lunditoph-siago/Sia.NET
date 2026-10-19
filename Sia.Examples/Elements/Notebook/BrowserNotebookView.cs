@@ -209,6 +209,9 @@ public sealed class BrowserNotebookView :
             "rename-title");
         AppendDiscardButton(actions, "notebook-title-input");
         using var documentActions = DomElement.Create("div").Class("title-actions");
+        using var shortcuts = DomElement.Create("button").Attr("type", "button").Class("btn")
+            .Attr("data-workbench-command", "Keybindings").Attr("title", "Configure keyboard shortcuts").Text("Shortcuts");
+        documentActions.Append(shortcuts);
         AppendAddMenu(
             documentActions,
             "New section",

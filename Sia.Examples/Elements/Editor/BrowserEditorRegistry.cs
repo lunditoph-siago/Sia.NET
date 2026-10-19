@@ -57,6 +57,18 @@ public sealed class BrowserEditorRegistry(
             && entry.Editor.BindingId == bindingId;
     }
 
+    internal bool CanExecuteCommand(string bindingId, EditorCommand command)
+        => TryResolveCellId(bindingId, out var cellId) && _editors[cellId].Editor.CanExecuteCommand(command);
+
+    internal bool ExecuteCommand(string bindingId, EditorCommand command)
+    {
+        if (!CanExecuteCommand(bindingId, command) || !TryResolveCellId(bindingId, out var cellId)) return false;
+        var editor = _editors[cellId].Editor;
+        var result = editor.ExecuteWorkbenchCommand(command);
+        editor.Focus();
+        return result;
+    }
+
     public string GetSource(string cellId)
         => _editors.TryGetValue(cellId, out var entry)
             ? entry.Editor.Source

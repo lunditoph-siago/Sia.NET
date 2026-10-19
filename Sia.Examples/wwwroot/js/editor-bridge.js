@@ -1,5 +1,6 @@
 import { emit, emitBarrier, resolveBarrier, takeEventBatch } from './notebook-runtime.js';
 import { pinEditorLines } from './editor-lines.js';
+import { attachCommandSurface, invokeWorkbenchCommand, resolveShortcut } from './editor-keybindings.js';
 
 const editorHandlers = new Map();
 const selectionSyncPending = new WeakSet();
@@ -344,6 +345,7 @@ export function attachEditorSurface(cellId, surface, restoreFocus) {
         throw new Error(`Editor '${cellId}' is already attached.`);
     }
 
+    surface.dataset.editorBinding = cellId;
     let nativeEditSnapshot = null;
     let knownSelection;
     let modelSelectionOnly = false;
@@ -359,31 +361,6 @@ export function attachEditorSurface(cellId, surface, restoreFocus) {
     const clipboardOperations = new Map();
     let disposed = false;
 
-    const specialKeys = new Set([
-        'Escape',
-        'Tab',
-        'ArrowUp',
-        'ArrowDown',
-        'ArrowLeft',
-        'ArrowRight',
-        'Home',
-        'End',
-        'PageUp',
-        'PageDown',
-        'Enter',
-        'Backspace',
-        'Delete',
-    ]);
-    const controlKeys = new Set([
-        'a',
-        'k',
-        'ArrowLeft',
-        'ArrowRight',
-        'Home',
-        'End',
-        'Backspace',
-        'Delete',
-    ]);
     const hasPendingCommand = () => acknowledgedCommandSequence < commandSequence;
     const emitInput = (eventType, arguments_, barrier) => {
         const input = `${++commandSequence}:${eventType}:${arguments_}`;
@@ -608,8 +585,8 @@ export function attachEditorSurface(cellId, surface, restoreFocus) {
         hasPendingCommand() || usingModelSelection() || surfaceObservers.get(surface)?.pendingWrites
             ? null
             : (readSelection() ?? readSelectionByDomOrder());
-    const emitKeyCommand = (key, control, shift, alt) =>
-        emitCommand('key', commandSelection(), `${key}:${control}:${shift}:${alt}`);
+    const emitEditorCommand = (command, fallback = '', generation = '') =>
+        emitCommand('command', commandSelection(), `${command}:${fallback}:${generation}`);
     const emitTextCommand = (text, isolateHistory = false) =>
         emitCommand(isolateHistory ? 'paste' : 'text', commandSelection(), encodeURIComponent(text));
     const emitHistoryCommand = (redo) => {
@@ -617,7 +594,7 @@ export function attachEditorSurface(cellId, surface, restoreFocus) {
             compositionEnding = false;
             reconcileNativeEdit();
         }
-        emitKeyCommand(redo ? 'y' : 'z', true, false, false);
+        emitEditorCommand(redo ? 'Redo' : 'Undo');
     };
     const emitInputCommand = (event, command) => {
         event.preventDefault();
@@ -681,23 +658,23 @@ export function attachEditorSurface(cellId, surface, restoreFocus) {
                 !compositionEnding &&
                 (event.inputType === 'insertParagraph' || event.inputType === 'insertLineBreak')
             ) {
-                emitInputCommand(event, () => emitKeyCommand('Enter', false, false, false));
+                emitInputCommand(event, () => emitEditorCommand('Newline'));
                 return;
             }
             if (!composing && !compositionEnding && event.inputType === 'deleteContentBackward') {
-                emitInputCommand(event, () => emitKeyCommand('Backspace', false, false, false));
+                emitInputCommand(event, () => emitEditorCommand('Backspace'));
                 return;
             }
             if (!composing && !compositionEnding && event.inputType === 'deleteWordBackward') {
-                emitInputCommand(event, () => emitKeyCommand('Backspace', true, false, false));
+                emitInputCommand(event, () => emitEditorCommand('DeleteWordLeft'));
                 return;
             }
             if (!composing && !compositionEnding && event.inputType === 'deleteContentForward') {
-                emitInputCommand(event, () => emitKeyCommand('Delete', false, false, false));
+                emitInputCommand(event, () => emitEditorCommand('Delete'));
                 return;
             }
             if (!composing && !compositionEnding && event.inputType === 'deleteWordForward') {
-                emitInputCommand(event, () => emitKeyCommand('Delete', true, false, false));
+                emitInputCommand(event, () => emitEditorCommand('DeleteWordRight'));
                 return;
             }
             if (!composing && !compositionEnding && event.inputType === 'deleteByCut') {
@@ -742,18 +719,18 @@ export function attachEditorSurface(cellId, surface, restoreFocus) {
             if (event.isComposing || composing) {
                 return;
             }
-            const control = (event.ctrlKey || event.metaKey) && !event.altKey;
-            const key = control && event.key.length === 1 ? event.key.toLowerCase() : event.key;
-            if (control && (key === 'z' || key === 'y')) {
-                event.preventDefault();
-                emitHistoryCommand(key === 'y' || event.shiftKey);
-                return;
-            }
-            if (compositionEnding) return;
-            const handlesKey = control ? controlKeys.has(key) : specialKeys.has(key);
-            if (handlesKey) {
-                event.preventDefault();
-                emitKeyCommand(key, event.ctrlKey || event.metaKey, event.shiftKey, event.altKey);
+            const result = resolveShortcut(event, surface);
+            if (!result) return;
+            const history = result.binding?.editor && (result.binding.command === 'Undo' || result.binding.command === 'Redo');
+            if (compositionEnding && result.binding?.editor && !history) return;
+            event.preventDefault();
+            if (history) {
+                emitHistoryCommand(result.binding.command === 'Redo');
+            } else if (result.binding?.editor) {
+                const generation = surface.closest('.editor-container')?.querySelector('[data-completion-generation]')?.dataset.completionGeneration ?? '';
+                emitEditorCommand(result.binding.command, result.fallback?.command, generation);
+            } else if (result.binding) {
+                invokeWorkbenchCommand(result.binding.command, surface);
             }
         },
         compositionstart() {
@@ -783,6 +760,8 @@ export function attachEditorSurface(cellId, surface, restoreFocus) {
         },
         dispose() {
             disposed = true;
+            detachCommands();
+            delete surface.dataset.editorBinding;
             for (const operation of [...clipboardOperations.values()]) finishClipboard(operation, false);
             clipboardOperations.clear();
             surface.dataset.editorClipboardPending = 'false';
@@ -834,6 +813,13 @@ export function attachEditorSurface(cellId, surface, restoreFocus) {
             return JSON.stringify([...pendingInputs.values()]);
         },
     };
+
+    const detachCommands = attachCommandSurface(surface, () => {
+        if (nativeEditSnapshot && !composing) {
+            compositionEnding = false;
+            reconcileNativeEdit();
+        }
+    });
 
     function finishClipboard(operation, success) {
         if (operation.finished) return;

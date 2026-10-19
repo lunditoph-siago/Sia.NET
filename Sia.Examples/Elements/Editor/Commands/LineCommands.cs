@@ -27,10 +27,12 @@ public static class LineCommands
             return IndentMore(target);
         }
 
-        var selection = state.Selection.Main;
+        var (changes, selection) = ChangeHelpers.InsertPerRange(
+            state.Selection.Ranges,
+            static _ => new string(' ', EditorState.TabSize));
         target.Apply(state.Apply(new() {
-            Changes = [new(selection.From, selection.To, "\t")],
-            Selection = EditorSelection.Single(selection.From + 1),
+            Changes = changes,
+            Selection = selection,
         }));
         return true;
     }
@@ -38,6 +40,7 @@ public static class LineCommands
     public static bool IndentLess(CommandTarget target)
     {
         var changes = VisitSelectedLines(target.State, static line => {
+            if (line.Text.StartsWith('\t')) return new ChangeSpec(line.From, line.From + 1, string.Empty);
             var spaces = 0;
             while (spaces < EditorState.TabSize
                 && spaces < line.Text.Length
