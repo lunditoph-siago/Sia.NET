@@ -87,6 +87,11 @@ internal static class CompletionMatch
     private static bool MatchesHumps(string name, string pattern)
     {
         if (pattern.Length > name.Length) return false;
+        var matched = 0;
+        for (var index = 0; index < name.Length && matched < pattern.Length; index++) {
+            if (Equal(name[index], pattern[matched])) matched++;
+        }
+        if (matched < pattern.Length) return false;
         var width = pattern.Length + 1;
         Span<byte> states = width <= 256 ? stackalloc byte[width * 2] : new byte[width * 2];
         states.Clear();
