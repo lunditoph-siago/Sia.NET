@@ -114,6 +114,15 @@ document.addEventListener('compositionstart', () => clearChord());
 window.addEventListener('blur', () => clearChord());
 
 document.addEventListener('click', event => {
+    const findAction = event.target.closest?.('[data-editor-find-action]');
+    if (findAction) {
+        const find = findAction.closest('[data-editor-find]');
+        if (find) {
+            event.preventDefault();
+            emit(`find:${find.dataset.editorFind}:${findAction.dataset.editorFindAction}:${find.dataset.editorFindRevision}`);
+        }
+        return;
+    }
     const command = event.target.closest?.('[data-workbench-command]');
     if (!command) return;
     event.preventDefault();
@@ -152,11 +161,22 @@ document.addEventListener('keydown', event => {
         return;
     }
     if (event.target.closest?.('.editor-lines[data-editor-binding]')) return;
-    const result = resolveShortcut(event);
+    const find = event.target.closest?.('[data-editor-find]');
+    if (find && (event.key === 'Enter' || event.key === 'Escape')) {
+        event.preventDefault();
+        const action = event.key === 'Escape' ? 'close' : event.shiftKey ? 'previous'
+            : event.target.dataset.editorFindField === 'replacement' ? 'replace' : 'next';
+        emit(`find:${find.dataset.editorFind}:${action}:${find.dataset.editorFindRevision}`);
+        return;
+    }
+    const findSurface = find?.closest('.editor-container')?.querySelector('.editor-lines[data-editor-binding]');
+    const result = resolveShortcut(event, findSurface);
     if (!result) return;
+    if (find && event.target.matches('input') && result.binding?.editor
+        && !['Find', 'Replace', 'NextMatch', 'PreviousMatch'].includes(result.binding.command)) return;
     event.preventDefault();
     if (result.binding) invokeWorkbenchCommand(result.binding.command,
-        event.target.closest?.('[data-script-id]')?.querySelector('.editor-lines[data-editor-binding]') ?? lastEditor);
+        findSurface ?? event.target.closest?.('[data-script-id]')?.querySelector('.editor-lines[data-editor-binding]') ?? lastEditor);
 });
 
 const panelObserver = new MutationObserver(() => {

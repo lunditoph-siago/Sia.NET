@@ -124,6 +124,12 @@ public sealed class BrowserEditorView : IEditorView
 
     internal void RevealSelection() => _revealSelection = true;
 
+    internal void SetFindMatch(bool enabled)
+    {
+        _lines.Attr("data-editor-find-match", enabled ? "true" : "false");
+        _selectionNeedsUpdate = true;
+    }
+
     internal void CancelSelectionReveal() => _revealSelection = false;
 
     internal EditorScrollPosition? ReadScrollPosition() => DomRuntime.ReadEditorScrollPosition(_lines);

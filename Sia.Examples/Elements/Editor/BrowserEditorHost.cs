@@ -51,6 +51,7 @@ public sealed partial class BrowserEditorHost : IDisposable
         _cellId = $"{cellId}~{Guid.NewGuid():N}";
         _world = world;
         _view = new(_cellId, container);
+        _find = new(container, _cellId);
         _completionProvider = completionProvider;
         _highlightedSource = source;
         var initialState = EditorState.Create(
@@ -95,7 +96,7 @@ public sealed partial class BrowserEditorHost : IDisposable
 
     internal string BindingId => _cellId;
 
-    internal void Focus() => _view.Focus();
+    internal void Focus() { if (_find.IsOpen) _find.Focus(); else _view.Focus(); }
 
     internal bool CanExecuteCommand(EditorCommand command) => command.Context switch {
         CommandContext.Editor => true,
@@ -141,6 +142,7 @@ public sealed partial class BrowserEditorHost : IDisposable
         try {
             return eventType switch {
                 "input" => HandleQueuedInput(arguments),
+                "find" => HandleFind(arguments),
                 "clipboard" => HandleClipboard(arguments),
                 "noop" => true,
                 "key" => HandleKey(arguments),
@@ -426,6 +428,7 @@ public sealed partial class BrowserEditorHost : IDisposable
             return;
         }
         _disposed = true;
+        _find.Dispose();
         SourceChanged = null;
         DefinitionReady = null;
         ReferencesReady = null;
@@ -820,6 +823,9 @@ public sealed partial class BrowserEditorHost : IDisposable
         }
         if (command.Id is EditorCommandId.Undo or EditorCommandId.Redo)
             return ReplayHistory(command.Id == EditorCommandId.Redo);
+        if (command.Id is EditorCommandId.Find or EditorCommandId.Replace or EditorCommandId.NextMatch or EditorCommandId.PreviousMatch)
+            return ExecuteFindCommand(command.Id, nativeSelection);
+        if (command.Id == EditorCommandId.Escape && _find.IsOpen) { _find.Close(); _view.SetFindMatch(false); return true; }
         if (command.Id is EditorCommandId.GoToDefinition or EditorCommandId.FindReferences or EditorCommandId.RenameSymbol or EditorCommandId.FormatDocument) return StartLanguageCommand(command, nativeSelection);
         if (command.Id == EditorCommandId.Suggest) return HandleManualCompletion(nativeSelection);
         if (command.Id == EditorCommandId.SignatureHelp) {
@@ -913,6 +919,7 @@ public sealed partial class BrowserEditorHost : IDisposable
             _view.SetDocumentRevision(_documentRevision);
         }
         State.Set(state);
+        if (documentChanges is not null) { _find.Refresh(state.Doc); _view.SetFindMatch(false); }
         if (documentChanges is not null || _languageCommand != EditorCommandId.FormatDocument && !state.Selection.Eq(before.Selection, true)) CancelLanguageCommand();
         if (documentChanges is not null) SourceChanged?.Invoke(this);
         if (documentChanges is { } edit && recordHistory) {

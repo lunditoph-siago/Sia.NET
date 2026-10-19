@@ -249,6 +249,59 @@
         font-size: 13px;
         line-height: 1.5;
 
+        &.editor-find-open {
+            grid-template-rows: auto minmax(0, 1fr) auto;
+            > .editor-scroll { grid-row: 2; }
+            > .editor-status { grid-row: 3; }
+        }
+
+        > .editor-find {
+            grid-column: 1 / -1;
+            grid-row: 1;
+            min-width: 0;
+            padding: 0.3rem 0.4rem;
+            border-bottom: 1px solid var(--color-border);
+            background: var(--color-bg-secondary);
+            font: 0.75rem/1.4 var(--font-mono);
+
+            .editor-find-row {
+                display: flex;
+                align-items: center;
+                gap: 0.2rem;
+                &.hidden { display: none; }
+                + .editor-find-row { margin-top: 0.2rem; }
+            }
+
+            input {
+                width: 0;
+                min-width: 3rem;
+                flex: 1;
+                min-height: 2rem;
+                padding: 0.2rem 0.4rem;
+                border: 1px solid var(--border-control);
+                background: var(--color-bg);
+                color: inherit;
+                font: inherit;
+            }
+
+            button {
+                flex: none;
+                min-width: 1.8rem;
+                min-height: 2rem;
+                padding: 0.2rem;
+                border: 1px solid transparent;
+                background: transparent;
+                color: inherit;
+                font: inherit;
+                cursor: pointer;
+                > svg { display: block; margin-inline: auto; }
+                &:hover, &[aria-pressed="true"] { background: var(--surface-hover); border-color: var(--border-control); }
+            }
+
+            :is(input, button):focus-visible { outline: 1px solid var(--focus-muted); outline-offset: 1px; }
+            .editor-find-summary { display: block; overflow-wrap: anywhere; padding-top: 0.15rem; color: var(--color-text-dim); }
+        }
+
         @media (max-width: 720px) {
             --editor-gutter-width: 34px;
             max-height: min(58dvh, 540px);
@@ -278,6 +331,8 @@
         white-space: pre-wrap;
         word-break: break-all;
         caret-color: var(--color-accent);
+
+        &::highlight(sia-editor-find) { background-color: var(--selection-bg); color: inherit; }
 
         &::selection {
             background: var(--selection-bg);
