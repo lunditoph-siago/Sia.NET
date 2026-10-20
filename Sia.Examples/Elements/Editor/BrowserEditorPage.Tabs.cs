@@ -76,20 +76,26 @@ internal sealed partial class BrowserEditorPage
         if (window.Kind == CellWindowKind.Script && TryResolve(window.SourceId, out var entity)) {
             _activeEntity = entity;
         }
-        UpdateState(state => NotebookCellLayout.Activate(state, tabId));
+        UpdateState(state => RestoreMinimizedGroup(NotebookCellLayout.Activate(state, tabId), tabId));
         RefreshExplorerSelection();
         ScheduleLanguageDiagnostics(ActiveLanguageBinding());
     }
 
     private void OpenPanelWindow(string windowKey)
-        => UpdateState(state => NotebookCellLayout.OpenWindow(
-            state,
-            windowKey switch {
-                "compilation" => k_CompilationWindowId,
-                "console" => k_ConsoleWindowId,
-                "render" => k_RenderWindowId,
-                _ => throw new ArgumentOutOfRangeException(nameof(windowKey)),
-            }));
+    {
+        var windowId = windowKey switch {
+            "compilation" => k_CompilationWindowId,
+            "console" => k_ConsoleWindowId,
+            "render" => k_RenderWindowId,
+            _ => throw new ArgumentOutOfRangeException(nameof(windowKey)),
+        };
+        var tab = _state.GetTabForWindow(windowId);
+        if (NotebookCellLayout.FindGroupContaining(_state, tab.Id) is not null) {
+            UpdateState(state => RestoreMinimizedGroup(NotebookCellLayout.Activate(state, tab.Id), tab.Id));
+            return;
+        }
+        UpdateState(state => NotebookCellLayout.OpenWindow(state, windowId));
+    }
 
     private void CloseActiveTab()
     {

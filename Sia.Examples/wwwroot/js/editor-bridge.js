@@ -2,6 +2,7 @@ import { emit, emitBarrier, resolveBarrier, takeEventBatch } from './notebook-ru
 import { pinEditorLines } from './editor-lines.js';
 import { attachCommandSurface, invokeWorkbenchCommand, resolveShortcut } from './editor-keybindings.js';
 import { scheduleCompletionWindow } from './editor-overlay.js';
+import { attachWorkbenchActions } from './editor-workbench.js';
 
 const editorHandlers = new Map();
 const selectionSyncPending = new WeakSet();
@@ -605,10 +606,34 @@ export function attachEditorSurface(cellId, surface, restoreFocus) {
     };
 
     const completionRoot = surface.closest('.editor-container');
+    const touchActions = completionRoot?.querySelector('.editor-touch-actions');
+    const workbenchActions = attachWorkbenchActions(surface, touchActions);
+    const touchAction = event => {
+        const button = event.target.closest?.('[data-editor-touch-command]');
+        return button && touchActions?.contains(button) ? button : null;
+    };
+    const preserveTouchFocus = event => {
+        if (!disposed && event.isPrimary !== false && event.button === 0 && touchAction(event)) event.preventDefault();
+    };
+    const runTouchAction = event => {
+        const button = touchAction(event);
+        if (!button || disposed || !surface.isConnected || surface.closest('.tabs-only')) return;
+        event.preventDefault();
+        if (composing) return;
+        if (nativeEditSnapshot) {
+            compositionEnding = false;
+            reconcileNativeEdit();
+        }
+        surface.focus({ preventScroll: true });
+        emitEditorCommand(button.dataset.editorTouchCommand, '', button.dataset.editorTouchGeneration ?? '');
+    };
+    touchActions?.addEventListener('pointerdown', preserveTouchFocus);
+    touchActions?.addEventListener('click', runTouchAction);
     const completionItem = (event) => event.target.closest?.('[data-completion-index]');
     const preserveCompletionFocus = (event) => {
-        if (event.pointerType === 'mouse' && completionItem(event)) event.preventDefault();
-        if (!completionItem(event)) markCompletionScroll(event);
+        const item = completionItem(event);
+        if (item && event.button === 0 && event.isPrimary !== false) event.preventDefault();
+        if (!item) markCompletionScroll(event);
     };
     const markCompletionScroll = event => {
         const list = event.target.closest?.('.completion-list');
@@ -660,6 +685,7 @@ export function attachEditorSurface(cellId, surface, restoreFocus) {
             );
         },
         focus() {
+            workbenchActions.activate();
             if (!pointerFocus && knownSelection) {
                 restoreFocus?.();
                 setEditorSelection(surface, knownSelection.anchorLineIndex, knownSelection.anchorColumn,
@@ -769,6 +795,7 @@ export function attachEditorSurface(cellId, surface, restoreFocus) {
             selectionSyncPending.delete(surface);
             cancelNativeCommit();
             composing = true;
+            touchActions?.setAttribute('aria-disabled', 'true');
             compositionEnding = false;
             nativeCommitGeneration++;
             armNativeEditSnapshot('insertCompositionText');
@@ -785,6 +812,7 @@ export function attachEditorSurface(cellId, surface, restoreFocus) {
                 nativeEditSnapshot.replacesSelection = (event?.data?.length ?? 0) > 0;
             }
             composing = false;
+            touchActions?.setAttribute('aria-disabled', 'false');
             surfaceObservers.get(surface).composing = false;
             compositionEnding = true;
             scheduleNativeCommit();
@@ -792,9 +820,12 @@ export function attachEditorSurface(cellId, surface, restoreFocus) {
         dispose() {
             disposed = true;
             detachCommands();
+            workbenchActions.dispose();
             delete surface.dataset.editorBinding;
             completionRoot?.removeEventListener('pointerdown', preserveCompletionFocus);
             completionRoot?.removeEventListener('click', acceptCompletion);
+            touchActions?.removeEventListener('pointerdown', preserveTouchFocus);
+            touchActions?.removeEventListener('click', runTouchAction);
             completionRoot?.removeEventListener('scroll', scrollCompletion, true);
             completionRoot?.removeEventListener('wheel', markCompletionScroll);
             completionRoot?.removeEventListener('touchmove', markCompletionScroll);
@@ -843,6 +874,7 @@ export function attachEditorSurface(cellId, surface, restoreFocus) {
                 nativeCommitGeneration++;
                 composing = false;
                 compositionEnding = false;
+                touchActions?.setAttribute('aria-disabled', 'false');
                 surfaceObservers.get(surface).composing = false;
                 reconcileNativeEdit();
             }

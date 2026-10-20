@@ -1,4 +1,22 @@
 @layer components {
+    body:has(.editor-page) {
+        position: fixed;
+        top: var(--editor-viewport-top, 0px);
+        right: 0;
+        left: 0;
+        height: var(--editor-viewport-height, 100dvh);
+
+        @media (any-pointer: coarse), (max-width: 720px) {
+            &:has(.editor-page.input-compact) {
+                height: min(var(--editor-viewport-height, 100dvh), 60svh);
+            }
+        }
+    }
+
+    #app:has(.editor-page) {
+        min-height: 0;
+    }
+
     #content:has(.editor-page) > #content-header {
         display: none;
     }
@@ -13,7 +31,7 @@
         --editor-command-size: 2rem;
         display: grid;
         grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: 38px auto minmax(0, 1fr) 24px;
+        grid-template-rows: 38px auto minmax(0, 1fr) auto 24px;
         width: 100%;
         height: 100%;
         min-height: 0;
@@ -25,7 +43,7 @@
         @media (pointer: coarse),
         (max-width: 899px) {
             --editor-command-size: 2.75rem;
-            grid-template-rows: 48px auto minmax(0, 1fr) 24px;
+            grid-template-rows: 48px auto minmax(0, 1fr) auto 24px;
 
             .tab-entry .tab {
                 min-height: 2.5rem;
@@ -36,6 +54,14 @@
                 min-height: 2rem;
             }
         }
+
+        @media (any-pointer: coarse), (max-width: 720px) {
+            grid-template-rows: 48px auto minmax(0, 1fr) 24px auto;
+
+            &.input-tools-open > .editor-page-touchbar { display: flex; }
+        }
+
+        .editor-container .editor-status > .editor-touch-actions { display: none; }
 
         .cell-group:has(> .editor-render-tools[role='toolbar']) {
             display: grid;
@@ -62,9 +88,11 @@
         justify-content: space-between;
         gap: 0.5rem;
         min-width: 0;
-        padding: 0 0.55rem 0 0.75rem;
+        padding: 0 0.35rem;
         border-bottom: 1px solid var(--border-subtle);
         background: var(--surface-subtle);
+
+        .btn { padding-inline: 0.35rem; }
     }
 
     .editor-page-actions,
@@ -75,6 +103,7 @@
         gap: 0.25rem;
         min-width: 0;
         overflow-x: auto;
+        scrollbar-width: none;
     }
 
     .editor-page-actions {
@@ -115,8 +144,22 @@
     }
 
     .editor-page-menu {
+        .editor-input-reset {
+            display: none;
+            @media (any-pointer: coarse), (max-width: 720px) { display: grid; }
+        }
+
         .menu-item {
             grid-template-columns: minmax(0, 1fr);
+
+            &[role='menuitemcheckbox'] {
+                display: none;
+                grid-template-columns: minmax(0, 1fr) auto;
+
+                &[aria-checked='true']::after { content: '✓'; }
+
+                @media (any-pointer: coarse), (max-width: 720px) { display: grid; }
+            }
 
             @media (pointer: coarse),
             (max-width: 720px) {
@@ -163,9 +206,47 @@
                 display: flex;
                 flex: var(--cell-split-share, 1) 1 0;
             }
+
+            &.horizontal {
+                flex-direction: row !important;
+
+                > .separator {
+                    width: var(--editor-split-size, 7px);
+                    height: auto;
+
+                    &::after {
+                        top: 0;
+                        bottom: 0;
+                        left: 50%;
+                        width: 1px;
+                    }
+                }
+            }
+
+            &.vertical > .separator {
+                height: var(--editor-split-size, 7px);
+
+                &::after { top: 50%; }
+            }
+
+            &.vertical > .split-child.tabs-only {
+                flex: 0 0 auto;
+
+                > .cell-group {
+                    flex: 0 0 auto;
+
+                    > :is(.group-content, .editor-render-tools) { display: none; }
+                }
+            }
+
+            &:is(.horizontal, .vertical) > .separator { flex: 0 0 var(--editor-split-size, 7px); }
+
+            @media (any-pointer: coarse), (max-width: 720px) {
+                --editor-split-size: 18px;
+            }
         }
 
-        .split-child > .cell-group {
+        .cell-split .split-child > .cell-group {
             display: flex;
             flex: 1 1 0;
         }
@@ -194,6 +275,23 @@
             &:focus-visible::before {
                 content: '×';
             }
+        }
+    }
+
+    .editor-page-touchbar {
+        display: none;
+        grid-row: 4;
+        align-items: center;
+        justify-content: space-between;
+        min-width: 0;
+        border-top: 1px solid var(--border-subtle);
+        background: var(--surface-chrome);
+
+        @media (any-pointer: coarse), (max-width: 720px) {
+            grid-row: 5;
+            padding: 0 0.25rem env(safe-area-inset-bottom, 0px);
+
+            > .editor-touch-actions { display: flex; }
         }
     }
 
@@ -409,7 +507,7 @@
     .editor-page-statusbar {
         display: flex;
         grid-column: 1;
-        grid-row: 4;
+        grid-row: 5;
         align-items: center;
         gap: 0.75rem;
         min-width: 0;
@@ -419,6 +517,10 @@
         background: var(--surface-subtle);
         font-size: 0.65rem;
         white-space: nowrap;
+
+        @media (any-pointer: coarse), (max-width: 720px) {
+            grid-row: 4;
+        }
 
         > span {
             overflow: hidden;

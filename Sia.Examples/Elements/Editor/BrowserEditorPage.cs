@@ -19,6 +19,8 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
     private readonly DomElement _workbench;
     private readonly DomElement _runAction;
     private readonly DomElement _compileAction;
+    private readonly DomElement _compactInputAction;
+    private readonly DomElement _inputToolsAction;
     private readonly DomElement _operationError;
     private readonly DomElement _compilationOutput;
     private readonly DomElement _programOutput;
@@ -34,6 +36,9 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
     private bool _busy;
     private bool _disposed;
     private bool _initialized;
+    private bool _compactInput;
+    private bool _inputToolsOpen;
+    private int _inputResetGeneration;
 
     public BrowserEditorPage(World world, MetadataReferenceProvider references, IWorkspaceStorage storage)
     {
@@ -74,8 +79,6 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             ("Revert", "editor-page-revert", "Discard unsaved edits in the active file"),
         ]);
         CreateMenu(menus, "View", [
-            ("Command Palette…", "workbench-command:Commands", "Search and run commands"),
-            ("Keyboard Shortcuts…", "workbench-command:Keybindings", "Configure keyboard shortcuts"),
             ("Symbol in File…", "workbench-command:DocumentSymbols", "Go to a C# declaration in the active file"),
             ("Symbol in Workspace…", "workbench-command:WorkspaceSymbols", "Go to a C# declaration across workspace files"),
             ("Compilation", "editor-page-open:compilation", "Open diagnostics and compiler outputs"),
@@ -83,6 +86,17 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             ("Render", "editor-page-open:render", "Open the Render window"),
             ("Clear Output", "editor-page-clear", "Clear compiler output, program logs and rendering"),
         ]);
+        var tools = CreateMenu(menus, "Tools", [
+            ("Command Palette…", "workbench-command:Commands", "Search and run commands"),
+            ("Keyboard Shortcuts…", "workbench-command:Keybindings", "Configure keyboard shortcuts"),
+        ]);
+        _inputToolsAction = CreateAction("Editor Toolbar", "editor-page-input-tools", "Show or hide editing controls")
+            .Class("menu-item").Attr("role", "menuitemcheckbox").Attr("aria-checked", "false");
+        _compactInputAction = CreateAction("Compact Input Layout", "editor-page-compact-input", "Reserve space for manual keyboard input")
+            .Class("menu-item").Attr("role", "menuitemcheckbox").Attr("aria-checked", "false");
+        tools.Append(_inputToolsAction).Append(_compactInputAction)
+            .Append(CreateAction("Reset Keyboard Reference", "editor-page-input-reset", "Close the keyboard first, then use the current viewport as its reference")
+                .Class("menu-item").Class("editor-input-reset"));
         var actions = Own(DomElement.Create("div").Class("editor-page-actions"));
         _runAction = CreateIconAction("Run", "editor-run-action");
         _compileAction = CreateIconAction("Compile", "editor-compile-action");
@@ -100,6 +114,8 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             .Attr("aria-label", "Editor layout"));
 
         var statusbar = Own(DomElement.Create("footer").Class("editor-page-statusbar"));
+        var touchbar = Own(DomElement.Create("div").Class("editor-page-touchbar")
+            .Attr("role", "toolbar").Attr("aria-label", "Editor actions"));
         _activeFileName = Own(DomElement.Create("span").Class("editor-status-file"));
         _workspaceStatus = Own(DomElement.Create("span").Class("editor-status-workspace"));
         _cursorStatus = Own(DomElement.Create("span").Class("editor-status-cursor"));
@@ -141,6 +157,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             .Append(titlebar)
             .Append(_confirmBanner)
             .Append(_workbench)
+            .Append(touchbar)
             .Append(statusbar)
             .Append(_layoutRevision);
         _container.Text(string.Empty).Append(_root);

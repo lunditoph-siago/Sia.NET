@@ -237,6 +237,32 @@
         }
     }
 
+    .editor-touch-actions {
+        display: none;
+        flex: none;
+        align-items: center;
+
+        &[aria-disabled="true"] { opacity: 0.5; }
+    }
+
+    :is(.editor-touch-actions, .editor-page-touchbar) {
+        button {
+            display: grid;
+            place-items: center;
+            width: 2.75rem;
+            height: 2.75rem;
+            padding: 0;
+            border: 0;
+            border-radius: var(--radius-control);
+            background: transparent;
+            color: var(--color-text);
+            touch-action: manipulation;
+
+            &:active { background: var(--surface-hover); }
+            &:focus-visible { outline: 2px solid var(--focus-muted); outline-offset: -2px; }
+        }
+    }
+
     .editor-container {
         --editor-gutter-width: 42px;
         tab-size: 4;
@@ -253,6 +279,18 @@
             grid-template-rows: auto minmax(0, 1fr) auto;
             > .editor-scroll { grid-row: 2; }
             > .editor-status { grid-row: 3; }
+        }
+
+        @media (any-pointer: coarse), (max-width: 720px) {
+            &:focus-within > .editor-status {
+                align-items: center;
+                gap: 0.25rem;
+                padding: 0 0.25rem;
+
+                > .editor-touch-actions { display: flex; }
+                > span:first-of-type { display: none; }
+                > span:last-of-type { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+            }
         }
 
         > .editor-find {
@@ -501,6 +539,16 @@
 
             &.soft-selected { outline: 1px solid var(--focus-muted); outline-offset: -1px; }
             &[aria-disabled="true"] { color: var(--color-text-dim); }
+
+            @media (any-pointer: coarse), (max-width: 720px) {
+                display: flex;
+                align-items: center;
+                min-height: 2.75rem;
+            }
+        }
+
+        &[data-overlay-compact="true"] {
+            :is(.signature-help.combined, .completion-count, .completion-description) { display: none; }
         }
     }
 

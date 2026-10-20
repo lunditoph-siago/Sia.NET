@@ -17,8 +17,10 @@ public sealed class BrowserEditorView : IEditorView
     private readonly DomElement _status;
     private readonly DomElement _documentSize;
     private readonly DomElement _cursorPosition;
+    private readonly List<DomElement> _touchActions = [];
     private readonly IEditorLinesOwner _lineOwner;
 
+    private DomElement? _completionAction;
     private EditorSelectionView? _selection;
     private int? _activeLineIdentity;
     private bool _suppressSelectionUpdate;
@@ -66,10 +68,35 @@ public sealed class BrowserEditorView : IEditorView
             : new DomEditorLines(_gutter, _lines, _gutterAfter, _linesAfter);
 
         _scroll.Append(_gutter).Append(_lines);
-        _status.Append(_documentSize).Append(_cursorPosition);
+        _status.Append(CreateTouchActions()).Append(_documentSize).Append(_cursorPosition);
         _container.Append(_scroll).Append(_status);
         DomRuntime.AttachEditorSurface(_cellId, _lines);
         DomRuntime.AttachGutterHeights(_gutter, _lines, _cellId);
+    }
+
+    private DomElement CreateTouchActions()
+    {
+        DomElement Own(DomElement element) { _touchActions.Add(element); return element; }
+        var actions = Own(DomElement.Create("div").Class("editor-touch-actions")
+            .Attr("role", "group").Attr("aria-label", "Editor actions"));
+        foreach (var (command, label, path) in new[] {
+            (EditorCommandId.Indent, "Indent", "M10 5h10M10 10h10M10 15h10M4 5l4 5-4 5M4 20h16"),
+            (EditorCommandId.Outdent, "Outdent", "M10 5h10M10 10h10M10 15h10M8 5l-4 5 4 5M4 20h16"),
+            (EditorCommandId.Undo, "Undo", "m8 4-5 5 5 5M3 9h11a6 6 0 0 1 0 12"),
+            (EditorCommandId.Redo, "Redo", "m16 4 5 5-5 5M21 9H10a6 6 0 0 0 0 12"),
+            (EditorCommandId.Suggest, "Show completions", "M4 5h10M4 10h7M4 15h7M4 20h10m2-12 5 5-5 5"),
+        }) {
+            var button = Own(DomElement.Create("button").Attr("type", "button")
+                .Attr("data-editor-touch-command", command.ToString()).Attr("aria-label", label).Attr("title", label));
+            if (command == EditorCommandId.Suggest) _completionAction = button.Attr("aria-expanded", "false");
+            var icon = Own(DomElement.Create("svg").Attr("viewBox", "0 0 24 24")
+                .Attr("width", "18").Attr("height", "18").Attr("fill", "none")
+                .Attr("stroke", "currentColor").Attr("stroke-width", "1.5")
+                .Attr("stroke-linecap", "round").Attr("stroke-linejoin", "round")
+                .Attr("aria-hidden", "true").Attr("focusable", "false"));
+            actions.Append(button.Append(icon.Append(Own(DomElement.Create("path").Attr("d", path)))));
+        }
+        return actions;
     }
 
     private static DomElement CreateSpacer()
@@ -191,8 +218,16 @@ public sealed class BrowserEditorView : IEditorView
         PlaceOverlay(overlay, lineIndex, column);
     }
 
-    internal void SetCompletionSelection(string listId, string itemId)
-        => _lines.Attr("aria-controls", listId).Attr("aria-activedescendant", itemId);
+    internal void SetCompletionSelection(string listId, string itemId, int generation = -1)
+    {
+        _lines.Attr("aria-controls", listId).Attr("aria-activedescendant", itemId);
+        var expanded = listId.Length > 0;
+        var label = expanded ? "Hide completions" : "Show completions";
+        _completionAction?.Attr("aria-expanded", expanded ? "true" : "false")
+            .Attr("aria-label", label).Attr("title", label)
+            .Attr("data-editor-touch-command", (expanded ? EditorCommandId.HideSuggestions : EditorCommandId.Suggest).ToString())
+            .Attr("data-editor-touch-generation", generation.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
 
     internal void Focus() => _lines.Focus();
 
@@ -357,6 +392,9 @@ public sealed class BrowserEditorView : IEditorView
         Release(_status.Dispose);
         Release(_cursorPosition.Dispose);
         Release(_documentSize.Dispose);
+        foreach (var element in _touchActions) Release(element.Dispose);
+        _touchActions.Clear();
+        _completionAction = null;
         Release(_gutterBefore.Dispose);
         Release(_gutterAfter.Dispose);
         Release(_linesBefore.Dispose);

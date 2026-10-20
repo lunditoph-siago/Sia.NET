@@ -15,6 +15,24 @@ internal sealed partial class BrowserEditorPage
         if (RouteLanguageTools(eventName, argument)) return true;
 
         switch (eventName) {
+            case "editor-page-input-tools":
+                SetInputLayout(tools: !_inputToolsOpen, compact: _compactInput);
+                return true;
+            case "editor-page-input-reset":
+                SetInputLayout(tools: false, compact: false);
+                _root.Attr("data-editor-input-reset", (++_inputResetGeneration).ToString(System.Globalization.CultureInfo.InvariantCulture));
+                return true;
+            case "editor-page-compact-input":
+                var compact = !_compactInput;
+                SetInputLayout(tools: compact, compact: compact);
+                return true;
+            case "editor-page-input":
+                var input = argument.Split(':');
+                if (input.Length == 2 && _editors.TryResolveCellId(input[0], out _)) {
+                    if (input[1] == "keyboard-open") SetInputLayout(tools: true, compact: _compactInput);
+                    else if (input[1] is "keyboard-close" or "dismiss") SetInputLayout(tools: false, compact: false);
+                }
+                return true;
             case "editor-page-tab":
                 ActivateTab(argument);
                 return true;
@@ -122,6 +140,20 @@ internal sealed partial class BrowserEditorPage
                         UpdateCursorStatus();
                     return handled;
                 }
+        }
+    }
+
+    private void SetInputLayout(bool tools, bool compact)
+    {
+        if (_inputToolsOpen != tools) {
+            _inputToolsOpen = tools;
+            _root.ToggleClass("input-tools-open", tools);
+            _inputToolsAction.Attr("aria-checked", tools ? "true" : "false");
+        }
+        if (_compactInput != compact) {
+            _compactInput = compact;
+            _root.ToggleClass("input-compact", compact);
+            _compactInputAction.Attr("aria-checked", compact ? "true" : "false");
         }
     }
 
