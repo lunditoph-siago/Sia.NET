@@ -91,11 +91,35 @@ function positionOverlay(placement) {
     }
 
     const anchorRect = editorPositionRect(surface, lineIndex, column);
-    const viewportRect = viewport.getBoundingClientRect();
+    const editorRect = viewport.getBoundingClientRect();
+    const visual = window.visualViewport;
+    const viewportRect = visual ? {
+        left: Math.max(editorRect.left, visual.offsetLeft),
+        top: Math.max(editorRect.top, visual.offsetTop),
+        right: Math.min(editorRect.right, visual.offsetLeft + visual.width),
+        bottom: Math.min(editorRect.bottom, visual.offsetTop + visual.height),
+    } : { left: editorRect.left, top: editorRect.top, right: editorRect.right, bottom: editorRect.bottom };
+    for (let parent = viewport.parentElement; parent; parent = parent.parentElement) {
+        const style = getComputedStyle(parent);
+        const clipX = /auto|scroll|hidden|clip/.test(style.overflowX);
+        const clipY = /auto|scroll|hidden|clip/.test(style.overflowY);
+        if (!clipX && !clipY) continue;
+        const clip = parent.getBoundingClientRect();
+        if (clipX) {
+            viewportRect.left = Math.max(viewportRect.left, clip.left);
+            viewportRect.right = Math.min(viewportRect.right, clip.right);
+        }
+        if (clipY) {
+            viewportRect.top = Math.max(viewportRect.top, clip.top);
+            viewportRect.bottom = Math.min(viewportRect.bottom, clip.bottom);
+        }
+    }
     if (
         !anchorRect ||
-        anchorRect.bottom < viewportRect.top ||
-        anchorRect.top > viewportRect.bottom ||
+        viewportRect.right <= viewportRect.left ||
+        viewportRect.bottom <= viewportRect.top ||
+        anchorRect.bottom <= viewportRect.top ||
+        anchorRect.top >= viewportRect.bottom ||
         anchorRect.right < viewportRect.left ||
         anchorRect.left > viewportRect.right
     ) {
@@ -106,13 +130,14 @@ function positionOverlay(placement) {
     const margin = 4;
     const rootFontSize =
         Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-    const availableWidth = Math.max(0, viewportRect.width - margin * 2);
+    const availableWidth = Math.max(0, viewportRect.right - viewportRect.left - margin * 2);
     if (!availableWidth) {
         overlay.style.visibility = 'hidden';
         return;
     }
 
     overlay.style.visibility = 'hidden';
+    overlay.dataset.overlayCompact = 'false';
     overlay.style.width = `${Math.min(rootFontSize * 22, availableWidth)}px`;
     overlay.style.height = '';
     overlay.style.maxHeight = '12rem';
@@ -129,6 +154,9 @@ function positionOverlay(placement) {
     overlay.dataset.overlaySide = side;
 
     const availableHeight = side === 'above' ? spaceAbove : spaceBelow;
+    const minimumHeight = overlay.querySelector('.completion-item')?.getBoundingClientRect().height ?? 0;
+    if (availableHeight < minimumHeight) return;
+    overlay.dataset.overlayCompact = availableHeight < rootFontSize * 8 ? 'true' : 'false';
     overlay.style.maxHeight = `${Math.min(rootFontSize * 12, availableHeight)}px`;
     const overlayRect = overlay.getBoundingClientRect();
     const containerRect = container.getBoundingClientRect();
@@ -144,7 +172,11 @@ function positionOverlay(placement) {
     overlay.style.top = `${top - containerRect.top}px`;
     overlay.style.visibility = '';
     const list = overlay.querySelector('.completion-list');
-    if (list) scheduleCompletionWindow(list);
+    if (list) {
+        const selected = list.querySelector('.selected, .soft-selected');
+        if (selected) ensureVisible(list, selected);
+        scheduleCompletionWindow(list);
+    }
 }
 
 export function scheduleCompletionWindow(list) {
@@ -199,11 +231,14 @@ export function placeOverlay(container, surface, overlay, lineIndex, column) {
             controller,
             frame: 0,
             schedule: null,
+            resizeObserver: null,
         };
         placement.schedule = () => {
             cancelAnimationFrame(placement.frame);
             placement.frame = requestAnimationFrame(() => positionOverlay(placement));
         };
+        placement.resizeObserver = new ResizeObserver(placement.schedule);
+        placement.resizeObserver.observe(viewport);
         viewport.addEventListener('scroll', placement.schedule, {
             passive: true,
             signal: controller.signal,
@@ -212,6 +247,19 @@ export function placeOverlay(container, surface, overlay, lineIndex, column) {
             passive: true,
             signal: controller.signal,
         });
+        window.addEventListener('scroll', event => {
+            if (event.target === window || event.target?.contains?.(surface)) placement.schedule();
+        }, {
+            capture: true,
+            passive: true,
+            signal: controller.signal,
+        });
+        for (const event of ['resize', 'scroll']) {
+            window.visualViewport?.addEventListener(event, placement.schedule, {
+                passive: true,
+                signal: controller.signal,
+            });
+        }
         overlayPlacements.set(overlay, placement);
     }
 
@@ -234,9 +282,11 @@ export function clearOverlayPlacement(overlay) {
         return;
     }
     cancelAnimationFrame(placement.frame);
+    placement.resizeObserver.disconnect();
     placement.controller.abort();
     overlayPlacements.delete(overlay);
     delete overlay.dataset.overlaySide;
+    delete overlay.dataset.overlayCompact;
 }
 
 export function ensureVisible(container, element) {

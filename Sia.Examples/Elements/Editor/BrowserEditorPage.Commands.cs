@@ -15,6 +15,26 @@ internal sealed partial class BrowserEditorPage
         if (RouteLanguageTools(eventName, argument)) return true;
 
         switch (eventName) {
+            case "editor-page-input-tools":
+                SetInputTools(!_inputToolsOpen);
+                return true;
+            case "editor-page-input-reset":
+                DismissInputTools();
+                _root.Attr("data-editor-input-reset", (++_inputResetGeneration).ToString(System.Globalization.CultureInfo.InvariantCulture));
+                return true;
+            case "editor-page-compact-input":
+                _compactInput = !_compactInput;
+                _root.ToggleClass("input-compact", _compactInput);
+                _compactInputAction.Attr("aria-checked", _compactInput ? "true" : "false");
+                SetInputTools(_compactInput);
+                return true;
+            case "editor-page-input":
+                var input = argument.Split(':');
+                if (input.Length == 2 && _editors.TryResolveCellId(input[0], out _)) {
+                    if (input[1] == "keyboard-open") SetInputTools(true);
+                    else if (input[1] is "keyboard-close" or "dismiss") DismissInputTools();
+                }
+                return true;
             case "editor-page-tab":
                 ActivateTab(argument);
                 return true;
@@ -123,6 +143,21 @@ internal sealed partial class BrowserEditorPage
                     return handled;
                 }
         }
+    }
+
+    private void SetInputTools(bool open)
+    {
+        _inputToolsOpen = open;
+        _root.ToggleClass("input-tools-open", open);
+        _inputToolsAction.Attr("aria-checked", open ? "true" : "false");
+    }
+
+    private void DismissInputTools()
+    {
+        SetInputTools(false);
+        _compactInput = false;
+        _root.ToggleClass("input-compact", false);
+        _compactInputAction.Attr("aria-checked", "false");
     }
 
     internal bool CanExecuteCommand(EditorCommand command, string binding)

@@ -82,6 +82,13 @@ function splitRatioAt(split, pointerX, pointerY) {
     const horizontal = split.classList.contains('horizontal');
     const position = horizontal ? pointerX - rect.left : pointerY - rect.top;
     const size = horizontal ? rect.width : rect.height;
+    if (!horizontal) {
+        const children = split.querySelectorAll(':scope > .split-child');
+        const firstTabs = children[0]?.querySelector(':scope > .cell-group > .cell-tabs')?.getBoundingClientRect().height ?? 0;
+        const secondTabs = children[1]?.querySelector(':scope > .cell-group > .cell-tabs')?.getBoundingClientRect().height ?? 0;
+        if (split.dataset.cellResizeMin === '0' && position <= firstTabs + 9) return 0;
+        if (split.dataset.cellResizeMax === '1' && size - position <= secondTabs + 9) return 1;
+    }
     return Math.min(0.85, Math.max(0.15, position / Math.max(size, 1)));
 }
 
@@ -89,6 +96,8 @@ function applySplitRatio(split, ratio) {
     const children = split.querySelectorAll(':scope > .split-child');
     children[0]?.style.setProperty('--cell-split-share', ratio.toFixed(4));
     children[1]?.style.setProperty('--cell-split-share', (1 - ratio).toFixed(4));
+    children[0]?.classList.toggle('tabs-only', ratio <= 0);
+    children[1]?.classList.toggle('tabs-only', ratio >= 1);
     split
         .querySelector(':scope > .separator')
         ?.setAttribute('aria-valuenow', `${Math.round(ratio * 100)}`);
@@ -120,7 +129,7 @@ document.addEventListener('pointerdown', (event) => {
         !separator ||
         !split ||
         separator.getAttribute('aria-disabled') === 'true' ||
-        matchMedia('(max-width: 720px)').matches ||
+        (matchMedia('(max-width: 720px)').matches && !split.closest('.editor-page-workbench')) ||
         !cellLayoutReady() ||
         (event.pointerType === 'mouse' && event.button !== 0)
     ) {
@@ -180,6 +189,9 @@ document.addEventListener('pointercancel', (event) => {
     }
 });
 
+window.visualViewport?.addEventListener('resize', () => finishSplitResize(false));
+window.navigator?.virtualKeyboard?.addEventListener('geometrychange', () => finishSplitResize(false));
+
 document.addEventListener('keydown', (event) => {
     const separator = event.target.closest?.('.cell-split > .separator');
     if (!separator || separator.getAttribute('aria-disabled') === 'true') {
@@ -196,9 +208,9 @@ document.addEventListener('keydown', (event) => {
     const current = Number.parseFloat(separator.getAttribute('aria-valuenow') ?? '50') / 100;
     const ratio =
         event.key === 'Home'
-            ? 0.15
+            ? Number(split.dataset.cellResizeMin ?? '0.15')
             : event.key === 'End'
-              ? 0.85
+              ? Number(split.dataset.cellResizeMax ?? '0.85')
               : Math.min(0.85, Math.max(0.15, current + (increase ? 0.05 : -0.05)));
     rememberCellAnchor(separator);
     applySplitRatio(split, ratio);
@@ -469,6 +481,9 @@ document.addEventListener('pointercancel', (event) => {
 });
 
 document.addEventListener('lostpointercapture', (event) => {
+    if (splitResize?.pointerId === event.pointerId) {
+        finishSplitResize(false);
+    }
     if (cellDrag?.pointerId === event.pointerId) {
         finishCellDrag();
     }
@@ -481,11 +496,13 @@ window.addEventListener('blur', () => {
 document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
         finishCellDrag();
+        finishSplitResize(false);
     }
 });
 
 let normalizeCellFrame = 0;
 window.addEventListener('resize', () => {
+    finishSplitResize(false);
     cancelAnimationFrame(normalizeCellFrame);
     normalizeCellFrame = requestAnimationFrame(() => {
         normalizeCellFrame = 0;

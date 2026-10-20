@@ -11,6 +11,7 @@ internal sealed partial class BrowserEditorPage
     private readonly Dictionary<string, GroupView> _groupViews = [];
     private readonly Dictionary<string, string> _groupContainers = [];
     private readonly Dictionary<string, SplitView> _splitViews = [];
+    private readonly Dictionary<string, double> _expandedSplitRatios = [];
     private readonly Dictionary<string, string> _splitContainers = [];
     private readonly Dictionary<string, TabHeaderView> _tabHeaders = [];
     private readonly Dictionary<string, DomElement> _floatingHosts = [];
@@ -156,18 +157,39 @@ internal sealed partial class BrowserEditorPage
 
     private void SyncSplitRatios()
     {
-        foreach (var split in NotebookCellLayout.EnumerateSplits(_state)) {
+        var splits = NotebookCellLayout.EnumerateSplits(_state).ToArray();
+        foreach (var removed in _expandedSplitRatios.Keys.Except(splits.Select(split => split.Id)).ToArray()) {
+            _expandedSplitRatios.Remove(removed);
+        }
+        foreach (var split in splits) {
             if (!_splitViews.TryGetValue(split.Id, out var view)) {
                 continue;
             }
             view.Separator.Attr(
                 "aria-valuenow",
                 System.Math.Round(split.Ratio * 100).ToString(CultureInfo.InvariantCulture));
-            view.First.ToggleClass("collapsed", split.Ratio <= 0);
-            view.Second.ToggleClass("collapsed", split.Ratio >= 1);
+            if (split.Ratio is > 0 and < 1) _expandedSplitRatios[split.Id] = split.Ratio;
+            var minimizeFirst = split.Axis == CellAxis.Vertical && split.First is CellTabGroup;
+            var minimizeSecond = split.Axis == CellAxis.Vertical && split.Second is CellTabGroup;
+            view.Root.Attr("data-cell-resize-min", minimizeFirst ? "0" : "0.15")
+                .Attr("data-cell-resize-max", minimizeSecond ? "1" : "0.85");
+            view.Separator.Attr("aria-valuemin", minimizeFirst ? "0" : "15")
+                .Attr("aria-valuemax", minimizeSecond ? "100" : "85");
+            view.First.ToggleClass("tabs-only", split.Ratio <= 0);
+            view.Second.ToggleClass("tabs-only", split.Ratio >= 1);
             CellLayoutDom.SetShare(view.First, split.Ratio);
             CellLayoutDom.SetShare(view.Second, 1 - split.Ratio);
         }
+    }
+
+    private NotebookCellState RestoreMinimizedGroup(NotebookCellState state, string tabId)
+    {
+        var group = NotebookCellLayout.FindGroupContaining(state, tabId);
+        var split = NotebookCellLayout.EnumerateSplits(state).FirstOrDefault(split =>
+            split.Ratio <= 0 && split.First.Id == group?.Id
+            || split.Ratio >= 1 && split.Second.Id == group?.Id);
+        return split is null ? state : NotebookCellLayout.ResizeSplit(
+            state, split.Id, _expandedSplitRatios.GetValueOrDefault(split.Id, 0.625));
     }
 
     private void SyncGroups()
@@ -273,15 +295,18 @@ internal sealed partial class BrowserEditorPage
         if (!_surfaces.TryGetValue(group.Id, out var surface)) {
             surface = DomElement.Create("div").Class("editor-page-editor");
             _surfaces[group.Id] = surface;
+            groupView.Content.Append(surface);
             _editors.Add(surface, group.Id, content, HighlightsFor(content));
             _editorEntities[group.Id] = entity;
         }
-        else if (_editorEntities.TryGetValue(group.Id, out var currentEntity)
-            && currentEntity != entity) {
-            _editors.Replace(group.Id, content, HighlightsFor(content));
-            _editorEntities[group.Id] = entity;
+        else {
+            if (_editorEntities.TryGetValue(group.Id, out var currentEntity)
+                && currentEntity != entity) {
+                _editors.Replace(group.Id, content, HighlightsFor(content));
+                _editorEntities[group.Id] = entity;
+            }
+            groupView.Content.Append(surface);
         }
-        groupView.Content.Append(surface);
         RestoreMemento(group.Id, entity);
     }
 
@@ -522,7 +547,7 @@ internal sealed partial class BrowserEditorPage
             return;
         }
         UpdateState(
-            state => NotebookCellLayout.ResizeSplit(state, parts[1], ratio),
+            state => NotebookCellLayout.ResizeSplit(state, parts[1], ratio, allowTabsOnly: true),
             revision,
             acknowledge: true);
     }

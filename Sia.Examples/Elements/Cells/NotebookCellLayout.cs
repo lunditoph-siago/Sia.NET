@@ -82,12 +82,23 @@ public static partial class NotebookCellLayout
         NotebookCellState state,
         string splitId,
         double ratio)
+        => ResizeSplit(state, splitId, ratio, allowTabsOnly: false);
+
+    internal static NotebookCellState ResizeSplit(
+        NotebookCellState state,
+        string splitId,
+        double ratio,
+        bool allowTabsOnly)
     {
-        if (!double.IsFinite(ratio)
-            || !EnumerateSplits(state).Any(split => split.Id == splitId)) {
+        var split = EnumerateSplits(state).FirstOrDefault(split => split.Id == splitId);
+        if (!double.IsFinite(ratio) || split is null) {
             return state;
         }
         var normalized = System.Math.Clamp(ratio, k_MinPaneShare, 1 - k_MinPaneShare);
+        if (allowTabsOnly && split.Axis == CellAxis.Vertical) {
+            if (ratio <= 0 && split.First is CellTabGroup) normalized = 0;
+            else if (ratio >= 1 && split.Second is CellTabGroup) normalized = 1;
+        }
         return TransformRoots(state, root => UpdateSplitRatio(root, splitId, normalized));
     }
 

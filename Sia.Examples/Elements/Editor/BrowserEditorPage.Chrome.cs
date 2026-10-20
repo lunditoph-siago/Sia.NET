@@ -17,6 +17,7 @@ internal sealed partial class BrowserEditorPage
 
     private void UpdateChrome(string? message = null)
     {
+        _root.Attr("data-editor-active-binding", ActiveLanguageBinding() ?? string.Empty);
         if (_activeEntity is { } entity && entity.IsValid) {
             UpdateFileStatus(entity, EditorWorkspace.IsDirty(entity));
         }
@@ -48,7 +49,7 @@ internal sealed partial class BrowserEditorPage
 
     private DomElement SetBuildStatus(string message) => _buildStatus.Text(message).Attr("title", message);
 
-    private void CreateMenu(DomElement parent, string label, (string Label, string Payload, string Title)[] items)
+    private DomElement CreateMenu(DomElement parent, string label, (string Label, string Payload, string Title)[] items)
     {
         var host = Own(DomElement.Create("details").Class("menu-toggle"));
         var summary = Own(DomElement.Create("summary").Class("btn").Attr("aria-label", label).Text(label));
@@ -57,6 +58,7 @@ internal sealed partial class BrowserEditorPage
             menu.Append(CreateAction(text, payload, title).Class("menu-item"));
         }
         parent.Append(host.Append(summary).Append(menu));
+        return menu;
     }
 
     private DomElement CreateAction(string label, string payload, string title)

@@ -91,7 +91,7 @@ public sealed partial class BrowserEditorHost
             if (revealSelection && selectedRow >= 0 && selectedRow < length)
                 DomRuntime.EnsureVisible(_completionList, _completionItems[selectedRow].Element);
             _view.SetCompletionSelection($"{_cellId}-suggestions", selectedRow >= 0 && selectedRow < length
-                ? $"{_cellId}-suggestion-{_completionIndex}" : "");
+                ? $"{_cellId}-suggestion-{_completionIndex}" : "", _completionGeneration);
             PlaceSignature();
             UpdateCompletionDescription();
         }
