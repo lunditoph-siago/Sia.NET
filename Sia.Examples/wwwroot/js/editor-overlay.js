@@ -234,8 +234,11 @@ export function placeOverlay(container, surface, overlay, lineIndex, column) {
             resizeObserver: null,
         };
         placement.schedule = () => {
-            cancelAnimationFrame(placement.frame);
-            placement.frame = requestAnimationFrame(() => positionOverlay(placement));
+            if (placement.frame) return;
+            placement.frame = requestAnimationFrame(() => {
+                placement.frame = 0;
+                positionOverlay(placement);
+            });
         };
         placement.resizeObserver = new ResizeObserver(placement.schedule);
         placement.resizeObserver.observe(viewport);

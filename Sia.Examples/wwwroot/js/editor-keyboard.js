@@ -66,21 +66,24 @@ export function observeSoftKeyboard(callback) {
         callback({ ...sample, status: nativeEnabled ? nativeStatus : state.status,
             source: nativeEnabled ? 'native' : 'viewport', pending });
     };
-    const commit = () => {
+    const clearPending = () => {
         clearTimeout(quiet); clearTimeout(deadline); quiet = deadline = 0;
+    };
+    const commit = sample => {
+        clearPending();
         if (disposed) return;
-        const sample = read();
-        state = inferKeyboard(state, sample);
+        sample ??= read();
+        if (!nativeEnabled) state = inferKeyboard(state, sample);
         publish(sample, false);
     };
     const update = () => {
         frame = 0;
         const sample = read();
         if (sample.hidden) {
-            clearTimeout(quiet); clearTimeout(deadline); quiet = deadline = 0;
+            clearPending();
             return;
         }
-        if (nativeEnabled) { commit(); return; }
+        if (nativeEnabled) { commit(sample); return; }
         publish(sample, true);
         clearTimeout(quiet);
         quiet = setTimeout(commit, 120);
@@ -99,11 +102,15 @@ export function observeSoftKeyboard(callback) {
     commit();
     return {
         refresh: schedule,
-        reset() { if (!disposed) { state = initialObservation(); commit(); } },
+        reset() {
+            if (disposed) return;
+            cancelAnimationFrame(frame); frame = 0;
+            state = initialObservation(); commit();
+        },
         dispose() {
             if (disposed) return;
             disposed = true; abort.abort(); cancelAnimationFrame(frame);
-            clearTimeout(quiet); clearTimeout(deadline);
+            clearPending();
             if (nativeEnabled) {
                 try { keyboard.overlaysContent = previousOverlay; } catch {}
             }

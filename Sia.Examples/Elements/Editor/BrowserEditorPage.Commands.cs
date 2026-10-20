@@ -16,23 +16,21 @@ internal sealed partial class BrowserEditorPage
 
         switch (eventName) {
             case "editor-page-input-tools":
-                SetInputTools(!_inputToolsOpen);
+                SetInputLayout(tools: !_inputToolsOpen, compact: _compactInput);
                 return true;
             case "editor-page-input-reset":
-                DismissInputTools();
+                SetInputLayout(tools: false, compact: false);
                 _root.Attr("data-editor-input-reset", (++_inputResetGeneration).ToString(System.Globalization.CultureInfo.InvariantCulture));
                 return true;
             case "editor-page-compact-input":
-                _compactInput = !_compactInput;
-                _root.ToggleClass("input-compact", _compactInput);
-                _compactInputAction.Attr("aria-checked", _compactInput ? "true" : "false");
-                SetInputTools(_compactInput);
+                var compact = !_compactInput;
+                SetInputLayout(tools: compact, compact: compact);
                 return true;
             case "editor-page-input":
                 var input = argument.Split(':');
                 if (input.Length == 2 && _editors.TryResolveCellId(input[0], out _)) {
-                    if (input[1] == "keyboard-open") SetInputTools(true);
-                    else if (input[1] is "keyboard-close" or "dismiss") DismissInputTools();
+                    if (input[1] == "keyboard-open") SetInputLayout(tools: true, compact: _compactInput);
+                    else if (input[1] is "keyboard-close" or "dismiss") SetInputLayout(tools: false, compact: false);
                 }
                 return true;
             case "editor-page-tab":
@@ -145,19 +143,18 @@ internal sealed partial class BrowserEditorPage
         }
     }
 
-    private void SetInputTools(bool open)
+    private void SetInputLayout(bool tools, bool compact)
     {
-        _inputToolsOpen = open;
-        _root.ToggleClass("input-tools-open", open);
-        _inputToolsAction.Attr("aria-checked", open ? "true" : "false");
-    }
-
-    private void DismissInputTools()
-    {
-        SetInputTools(false);
-        _compactInput = false;
-        _root.ToggleClass("input-compact", false);
-        _compactInputAction.Attr("aria-checked", "false");
+        if (_inputToolsOpen != tools) {
+            _inputToolsOpen = tools;
+            _root.ToggleClass("input-tools-open", tools);
+            _inputToolsAction.Attr("aria-checked", tools ? "true" : "false");
+        }
+        if (_compactInput != compact) {
+            _compactInput = compact;
+            _root.ToggleClass("input-compact", compact);
+            _compactInputAction.Attr("aria-checked", compact ? "true" : "false");
+        }
     }
 
     internal bool CanExecuteCommand(EditorCommand command, string binding)

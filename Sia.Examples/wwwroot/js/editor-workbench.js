@@ -16,7 +16,8 @@ function attachViewport(root) {
     const keyboard = observeSoftKeyboard(sample => {
         const { offsetTop: top, visualHeight: height, rectangle: bounds } = sample;
         let bottom = top + height;
-        root.dataset.editorKeyboardApi = String(sample.source === 'native');
+        const native = String(sample.source === 'native');
+        if (root.dataset.editorKeyboardApi !== native) root.dataset.editorKeyboardApi = native;
         if (!sample.pending && sample.status !== 'unknown' && sample.status !== reported && root.dataset.editorActiveBinding) {
             const editing = document.activeElement?.matches('.editor-lines') && document.activeElement.closest('.editor-page') === root;
             if (sample.status === 'closed' || editing) {
@@ -27,8 +28,9 @@ function attachViewport(root) {
         if (bounds?.width > 0 && bounds.height > 0 && bounds.top < bottom && bounds.top + bounds.height > top) {
             bottom = Math.max(top, bounds.top);
         }
-        body.style.setProperty(properties[0], `${Math.max(0, bottom - top)}px`);
-        body.style.setProperty(properties[1], `${top}px`);
+        const heightValue = `${Math.max(0, bottom - top)}px`, topValue = `${top}px`;
+        if (body.style.getPropertyValue(properties[0]) !== heightValue) body.style.setProperty(properties[0], heightValue);
+        if (body.style.getPropertyValue(properties[1]) !== topValue) body.style.setProperty(properties[1], topValue);
     });
     return { schedule: keyboard.refresh, reset: keyboard.reset, dispose() {
         keyboard.dispose();
@@ -61,11 +63,21 @@ export function attachWorkbenchActions(surface, actions) {
             }
         };
         owner.observer = new MutationObserver(records => {
-            if (records.some(record => record.type === 'attributes'
-                ? record.attributeName === 'data-editor-active-binding' || record.target.matches('.split-child')
-                : record.target.matches('.editor-page-workbench, .group-content, .split-child, .cell-split'))) owner.project();
-            if (records.some(record => record.type === 'attributes' && record.attributeName === 'data-editor-active-binding')) owner.viewport.schedule();
-            if (records.some(record => record.type === 'attributes' && record.attributeName === 'data-editor-input-reset')) owner.viewport.reset();
+            let project = false, refresh = false, reset = false;
+            for (const record of records) {
+                if (record.type !== 'attributes') {
+                    project ||= record.target.matches('.editor-page-workbench, .group-content, .split-child, .cell-split');
+                } else if (record.attributeName === 'data-editor-active-binding') {
+                    project = refresh = true;
+                } else if (record.attributeName === 'data-editor-input-reset') {
+                    reset = true;
+                } else {
+                    project ||= record.target.matches('.split-child');
+                }
+            }
+            if (project) owner.project();
+            if (reset) owner.viewport.reset();
+            else if (refresh) owner.viewport.schedule();
         });
         owner.observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-editor-active-binding', 'data-editor-input-reset', 'class'] });
         document.addEventListener('focusin', event => {
