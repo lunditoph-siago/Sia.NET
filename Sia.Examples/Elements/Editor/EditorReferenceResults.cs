@@ -63,11 +63,23 @@ internal sealed class EditorReferenceResults : IDisposable
     internal void Clear()
     {
         _generation++; _references = null; _preview = null;
-        ClearRows();
-        Element.ToggleClass("hidden", true);
+        if (_rows.Count == 0) return;
+        DomRuntime.BeginUpdate(Element);
+        try {
+            ClearRows();
+            Element.ToggleClass("hidden", true);
+        }
+        finally { DomRuntime.EndUpdate(Element); }
     }
 
     private void Render()
+    {
+        DomRuntime.BeginUpdate(Element);
+        try { RenderContents(); }
+        finally { DomRuntime.EndUpdate(Element); }
+    }
+
+    private void RenderContents()
     {
         _generation++;
         ClearRows();

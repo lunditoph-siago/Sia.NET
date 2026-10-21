@@ -239,7 +239,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             catch (Exception error) { (failures ??= []).Add(error); }
         }
         Release(_lifetime.Cancel);
-        Release(() => _liveDiagnosticsCancellation?.Cancel());
+        Release(CancelLanguageDiagnostics);
         Release(ClearLanguageResults);
         Release(() => _referenceResults.Dispose());
         Release(_renamePanel.Dispose);

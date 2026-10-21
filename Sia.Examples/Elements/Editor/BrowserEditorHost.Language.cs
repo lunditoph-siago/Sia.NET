@@ -2,8 +2,7 @@ namespace Sia.Examples.Editor;
 
 public sealed partial class BrowserEditorHost
 {
-    private CancellationTokenSource? _languageCancellation;
-    private int _languageGeneration;
+    private readonly EditorLatestRequest<EditorState> _languageRequests = new();
     private EditorCommandId _languageCommand;
     internal event Action<BrowserEditorHost, SymbolDefinition?>? DefinitionReady;
     internal event Action<BrowserEditorHost, SymbolReferences?>? ReferencesReady;
@@ -32,50 +31,44 @@ public sealed partial class BrowserEditorHost
         CancelCompletion();
         CancelSignature();
         _languageCommand = command.Id;
-        var cancellation = new CancellationTokenSource();
-        _languageCancellation = cancellation;
-        _ = RunLanguageCommandAsync(State.Value, command.Id, cancellation, _languageGeneration);
+        var request = _languageRequests.Start(State.Value);
+        _ = RunLanguageCommandAsync(request, command.Id);
         return true;
     }
 
-    private async Task RunLanguageCommandAsync(EditorState state, EditorCommandId command, CancellationTokenSource cancellation, int generation)
+    private async Task RunLanguageCommandAsync(EditorLatestRequest<EditorState>.Request request, EditorCommandId command)
     {
+        var state = request.Context;
         try {
+            var source = state.Doc.SliceDoc();
+            var position = state.Selection.Main.Head;
             if (command == EditorCommandId.GoToDefinition) {
-                var definition = await _completionProvider.QueryDefinitionAsync(_cellId, state.Doc.SliceDoc(), state.Selection.Main.Head, cancellation.Token);
-                if (generation == _languageGeneration && !cancellation.IsCancellationRequested
+                var definition = await _completionProvider.QueryDefinitionAsync(_cellId, source, position, request.Token);
+                if (request.IsCurrent
                     && ReferenceEquals(state.Doc, State.Value.Doc) && state.Selection.Eq(State.Value.Selection)) DefinitionReady?.Invoke(this, definition);
             }
             else if (command == EditorCommandId.FindReferences) {
-                var references = await _completionProvider.QueryReferencesAsync(_cellId, state.Doc.SliceDoc(), state.Selection.Main.Head, cancellation.Token);
-                if (generation == _languageGeneration && !cancellation.IsCancellationRequested
+                var references = await _completionProvider.QueryReferencesAsync(_cellId, source, position, request.Token);
+                if (request.IsCurrent
                     && ReferenceEquals(state.Doc, State.Value.Doc) && state.Selection.Eq(State.Value.Selection)) ReferencesReady?.Invoke(this, references);
             }
             else if (command == EditorCommandId.RenameSymbol) {
-                var source = state.Doc.SliceDoc();
-                var position = state.Selection.Main.Head;
-                var target = await _completionProvider.QueryRenameTargetAsync(_cellId, source, position, cancellation.Token);
-                if (generation == _languageGeneration && !cancellation.IsCancellationRequested
+                var target = await _completionProvider.QueryRenameTargetAsync(_cellId, source, position, request.Token);
+                if (request.IsCurrent
                     && ReferenceEquals(state.Doc, State.Value.Doc) && state.Selection.Eq(State.Value.Selection)) RenameReady?.Invoke(this, target, source, position);
             }
             else {
-                var changes = await _completionProvider.FormatAsync(_cellId, state.Doc.SliceDoc(), EditorState.TabSize, cancellation.Token);
-                if (generation == _languageGeneration && !cancellation.IsCancellationRequested
+                var changes = await _completionProvider.FormatAsync(_cellId, source, EditorState.TabSize, request.Token);
+                if (request.IsCurrent
                     && ReferenceEquals(state.Doc, State.Value.Doc) && changes.Length > 0) Commit(State.Value.Apply(new() { Changes = changes }));
             }
         }
-        catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
-        catch (Exception error) { if (!cancellation.IsCancellationRequested && generation == _languageGeneration) Sia.Examples.Dom.DomRuntime.ReportError(error.ToString()); }
+        catch (OperationCanceledException) when (request.Token.IsCancellationRequested) { }
+        catch (Exception error) { if (request.IsCurrent) Sia.Examples.Dom.DomRuntime.ReportError(error.ToString()); }
         finally {
-            if (ReferenceEquals(_languageCancellation, cancellation)) _languageCancellation = null;
-            cancellation.Dispose();
+            request.Dispose();
         }
     }
 
-    private void CancelLanguageCommand()
-    {
-        _languageGeneration++;
-        _languageCancellation?.Cancel();
-        _languageCancellation = null;
-    }
+    private void CancelLanguageCommand() => _languageRequests.Cancel();
 }

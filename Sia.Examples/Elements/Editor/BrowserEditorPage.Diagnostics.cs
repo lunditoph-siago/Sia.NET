@@ -49,35 +49,27 @@ internal sealed partial class BrowserEditorPage
             .Attr("title", "Compile to check the current source")
             .ToggleClass("is-empty", true).ToggleClass("has-errors", false);
     private int _diagnosticsGeneration;
-    private int _liveDiagnosticsGeneration;
-    private CancellationTokenSource? _liveDiagnosticsCancellation;
+    private readonly EditorLatestRequest<string> _liveDiagnostics = new();
 
     private void ScheduleLanguageDiagnostics(string? binding, bool immediate = false)
     {
-        var generation = ++_liveDiagnosticsGeneration;
-        _liveDiagnosticsCancellation?.Cancel();
-        if (_disposed || binding is null) return;
-        var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
-        _liveDiagnosticsCancellation = cancellation;
-        Track(CheckLanguageDiagnosticsAsync(binding, generation, cancellation, immediate));
+        if (_disposed || binding is null) { CancelLanguageDiagnostics(); return; }
+        var request = _liveDiagnostics.Start(binding, _lifetime.Token);
+        Track(CheckLanguageDiagnosticsAsync(request, immediate));
     }
 
     private void ClearDiagnostics() { _diagnosticsGeneration++; _diagnostics.Text(string.Empty); }
 
-    private void CancelLanguageDiagnostics()
-    {
-        _liveDiagnosticsGeneration++;
-        _liveDiagnosticsCancellation?.Cancel();
-        _liveDiagnosticsCancellation = null;
-    }
+    private void CancelLanguageDiagnostics() => _liveDiagnostics.Cancel();
 
-    private async Task CheckLanguageDiagnosticsAsync(string binding, int generation, CancellationTokenSource cancellation, bool immediate)
+    private async Task CheckLanguageDiagnosticsAsync(EditorLatestRequest<string>.Request request, bool immediate)
     {
+        var binding = request.Context;
         try {
-            if (!immediate) await Task.Delay(750, cancellation.Token);
+            if (!immediate) await Task.Delay(750, request.Token);
             if (!_editors.TryResolveCellId(binding, out _)) return;
-            var issues = await _editors.QueryDiagnosticsAsync(binding, cancellation.Token, sourceBoundary: immediate);
-            if (_disposed || cancellation.IsCancellationRequested || generation != _liveDiagnosticsGeneration) return;
+            var issues = await _editors.QueryDiagnosticsAsync(binding, request.Token, sourceBoundary: immediate);
+            if (_disposed || !request.IsCurrent) return;
             var diagnostics = issues.Select(issue => {
                 string? key = null;
                 if (issue.Location is { Generated: false } target && _workspace.TryGetEntity(target.DocumentId, out var file) && file.IsValid) key = KeyFor(file);
@@ -88,13 +80,11 @@ internal sealed partial class BrowserEditorPage
             _diagnosticStatus.Attr("title", "Editor diagnostics for the current source snapshot");
             if (immediate) OpenPanelWindow("compilation");
         }
-        catch (OperationCanceledException) when (_disposed || cancellation.IsCancellationRequested
-            || generation != _liveDiagnosticsGeneration || !_editors.TryResolveCellId(binding, out var group)
+        catch (OperationCanceledException) when (_disposed || !request.IsCurrent || !_editors.TryResolveCellId(binding, out var group)
             || !_editorEntities.TryGetValue(group, out var entity) || !entity.IsValid) { }
-        catch (Exception error) { if (!_disposed && !cancellation.IsCancellationRequested && generation == _liveDiagnosticsGeneration) ShowOperationError("Could not check the current code", error); }
+        catch (Exception error) { if (!_disposed && request.IsCurrent) ShowOperationError("Could not check the current code", error); }
         finally {
-            if (ReferenceEquals(_liveDiagnosticsCancellation, cancellation)) _liveDiagnosticsCancellation = null;
-            cancellation.Dispose();
+            request.Dispose();
         }
     }
 
