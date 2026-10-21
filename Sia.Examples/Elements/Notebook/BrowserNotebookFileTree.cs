@@ -14,6 +14,13 @@ internal sealed class BrowserNotebookFileTree : IDisposable
     public void Update(NotebookDocument document, NotebookCellState cellState)
     {
         ThrowIfDisposed();
+        DomRuntime.BeginUpdate(_root);
+        try { UpdateContents(document, cellState); }
+        finally { DomRuntime.EndUpdate(_root); }
+    }
+
+    private void UpdateContents(NotebookDocument document, NotebookCellState cellState)
+    {
         Clear();
 
         var cellIndex = 0;

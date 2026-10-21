@@ -265,7 +265,7 @@ public sealed class BrowserNotebookView :
     {
         var sectionActions = _sectionActionHosts[sectionId];
         sectionActions.Text(string.Empty);
-        var lastBlockId = blocks.Select(GetBlockId).LastOrDefault(id => id is not null);
+        var lastBlockId = blocks.Select(NotebookDocumentEdits.GetBlockId).LastOrDefault(id => id is not null);
         if (lastBlockId is not null) {
             AppendAddMenu(
                 sectionActions,
@@ -667,10 +667,4 @@ public sealed class BrowserNotebookView :
         menu.Append(button);
     }
 
-    private static string? GetBlockId(NotebookBlock block)
-        => block switch {
-            CodeCellBlock cell => cell.Id,
-            ParagraphBlock paragraph => paragraph.Id,
-            _ => null,
-        };
 }
