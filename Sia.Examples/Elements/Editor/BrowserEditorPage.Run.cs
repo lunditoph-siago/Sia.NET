@@ -54,7 +54,7 @@ internal sealed partial class BrowserEditorPage
         try {
             var execution = Task.Run(() => ManagedAssemblyExecutor.ExecuteAsync(source.Program, console));
             var result = await execution.WaitAsync(_lifetime.Token);
-            if (!_disposed && revision == _shaderRevision) {
+            if (!_disposed && _shaderJobs.IsCurrent(revision)) {
                 RefreshProgramConsole();
                 SetBuildStatus(result.Success ? "Program completed" : "Program failed · see Console");
             }
