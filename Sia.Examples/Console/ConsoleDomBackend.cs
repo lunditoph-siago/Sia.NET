@@ -169,39 +169,6 @@ internal sealed partial class ConsoleDomBackend : IDomBackend
         _terminal.Dispose();
     }
 
-    private ConsoleDomNode CreateDocument()
-    {
-        var document = NewNode("#document");
-        var app = NewNode("div", "app");
-        var sidebar = NewNode("aside", "sidebar");
-        var content = NewNode("main", "content");
-        var header = NewNode("div", "content-header");
-        var packages = NewNode("div", "header-packages");
-        var packagesToggle = NewNode("button", "packages-toggle");
-        var packagesText = NewText("Packages");
-        var packagesBadge = NewNode("span", "packages-badge");
-        var packagesPopover = NewNode("div", "packages-popover");
-        var notebook = NewNode("div", "notebook");
-        var placeholder = NewNode("span");
-        placeholder.Classes.Add("placeholder");
-        var placeholderText = NewText("Choose a notebook to open it");
-
-        AppendRaw(document, app);
-        AppendRaw(app, sidebar);
-        AppendRaw(app, content);
-        AppendRaw(content, header);
-        AppendRaw(header, packages);
-        AppendRaw(packages, packagesToggle);
-        AppendRaw(packagesToggle, packagesText);
-        AppendRaw(packagesToggle, packagesBadge);
-        AppendRaw(packages, packagesPopover);
-
-        AppendRaw(content, notebook);
-        AppendRaw(notebook, placeholder);
-        AppendRaw(placeholder, placeholderText);
-        return document;
-    }
-
     private ConsoleDomNode FindNode(string id)
         => _document.DescendantsAndSelf()
             .First(node => string.Equals(node.Id, id, StringComparison.Ordinal));
