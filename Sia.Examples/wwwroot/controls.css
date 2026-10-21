@@ -42,3 +42,80 @@
         @media (any-pointer: coarse), (max-width: 899px) { padding: 0.15rem 0.4rem; }
     }
 }
+
+@layer components {
+    .packages-body {
+        .packages-empty {
+            padding: 0.2rem 0 0.5rem;
+            opacity: 0.6;
+        }
+
+        .package {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.15rem 0;
+
+            .package-id {
+                min-width: 0;
+                overflow-wrap: anywhere;
+                font-family: var(--font-mono);
+            }
+
+            .package-state {
+                flex: none;
+                margin-left: auto;
+                font-size: 0.78rem;
+            }
+
+            &.package-loading .package-state {
+                color: var(--color-warning);
+            }
+            &.package-loaded .package-state {
+                color: var(--color-success);
+            }
+            &.package-failed .package-state {
+                color: var(--color-danger);
+            }
+        }
+
+        .package-error {
+            padding: 0 0 0.3rem; overflow-wrap: anywhere;
+            opacity: 0.85;
+            color: var(--color-danger);
+            font-size: 0.78rem;
+        }
+
+        .package-add {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            margin-top: 0.5rem;
+            padding-top: 0.5rem;
+            border-top: 1px dashed var(--border-subtle);
+
+            .package-add-input {
+                flex: 1 1 8rem; min-width: 0;
+                max-width: 100%;
+                min-height: var(--control-size);
+                padding: 0.25rem 0.5rem;
+                border: 1px solid var(--border-control);
+                border-radius: var(--radius-control);
+                background: var(--color-bg);
+                color: var(--color-fg);
+                font: inherit;
+                font-size: 0.8rem;
+
+                @media (any-pointer: coarse), (max-width: 899px) {
+                    min-height: 2.25rem;
+                    font-size: 1rem;
+                }
+            }
+
+            @media (any-pointer: coarse), (max-width: 899px) {
+                .package-add-input:first-child { flex-basis: 100%; }
+            }
+        }
+    }
+}

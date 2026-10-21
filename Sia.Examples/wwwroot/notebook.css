@@ -26,6 +26,8 @@
         gap: 0.2rem;
     }
 
+    .notebook-bar, #notebook-actions { min-width: 0; }
+
     .notebook-status {
         max-width: 10rem;
         overflow: hidden;

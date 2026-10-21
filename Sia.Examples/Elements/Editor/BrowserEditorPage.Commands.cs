@@ -12,6 +12,7 @@ internal sealed partial class BrowserEditorPage
         var eventName = separator < 0 ? payload : payload[..separator];
         var argument = separator < 0 ? string.Empty : payload[(separator + 1)..];
         if (RouteShader(eventName)) return true;
+        if (RoutePackages(eventName, argument)) return true;
         if (RouteLanguageTools(eventName, argument)) return true;
 
         switch (eventName) {

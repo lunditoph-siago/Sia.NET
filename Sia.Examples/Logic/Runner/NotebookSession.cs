@@ -32,12 +32,11 @@ public sealed class NotebookSession : IDisposable
         _references = references;
         _document = document;
 
-        foreach (var package in document.Packages) {
-            _packages.Declare(package);
-        }
+        _packages.Replace(document.Packages);
 
         Rebuild();
         Snapshot = CreateSnapshot();
+        _packages.Changed += HandlePackagesChanged;
     }
 
     public event Action<NotebookSessionSnapshot, bool>? Changed;
@@ -55,17 +54,8 @@ public sealed class NotebookSession : IDisposable
     public async Task EnsurePackagesAsync(CancellationToken cancellationToken = default)
     {
         VerifyAccess();
-        var pending = _packages.Snapshot
-            .Where(static status => status.State == PackageLoadState.Loading)
-            .Select(static status => status.Package)
-            .ToArray();
-        if (pending.Length == 0) {
-            return;
-        }
-
-        var statuses = await _references.EnsurePackagesAsync(pending, cancellationToken);
+        await _packages.EnsureAsync(_references, cancellationToken);
         VerifyAccess();
-        ApplyStatuses(statuses);
     }
 
     public async Task<PackageStatus> AddPackageAsync(
@@ -73,24 +63,16 @@ public sealed class NotebookSession : IDisposable
         CancellationToken cancellationToken = default)
     {
         VerifyAccess();
-        if (_packages.Declare(package)) {
-            Publish();
-        }
-        var statuses = await _references.EnsurePackagesAsync([package], cancellationToken);
+        if (!_packages.Declare(package)) _packages.Retry();
+        await _packages.EnsureAsync(_references, cancellationToken);
         VerifyAccess();
-        ApplyStatuses(statuses);
-        return statuses[0];
+        return _packages.Snapshot.First(status => string.Equals(status.Package.Id, package.Id.Trim(), StringComparison.OrdinalIgnoreCase));
     }
 
-    private void ApplyStatuses(IReadOnlyList<PackageStatus> statuses)
+    private void HandlePackagesChanged()
     {
-        var changed = false;
-        foreach (var status in statuses) {
-            changed |= _packages.Resolve(status);
-        }
-        if (changed) {
-            Publish();
-        }
+        foreach (var scope in _scopes.Values) scope.InvalidateFrom(0);
+        Publish();
     }
 
     public void UpdateCellSource(
@@ -331,7 +313,7 @@ public sealed class NotebookSession : IDisposable
                 var other => other,
             }).ToList(),
         }).ToList();
-        return _document with { Sections = sections };
+        return _document with { Sections = sections, Packages = _packages.Snapshot.Select(static status => status.Package).ToArray() };
     }
 
     public async Task CompileThroughAsync(

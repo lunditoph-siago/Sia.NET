@@ -98,6 +98,9 @@ function loadBytes(url) {
                 throw new Error(`HTTP ${response.status} while fetching ${url}`);
             }
             return response.arrayBuffer();
+        }).catch((error) => {
+            if (resourceRequests.get(url) === request) resourceRequests.delete(url);
+            throw error;
         });
         resourceRequests.set(url, request);
     }

@@ -9,14 +9,14 @@ public sealed class PackageReferenceLoader
     private const string k_BaseUrl = "https://api.nuget.org/v3-flatcontainer";
 
     private readonly IResourceLoader _resources;
-    private readonly ConcurrentDictionary<string, Lazy<Task<IReadOnlyList<FetchedAssembly>>>> _cache = new();
+    private readonly ConcurrentDictionary<string, Lazy<Task<FetchedPackage>>> _cache = new();
 
     public PackageReferenceLoader(IResourceLoader resources)
     {
         _resources = resources;
     }
 
-    public ValueTask<IReadOnlyList<FetchedAssembly>> LoadReferencesAsync(
+    public ValueTask<FetchedPackage> LoadReferencesAsync(
         string packageId,
         string? version,
         CancellationToken cancellationToken = default)
@@ -26,7 +26,7 @@ public sealed class PackageReferenceLoader
         return new(entry.Value.WaitAsync(cancellationToken));
     }
 
-    private async Task<IReadOnlyList<FetchedAssembly>> FetchAndCacheAsync(
+    private async Task<FetchedPackage> FetchAndCacheAsync(
         string key,
         string packageId,
         string? version)
@@ -40,7 +40,7 @@ public sealed class PackageReferenceLoader
         }
     }
 
-    private async ValueTask<IReadOnlyList<FetchedAssembly>> FetchAsync(
+    private async ValueTask<FetchedPackage> FetchAsync(
         string id,
         string? version,
         CancellationToken cancellationToken)
@@ -51,7 +51,7 @@ public sealed class PackageReferenceLoader
             GetPackageUrl(id, resolvedVersion),
             cancellationToken);
         using var zip = new ZipArchive(new MemoryStream(bytes), ZipArchiveMode.Read);
-        return NuGetAssemblyExtractor.Extract(zip, id, resolvedVersion);
+        return new(resolvedVersion, NuGetAssemblyExtractor.Extract(zip, id, resolvedVersion));
     }
 
     private async ValueTask<string> ResolveLatestStableAsync(
