@@ -57,12 +57,13 @@ public sealed class InMemoryWorkspaceStorage : IWorkspaceStorage
     {
         var normalized = WorkspacePath.Normalize(path);
         CheckVersion(normalized, expectedVersion);
-        if (!_entries.Remove(normalized)) {
+        var paths = _entries.Keys.Where(
+            key => key == normalized || WorkspacePath.IsDescendantOf(key, normalized)).ToArray();
+        if (paths.Length == 0) {
             throw new InvalidOperationException($"No entry named '{normalized}' exists in the workspace.");
         }
-        foreach (var descendant in _entries.Keys.Where(
-                 key => WorkspacePath.IsDescendantOf(key, normalized)).ToArray()) {
-            _entries.Remove(descendant);
+        foreach (var removed in paths) {
+            _entries.Remove(removed);
         }
         return ValueTask.CompletedTask;
     }
@@ -75,17 +76,18 @@ public sealed class InMemoryWorkspaceStorage : IWorkspaceStorage
         if (WorkspacePath.EqualsPath(oldNormalized, newNormalized)) {
             return ValueTask.CompletedTask;
         }
-        if (!_entries.TryGetValue(oldNormalized, out var entry)) {
+        var moved = _entries.Where(pair => pair.Key == oldNormalized
+            || WorkspacePath.IsDescendantOf(pair.Key, oldNormalized)).ToArray();
+        if (moved.Length == 0) {
             throw new InvalidOperationException($"No entry named '{oldNormalized}' exists in the workspace.");
         }
-        EnsureAbsent(newNormalized);
-        _entries.Remove(oldNormalized);
-        _entries[newNormalized] = entry;
-        foreach (var descendant in _entries.Keys.Where(
-                 key => WorkspacePath.IsDescendantOf(key, oldNormalized)).ToArray()) {
-            var moved = _entries[descendant];
-            _entries.Remove(descendant);
-            _entries[newNormalized + descendant[oldNormalized.Length..]] = moved;
+        if (_entries.Keys.Any(key => key == newNormalized
+            || WorkspacePath.IsDescendantOf(key, newNormalized))) {
+            throw new WorkspaceEntryExistsException(newNormalized);
+        }
+        foreach (var (path, entry) in moved) {
+            _entries.Remove(path);
+            _entries[newNormalized + path[oldNormalized.Length..]] = entry;
         }
         return ValueTask.CompletedTask;
     }

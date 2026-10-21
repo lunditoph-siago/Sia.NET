@@ -73,8 +73,8 @@ public sealed partial class BrowserEditorHost
         changes.IterateChangedRanges((a, b, c, d) => size += (long)b - a + d - c);
         var edit = new HistoryEdit(changes, changes.Invert(before.Doc), selection, after.Selection, size);
         if (group != EditGroup.None && group == _historyGroup
-            && now - _lastHistoryEdit <= 750 && _undoHistory.Count > 0 && _redoHistory.Count == 0
-            && _undoHistory[^1].After.Eq(selection, true)) {
+            && _undoHistory.Count > 0 && _redoHistory.Count == 0
+            && (group == EditGroup.InsertSession || now - _lastHistoryEdit <= 750 && _undoHistory[^1].After.Eq(selection, true))) {
             var previous = _undoHistory[^1];
             edit = new(ChangeSet.Compose(previous.Forward, changes),
                 ChangeSet.Compose(edit.Backward, previous.Backward), previous.Before, after.Selection,
@@ -129,5 +129,5 @@ public sealed partial class BrowserEditorHost
     internal sealed record HistoryEdit(ChangeSet Forward, ChangeSet Backward,
         EditorSelection Before, EditorSelection After, long Size, WorkspaceEditTransaction? WorkspaceEdit = null);
 
-    private enum EditGroup { None, Typing, Backward, Forward }
+    private enum EditGroup { None, Typing, Backward, Forward, InsertSession }
 }

@@ -55,13 +55,13 @@ public sealed partial class BrowserEditorHost : IDisposable
 
     internal void InvalidateLanguageContext() { CancelCompletion(); CancelSignature(); CancelLanguageCommand(); }
 
-    internal (int Line, int Column, int Selected) CursorPosition {
+    internal (int Line, int Column, int Selected, int Lines, int Length) DocumentStatus {
         get {
             var state = State.Value;
             var head = state.Selection.Main.Head;
             var line = state.Doc.LineAt(head);
             return (line.Number, head - line.From + 1,
-                state.Selection.Ranges.Sum(static range => range.To - range.From));
+                state.Selection.Ranges.Sum(static range => range.To - range.From), state.Doc.Lines, state.Doc.Length);
         }
     }
 
@@ -90,6 +90,7 @@ public sealed partial class BrowserEditorHost : IDisposable
         try {
             return eventType switch {
                 "input" => HandleQueuedInput(arguments),
+                "stroke" => HandleStroke(arguments),
                 "find" => HandleFind(arguments),
                 "clipboard" => HandleClipboard(arguments),
                 "noop" => true,
@@ -120,6 +121,10 @@ public sealed partial class BrowserEditorHost : IDisposable
             return;
         }
         _disposed = true;
+        _modalPending = default;
+        _workbenchCommands.Clear();
+        _bindings = [];
+        _inputSession = null;
         _find.Dispose();
         SourceChanged = null;
         DefinitionReady = null;
@@ -178,7 +183,8 @@ public sealed partial class BrowserEditorHost : IDisposable
         if (documentChanges is { } edit && recordHistory) {
             RecordHistory(edit, before, state, historySelection ?? before.Selection, historyGroup);
         }
-        else if (documentChanges is not null || !state.Selection.Eq(before.Selection, true)) {
+        else if (documentChanges is not null || !state.Selection.Eq(before.Selection, true)
+            && !(_keymap.Profile == KeyboardProfile.Vim && InputMode == EditorInputMode.Insert)) {
             EndHistoryGroup();
         }
 

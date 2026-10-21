@@ -42,6 +42,17 @@
 
         > input { flex: none; margin: 0 0.8rem 0.6rem; }
 
+        .keymap-profiles {
+            display: flex;
+            flex: none;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0 0.8rem 0.6rem;
+
+            > span { margin-right: auto; color: var(--color-text-dim); }
+            > button[aria-pressed="true"] { background: var(--surface-hover); }
+        }
+
         :is(.keymap-list, .editor-dialog-list) {
             min-height: 0;
             overflow: auto;
@@ -251,11 +262,13 @@
             place-items: center;
             width: 2.75rem;
             height: 2.75rem;
+            min-width: 2.75rem;
             padding: 0;
             border: 0;
             border-radius: var(--radius-control);
             background: transparent;
             color: var(--color-text);
+            font: inherit;
             touch-action: manipulation;
 
             &:active { background: var(--surface-hover); }
@@ -288,8 +301,16 @@
                 padding: 0 0.25rem;
 
                 > .editor-touch-actions { display: flex; }
-                > span:first-of-type { display: none; }
-                > span:last-of-type { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+                > .editor-document-size { display: none; }
+                > .editor-cursor-position { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+            }
+        }
+
+        @media (max-width: 380px) {
+            &:focus-within > .editor-status {
+                flex-wrap: wrap;
+                > span:not(.editor-input-mode) { display: none; }
+                > .editor-input-mode { font-size: 0.6rem; }
             }
         }
 
@@ -369,6 +390,9 @@
         white-space: pre-wrap;
         word-break: break-all;
         caret-color: var(--color-accent);
+
+        &[data-editor-mode="Normal"] { caret-shape: block; }
+        &[data-editor-mode="Insert"] { caret-shape: bar; }
 
         &::highlight(sia-editor-find) { background-color: var(--selection-bg); color: inherit; }
 

@@ -134,28 +134,28 @@ public static class LineCommands
     }
 
     public static bool IndentLess(CommandTarget target)
-    {
-        var changes = VisitSelectedLines(target.State, static line => {
-            if (line.Text.StartsWith('\t')) return new ChangeSpec(line.From, line.From + 1, string.Empty);
-            var spaces = 0;
-            while (spaces < EditorState.TabSize
-                && spaces < line.Text.Length
-                && line.Text[spaces] == ' ') {
-                spaces++;
-            }
-            return spaces == 0
-                ? null
-                : new ChangeSpec(line.From, line.From + spaces, string.Empty);
-        });
-        return ApplyChanges(target, changes);
-    }
+        => IndentLines(target, -1);
 
     private static bool IndentMore(CommandTarget target)
+        => IndentLines(target, 1);
+
+    internal static bool IndentLines(CommandTarget target, int levels)
     {
-        var indentation = new string(' ', EditorState.TabSize);
-        var changes = VisitSelectedLines(
-            target.State,
-            line => new ChangeSpec(line.From, line.From, indentation));
+        if (levels == 0) return false;
+        var indentation = levels > 0 ? new string(' ', EditorState.TabSize * levels) : string.Empty;
+        var changes = VisitSelectedLines(target.State, line => {
+            if (levels > 0) return new ChangeSpec(line.From, line.From, indentation);
+            var end = 0;
+            for (var level = 0; level < -levels && end < line.Text.Length; level++) {
+                if (line.Text[end] == '\t') { end++; continue; }
+                var start = end;
+                while (end - start < EditorState.TabSize && end < line.Text.Length && line.Text[end] == ' ') end++;
+                if (end == start) break;
+            }
+            return end == 0
+                ? null
+                : new ChangeSpec(line.From, line.From + end, string.Empty);
+        });
         return ApplyChanges(target, changes);
     }
 

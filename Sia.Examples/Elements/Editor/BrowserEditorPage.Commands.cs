@@ -61,7 +61,7 @@ internal sealed partial class BrowserEditorPage
                 Track(CommitSaveAsAsync(argument));
                 return true;
             case "editor-page-save-as-cancel":
-                CancelDialog(argument);
+                CancelDialog(argument, restoreEditor: true);
                 return true;
             case "editor-page-revert":
                 RevertActiveFile();
@@ -117,6 +117,7 @@ internal sealed partial class BrowserEditorPage
                 CellNormalize(argument);
                 return true;
             case "editor-focus":
+                if (!_editors.Activate(argument)) return false;
                 if (!_editors.TryResolveCellId(argument, out var groupId)
                     || !_editorEntities.TryGetValue(groupId, out var focused)
                     || !focused.IsValid || !focused.Contains<OpenEditorFile>()) {

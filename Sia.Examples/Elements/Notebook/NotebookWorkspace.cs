@@ -7,6 +7,13 @@ namespace Sia.Examples.Notebook;
 
 public sealed class NotebookWorkspace : IAsyncDisposable
 {
+    internal void ConfigureKeyboard(EditorKeymap keymap) => _view.Editors.ConfigureKeyboard(keymap, CommandContext.Notebook);
+    internal void FlushCommands() => _view.Editors.FlushCommands();
+    internal event Action<EditorCommand, string> CommandInvoked {
+        add => _view.Editors.CommandInvoked += value;
+        remove => _view.Editors.CommandInvoked -= value;
+    }
+
     private readonly NotebookSession _session;
     private readonly MetadataReferenceProvider _references;
     private readonly World _world;
@@ -412,6 +419,7 @@ public sealed class NotebookWorkspace : IAsyncDisposable
     {
         ThrowIfDisposed();
         if (_view.Editors.TryResolveCellId(bindingId, out var cellId)) {
+            _view.Editors.Activate(bindingId);
             _view.BeginEditorEdit(cellId);
         }
     }

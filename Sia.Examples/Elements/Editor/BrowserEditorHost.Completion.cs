@@ -19,6 +19,34 @@ public sealed partial class BrowserEditorHost
     private bool _completionPending;
     private EditorState? _completionQueryState;
 
+    private bool CanAcceptCompletion(EditorState state)
+        => _completion is { HasItems: true } completion && completion.Items[_completionIndex].Edit is not null
+            && ReferenceEquals(_completionDocument, state.Doc) && state.Selection.Main.Empty
+            && state.Selection.Main.Head == _completionPosition;
+
+    private bool ExecuteCompletionCommand(EditorCommandId command, BrowserSelection selection, int generation, EditorCommand? fallback)
+    {
+        if (generation != _completionGeneration || _completion is not { HasItems: true } completion)
+            return fallback is { IsEditor: true, Context: not CommandContext.Suggestions }
+                && ExecuteCommand(fallback, selection, generation);
+        switch (command) {
+            case EditorCommandId.AcceptSuggestion:
+                if (!CanAcceptCompletion(ApplyNativeSelection(State.Value, selection)) || fallback?.Id == EditorCommandId.Newline
+                    && (_completionSoft || !CompletionMakesEdit(completion.Items[_completionIndex]))) {
+                    CancelCompletion();
+                    return fallback is { IsEditor: true } && ExecuteCommand(fallback, selection, generation);
+                }
+                AcceptCompletion(completion);
+                break;
+            case EditorCommandId.NextSuggestion: SelectCompletion((_completionIndex + 1) % completion.Items.Count); break;
+            case EditorCommandId.PreviousSuggestion: SelectCompletion((_completionIndex - 1 + completion.Items.Count) % completion.Items.Count); break;
+            case EditorCommandId.NextSuggestionPage: SelectCompletion(System.Math.Min(_completionIndex + _completionPageSize, completion.Items.Count - 1)); break;
+            case EditorCommandId.PreviousSuggestionPage: SelectCompletion(System.Math.Max(0, _completionIndex - _completionPageSize)); break;
+            case EditorCommandId.HideSuggestions: CancelCompletion(); break;
+        }
+        return true;
+    }
+
     private void ScheduleCompletion(EditorState before, EditorState after)
     {
         var isActive = _completionPending || _completionSource is not null;
@@ -213,7 +241,7 @@ public sealed partial class BrowserEditorHost
         Commit(state.Apply(new() {
             Changes = edit.Changes,
             Selection = EditorSelection.Single(edit.Position),
-        }));
+        }), historyGroup: InputHistoryGroup(EditGroup.None));
     }
 
     private bool TryCommitCompletionCharacter(EditorState state, string text)
@@ -226,7 +254,7 @@ public sealed partial class BrowserEditorHost
             || !candidate.CommitEdits.TryGetValue(text[0], out var edit)) return false;
         CancelCompletion();
         var after = state.Apply(new() { Changes = edit.Changes, Selection = EditorSelection.Single(edit.Position) });
-        Commit(after, historySelection: state.Selection);
+        Commit(after, historySelection: state.Selection, historyGroup: InputHistoryGroup(EditGroup.None));
         ScheduleCompletion(state, after);
         return true;
     }

@@ -6,6 +6,13 @@ namespace Sia.Examples.Editor;
 
 internal sealed partial class BrowserEditorPage : IAsyncDisposable
 {
+    internal void ConfigureKeyboard(EditorKeymap keymap) => _editors.ConfigureKeyboard(keymap, CommandContext.EditorLab);
+    internal void FlushCommands() => _editors.FlushCommands();
+    internal event Action<EditorCommand, string> CommandInvoked {
+        add => _editors.CommandInvoked += value;
+        remove => _editors.CommandInvoked -= value;
+    }
+
     private const string k_RegionId = "region-editor-page";
     private const string k_ProjectId = "editor-page";
     private const string k_ScriptSuffix = "script";
@@ -119,11 +126,13 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         _activeFileName = Own(DomElement.Create("span").Class("editor-status-file"));
         _workspaceStatus = Own(DomElement.Create("span").Class("editor-status-workspace"));
         _cursorStatus = Own(DomElement.Create("span").Class("editor-status-cursor"));
+        _inputModeStatus = Own(DomElement.Create("span").Class("editor-status-mode").Class("hidden")
+            .Attr("aria-live", "polite").Attr("aria-label", "Vim mode"));
         _diagnosticStatus = CreateAction("Not checked", "editor-page-open:compilation", "Open compiler diagnostics")
             .Class("editor-status-item").Class("is-empty");
         _lastActionStatus = CreateAction(string.Empty, "editor-status-details", "Open last action details")
             .Class("editor-status-item").Class("editor-status-duration");
-        statusbar.Append(_activeFileName).Append(_workspaceStatus).Append(_diagnosticStatus)
+        statusbar.Append(_inputModeStatus).Append(_activeFileName).Append(_workspaceStatus).Append(_diagnosticStatus)
             .Append(_buildStatus).Append(_lastActionStatus).Append(_cursorStatus);
 
         _layoutRevision = Own(DomElement.Create("div")
@@ -165,6 +174,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         _uniformInspector = new();
 
         _editors = new(world, references);
+        _editors.InputModeChanged += UpdateInputMode;
         _editors.LanguageContext = CaptureLanguageSnapshotAsync;
         InitializeLanguageTools();
         _state = CreateLayoutState();

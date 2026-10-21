@@ -11,6 +11,42 @@ public sealed class BrowserEditorRegistry(
     private readonly World _world = world;
     private readonly CSharpCompletionProvider _completionProvider = new(references);
     private readonly Dictionary<string, (DomElement Container, BrowserEditorHost Editor)> _editors = [];
+    private EditorKeymap _keymap = EditorKeymap.Default;
+    private CommandContext _commandContext = CommandContext.Editor;
+    private string? _activeBinding;
+    internal EditorInputMode InputMode { get; private set; } = EditorInputMode.Standard;
+    internal event Action<EditorInputMode>? InputModeChanged;
+
+    internal void SetInputMode(EditorInputMode mode)
+    {
+        if (InputMode == mode) return;
+        InputMode = mode;
+        foreach (var entry in _editors.Values) entry.Editor.ResetInputState();
+        InputModeChanged?.Invoke(mode);
+    }
+
+    internal bool Activate(string binding)
+    {
+        if (!TryResolveCellId(binding, out var cellId)) return false;
+        if (_activeBinding == binding) return true;
+        if (_activeBinding is { } previous && TryResolveCellId(previous, out var oldId))
+            _editors[oldId].Editor.EndInputTarget();
+        _activeBinding = binding;
+        _editors[cellId].Editor.ResetInputState();
+        return true;
+    }
+
+    internal void ConfigureKeyboard(EditorKeymap keymap, CommandContext context = CommandContext.Editor)
+    {
+        if (_keymap.Profile != keymap.Profile) {
+            foreach (var entry in _editors.Values) entry.Editor.SynchronizeNativeInput();
+            SetInputMode(keymap.InitialMode);
+        }
+        foreach (var entry in _editors.Values) entry.Editor.ConfigureKeyboard(keymap, context);
+        _keymap = keymap;
+        _commandContext = context;
+    }
+    internal event Action<EditorCommand, string>? CommandInvoked;
     internal event Action<string>? SourceChanged;
     internal event Action<string, SymbolDefinition?>? DefinitionReady;
     internal event Action<string, SymbolReferences?>? ReferencesReady;
@@ -56,6 +92,8 @@ public sealed class BrowserEditorRegistry(
             source,
             highlights,
             _completionProvider);
+        editor.BindInputSession(this);
+        editor.ConfigureKeyboard(_keymap, _commandContext);
         _editors.Add(cellId, (container, editor));
         editor.SourceChanged += OnSourceChanged;
         editor.DefinitionReady += OnDefinitionReady;
@@ -78,8 +116,16 @@ public sealed class BrowserEditorRegistry(
 
         var eventType = payload[..typeSeparator];
         var bindingId = payload[(typeSeparator + 1)..cellSeparator];
-        return TryResolveCellId(bindingId, out var cellId)
-            && _editors[cellId].Editor.Route(eventType, payload[(cellSeparator + 1)..]);
+        if (!TryResolveCellId(bindingId, out var cellId)) return false;
+        return _editors[cellId].Editor.Route(eventType, payload[(cellSeparator + 1)..]);
+    }
+
+    internal void FlushCommands()
+    {
+        foreach (var entry in _editors.Values.ToArray()) {
+            var binding = entry.Editor.BindingId;
+            while (TryResolveCellId(binding, out _) && entry.Editor.TryTakeWorkbenchCommand(out var command)) CommandInvoked?.Invoke(command, binding);
+        }
     }
 
     public bool TryResolveCellId(string bindingId, out string cellId)
@@ -96,6 +142,7 @@ public sealed class BrowserEditorRegistry(
     internal bool ExecuteCommand(string bindingId, EditorCommand command)
     {
         if (!CanExecuteCommand(bindingId, command) || !TryResolveCellId(bindingId, out var cellId)) return false;
+        Activate(bindingId);
         var editor = _editors[cellId].Editor;
         var result = editor.ExecuteWorkbenchCommand(command);
         editor.Focus();
@@ -143,12 +190,13 @@ public sealed class BrowserEditorRegistry(
 
     internal void Focus(string cellId)
     {
-        if (_editors.TryGetValue(cellId, out var entry)) entry.Editor.Focus();
+        if (_editors.TryGetValue(cellId, out var entry)) { Activate(entry.Editor.BindingId); entry.Editor.Focus(); }
     }
 
     internal bool NavigateTo(string cellId, int start, int length)
     {
         if (!_editors.TryGetValue(cellId, out var entry)) return false;
+        Activate(entry.Editor.BindingId);
         entry.Editor.NavigateTo(start, length);
         return true;
     }
@@ -156,6 +204,7 @@ public sealed class BrowserEditorRegistry(
     internal bool NavigateToLine(string cellId, int line, int column, int length = 0)
     {
         if (!_editors.TryGetValue(cellId, out var entry)) return false;
+        Activate(entry.Editor.BindingId);
         entry.Editor.NavigateToLine(line, column, length);
         return true;
     }
@@ -218,10 +267,10 @@ public sealed class BrowserEditorRegistry(
         return false;
     }
 
-    internal bool TryGetCursorPosition(string cellId, out (int Line, int Column, int Selected) position)
+    internal bool TryGetDocumentStatus(string cellId, out (int Line, int Column, int Selected, int Lines, int Length) position)
     {
         if (_editors.TryGetValue(cellId, out var entry)) {
-            position = entry.Editor.CursorPosition;
+            position = entry.Editor.DocumentStatus;
             return true;
         }
         position = default;
@@ -237,7 +286,9 @@ public sealed class BrowserEditorRegistry(
 
     public void Remove(string cellId)
     {
+        if (_editors.TryGetValue(cellId, out var current) && _activeBinding == current.Editor.BindingId) current.Editor.EndInputTarget();
         if (_editors.Remove(cellId, out var entry)) {
+            if (_activeBinding == entry.Editor.BindingId) _activeBinding = null;
             entry.Editor.Dispose();
             InvalidateLanguageContext();
         }
@@ -249,6 +300,9 @@ public sealed class BrowserEditorRegistry(
         DefinitionReady = null;
         ReferencesReady = null;
         RenameReady = null;
+        CommandInvoked = null;
+        InputModeChanged = null;
+        _activeBinding = null;
         foreach (var entry in _editors.Values) {
             entry.Editor.Dispose();
         }

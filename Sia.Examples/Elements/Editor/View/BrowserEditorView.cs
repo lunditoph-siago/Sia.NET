@@ -15,6 +15,7 @@ public sealed class BrowserEditorView : IEditorView
     private readonly DomElement _linesBefore;
     private readonly DomElement _linesAfter;
     private readonly DomElement _status;
+    private readonly DomElement _inputMode;
     private readonly DomElement _documentSize;
     private readonly DomElement _cursorPosition;
     private readonly List<DomElement> _touchActions = [];
@@ -34,6 +35,7 @@ public sealed class BrowserEditorView : IEditorView
     private bool _revealSelection;
     private bool _selectionNeedsUpdate;
     private bool _rebuildLines;
+    private (KeyboardProfile Profile, EditorInputMode Mode)? _projectedInputMode;
 
     public BrowserEditorView(string cellId, DomElement container)
     {
@@ -50,12 +52,14 @@ public sealed class BrowserEditorView : IEditorView
             .Attr("aria-multiline", "true")
             .Attr("aria-autocomplete", "list")
             .Attr("spellcheck", "false")
+            .Attr("writingsuggestions", "false")
             .Attr("autocorrect", "off")
             .Attr("autocapitalize", "off");
         _scroll = DomElement.Create("div").Class("editor-scroll");
         _status = DomElement.Create("div").Class("editor-status");
-        _documentSize = DomElement.Create("span");
-        _cursorPosition = DomElement.Create("span");
+        _inputMode = DomElement.Create("span").Class("editor-input-mode").Class("hidden").Attr("aria-live", "polite");
+        _documentSize = DomElement.Create("span").Class("editor-document-size");
+        _cursorPosition = DomElement.Create("span").Class("editor-cursor-position");
 
         _gutterBefore = CreateSpacer();
         _gutterAfter = CreateSpacer();
@@ -68,7 +72,7 @@ public sealed class BrowserEditorView : IEditorView
             : new DomEditorLines(_gutter, _lines, _gutterAfter, _linesAfter);
 
         _scroll.Append(_gutter).Append(_lines);
-        _status.Append(CreateTouchActions()).Append(_documentSize).Append(_cursorPosition);
+        _status.Append(CreateTouchActions()).Append(_inputMode).Append(_documentSize).Append(_cursorPosition);
         _container.Append(_scroll).Append(_status);
         DomRuntime.AttachEditorSurface(_cellId, _lines);
         DomRuntime.AttachGutterHeights(_gutter, _lines, _cellId);
@@ -80,6 +84,7 @@ public sealed class BrowserEditorView : IEditorView
         var actions = Own(DomElement.Create("div").Class("editor-touch-actions")
             .Attr("role", "group").Attr("aria-label", "Editor actions"));
         foreach (var (command, label, path) in new[] {
+            (EditorCommandId.Escape, "Escape", ""),
             (EditorCommandId.Indent, "Indent", "M10 5h10M10 10h10M10 15h10M4 5l4 5-4 5M4 20h16"),
             (EditorCommandId.Outdent, "Outdent", "M10 5h10M10 10h10M10 15h10M8 5l-4 5 4 5M4 20h16"),
             (EditorCommandId.Undo, "Undo", "m8 4-5 5 5 5M3 9h11a6 6 0 0 1 0 12"),
@@ -88,6 +93,10 @@ public sealed class BrowserEditorView : IEditorView
         }) {
             var button = Own(DomElement.Create("button").Attr("type", "button")
                 .Attr("data-editor-touch-command", command.ToString()).Attr("aria-label", label).Attr("title", label));
+            if (command == EditorCommandId.Escape) {
+                actions.Append(button.Text("Esc"));
+                continue;
+            }
             if (command == EditorCommandId.Suggest) _completionAction = button.Attr("aria-expanded", "false");
             var icon = Own(DomElement.Create("svg").Attr("viewBox", "0 0 24 24")
                 .Attr("width", "18").Attr("height", "18").Attr("fill", "none")
@@ -116,6 +125,14 @@ public sealed class BrowserEditorView : IEditorView
     {
         _documentRevision = revision;
         _lines.Attr("data-editor-document-revision", revision.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    internal void SetInputMode(KeyboardProfile profile, EditorInputMode mode)
+    {
+        if (_projectedInputMode == (profile, mode)) return;
+        _projectedInputMode = (profile, mode);
+        _lines.Attr("data-editor-profile", profile.ToString()).Attr("data-editor-mode", mode.ToString());
+        _inputMode.Text(mode.ToString().ToUpperInvariant()).ToggleClass("hidden", profile != KeyboardProfile.Vim);
     }
 
     internal void BeginUpdate()
@@ -390,6 +407,7 @@ public sealed class BrowserEditorView : IEditorView
         Release(() => _status.Remove());
         Release(() => _scroll.Remove());
         Release(_status.Dispose);
+        Release(_inputMode.Dispose);
         Release(_cursorPosition.Dispose);
         Release(_documentSize.Dispose);
         foreach (var element in _touchActions) Release(element.Dispose);
