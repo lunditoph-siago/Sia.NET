@@ -19,6 +19,11 @@
         &[open] { display: flex; flex-direction: column; }
         &::backdrop { background: color-mix(in srgb, var(--color-bg) 65%, transparent); }
 
+        &[data-editor-dialog="editor-packages"] {
+            .packages-body { padding: var(--dialog-section-padding); }
+            .editor-dialog-message { overflow-wrap: anywhere; }
+        }
+
         :is(.keymap-header, .editor-dialog-header) {
             display: flex;
             flex: none;

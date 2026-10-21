@@ -232,10 +232,10 @@ public sealed class EditorWorkspace(World world, IWorkspaceStorage storage) : ID
     }
 
     public async ValueTask<Entity> CreateFileAsync(
-        string folderPath, string name, CancellationToken cancellationToken = default)
+        string folderPath, string name, CancellationToken cancellationToken = default, string content = "")
     {
         var path = WorkspacePath.Normalize(WorkspacePath.Combine(folderPath, name));
-        await _storage.CreateFileAsync(path, string.Empty, cancellationToken);
+        await _storage.CreateFileAsync(path, content, cancellationToken);
         var written = await _storage.ReadFileAsync(path, cancellationToken)
             ?? throw new InvalidOperationException($"'{path}' could not be read back after being created.");
         return AttachOrUpdateFile(path, written);

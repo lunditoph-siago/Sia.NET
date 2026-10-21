@@ -43,11 +43,11 @@ public static class NuGetAssemblyExtractor
             ? libEntries.Where(e => e.FullName.Count(c => c == '/') == 1)
             : libEntries.Where(e => TfmOf(e.FullName) == folder);
         foreach (var entry in chosen) {
-            AddEntry(result, entry);
+            AddEntry(result, entry, false);
         }
 
         foreach (var entry in analyzerEntries) {
-            AddEntry(result, entry);
+            AddEntry(result, entry, true);
         }
 
         if (result.Count == 0) {
@@ -57,14 +57,14 @@ public static class NuGetAssemblyExtractor
         return result;
     }
 
-    private static void AddEntry(List<FetchedAssembly> result, ZipArchiveEntry entry)
+    private static void AddEntry(List<FetchedAssembly> result, ZipArchiveEntry entry, bool analyzer)
     {
         using var stream = entry.Open();
         using var buffer = new MemoryStream();
         stream.CopyTo(buffer);
         result.Add(new FetchedAssembly(
             Path.GetFileNameWithoutExtension(entry.Name),
-            buffer.ToArray()));
+            buffer.ToArray(), analyzer));
     }
 
     private static string TfmOf(string fullName) => fullName["lib/".Length..].Split('/')[0];
@@ -72,13 +72,16 @@ public static class NuGetAssemblyExtractor
     private static string? PickBestTfm(IReadOnlyList<ZipArchiveEntry> entries)
     {
         var tfms = new HashSet<string>(
-            entries.Select(e => TfmOf(e.FullName)), StringComparer.OrdinalIgnoreCase);
+            entries.Where(static entry => entry.FullName.Count(character => character == '/') >= 2)
+                .Select(e => TfmOf(e.FullName)), StringComparer.OrdinalIgnoreCase);
         tfms.Remove("");
         foreach (var preferredTfm in s_PreferredTfms) {
             if (tfms.Contains(preferredTfm)) {
                 return preferredTfm;
             }
         }
-        return tfms.Count > 0 ? tfms.First() : null;
+        if (tfms.Count > 0)
+            throw new NotSupportedException("The package has no supported managed target framework: " + string.Join(", ", tfms));
+        return null;
     }
 }

@@ -9,7 +9,10 @@ internal sealed partial class BrowserEditorPage
         string source, CSharpQueryKind kind, CancellationToken cancellationToken)
     {
         var symbols = kind is CSharpQueryKind.DocumentSymbols or CSharpQueryKind.WorkspaceSymbols;
-        if (!symbols) await _shaderCompiler.PrepareReferencesAsync(cancellationToken);
+        if (!symbols) {
+            await EnsureEditorPackagesAsync(cancellationToken);
+            await _shaderCompiler.PrepareReferencesAsync(cancellationToken);
+        }
         cancellationToken.ThrowIfCancellationRequested();
         if (!_editors.TryResolveCellId(bindingId, out var groupId)
             || !_editorEntities.TryGetValue(groupId, out var active) || !active.IsValid)

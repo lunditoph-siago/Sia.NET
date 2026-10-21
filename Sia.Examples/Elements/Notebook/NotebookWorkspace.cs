@@ -572,16 +572,10 @@ public sealed class NotebookWorkspace : IAsyncDisposable
     public async Task AddPackageAsync()
     {
         ThrowIfDisposed();
-        using var idInput = DomElement.TryFind("package-add-id");
-        var id = idInput?.Value().Trim();
-        if (string.IsNullOrEmpty(id)) {
+        if (_view.ReadPackageAddition() is not { } package) {
             return;
         }
-        using var versionInput = DomElement.TryFind("package-add-version");
-        var version = versionInput?.Value().Trim();
-        await _session.AddPackageAsync(
-            new(id, string.IsNullOrEmpty(version) ? null : version),
-            _lifetime.Token);
+        await _session.AddPackageAsync(package, _lifetime.Token);
     }
 
     public bool RouteEditorEvent(string payload)

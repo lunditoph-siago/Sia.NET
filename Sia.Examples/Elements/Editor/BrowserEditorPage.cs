@@ -54,6 +54,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(storage);
 
         _workspace = new(world, storage);
+        _packageReferences = references;
         _shaderCompiler = new(references);
         _container = DomElement.Find("notebook");
         _root = Own(DomElement.Create("section")
@@ -101,6 +102,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         var tools = CreateMenu(menus, "Tools", [
             ("Command Palette…", "workbench-command:Commands", "Search and run commands"),
             ("Keyboard Shortcuts…", "workbench-command:Keybindings", "Configure keyboard shortcuts"),
+            ("Packages…", "editor-packages-open", "Manage NuGet references in packages.json"),
         ]);
         _inputToolsAction = CreateAction("Editor Toolbar", "editor-page-input-tools", "Show or hide editing controls")
             .Class("menu-item").Class("editor-input-action").Attr("role", "menuitemcheckbox").Attr("aria-checked", "false");
@@ -200,6 +202,8 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         _initialized = true;
         var generation = _activationGeneration;
         await _workspace.InitializeAsync(cancellationToken);
+        if (_workspace.TryGetEntity(PackageManifest.Path, out var manifest) && !EditorWorkspace.IsFolder(manifest))
+            await _workspace.EnsureContentLoadedAsync(manifest, cancellationToken);
         if (_disposed) {
             return;
         }
@@ -243,6 +247,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         Release(_navigationPicker.Dispose);
         Release(_workspaceEdits.Dispose);
         Release(CancelCloseDialog);
+        Release(ClosePackages);
         Release(StopRendering);
         Release(() => _uniformInspector?.Dispose());
         _uniformInspector = null;

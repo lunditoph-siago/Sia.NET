@@ -4,34 +4,57 @@ namespace Sia.Examples.Notebook;
 
 public sealed class BrowserPackagePanel : IDisposable
 {
-    private readonly DomElement _container = DomElement.Find("packages-popover");
-    private readonly DomElement _badge = DomElement.Find("packages-badge");
+    private readonly DomElement _container;
+    private readonly DomElement? _badge;
+    private readonly DomElement _id;
+    private readonly DomElement _version;
     private readonly DomElement _body = DomElement.Create("div").Class("packages-body");
     private readonly DomElement _empty = DomElement.Create("div")
         .Class("packages-empty")
         .Text("No packages declared or added yet.");
     private readonly DomElement _list = DomElement.Create("div");
     private readonly Dictionary<PackageIdentity, PackageNode> _nodes = [];
+    internal DomElement Element => _container;
 
-    public BrowserPackagePanel()
+    public BrowserPackagePanel() : this(DomElement.Find("packages-popover"), "add-package:NuGet", DomElement.Find("packages-badge")) { }
+
+    public BrowserPackagePanel(DomElement container, string addAction, DomElement? badge = null)
     {
+        _container = container;
+        _badge = badge;
         _body.Append(_empty).Append(_list);
         using var addRow = DomElement.Create("div").Class("package-add");
-        using var id = DomElement.Create("input")
+        _id = DomElement.Create("input")
             .Class("package-add-input")
-            .Id("package-add-id")
+            .Attr("autocomplete", "off").Attr("spellcheck", "false").Attr("data-editor-dialog-focus", "")
+            .Attr("aria-label", "Package ID")
             .Attr("placeholder", "Package Id");
-        using var version = DomElement.Create("input")
+        _version = DomElement.Create("input")
             .Class("package-add-input")
-            .Id("package-add-version")
+            .Attr("autocomplete", "off").Attr("spellcheck", "false")
+            .Attr("aria-label", "Package version")
             .Attr("placeholder", "Version (optional)");
         using var addNuGet = DomElement.Create("button")
+            .Attr("type", "button")
             .Class("btn")
-            .On("click", "add-package:NuGet")
+            .On("click", addAction)
             .Text("+ NuGet");
-        addRow.Append(id).Append(version).Append(addNuGet);
+        addRow.Append(_id).Append(_version).Append(addNuGet);
         _body.Append(addRow);
         _container.Text(string.Empty).Append(_body);
+    }
+
+    public PackageRef? ReadAddition()
+        => string.IsNullOrWhiteSpace(_id.Value()) ? null
+            : new(_id.Value().Trim(), string.IsNullOrWhiteSpace(_version.Value()) ? null : _version.Value().Trim());
+
+    internal void Synchronize(IReadOnlyList<PackageStatus> statuses)
+    {
+        var wanted = statuses.Select(static status => PackageIdentity.From(status.Package)).ToHashSet();
+        foreach (var key in _nodes.Keys.Where(key => !wanted.Contains(key)).ToArray())
+            Remove(new(0, new(new(key.Id, key.Version), PackageLoadState.Loaded, null)));
+        for (var index = 0; index < statuses.Count; index++) Upsert(new(index, statuses[index]));
+        UpdateCount(statuses.Count);
     }
 
     public void Upsert(PackageView view)
@@ -58,7 +81,7 @@ public sealed class BrowserPackagePanel : IDisposable
 
     public void UpdateCount(int count)
     {
-        _badge.Text(count == 0 ? string.Empty : count.ToString());
+        _badge?.Text(count == 0 ? string.Empty : count.ToString());
         _empty.ToggleClass("hidden", count != 0);
     }
 
@@ -72,8 +95,10 @@ public sealed class BrowserPackagePanel : IDisposable
         _list.Dispose();
         _empty.Dispose();
         _body.Dispose();
-        _badge.Text(string.Empty);
-        _badge.Dispose();
+        _id.Dispose();
+        _version.Dispose();
+        _badge?.Text(string.Empty);
+        _badge?.Dispose();
         _container.Text(string.Empty);
         _container.Dispose();
     }

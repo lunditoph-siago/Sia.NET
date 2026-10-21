@@ -17,6 +17,7 @@ internal static class DynamicAssemblyRegistry
 
     private static int s_Hooked;
     private static int s_Version;
+    private static readonly object s_Gate = new();
 
     public static int Version => Volatile.Read(ref s_Version);
 
@@ -31,22 +32,23 @@ internal static class DynamicAssemblyRegistry
         EnsureHooked();
     }
 
-    public static void Register(string name, byte[] image)
+    internal static void RegisterImages(IReadOnlyList<FetchedAssembly> assemblies)
     {
-        if (!s_Images.TryAdd(name, image)) {
-            return;
+        lock (s_Gate) {
+            var candidates = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+            foreach (var assembly in assemblies) {
+                if (candidates.TryGetValue(assembly.Name, out var candidate) && !candidate.AsSpan().SequenceEqual(assembly.Image)
+                    || s_Images.TryGetValue(assembly.Name, out candidate) && !candidate.AsSpan().SequenceEqual(assembly.Image)
+                    || s_Analyzers.TryGetValue(assembly.Name, out candidate) && !candidate.AsSpan().SequenceEqual(assembly.Image))
+                    throw new InvalidOperationException($"Assembly '{assembly.Name}' is already registered with different contents. Reload before changing package versions.");
+                candidates[assembly.Name] = assembly.Image;
+            }
+            var changed = false;
+            foreach (var assembly in assemblies)
+                changed |= (assembly.Analyzer ? s_Analyzers : s_Images).TryAdd(assembly.Name, assembly.Image);
+            if (changed) Interlocked.Increment(ref s_Version);
+            EnsureHooked();
         }
-        Interlocked.Increment(ref s_Version);
-        EnsureHooked();
-    }
-
-    public static void RegisterAnalyzer(string name, byte[] image)
-    {
-        if (!s_Analyzers.TryAdd(name, image)) {
-            return;
-        }
-        Interlocked.Increment(ref s_Version);
-        EnsureHooked();
     }
 
     private static void EnsureHooked()
@@ -63,7 +65,9 @@ internal static class DynamicAssemblyRegistry
             }
             if (s_Images.TryGetValue(name, out var image)
                 || s_Analyzers.TryGetValue(name, out image)) {
-                return Assembly.Load(image);
+                lock (s_Gate) {
+                    return s_Loaded.GetOrAdd(name, _ => Assembly.Load(image));
+                }
             }
             return null;
         };

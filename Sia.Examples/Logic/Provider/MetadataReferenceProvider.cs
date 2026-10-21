@@ -1,3 +1,4 @@
+using System.Reflection.Metadata;
 using Microsoft.CodeAnalysis;
 
 namespace Sia.Examples.Notebook;
@@ -9,7 +10,7 @@ public sealed class MetadataReferenceProvider : ICompilationReferenceResolver
 
     private readonly AssemblyLoader _assemblies;
     private readonly PackageReferenceLoader _packages;
-    private readonly HashSet<string> _declaredAssemblyNames =
+    private readonly HashSet<string> _hostAssemblyNames =
         new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, MetadataReference> _packageReferences =
         new(StringComparer.OrdinalIgnoreCase);
@@ -37,7 +38,7 @@ public sealed class MetadataReferenceProvider : ICompilationReferenceResolver
         }
         await _assemblies.LoadAsync(name, cancellationToken);
         var image = await _assemblies.GetImageAsync(name, cancellationToken);
-        if (_declaredAssemblyNames.Add(name)) Version++;
+        if (_hostAssemblyNames.Add(name)) Version++;
         return image;
     }
 
@@ -54,12 +55,13 @@ public sealed class MetadataReferenceProvider : ICompilationReferenceResolver
         CancellationToken cancellationToken = default)
     {
         var wanted = new HashSet<string>(_assemblies.KnownAssemblyNames, StringComparer.OrdinalIgnoreCase);
-        wanted.UnionWith(_declaredAssemblyNames);
+        wanted.UnionWith(_hostAssemblyNames);
+        wanted.UnionWith(_packageReferences.Keys);
         await LoadMissingAsync(wanted, cancellationToken);
         return BuildReferences(wanted);
     }
 
-    public async ValueTask<IReadOnlyList<PackageStatus>> EnsurePackagesAsync(
+    public async ValueTask<IReadOnlyList<PackageStatus>> SetPackagesAsync(
         IReadOnlyList<PackageRef> packages,
         CancellationToken cancellationToken = default)
     {
@@ -67,6 +69,9 @@ public sealed class MetadataReferenceProvider : ICompilationReferenceResolver
         var fetches = await Task.WhenAll(
             packages.Select(package => FetchAsync(package, cancellationToken).AsTask()));
 
+        cancellationToken.ThrowIfCancellationRequested();
+        _packageReferences.Clear();
+        Version++;
         var statuses = new PackageStatus[fetches.Length];
         for (var index = 0; index < fetches.Length; index++) {
             statuses[index] = Commit(fetches[index]);
@@ -79,17 +84,28 @@ public sealed class MetadataReferenceProvider : ICompilationReferenceResolver
         CancellationToken cancellationToken)
     {
         try {
-            var fetchedAssemblies = await _packages.LoadReferencesAsync(
+            var fetched = await _packages.LoadReferencesAsync(
                 package.Id,
                 package.Version,
                 cancellationToken);
-            return new(package, fetchedAssemblies, null);
+            List<FetchedAssembly> assemblies = [];
+            List<string> hostNames = [];
+            foreach (var assembly in fetched.Assemblies) {
+                if (_assemblies.KnownAssemblyNames.Contains(assembly.Name)) {
+                    var host = await _assemblies.GetImageAsync(assembly.Name, cancellationToken);
+                    if (!host.Span.SequenceEqual(assembly.Image))
+                        throw new InvalidOperationException($"Package '{package.Id}' would replace host assembly '{assembly.Name}'. Use the host version.");
+                    hostNames.Add(assembly.Name);
+                }
+                else assemblies.Add(assembly with { Analyzer = package.Analyzer || assembly.Analyzer });
+            }
+            return new(package with { Version = fetched.Version }, assemblies, hostNames, null);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
             throw;
         }
         catch (Exception error) {
-            return new(package, [], error);
+            return new(package, [], [], error);
         }
     }
 
@@ -98,19 +114,26 @@ public sealed class MetadataReferenceProvider : ICompilationReferenceResolver
         if (fetch.Error is { } error) {
             return new(fetch.Package, PackageLoadState.Failed, error.Message);
         }
-        foreach (var assembly in fetch.Assemblies) {
-            if (fetch.Package.Analyzer) {
-                DynamicAssemblyRegistry.RegisterAnalyzer(assembly.Name, assembly.Image);
-                continue;
+        try {
+            var prepared = fetch.Assemblies.Select(static assembly => (
+                Assembly: assembly, Reference: MetadataReference.CreateFromImage(assembly.Image, filePath: assembly.Name))).ToArray();
+            foreach (var entry in prepared) {
+                var reader = ((AssemblyMetadata)entry.Reference.GetMetadata()).GetModules()[0].GetMetadataReader();
+                var name = reader.GetString(reader.GetAssemblyDefinition().Name);
+                if (!string.Equals(name, entry.Assembly.Name, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidDataException($"Package assembly '{entry.Assembly.Name}' contains '{name}' instead.");
             }
-            _packageReferences[assembly.Name] = MetadataReference.CreateFromImage(
-                assembly.Image,
-                filePath: assembly.Name);
-            DynamicAssemblyRegistry.Register(assembly.Name, assembly.Image);
-            _declaredAssemblyNames.Add(assembly.Name);
+            DynamicAssemblyRegistry.RegisterImages(fetch.Assemblies);
+            foreach (var entry in prepared.Where(static entry => !entry.Assembly.Analyzer)) {
+                _packageReferences[entry.Assembly.Name] = entry.Reference;
+            }
+            _hostAssemblyNames.UnionWith(fetch.HostNames);
+            Version++;
+            return new(fetch.Package, PackageLoadState.Loaded, null);
         }
-        Version++;
-        return new(fetch.Package, PackageLoadState.Loaded, null);
+        catch (Exception failure) {
+            return new(fetch.Package, PackageLoadState.Failed, failure.Message);
+        }
     }
 
     private HashSet<string> ResolveWanted(string source)
@@ -125,7 +148,8 @@ public sealed class MetadataReferenceProvider : ICompilationReferenceResolver
                 wanted.Add(coreAssemblyName);
             }
         }
-        wanted.UnionWith(_declaredAssemblyNames);
+        wanted.UnionWith(_hostAssemblyNames);
+        wanted.UnionWith(_packageReferences.Keys);
         return wanted;
     }
 
@@ -155,5 +179,6 @@ public sealed class MetadataReferenceProvider : ICompilationReferenceResolver
     private readonly record struct PackageFetch(
         PackageRef Package,
         IReadOnlyList<FetchedAssembly> Assemblies,
+        IReadOnlyList<string> HostNames,
         Exception? Error);
 }

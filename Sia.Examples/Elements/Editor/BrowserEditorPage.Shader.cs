@@ -231,9 +231,11 @@ internal sealed partial class BrowserEditorPage
             .Select(entity => new CSharpSourceDocument(KeyFor(entity), EditorWorkspace.PathOf(entity), EditorWorkspace.PathOf(entity), entity.Get<WorkspaceFile>().Content))
             .ToArray();
 
-    private static string ShaderHash(IReadOnlyList<CSharpSourceDocument> files)
+    private string ShaderHash(IReadOnlyList<CSharpSourceDocument> files)
     {
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        hash.AppendData(Encoding.UTF8.GetBytes(PackageSource()));
+        hash.AppendData([0]);
         foreach (var file in files) {
             hash.AppendData(Encoding.UTF8.GetBytes(file.Path));
             hash.AppendData([0]);
@@ -297,6 +299,7 @@ internal sealed partial class BrowserEditorPage
         var clock = Stopwatch.StartNew();
         try {
             await _workspace.EnsureAllLoadedAsync(token);
+            await EnsureEditorPackagesAsync(token);
             if (!CurrentShaderJob(revision)) return;
             var files = ShaderFiles();
             var hash = ShaderHash(files);

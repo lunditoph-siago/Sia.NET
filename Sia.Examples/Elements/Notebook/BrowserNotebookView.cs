@@ -55,6 +55,7 @@ public sealed class BrowserNotebookView :
     }
 
     public BrowserEditorRegistry Editors => _editors;
+    internal PackageRef? ReadPackageAddition() => _packages.ReadAddition();
 
     internal void AttachLanguageResults(DomElement element)
         => _root.InsertBefore(element, _sectionElements.Values.FirstOrDefault() ?? _floatingLayer);
