@@ -248,7 +248,7 @@
                     .scope-input {
                         width: 7rem;
                         min-width: 3rem;
-                        min-height: var(--field-size);
+                        min-height: var(--control-size);
                         padding: 0.05rem 0.3rem;
                         border: 1px solid transparent;
                         border-radius: var(--radius-small);
@@ -256,8 +256,13 @@
                         color: inherit;
                         font: inherit;
 
-                        font-size: var(--field-font-size, 0.72rem);
+                        font-size: 0.72rem;
                         text-overflow: ellipsis;
+
+                        @media (any-pointer: coarse), (max-width: 899px) {
+                            min-height: 2.25rem;
+                            font-size: 1rem;
+                        }
 
                         &:focus {
                             outline: none;

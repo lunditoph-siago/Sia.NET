@@ -230,12 +230,17 @@
             overflow: hidden auto;
         }
 
+        :is(.library-folder-toggle, .example-btn) {
+            min-height: var(--control-size);
+
+            @media (any-pointer: coarse), (max-width: 899px) { min-height: 2.25rem; }
+        }
+
         .library-folder-toggle {
             display: flex;
             align-items: center;
             gap: 0.25rem;
             width: 100%;
-            min-height: var(--list-row-size);
             padding: 0.25rem 0.3rem;
             border: 0;
             background: transparent;
@@ -281,7 +286,6 @@
             flex-direction: row;
             gap: 0.1rem;
             width: 100%;
-            min-height: var(--list-row-size);
             padding: 0.25rem 0.5rem;
             border: 1px solid transparent;
             border-radius: var(--radius-control);
@@ -537,14 +541,19 @@
                         .package-add-input {
                             min-width: 9em;
                             max-width: 100%;
-                            min-height: var(--field-size);
+                            min-height: var(--control-size);
                             padding: 0.25rem 0.5rem;
                             border: 1px solid var(--border-control);
                             border-radius: var(--radius-control);
                             background: var(--color-bg);
                             color: var(--color-fg);
                             font: inherit;
-                            font-size: var(--field-font-size, 0.8rem);
+                            font-size: 0.8rem;
+
+                            @media (any-pointer: coarse), (max-width: 899px) {
+                                min-height: 2.25rem;
+                                font-size: 1rem;
+                            }
                         }
                     }
                 }

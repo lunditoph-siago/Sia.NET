@@ -361,8 +361,10 @@
         text-align: left;
 
         &:is(button) {
-            min-height: var(--list-row-size);
+            min-height: var(--control-size);
             cursor: pointer;
+
+            @media (any-pointer: coarse), (max-width: 899px) { min-height: 2.25rem; }
 
             &:hover {
                 background: var(--surface-hover);
@@ -600,17 +602,19 @@
         input {
             flex: 1;
             min-width: 0;
-            min-height: var(--field-size);
+            min-height: var(--control-size);
             padding: 0.2rem 0.45rem;
             border: 1px solid var(--border-control);
             border-radius: var(--radius-control);
             background: var(--color-bg);
             color: inherit;
             font: inherit;
+
+            @media (any-pointer: coarse), (max-width: 899px) { min-height: 2.25rem; }
         }
 
         @media (any-pointer: coarse), (max-width: 720px) {
-            input { font-size: var(--field-font-size); }
+            input { font-size: 1rem; }
         }
     }
 
@@ -744,7 +748,7 @@
 
             input:not([type='checkbox']):not([type='color']),
             select {
-                min-height: var(--field-size);
+                min-height: 2.25rem;
                 font-size: 16px;
             }
         }

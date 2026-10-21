@@ -5,8 +5,6 @@
         color-scheme: light dark;
         --font-mono: ui-monospace, monospace;
         --control-size: 1.75rem;
-        --field-size: var(--control-size);
-        --list-row-size: var(--control-size);
         --line-height-ui: 1.25;
         --line-height-copy: 1.55;
         --color-bg: #eff1f5;
@@ -60,12 +58,7 @@
     }
 
     @media (any-pointer: coarse), (max-width: 899px) {
-        :root {
-            --control-size: 2rem;
-            --field-size: 2.25rem;
-            --field-font-size: 1rem;
-            --list-row-size: 2.25rem;
-        }
+        :root { --control-size: 2rem; }
     }
 
     @media (prefers-color-scheme: dark) {
