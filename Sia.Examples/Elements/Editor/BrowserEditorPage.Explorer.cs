@@ -175,6 +175,8 @@ internal sealed partial class BrowserEditorPage
         }
         if (payload.Length > 0) {
             button.On("click", payload);
+            if (payload.StartsWith("editor-page-tree-delete:", StringComparison.Ordinal))
+                button.Attr("data-sidebar-dismiss", string.Empty);
         }
         parent.Append(button);
     }

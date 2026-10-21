@@ -156,7 +156,7 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            min-height: 2rem;
+            min-height: var(--control-size);
             padding: 0 0.35rem;
             font-size: 0.7rem;
             font-weight: 600;
@@ -232,12 +232,14 @@
             align-items: center;
             gap: 0.25rem;
             width: 100%;
+            min-height: var(--control-size);
             padding: 0.25rem 0.3rem;
             border: 0;
             background: transparent;
             color: inherit;
             font: inherit;
             font-size: 0.72rem;
+            line-height: var(--line-height-ui);
             font-weight: 600;
             text-align: left;
             text-transform: uppercase;
@@ -275,11 +277,13 @@
             flex-direction: row;
             gap: 0.1rem;
             width: 100%;
-            padding: 0.4rem 0.6rem;
+            min-height: var(--control-size);
+            padding: 0.25rem 0.5rem;
             border: 1px solid transparent;
             border-radius: var(--radius-control);
             background: transparent;
             font: inherit;
+            line-height: var(--line-height-ui);
             text-align: left;
             cursor: pointer;
 
@@ -373,7 +377,8 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 0.4rem 0.6rem;
+            min-height: calc(var(--control-size) + 0.25rem);
+            padding: 0.125rem 0.6rem;
             border-bottom: 1px solid var(--border-subtle);
 
             .sidebar-toggle {
@@ -381,8 +386,8 @@
                 align-items: center;
                 justify-content: center;
                 flex-shrink: 0;
-                width: 32px;
-                height: 32px;
+                width: var(--control-size);
+                height: var(--control-size);
                 border: none;
                 background: transparent;
                 color: inherit;
@@ -424,6 +429,7 @@
                     display: flex;
                     align-items: center;
                     gap: 0.35rem;
+                    min-height: var(--control-size);
                     padding: 0.3rem 0.6rem;
                     border: 1px solid var(--border-control);
                     border-radius: var(--radius-popover);
@@ -431,6 +437,7 @@
                     color: inherit;
                     font: inherit;
                     font-size: 0.82rem;
+                    line-height: var(--line-height-ui);
                     cursor: pointer;
 
                     .packages-badge {
@@ -523,6 +530,8 @@
 
                         .package-add-input {
                             min-width: 9em;
+                            max-width: 100%;
+                            min-height: var(--control-size);
                             padding: 0.25rem 0.5rem;
                             border: 1px solid var(--border-control);
                             border-radius: var(--radius-control);
@@ -530,6 +539,7 @@
                             color: var(--color-fg);
                             font: inherit;
                             font-size: 0.8rem;
+                            @media (any-pointer: coarse), (max-width: 899px) { font-size: 16px; }
                         }
                     }
                 }

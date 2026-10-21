@@ -166,7 +166,8 @@ internal sealed partial class BrowserEditorPage
     private void StartShaderOperation(ShaderAction action)
     {
         SaveEditorSources(synchronizeNativeInput: true);
-        if (_activeEntity is not { } active || !active.IsValid || active.Contains<UntitledFile>()) {
+        if (_activeEntity is not { } active || !active.IsValid || active.Contains<UntitledFile>()
+            || !EditorWorkspace.PathOf(active).EndsWith(".cs", StringComparison.OrdinalIgnoreCase)) {
             SetBuildStatus("Open a saved C# file first");
             return;
         }

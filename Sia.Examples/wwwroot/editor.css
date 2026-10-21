@@ -1,8 +1,9 @@
 @layer components {
     :is(.keymap-dialog, .editor-dialog) {
+        --dialog-top: min(8dvh, calc(0.08 * var(--editor-viewport-height, 100dvh)));
         width: min(48rem, calc(100vw - 1rem));
-        max-height: min(80dvh, 44rem);
-        margin: 8dvh auto auto;
+        max-height: min(calc(var(--editor-viewport-height, 100dvh) - var(--dialog-top) - 0.5rem), 44rem);
+        margin: calc(var(--editor-viewport-top, 0px) + var(--dialog-top)) auto auto;
         padding: 0;
         overflow: hidden;
         border: 1px solid var(--border-control);
@@ -12,6 +13,7 @@
         box-shadow: var(--shadow-overlay);
         font: inherit;
         font-size: 0.8rem;
+        line-height: var(--line-height-ui);
 
         &[open] { display: flex; flex-direction: column; }
         &::backdrop { background: color-mix(in srgb, var(--color-bg) 65%, transparent); }
@@ -21,15 +23,15 @@
             flex: none;
             justify-content: space-between;
             align-items: center;
-            gap: 1rem;
-            padding: 0.65rem 0.8rem;
+            gap: 0.5rem;
+            padding: 0.35rem 0.65rem;
 
             h2 { margin: 0; font-size: 0.95rem; }
         }
 
         > input, .keymap-edit > input, .keymap-edit > select {
             min-width: 0;
-            min-height: 2.25rem;
+            min-height: var(--control-size);
             padding: 0.45rem 0.6rem;
             border: 1px solid var(--border-control);
             border-radius: var(--radius-control);
@@ -40,14 +42,16 @@
             &:focus-visible { outline: 2px solid var(--focus-muted); outline-offset: 1px; }
         }
 
-        > input { flex: none; margin: 0 0.8rem 0.6rem; }
+        > input { flex: none; margin: 0 0.65rem 0.35rem; }
 
         .keymap-profiles {
             display: flex;
             flex: none;
             align-items: center;
             gap: 0.5rem;
-            padding: 0 0.8rem 0.6rem;
+            padding: 0 0.65rem 0.35rem;
+
+            > button { min-height: var(--control-size); }
 
             > span { margin-right: auto; color: var(--color-text-dim); }
             > button[aria-pressed="true"] { background: var(--surface-hover); }
@@ -68,8 +72,8 @@
             gap: 0.5rem;
             width: 100%;
             margin: 0;
-            min-height: 2.5rem;
-            padding: 0.45rem 0.8rem;
+            min-height: var(--control-size);
+            padding: 0.3rem 0.65rem;
             border: 0;
             border-bottom: 1px solid var(--border-subtle);
             background: transparent;
@@ -94,7 +98,8 @@
             gap: 0.25rem;
 
             button {
-                min-height: 1.8rem;
+                min-width: var(--control-size);
+                min-height: var(--control-size);
                 padding: 0.2rem 0.35rem;
                 border: 1px solid var(--border-control);
                 border-radius: var(--radius-small);
@@ -107,21 +112,23 @@
             }
         }
 
-        :is(.keymap-message, .keymap-empty, .editor-dialog-message) { flex: none; margin: 0; padding: 0.6rem 0.8rem; color: var(--color-text-dim); }
+        :is(.keymap-message, .keymap-empty, .editor-dialog-message) { flex: none; margin: 0; padding: 0.35rem 0.65rem; color: var(--color-text-dim); }
         :is(.keymap-message, .editor-dialog-message):empty { display: none; }
-        :is(.keymap-footer, .editor-dialog-footer) { display: flex; flex: none; align-items: center; gap: 1rem; padding: 0.6rem 0.8rem; font-size: 0.72rem; color: var(--color-text-dim); }
+        :is(.keymap-footer, .editor-dialog-footer) {
+            display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: 0.5rem;
+            padding: 0.35rem 0.65rem; font-size: 0.72rem; color: var(--color-text-dim);
+            > span { flex: 1 1 12rem; }
+        }
         .keymap-edit { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.6rem; padding: 0.8rem; }
         .keymap-edit > h3 { grid-column: 1 / -1; margin: 0; font-size: 0.9rem; }
         &.is-editing > :is(.keymap-list, input) { display: none; }
 
         @media (max-width: 640px) {
-            max-height: calc(100dvh - 1rem);
-            margin-top: 0.5rem;
-            :is(.keymap-row, .editor-dialog-row) { grid-template-columns: minmax(0, 1fr); }
+            --dialog-top: 0.5rem;
+            &[data-keymap-dialog='settings'] .keymap-row { grid-template-columns: minmax(0, 1fr); }
             .keymap-bindings { justify-content: start; }
             .keymap-bindings button, .btn { min-width: 2.75rem; min-height: 2.75rem; }
             input, select { font-size: 16px; }
-            .keymap-footer { align-items: start; flex-direction: column; gap: 0.5rem; }
         }
     }
 
@@ -295,7 +302,7 @@
         }
 
         @media (any-pointer: coarse), (max-width: 720px) {
-            &:focus-within > .editor-status {
+            &:has(.editor-lines:focus, .editor-touch-actions:focus-within) > .editor-status {
                 align-items: center;
                 gap: 0.25rem;
                 padding: 0 0.25rem;
@@ -307,10 +314,9 @@
         }
 
         @media (max-width: 380px) {
-            &:focus-within > .editor-status {
+            &:has(.editor-lines:focus, .editor-touch-actions:focus-within) > .editor-status {
                 flex-wrap: wrap;
-                > span:not(.editor-input-mode) { display: none; }
-                > .editor-input-mode { font-size: 0.6rem; }
+                > span { display: none; }
             }
         }
 
@@ -359,6 +365,23 @@
 
             :is(input, button):focus-visible { outline: 1px solid var(--focus-muted); outline-offset: 1px; }
             .editor-find-summary { display: block; overflow-wrap: anywhere; padding-top: 0.15rem; color: var(--color-text-dim); }
+
+            @media (any-pointer: coarse), (max-width: 899px) {
+                :is(input, button) { min-height: var(--control-size); }
+                button { min-width: var(--control-size); }
+                input { font-size: 16px; }
+                :is([data-editor-find-action='case'], [data-editor-find-action='word'], [data-editor-find-action='regex']) {
+                    min-width: 2rem; min-height: 2rem;
+                }
+
+                .editor-find-row {
+                    flex-wrap: wrap;
+                    &:has([data-editor-find-field='query']) {
+                        input { order: -2; flex: 1 0 calc(100% - var(--control-size) - 0.25rem); }
+                        [data-editor-find-action='close'] { order: -1; }
+                    }
+                }
+            }
         }
 
         @media (max-width: 720px) {
@@ -473,8 +496,8 @@
             span { margin-right: auto; }
 
             button {
-                min-width: 1.75rem;
-                min-height: 1.75rem;
+                min-width: var(--control-size);
+                min-height: var(--control-size);
                 border: 0;
                 border-radius: var(--radius-control);
                 background: transparent;
@@ -551,6 +574,7 @@
         }
 
         .completion-item {
+            min-height: 1.5rem;
             cursor: pointer;
             user-select: none;
             padding: 0.15rem 0.5rem;
@@ -620,7 +644,7 @@
             border-bottom: 1px solid var(--border-subtle);
 
             > strong { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-            > button { min-width: 1.8rem; min-height: 1.8rem; padding: 0.1rem 0.35rem; font: inherit; }
+            > button { min-width: var(--control-size); min-height: var(--control-size); padding: 0.1rem 0.35rem; font: inherit; }
             .editor-reference-summary { opacity: 0.65; }
             [aria-disabled="true"] { opacity: 0.4; cursor: default; }
 
@@ -636,6 +660,7 @@
 
             > button {
                 display: flex;
+                min-height: var(--control-size);
                 flex-direction: column;
                 align-items: stretch;
                 width: 100%;

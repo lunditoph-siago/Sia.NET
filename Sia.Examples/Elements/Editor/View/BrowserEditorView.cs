@@ -22,6 +22,7 @@ public sealed class BrowserEditorView : IEditorView
     private readonly IEditorLinesOwner _lineOwner;
 
     private DomElement? _completionAction;
+    private DomElement _modeAction = null!;
     private EditorSelectionView? _selection;
     private int? _activeLineIdentity;
     private bool _suppressSelectionUpdate;
@@ -94,6 +95,7 @@ public sealed class BrowserEditorView : IEditorView
             var button = Own(DomElement.Create("button").Attr("type", "button")
                 .Attr("data-editor-touch-command", command.ToString()).Attr("aria-label", label).Attr("title", label));
             if (command == EditorCommandId.Escape) {
+                _modeAction = button;
                 actions.Append(button.Text("Esc"));
                 continue;
             }
@@ -133,6 +135,10 @@ public sealed class BrowserEditorView : IEditorView
         _projectedInputMode = (profile, mode);
         _lines.Attr("data-editor-profile", profile.ToString()).Attr("data-editor-mode", mode.ToString());
         _inputMode.Text(mode.ToString().ToUpperInvariant()).ToggleClass("hidden", profile != KeyboardProfile.Vim);
+        var insert = profile == KeyboardProfile.Vim && mode == EditorInputMode.Normal;
+        _modeAction.Attr("data-editor-touch-command", (insert ? EditorCommandId.InsertMode : EditorCommandId.Escape).ToString())
+            .Attr("aria-label", insert ? "Enter Insert mode" : "Escape")
+            .Attr("title", insert ? "Enter Insert mode" : "Escape").Text(insert ? "Insert" : "Esc");
     }
 
     internal void BeginUpdate()

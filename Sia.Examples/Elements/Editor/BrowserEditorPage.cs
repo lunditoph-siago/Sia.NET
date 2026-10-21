@@ -85,7 +85,9 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             ("Save As…", "editor-page-save-as-begin", "Save the active file under a new path"),
             ("Revert", "editor-page-revert", "Discard unsaved edits in the active file"),
         ]);
-        CreateMenu(menus, "View", [
+        var view = CreateMenu(menus, "View", [
+            ("Find…", "workbench-command:Find", "Find text in the active file"),
+            ("Replace…", "workbench-command:Replace", "Find and replace text in the active file"),
             ("Symbol in File…", "workbench-command:DocumentSymbols", "Go to a C# declaration in the active file"),
             ("Symbol in Workspace…", "workbench-command:WorkspaceSymbols", "Go to a C# declaration across workspace files"),
             ("Compilation", "editor-page-open:compilation", "Open diagnostics and compiler outputs"),
@@ -93,14 +95,17 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             ("Render", "editor-page-open:render", "Open the Render window"),
             ("Clear Output", "editor-page-clear", "Clear compiler output, program logs and rendering"),
         ]);
+        _outputPaneAction = CreateAction("Output Pane", "editor-page-toggle-output", "Collapse the output pane to its tabs, or restore its previous size")
+            .Class("menu-item").Attr("role", "menuitemcheckbox").Attr("aria-checked", "true");
+        view.Append(_outputPaneAction);
         var tools = CreateMenu(menus, "Tools", [
             ("Command Palette…", "workbench-command:Commands", "Search and run commands"),
             ("Keyboard Shortcuts…", "workbench-command:Keybindings", "Configure keyboard shortcuts"),
         ]);
         _inputToolsAction = CreateAction("Editor Toolbar", "editor-page-input-tools", "Show or hide editing controls")
-            .Class("menu-item").Attr("role", "menuitemcheckbox").Attr("aria-checked", "false");
+            .Class("menu-item").Class("editor-input-action").Attr("role", "menuitemcheckbox").Attr("aria-checked", "false");
         _compactInputAction = CreateAction("Compact Input Layout", "editor-page-compact-input", "Reserve space for manual keyboard input")
-            .Class("menu-item").Attr("role", "menuitemcheckbox").Attr("aria-checked", "false");
+            .Class("menu-item").Class("editor-input-action").Attr("role", "menuitemcheckbox").Attr("aria-checked", "false");
         tools.Append(_inputToolsAction).Append(_compactInputAction)
             .Append(CreateAction("Reset Keyboard Reference", "editor-page-input-reset", "Close the keyboard first, then use the current viewport as its reference")
                 .Class("menu-item").Class("editor-input-reset"));

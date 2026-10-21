@@ -88,7 +88,9 @@ internal sealed partial class BrowserEditorPage
             _diagnosticStatus.Attr("title", "Editor diagnostics for the current source snapshot");
             if (immediate) OpenPanelWindow("compilation");
         }
-        catch (OperationCanceledException) when (cancellation.IsCancellationRequested || !_editors.TryResolveCellId(binding, out _)) { }
+        catch (OperationCanceledException) when (_disposed || cancellation.IsCancellationRequested
+            || generation != _liveDiagnosticsGeneration || !_editors.TryResolveCellId(binding, out var group)
+            || !_editorEntities.TryGetValue(group, out var entity) || !entity.IsValid) { }
         catch (Exception error) { if (!_disposed && !cancellation.IsCancellationRequested && generation == _liveDiagnosticsGeneration) ShowOperationError("Could not check the current code", error); }
         finally {
             if (ReferenceEquals(_liveDiagnosticsCancellation, cancellation)) _liveDiagnosticsCancellation = null;

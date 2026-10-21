@@ -12,6 +12,7 @@ internal sealed partial class BrowserEditorPage
     private readonly Dictionary<string, string> _groupContainers = [];
     private readonly Dictionary<string, SplitView> _splitViews = [];
     private readonly Dictionary<string, double> _expandedSplitRatios = [];
+    private DomElement _outputPaneAction = null!;
     private readonly Dictionary<string, string> _splitContainers = [];
     private readonly Dictionary<string, TabHeaderView> _tabHeaders = [];
     private readonly Dictionary<string, DomElement> _floatingHosts = [];
@@ -180,6 +181,30 @@ internal sealed partial class BrowserEditorPage
             CellLayoutDom.SetShare(view.First, split.Ratio);
             CellLayoutDom.SetShare(view.Second, 1 - split.Ratio);
         }
+        var output = OutputPaneSplit();
+        _outputPaneAction.Attr("aria-disabled", output is null ? "true" : "false")
+            .Attr("aria-checked", output is { } pane && pane.Split.Ratio != (pane.First ? 0 : 1) ? "true" : "false");
+    }
+
+    private (CellSplit Split, bool First)? OutputPaneSplit()
+    {
+        foreach (var split in NotebookCellLayout.EnumerateSplits(_state).Where(static split => split.Axis == CellAxis.Vertical)) {
+            foreach (var (node, first) in new[] { (split.First, true), (split.Second, false) }) {
+                if (node is CellTabGroup group && group.TabIds.Length > 0
+                    && group.TabIds.All(id => _state.Windows[_state.Tabs[id].WindowId].Kind is CellWindowKind.Output or CellWindowKind.Render))
+                    return (split, first);
+            }
+        }
+        return null;
+    }
+
+    private void ToggleOutputPane()
+    {
+        if (OutputPaneSplit() is not { } pane) return;
+        var collapsed = pane.First ? 0d : 1d;
+        UpdateState(state => NotebookCellLayout.ResizeSplit(state, pane.Split.Id,
+            pane.Split.Ratio == collapsed ? _expandedSplitRatios.GetValueOrDefault(pane.Split.Id, 0.625) : collapsed,
+            allowTabsOnly: true));
     }
 
     private NotebookCellState RestoreMinimizedGroup(NotebookCellState state, string tabId)

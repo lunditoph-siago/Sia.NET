@@ -169,6 +169,11 @@ public sealed class BrowserEditorRegistry(
         entry.Editor.ApplyWorkspaceChange(change); return true;
     }
 
+    internal void RestoreSavedSource(string cellId, string source)
+    {
+        if (_editors.TryGetValue(cellId, out var entry)) entry.Editor.RestoreSavedSource(source);
+    }
+
     internal Task<RenamePlan> PrepareRenameAsync(string binding, string source, int position, string name, CancellationToken cancellation)
     {
         if (!TryResolveCellId(binding, out var cellId)) throw new OperationCanceledException(cancellation);
