@@ -9,6 +9,7 @@ internal sealed partial class BrowserEditorPage
     private readonly DomElement _activeFileName;
     private readonly DomElement _workspaceStatus;
     private readonly DomElement _cursorStatus;
+    private readonly DomElement _inputModeStatus;
     private readonly DomElement _lastActionStatus;
     private readonly DomElement _buildStatus;
     private DomElement _compilationDetails = null!;
@@ -25,8 +26,13 @@ internal sealed partial class BrowserEditorPage
             _activeFileName.Text(string.Empty);
         }
         _workspaceStatus.Text(message ?? string.Empty);
+        UpdateInputMode(_editors.InputMode);
         UpdateCursorStatus();
     }
+
+    private void UpdateInputMode(EditorInputMode mode)
+        => _inputModeStatus.Text(mode.ToString().ToUpperInvariant())
+            .ToggleClass("hidden", mode == EditorInputMode.Standard);
 
     private void UpdateFileStatus(Entity entity, bool dirty)
         => _activeFileName.Text($"{EditorWorkspace.PathOf(entity)}{(dirty ? " ●" : string.Empty)}")
@@ -37,10 +43,10 @@ internal sealed partial class BrowserEditorPage
         if (_activeEntity is { IsValid: true } entity) {
             var tabId = TabIdFor(entity);
             foreach (var group in NotebookCellLayout.EnumerateGroups(_state)) {
-                if (group.ActiveTabId != tabId || !_editors.TryGetCursorPosition(group.Id, out var cursor)) continue;
+                if (group.ActiveTabId != tabId || !_editors.TryGetDocumentStatus(group.Id, out var cursor)) continue;
                 var label = $"Ln {cursor.Line}, Col {cursor.Column}" +
                     (cursor.Selected == 0 ? string.Empty : $" · {cursor.Selected} selected");
-                _cursorStatus.Text(label).Attr("title", label);
+                _cursorStatus.Text(label).Attr("title", $"{label} · {cursor.Lines} lines · {cursor.Length} UTF-16 units");
                 return;
             }
         }

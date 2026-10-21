@@ -52,9 +52,12 @@ internal sealed partial class BrowserEditorPage
             return;
         }
         SaveEditorSources(synchronizeNativeInput: true);
-        var content = _dialog!.Value.Entity.Get<WorkspaceFile>().Content;
+        var entity = _dialog!.Value.Entity;
+        var content = entity.Get<WorkspaceFile>().Content;
         _closeDecision = null;
         HideConfirmBanner();
+        if (decision == CloseDecision.Cancel && _activeEntity == entity && ActiveLanguageGroup(entity) is { } group)
+            _editors.Focus(group);
         pending.TrySetResult((decision, content));
     }
 
@@ -79,10 +82,13 @@ internal sealed partial class BrowserEditorPage
         return false;
     }
 
-    private void CancelDialog(string argument)
+    private void CancelDialog(string argument, bool restoreEditor = false)
     {
         if (IsCurrentDialog(argument)) {
+            var entity = _dialog!.Value.Entity;
             CancelCloseDialog();
+            if (restoreEditor && _activeEntity == entity && ActiveLanguageGroup(entity) is { } group)
+                _editors.Focus(group);
         }
     }
 
@@ -216,6 +222,7 @@ internal sealed partial class BrowserEditorPage
         var cancel = DomElement.Create("button")
             .Class("btn")
             .Attr("type", "button")
+            .Attr("data-inline-discard", k_SaveAsInputId)
             .On("click", $"editor-page-save-as-cancel:{_dialogGeneration}")
             .Text("Cancel");
         _confirmButtons.Add(input);
@@ -223,6 +230,7 @@ internal sealed partial class BrowserEditorPage
         _confirmButtons.Add(cancel);
         _confirmActions.Append(input).Append(save).Append(cancel);
         _confirmBanner.ToggleClass("hidden", false);
+        input.Focus();
     }
 
     private async Task CommitSaveAsAsync(string argument)
@@ -241,6 +249,7 @@ internal sealed partial class BrowserEditorPage
             return;
         }
         HideConfirmBanner();
+        var dialogGeneration = _dialogGeneration;
         SaveEditorSources(synchronizeNativeInput: true);
         Entity saved;
         try {
@@ -255,8 +264,9 @@ internal sealed partial class BrowserEditorPage
         if (_disposed) {
             return;
         }
+        var isCurrent = activation == _activationGeneration && dialogGeneration == _dialogGeneration;
         if (saved != entity && owner.Tab is { } tab && IsCurrentTab(entity, tab)
-            && _activeEntity == entity && activation == _activationGeneration) {
+            && _activeEntity == entity && isCurrent) {
             ++_activationGeneration;
             EnsureFileWindow(saved);
             _activeEntity = saved;
@@ -268,6 +278,7 @@ internal sealed partial class BrowserEditorPage
         }
         RenderExplorer();
         RefreshExplorerSelection();
+        if (isCurrent && _activeEntity == saved && ActiveLanguageGroup(saved) is { } group) _editors.Focus(group);
     }
 
     private void BeginDelete(string key)

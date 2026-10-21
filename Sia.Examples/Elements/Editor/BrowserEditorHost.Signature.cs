@@ -16,6 +16,21 @@ public sealed partial class BrowserEditorHost
     private string? _signatureChoice;
     private string SignatureScheduleKey => $"signature:{_cellId}";
 
+    private bool ExecuteSignatureCommand(EditorCommandId command, BrowserSelection selection)
+    {
+        switch (command) {
+            case EditorCommandId.SignatureHelp:
+                var state = ApplyNativeSelection(State.Value, selection);
+                Commit(state);
+                _view.RevealSelection();
+                ScheduleSignature(state, manual: true);
+                break;
+            case EditorCommandId.HideSignature: CancelSignature(); break;
+            default: StepSignature(command == EditorCommandId.NextSignature ? 1 : -1); break;
+        }
+        return true;
+    }
+
     private void ScheduleSignature(EditorState state, bool manual = false)
     {
         var position = state.Selection.Main.Head;

@@ -61,23 +61,7 @@
             &.input-tools-open > .editor-page-touchbar { display: flex; }
         }
 
-        .editor-container .editor-status > .editor-touch-actions { display: none; }
-
-        .cell-group:has(> .editor-render-tools[role='toolbar']) {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) auto;
-            grid-template-rows: auto minmax(0, 1fr);
-
-            > .cell-tabs {
-                grid-column: 1;
-                grid-row: 1;
-            }
-
-            > .group-content {
-                grid-column: 1 / -1;
-                grid-row: 2;
-            }
-        }
+        .editor-container .editor-status { display: none; }
     }
 
     .editor-page-titlebar {
@@ -93,6 +77,13 @@
         background: var(--surface-subtle);
 
         .btn { padding-inline: 0.35rem; }
+
+        @media (max-width: 360px) {
+            gap: 0;
+            padding-inline: 0.25rem;
+
+            :is(.editor-page-menus, .editor-page-actions) { gap: 0; }
+        }
     }
 
     .editor-page-actions,
@@ -233,8 +224,6 @@
                 flex: 0 0 auto;
 
                 > .cell-group {
-                    flex: 0 0 auto;
-
                     > :is(.group-content, .editor-render-tools) { display: none; }
                 }
             }
@@ -249,6 +238,22 @@
         .cell-split .split-child > .cell-group {
             display: flex;
             flex: 1 1 0;
+        }
+
+        .cell-group:has(> .editor-render-tools[role='toolbar']) {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            grid-template-rows: auto minmax(0, 1fr);
+
+            > .cell-tabs {
+                grid-column: 1;
+                grid-row: 1;
+            }
+
+            > .group-content {
+                grid-column: 1 / -1;
+                grid-row: 2;
+            }
         }
 
         .group-content {
@@ -587,6 +592,11 @@
             flex: 0 1 auto;
             min-width: 0;
         }
+    }
+
+    .editor-status-mode {
+        flex: none;
+        color: var(--color-text);
     }
 
     .editor-status-workspace,

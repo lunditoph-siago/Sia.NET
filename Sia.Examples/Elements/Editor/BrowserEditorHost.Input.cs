@@ -55,7 +55,7 @@ public sealed partial class BrowserEditorHost
             return false;
         }
         var separator = input.IndexOf(':');
-        if (separator < 0 || input[..separator] is not ("key" or "command" or "text" or "paste" or "mut" or "sel" or "clipboard" or "noop" or "suggestion")) {
+        if (separator < 0 || input[..separator] is not ("key" or "stroke" or "command" or "text" or "paste" or "mut" or "sel" or "clipboard" or "noop" or "suggestion")) {
             return false;
         }
         if (sequence <= _lastInputSequence) {
@@ -95,7 +95,6 @@ public sealed partial class BrowserEditorHost
         }
 
         try {
-            var before = State.Value;
             if (!TryReadTextCommand(
                 commandArguments,
                 out var nativeSelection,
@@ -103,19 +102,32 @@ public sealed partial class BrowserEditorHost
                 return false;
             }
 
-            var editBefore = ApplyNativeSelection(before, nativeSelection);
-            if (!isolateHistory && TryCommitCompletionCharacter(editBefore, text)) return true;
-            var after = editBefore;
-            TextCommands.Insert(new(after, state => after = state), text);
-            Commit(after, historySelection: editBefore.Selection, historyGroup:
-                !isolateHistory && text.Length > 0 && !text.Contains('\n') && !text.Contains('\r')
-                    && editBefore.Selection.Ranges.All(static range => range.Empty) ? EditGroup.Typing : EditGroup.None);
-            ScheduleCompletion(before, after);
-            return true;
+            if (_keymap.Profile == KeyboardProfile.Vim && InputMode != EditorInputMode.Insert && !isolateHistory
+                && (text.Length > 0 || State.Value.Selection.Main.Empty)) return RunModalText(nativeSelection, text);
+            return ApplyTextInput(nativeSelection, text, isolateHistory);
         }
         finally {
             DomRuntime.AcknowledgeEditorCommand(_cellId, sequence);
         }
+    }
+
+    private bool ApplyTextInput(BrowserSelection nativeSelection, string text, bool isolateHistory)
+    {
+        _modalPending = default;
+        var before = State.Value;
+        var selected = ApplyNativeSelection(before, nativeSelection);
+        if (!isolateHistory && TryCommitCompletionCharacter(selected, text)) return true;
+        var after = selected;
+        TextCommands.Insert(new(after, state => after = state), text);
+        if (_keymap.Profile == KeyboardProfile.Vim && InputMode != EditorInputMode.Insert) {
+            ChangeInputMode(EditorInputMode.Normal);
+            after = after.Apply(new() { Selection = EditorSelection.Single(ModalEditing.Clamp(after.Doc, after.Selection.Main.Head)) });
+        }
+        Commit(after, historySelection: selected.Selection, historyGroup: InputHistoryGroup(
+            !isolateHistory && text.Length > 0 && !text.Contains('\n') && !text.Contains('\r')
+                && selected.Selection.Ranges.All(static range => range.Empty) ? EditGroup.Typing : EditGroup.None));
+        if (InputMode is EditorInputMode.Standard or EditorInputMode.Insert) ScheduleCompletion(before, after);
+        return true;
     }
 
     private bool HandleDomMutation(string arguments)
@@ -139,9 +151,20 @@ public sealed partial class BrowserEditorHost
         _lastNativeSequence = mutation.Sequence;
         CancelCompletion();
         _view.RestoreDocumentStructure();
+        if (_keymap.Profile == KeyboardProfile.Vim && InputMode != EditorInputMode.Insert) {
+            var inverse = ReferenceEquals(after.Doc, before.Doc) ? ChangeSet.Empty(after.Doc.Length) : after.LineUpdate!.Changes.Invert(before.Doc);
+            _domDocuments[mutation.DocumentRevision] = new(nativeDocument, ChangeSet.Compose(pendingChanges, inverse), mutation.Sequence, basis.PendingNavigation);
+            _domDocuments.Add(++_documentRevision, new(before.Doc, ChangeSet.Empty(before.Doc.Length), 0));
+            _view.SetDocumentRevision(_documentRevision);
+            Commit(before.Apply(new() { Selection = before.Selection }), nativeCommit: true);
+            var commandText = change is { } inserted && (inserted.To ?? inserted.From) == inserted.From
+                && mutation.InputType is "insertText" or "insertCompositionText" ? inserted.Insert : null;
+            return RunModalText(new(-1, -1, -1, -1), commandText ?? string.Empty);
+        }
+        _modalPending = default;
         Commit(after, nativeCommit: true, historySelection: historySelection,
-            historyGroup: historySelection.Main.Empty
-                ? NativeHistoryGroup(mutation.InputType, nativeSelection, change) : EditGroup.None);
+            historyGroup: InputHistoryGroup(historySelection.Main.Empty
+                ? NativeHistoryGroup(mutation.InputType, nativeSelection, change) : EditGroup.None));
         _domDocuments[mutation.DocumentRevision] = new(
             nativeDocument, pendingChanges, mutation.Sequence, basis.PendingNavigation);
         ScheduleCompletion(before, after);
@@ -394,6 +417,10 @@ public sealed partial class BrowserEditorHost
             _view.SuppressNextSelectionUpdate();
         }
         Commit(state.Apply(new() { Selection = selection }), revealSelection: false);
+        if (_keymap.Profile == KeyboardProfile.Vim && InputMode != EditorInputMode.Insert) {
+            ChangeInputMode(selection.Main.Empty ? EditorInputMode.Normal : EditorInputMode.Visual);
+            _modalPending = default;
+        }
         CancelCompletion();
         return true;
     }

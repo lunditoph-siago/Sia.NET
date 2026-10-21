@@ -300,12 +300,12 @@ internal sealed partial class BrowserEditorPage
             _editorEntities[group.Id] = entity;
         }
         else {
+            groupView.Content.Append(surface);
             if (_editorEntities.TryGetValue(group.Id, out var currentEntity)
                 && currentEntity != entity) {
                 _editors.Replace(group.Id, content, HighlightsFor(content));
                 _editorEntities[group.Id] = entity;
             }
-            groupView.Content.Append(surface);
         }
         RestoreMemento(group.Id, entity);
     }

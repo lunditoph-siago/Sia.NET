@@ -31,13 +31,18 @@ internal static class DomApplication
         try {
             using var world = new World();
             using var view = new BrowserApplicationView();
-            using var commands = new EditorCommandPanel();
+            using var keyboard = new EditorKeyboardSettings();
+            using var commands = new EditorCommandPanel(keyboard);
             var app = world.Mount(ExampleApp.Definition, new(library, view));
             world.FlushReactive();
             DomRuntime.Flush();
 
             NotebookWorkspace? workspace = null;
             BrowserEditorPage? editorPage = null;
+            keyboard.Changed += keymap => {
+                editorPage?.ConfigureKeyboard(keymap);
+                workspace?.ConfigureKeyboard(keymap);
+            };
             NavigationAttempt? pendingNavigation = null;
             long navigationGeneration = 0;
             var quitting = false;
@@ -206,6 +211,8 @@ internal static class DomApplication
                     packages);
                 if (page.Target == Destination.Editor) {
                     editorPage = new BrowserEditorPage(world, references, workspaceStorage);
+                    editorPage.ConfigureKeyboard(keyboard.Value);
+                    editorPage.CommandInvoked += ExecuteCommand;
                     RefreshSidebarSelection();
                     await editorPage.InitializeAsync();
                     return;
@@ -220,6 +227,8 @@ internal static class DomApplication
                     version,
                     storage,
                     library);
+                workspace.ConfigureKeyboard(keyboard.Value);
+                workspace.CommandInvoked += ExecuteCommand;
                 if (page.Target == Destination.NewNotebook) {
                     workspace.InsertSection(null, "Notes");
                 }
@@ -516,6 +525,8 @@ internal static class DomApplication
                                 }
                                 break;
                         }
+                        editorPage?.FlushCommands();
+                        workspace?.FlushCommands();
                     }
                     catch (Exception error) {
                         DomRuntime.ReportError(error.ToString());

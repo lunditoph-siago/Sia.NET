@@ -1,6 +1,6 @@
 import { emit, emitBarrier, resolveBarrier, takeEventBatch } from './notebook-runtime.js';
 import { pinEditorLines } from './editor-lines.js';
-import { attachCommandSurface, invokeWorkbenchCommand, resolveShortcut } from './editor-keybindings.js';
+import { attachCommandSurface, cancelShortcut, invokeWorkbenchCommand, resolveShortcut } from './editor-keybindings.js';
 import { scheduleCompletionWindow } from './editor-overlay.js';
 import { attachWorkbenchActions } from './editor-workbench.js';
 
@@ -591,8 +591,10 @@ export function attachEditorSurface(cellId, surface, restoreFocus) {
             : (readSelection() ?? readSelectionByDomOrder());
     const emitEditorCommand = (command, fallback = '', generation = '') =>
         emitCommand('command', commandSelection(), `${command}:${fallback}:${generation}`);
-    const emitTextCommand = (text, isolateHistory = false) =>
+    const emitTextCommand = (text, isolateHistory = false) => {
+        cancelShortcut(surface);
         emitCommand(isolateHistory ? 'paste' : 'text', commandSelection(), encodeURIComponent(text));
+    };
     const emitHistoryCommand = (redo) => {
         if (compositionEnding) {
             compositionEnding = false;
@@ -620,6 +622,7 @@ export function attachEditorSurface(cellId, surface, restoreFocus) {
         if (!button || disposed || !surface.isConnected || surface.closest('.tabs-only')) return;
         event.preventDefault();
         if (composing) return;
+        if (button.dataset.editorTouchCommand === 'Escape' && cancelShortcut(surface) && surface.dataset.editorProfile !== 'Vim') return;
         if (nativeEditSnapshot) {
             compositionEnding = false;
             reconcileNativeEdit();
@@ -696,6 +699,10 @@ export function attachEditorSurface(cellId, surface, restoreFocus) {
         },
         beforeinput(event) {
             selectionSyncPending.delete(surface);
+            if (event.cancelable === false) {
+                armNativeEditSnapshot(event.inputType || 'insertText', event);
+                return;
+            }
             if (!event.isComposing && !composing
                 && (event.inputType === 'historyUndo' || event.inputType === 'historyRedo')) {
                 emitInputCommand(event, () => emitHistoryCommand(event.inputType === 'historyRedo'));
@@ -772,11 +779,24 @@ export function attachEditorSurface(cellId, surface, restoreFocus) {
             reportSelection();
         },
         keydown(event) {
+            if (disposed || !surface.isConnected || surface.closest('.tabs-only')) return;
             selectionSyncPending.delete(surface);
-            if (event.isComposing || composing) {
+            if (event.isComposing || composing || event.keyCode === 229 || event.getModifierState?.('AltGraph')) {
                 return;
             }
             const result = resolveShortcut(event, surface);
+            if (surface.dataset.editorProfile === 'Vim' && (result
+                || !event.ctrlKey && !event.metaKey && !event.altKey && (event.key.length === 1
+                    || ['Escape', 'Enter', 'Tab', 'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'].includes(event.key)))) {
+                event.preventDefault();
+                if (compositionEnding) {
+                    compositionEnding = false;
+                    reconcileNativeEdit();
+                }
+                const modifiers = (event.ctrlKey ? 1 : 0) | (event.metaKey ? 2 : 0) | (event.altKey ? 4 : 0) | (event.shiftKey ? 8 : 0);
+                emitCommand('stroke', commandSelection(), `${encodeURIComponent(event.key)}:${modifiers}:${encodeURIComponent(event.code ?? '')}:${Boolean(event.repeat)}`);
+                return;
+            }
             if (!result) return;
             const history = result.binding?.editor && (result.binding.command === 'Undo' || result.binding.command === 'Redo');
             if (compositionEnding && result.binding?.editor && !history) return;

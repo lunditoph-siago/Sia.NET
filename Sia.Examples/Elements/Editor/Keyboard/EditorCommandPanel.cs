@@ -1,16 +1,17 @@
-using System.Text.Json;
 using Sia.Examples.Dom;
 
 namespace Sia.Examples.Editor;
 
 internal sealed class EditorCommandPanel : IDisposable
 {
+    private readonly EditorKeyboardSettings _keyboard;
     private readonly DomElement _root = DomElement.Find("app");
     private readonly DomElement _chordStatus = DomElement.Create("span").Id("keymap-chord").Class("keymap-chord").Attr("role", "status");
     private readonly List<DomElement> _elements = [];
     private readonly List<DomElement> _rows = [];
     private readonly List<DomElement> _formElements = [];
-    private EditorKeymap _keymap = EditorKeymap.Default;
+    private readonly List<(KeyboardProfile Profile, DomElement Button)> _profiles = [];
+    private EditorKeymap Keymap => _keyboard.Value;
     private DomElement? _dialog;
     private DomElement? _search;
     private DomElement? _list;
@@ -18,10 +19,10 @@ internal sealed class EditorCommandPanel : IDisposable
     private DomElement? _form;
     private DomElement? _shortcut;
     private DomElement? _context;
+    private DomElement? _mode;
     private EditorCommand[] _matches = [];
     private Func<EditorCommand, bool> _available = static _ => false;
     private string _binding = "";
-    private string? _loadError;
     private bool _settings;
     private bool _recording;
     private int _selected;
@@ -30,12 +31,10 @@ internal sealed class EditorCommandPanel : IDisposable
     private int _recordingVersion;
     private (EditorCommand Command, int Index)? _editing;
 
-    internal EditorCommandPanel()
+    internal EditorCommandPanel(EditorKeyboardSettings keyboard)
     {
+        _keyboard = keyboard;
         _root.Append(_chordStatus);
-        try { if (DomRuntime.Backend.ReadKeymap() is { } json) _keymap = EditorKeymap.Deserialize(json); }
-        catch (Exception error) { _loadError = $"Keyboard settings could not be loaded: {error.Message}"; }
-        Project();
     }
 
     private DomElement Own(DomElement element, bool form = false) { (form ? _formElements : _elements).Add(element); return element; }
@@ -71,13 +70,21 @@ internal sealed class EditorCommandPanel : IDisposable
             _message = Own(DomElement.Create("p").Class("keymap-message").Attr("role", "status"));
             _dialog.Append(header).Append(_search).Append(_list).Append(_message);
             if (settings) {
+                var profiles = Own(DomElement.Create("div").Class("keymap-profiles").Attr("role", "group").Attr("aria-label", "Keyboard scheme"));
+                profiles.Append(Own(DomElement.Create("span").Text("Keyboard scheme")));
+                foreach (var profile in Enum.GetValues<KeyboardProfile>()) {
+                    var button = Button(profile == KeyboardProfile.Standard ? "Default" : "Vim", "profile", profile.ToString()).Class("btn");
+                    _profiles.Add((profile, button));
+                    profiles.Append(button);
+                }
+                _dialog.InsertBefore(profiles, _search);
                 var footer = Own(DomElement.Create("footer").Class("keymap-footer"));
                 footer.Append(Own(DomElement.Create("span").Text("Mod means Ctrl on Windows/Linux and ⌘ on macOS. Two-step chords use a space.")))
-                    .Append(Button("Reset all…", "reset-all").Class("btn"));
+                    .Append(Button("Reset scheme…", "reset-all").Class("btn"));
                 _dialog.Append(footer);
             }
             Render();
-            if (_loadError is { } error) _message.Text(error);
+            if (_keyboard.LoadError is { } error) _message.Text(error);
             _root.Append(_dialog);
         }
         finally { DomRuntime.EndUpdate(_dialog); }
@@ -99,6 +106,9 @@ internal sealed class EditorCommandPanel : IDisposable
                     if (_editing is not null) EndEdit(); else Close();
                     break;
                 case "keymap-filter": Render(); break;
+                case "keymap-profile" when _settings:
+                    if (Enum.TryParse<KeyboardProfile>(value, out var profile)) Save(Keymap.Select(profile));
+                    break;
                 case "keymap-move" when !_settings && int.TryParse(value, out var step) && _matches.Length > 0:
                     _selected = System.Math.Clamp(_selected + step, 0, _matches.Length - 1);
                     SelectRow();
@@ -120,24 +130,24 @@ internal sealed class EditorCommandPanel : IDisposable
                 case "keymap-remove" when _settings: {
                         var parts = value.Split(':', 3);
                         if (parts.Length == 3 && parts[2] == _profileVersion.ToString() && EditorCommand.Find(parts[0]) is { } command && int.TryParse(parts[1], out var index)) {
-                            var bindings = _keymap.Bindings(command);
-                            if (index >= 0 && index < bindings.Length) Save(_keymap.Set(command, [.. bindings.Where((_, i) => i != index)]));
+                            var bindings = Keymap.Bindings(command);
+                            if (index >= 0 && index < bindings.Length) Save(Keymap.Set(command, [.. bindings.Where((_, i) => i != index)]));
                         }
                         break;
                     }
                 case "keymap-reset" when _settings:
                     var resetParts = value.Split(':', 2);
                     if (resetParts.Length == 2 && resetParts[1] == _profileVersion.ToString()
-                        && EditorCommand.Find(resetParts[0]) is { } reset) Save(_keymap.Set(reset, null));
+                        && EditorCommand.Find(resetParts[0]) is { } reset) Save(Keymap.Set(reset, null));
                     break;
                 case "keymap-reset-all" when _settings: {
-                        _message!.Text("Reset every custom keyboard shortcut?");
-                        using var confirm = DomElement.Create("button").Attr("type", "button").Class("btn").Text("Reset all")
+                        _message!.Text($"Reset custom shortcuts in {Keymap.Profile}?");
+                        using var confirm = DomElement.Create("button").Attr("type", "button").Class("btn").Text("Reset scheme")
                             .On("click", $"keymap-confirm-reset:{_generation}:");
                         _message.Append(confirm);
                         break;
                     }
-                case "keymap-confirm-reset" when _settings: Save(EditorKeymap.Default); break;
+                case "keymap-confirm-reset" when _settings: Save(Keymap.Reset()); break;
                 case "keymap-cancel-edit": EndEdit(); break;
                 case "keymap-record" when _shortcut is not null:
                     _recording = !_recording;
@@ -149,13 +159,20 @@ internal sealed class EditorCommandPanel : IDisposable
                 case "keymap-apply" when _editing is { } edit:
                     _recording = false;
                     _shortcut?.Attr("data-keymap-recording", "false");
-                    var existing = _keymap.Bindings(edit.Command);
+                    var existing = Keymap.Bindings(edit.Command);
                     if (_shortcut is null || _context is null || !Enum.TryParse<CommandContext>(_context.Value(), out var context)) break;
-                    var replacement = new KeyBinding(_shortcut.Value(), context);
+                    var mode = edit.Index < existing.Length ? existing[edit.Index].Mode : null;
+                    if (_mode is not null) {
+                        var selected = _mode.Value();
+                        if (selected == "All") mode = null;
+                        else if (Enum.TryParse<EditorInputMode>(selected, out var parsed)) mode = parsed;
+                        else throw new ArgumentException("Select an editing mode.");
+                    }
+                    var replacement = new KeyBinding(_shortcut.Value(), context, mode);
                     var updated = edit.Index == existing.Length ? [.. existing, replacement] : existing.ToArray();
                     if (edit.Index < 0 || edit.Index > existing.Length) break;
                     updated[edit.Index] = replacement;
-                    Save(_keymap.Set(edit.Command, updated));
+                    Save(Keymap.Set(edit.Command, updated));
                     break;
             }
         }
@@ -165,35 +182,31 @@ internal sealed class EditorCommandPanel : IDisposable
 
     private void Save(EditorKeymap updated)
     {
-        DomRuntime.Backend.WriteKeymap(updated.Serialize());
-        _keymap = updated;
+        _keyboard.Save(updated);
         _profileVersion++;
-        _loadError = null;
         EndEdit();
-        Project();
         Render();
         _message!.Text("Keyboard shortcuts saved.");
     }
 
-    private void Project() => _root.Attr("data-editor-keymap", JsonSerializer.Serialize(_keymap.Compile(), JsonSerializerOptions.Web));
-
     private void Render()
     {
         if (_list is null || _search is null) return;
+        foreach (var (profile, button) in _profiles) button.Attr("aria-pressed", profile == Keymap.Profile ? "true" : "false");
         var terms = _search.Value().Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         DomRuntime.BeginUpdate(_list);
         try {
             foreach (var row in _rows) { row.Remove(); row.Dispose(); }
             _rows.Clear();
-            _matches = [.. EditorCommand.All.Where(command => terms.All(term =>
+            _matches = [.. EditorCommand.All.Where(command => (!command.Modal || Keymap.Profile == KeyboardProfile.Vim) && terms.All(term =>
             command.Title.Contains(term, StringComparison.OrdinalIgnoreCase)
             || command.Id.ToString().Contains(term, StringComparison.OrdinalIgnoreCase)
-            || _keymap.Bindings(command).Any(binding => binding.Key.Contains(term, StringComparison.OrdinalIgnoreCase))))
+            || Keymap.Bindings(command).Any(binding => binding.Key.Contains(term, StringComparison.OrdinalIgnoreCase))))
             .OrderByDescending(command => _settings || _available(command)).ThenBy(static command => command.Title, StringComparer.OrdinalIgnoreCase)];
             _selected = 0;
             for (var index = 0; index < _matches.Length; index++) {
                 var command = _matches[index];
-                var bindings = _keymap.Bindings(command);
+                var bindings = Keymap.Bindings(command);
                 var row = DomElement.Create(_settings ? "div" : "button").Class("keymap-row");
                 _rows.Add(row);
                 _list.Append(row);
@@ -211,14 +224,14 @@ internal sealed class EditorCommandPanel : IDisposable
                 using var actions = DomElement.Create("div").Class("keymap-bindings");
                 for (var bindingIndex = 0; bindingIndex < bindings.Length; bindingIndex++) {
                     var binding = bindings[bindingIndex];
-                    actions.Append(RowButton(binding.Key, "edit", $"{command.Id}:{bindingIndex}")
-                        .Attr("title", $"Edit {command.Title} in {binding.When ?? command.Context}"))
+                    actions.Append(RowButton(binding.Mode is { } mode ? $"{binding.Key} · {mode}" : binding.Key, "edit", $"{command.Id}:{bindingIndex}")
+                        .Attr("title", $"Edit {command.Title} in {binding.When ?? command.Context}, {binding.Mode?.ToString() ?? "all modes"}"))
                         .Append(RowButton("×", "remove", $"{command.Id}:{bindingIndex}")
                             .Attr("aria-label", $"Remove {binding.Key} from {command.Title}"));
                 }
                 if (bindings.Length == 0) actions.Append(RowButton("Unbound", "edit", $"{command.Id}:0"));
                 actions.Append(RowButton("+", "edit", $"{command.Id}:{bindings.Length}").Attr("aria-label", $"Add shortcut for {command.Title}"));
-                if (_keymap.Overrides.ContainsKey(command.Id.ToString()))
+                if (Keymap.Overrides.ContainsKey(command.Id.ToString()))
                     actions.Append(RowButton("Reset", "reset", command.Id.ToString()).Attr("aria-label", $"Reset {command.Title}"));
                 row.Append(actions);
             }
@@ -251,7 +264,7 @@ internal sealed class EditorCommandPanel : IDisposable
     private void BeginEdit(EditorCommand command, int index)
     {
         EndEdit();
-        var bindings = _keymap.Bindings(command);
+        var bindings = Keymap.Bindings(command);
         if (index < 0 || index > bindings.Length) return;
         _editing = (command, index);
         var binding = index < bindings.Length ? bindings[index] : new KeyBinding("", command.Context);
@@ -266,7 +279,17 @@ internal sealed class EditorCommandPanel : IDisposable
             if (context == (binding.When ?? command.Context)) option.Attr("selected", "");
             _context.Append(option);
         }
-        _form.Append(_shortcut).Append(_context).Append(Button("Record keys", "record", form: true).Class("btn"))
+        _form.Append(_shortcut).Append(_context);
+        if (Keymap.Profile == KeyboardProfile.Vim) {
+            _mode = Own(DomElement.Create("select").Attr("aria-label", "Mode").Attr("data-keymap-mode", ""), form: true);
+            foreach (var mode in new EditorInputMode?[] { null, EditorInputMode.Normal, EditorInputMode.Insert, EditorInputMode.Visual }) {
+                var option = Own(DomElement.Create("option").Attr("value", mode?.ToString() ?? "All").Text(mode?.ToString() ?? "All modes"), form: true);
+                if (mode == binding.Mode) option.Attr("selected", "");
+                _mode.Append(option);
+            }
+            _form.Append(_mode);
+        }
+        _form.Append(Button("Record keys", "record", form: true).Class("btn"))
             .Append(Button("Apply", "apply", form: true).Class("btn")).Append(Button("Cancel", "cancel-edit", form: true).Class("btn"));
         _dialog!.InsertBefore(_form, _message);
         _dialog.ToggleClass("is-editing", true);
@@ -283,6 +306,7 @@ internal sealed class EditorCommandPanel : IDisposable
         _editing = null;
         _shortcut = null;
         _context = null;
+        _mode = null;
         _recording = false;
         _dialog?.ToggleClass("is-editing", false);
         if (_settings) _message?.Text($"{_matches.Length} commands · select a shortcut to edit it");
@@ -299,10 +323,12 @@ internal sealed class EditorCommandPanel : IDisposable
         _rows.Clear();
         foreach (var element in _elements) element.Dispose();
         _elements.Clear();
-        _dialog = _search = _list = _message = _form = _shortcut = _context = null;
+        _profiles.Clear();
+        _dialog = _search = _list = _message = _form = _shortcut = _context = _mode = null;
+        _recording = false;
         _editing = null;
         _matches = [];
     }
 
-    public void Dispose() { Close(); _chordStatus.Remove(); _chordStatus.Dispose(); _root.Attr("data-editor-keymap", ""); _root.Dispose(); }
+    public void Dispose() { Close(); _chordStatus.Remove(); _chordStatus.Dispose(); _root.Dispose(); }
 }

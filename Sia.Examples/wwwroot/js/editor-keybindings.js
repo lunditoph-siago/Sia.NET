@@ -19,6 +19,8 @@ function clearChord(message = '') {
 }
 
 function active(binding, event, surface) {
+    if (binding.mode && binding.mode !== 'Standard'
+        && event.target.closest?.('.editor-lines[data-editor-binding]') !== surface) return false;
     switch (binding.when) {
         case 'Workbench': return true;
         case 'Editor': return Boolean(surface);
@@ -33,13 +35,17 @@ function active(binding, event, surface) {
     }
 }
 
-function matches(stroke, event) {
+function matches(stroke, event, mode) {
     const key = event.key === ' ' ? 'Space' : event.key.length === 1 ? event.key.toUpperCase() : event.key;
     const physical = `[${event.code.toUpperCase()}]`;
     let modifiers = stroke.modifiers;
     if (modifiers & 16) modifiers = modifiers & ~16 | (primaryIsMeta ? 2 : 1);
-    const actual = (event.ctrlKey ? 1 : 0) | (event.metaKey ? 2 : 0)
+    let actual = (event.ctrlKey ? 1 : 0) | (event.metaKey ? 2 : 0)
         | (event.altKey ? 4 : 0) | (event.shiftKey ? 8 : 0);
+    if ((mode === 'Normal' || mode === 'Visual') && event.key.length === 1
+        && !(actual & ~8) && !stroke.key.startsWith('[')) {
+        actual = event.key !== event.key.toLowerCase() ? 8 : 0;
+    }
     return modifiers === actual && (stroke.key === key || stroke.key === physical);
 }
 
@@ -59,22 +65,24 @@ export function resolveShortcut(event, surface) {
         clearChord();
         if (event.key === 'Escape') return { pending: true };
         if (previous.surface === surface) {
-            const completed = previous.bindings.filter(binding => active(binding, event, surface) && matches(binding.keys[1], event));
+            const completed = previous.bindings.filter(binding => active(binding, event, surface) && matches(binding.keys[1], event, binding.mode));
             if (completed.length) return { binding: completed[0] };
             clearChord('No command matches this key combination.');
             chordTimer = setTimeout(() => clearChord(), 1500);
             return { pending: true };
         }
     }
-    const eligible = bindings.filter(binding => active(binding, event, surface) && matches(binding.keys[0], event))
+    const eligible = bindings.filter(binding => active(binding, event, surface) && matches(binding.keys[0], event, binding.mode))
         .sort((first, second) => second.priority - first.priority);
     if (!eligible.length) return null;
     const first = eligible[0];
     if (event.repeat && !first.editor) return { pending: true };
     if (first.keys.length > 1) {
+        if (surface?.dataset.editorProfile === 'Vim' && first.mode
+            && first.keys.every(stroke => stroke.key.length === 1 && !(stroke.modifiers & ~8))) return { pending: true };
         chord = { surface, bindings: eligible.filter(binding => binding.keys.length > 1) };
         const status = document.getElementById('keymap-chord');
-        if (status) status.textContent = 'Waiting for the second key… Esc to cancel';
+        if (status) status.textContent = surface?.dataset?.editorProfile === 'Vim' ? '' : 'Waiting for the second key… Esc to cancel';
         chordTimer = setTimeout(() => clearChord(), 5000);
         return { pending: true };
     }
@@ -88,6 +96,12 @@ export function attachCommandSurface(surface, flush) {
         if (lastEditor === surface) lastEditor = undefined;
         if (chord?.surface === surface) clearChord();
     };
+}
+
+export function cancelShortcut(surface) {
+    if (!chord || chord.surface !== surface) return false;
+    clearChord();
+    return true;
 }
 
 export function invokeWorkbenchCommand(command, surface = lastEditor) {
@@ -111,7 +125,9 @@ document.addEventListener('focusin', event => {
     if (surface) lastEditor = surface;
     if (chord && chord.surface !== surface) clearChord();
 });
-document.addEventListener('pointerdown', () => clearChord(), true);
+document.addEventListener('pointerdown', event => {
+    if (!event.target.closest?.('[data-editor-touch-command="Escape"]')) clearChord();
+}, true);
 document.addEventListener('compositionstart', () => clearChord());
 window.addEventListener('blur', () => clearChord());
 
@@ -142,7 +158,10 @@ document.addEventListener('keydown', event => {
             if (['Control', 'Meta', 'Alt', 'Shift'].includes(event.key)) return;
             const key = event.key === ' ' ? 'Space' : event.key === '+' ? 'Plus'
                 : event.key.length === 1 ? event.key.toUpperCase() : event.key;
-            const modifiers = [event.ctrlKey && 'Ctrl', event.metaKey && 'Cmd', event.altKey && 'Alt', event.shiftKey && 'Shift'].filter(Boolean);
+            const mode = recorder.closest?.('.keymap-edit')?.querySelector('[data-keymap-mode]')?.value;
+            const logical = ['Normal', 'Visual'].includes(mode) && event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey;
+            const shift = logical ? event.key !== event.key.toLowerCase() : event.shiftKey;
+            const modifiers = [event.ctrlKey && 'Ctrl', event.metaKey && 'Cmd', event.altKey && 'Alt', shift && 'Shift'].filter(Boolean);
             const stroke = [...modifiers, key].join('+');
             const before = recorder.dataset.keymapRecordedId === recorder.dataset.keymapRecordId
                 ? recorder.dataset.keymapRecorded ?? '' : '';
