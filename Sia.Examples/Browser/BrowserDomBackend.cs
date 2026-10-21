@@ -15,6 +15,7 @@ internal sealed partial class BrowserDomBackend(BrowserMainThread mainThread) : 
     private readonly Dictionary<string, int> _valueIndexes = new(StringComparer.Ordinal);
     private readonly List<BrowserDomNode> _releases = [];
     private readonly List<BrowserDomNode> _updates = [];
+    private readonly Dictionary<JSObject, int> _handles = new(ReferenceEqualityComparer.Instance);
     private bool _disposed;
 
     public bool SupportsNativeInput => true;
@@ -286,10 +287,10 @@ internal sealed partial class BrowserDomBackend(BrowserMainThread mainThread) : 
         _writes.Add(reveal ? 1 : 0);
     }
 
-    public void PlaceOverlay(IDomNode container, IDomNode surface, IDomNode overlay, int lineIndex, int column)
+    public void PlaceOverlay(IDomNode container, IDomNode surface, IDomNode overlay, int lineIndex, int column, int endLineIndex = -1, int endColumn = -1)
     {
         VerifyAccess();
-        BrowserInterop.PlaceOverlay(Handle(container), Handle(surface), Handle(overlay), lineIndex, column);
+        BrowserInterop.PlaceOverlay(Handle(container), Handle(surface), Handle(overlay), lineIndex, column, endLineIndex, endColumn);
     }
 
     public void ClearOverlayPlacement(IDomNode overlay)
@@ -340,6 +341,8 @@ internal sealed partial class BrowserDomBackend(BrowserMainThread mainThread) : 
         }
         _updates.Clear();
         Attempt(ReleasePending);
+        foreach (var handle in _handles.Keys) Attempt(handle.Dispose);
+        _handles.Clear();
         _disposed = true;
         if (errors is not null) throw new AggregateException(errors);
     }
@@ -418,7 +421,7 @@ internal sealed partial class BrowserDomBackend(BrowserMainThread mainThread) : 
                 foreach (var handle in created) handle?.Dispose();
                 throw new InvalidOperationException("The DOM batch returned an invalid node count.");
             }
-            for (var index = 0; index < pending.Length; index++) pending[index].Handle = created[index];
+            for (var index = 0; index < pending.Length; index++) pending[index].Handle = Retain(created[index]);
             using var status = created[^1];
             if (status is not null) {
                 throw new InvalidOperationException(status.GetPropertyAsString("error") ?? "The DOM batch failed.");
@@ -435,7 +438,20 @@ internal sealed partial class BrowserDomBackend(BrowserMainThread mainThread) : 
         if (node.Disposed) return;
         node.Disposed = true;
         if (_updates.Count > 0 || _nodes.Count > 0) _releases.Add(node);
-        else node.Handle?.Dispose();
+        else ReleaseHandle(node.Handle);
+    }
+
+    private JSObject? Retain(JSObject? handle)
+    {
+        if (handle is not null) _handles[handle] = _handles.GetValueOrDefault(handle) + 1;
+        return handle;
+    }
+
+    private void ReleaseHandle(JSObject? handle)
+    {
+        if (handle is null || !_handles.TryGetValue(handle, out var count)) return;
+        if (count > 1) _handles[handle] = count - 1;
+        else { _handles.Remove(handle); handle.Dispose(); }
     }
 
     private void ReleasePending()
@@ -444,7 +460,7 @@ internal sealed partial class BrowserDomBackend(BrowserMainThread mainThread) : 
         for (var index = _releases.Count - 1; index >= 0; index--) {
             var node = _releases[index];
             if (_updates.Contains(node)) continue;
-            try { node.Handle?.Dispose(); }
+            try { ReleaseHandle(node.Handle); }
             catch (Exception error) { (errors ??= []).Add(error); }
             finally { _releases.RemoveAt(index); }
         }
@@ -471,7 +487,7 @@ internal sealed partial class BrowserDomBackend(BrowserMainThread mainThread) : 
     private sealed class BrowserDomNode(BrowserDomBackend owner, JSObject? handle, string? tag = null) : IDomNode
     {
         public BrowserDomBackend Owner { get; } = owner;
-        public JSObject? Handle { get; set; } = handle;
+        public JSObject? Handle { get; set; } = owner.Retain(handle);
         public string? Tag { get; } = tag;
         public bool Disposed { get; set; }
         public void Dispose() => Owner.Release(this);
@@ -608,7 +624,9 @@ internal static partial class BrowserInterop
         JSObject surface,
         JSObject overlay,
         int lineIndex,
-        int column);
+        int column,
+        int endLineIndex,
+        int endColumn);
 
     [JSImport("clearOverlayPlacement", "main.js")]
     public static partial void ClearOverlayPlacement(JSObject overlay);

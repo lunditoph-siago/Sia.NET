@@ -52,6 +52,7 @@
         display: grid;
         grid-template-columns: 1.5rem 1fr;
         align-items: center;
+        min-height: var(--control-size);
         gap: 0.35rem;
         padding: 0.3rem 0.45rem;
         border: 0;
@@ -60,8 +61,12 @@
         color: inherit;
         font: inherit;
         font-size: 0.78rem;
+        line-height: var(--line-height-ui);
         text-align: left;
+
         cursor: pointer;
+
+        @media (any-pointer: coarse), (max-width: 899px) { min-height: 2.25rem; }
 
         &:hover,
         &:focus-visible {

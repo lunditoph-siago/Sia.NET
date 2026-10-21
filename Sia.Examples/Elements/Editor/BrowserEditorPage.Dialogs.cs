@@ -200,13 +200,12 @@ internal sealed partial class BrowserEditorPage
             return;
         }
         var currentPath = entity.Contains<UntitledFile>()
-            ? EditorWorkspace.NameOf(entity)
+            ? EditorWorkspace.NameOf(entity) + ".cs"
             : EditorWorkspace.PathOf(entity);
 
         BeginDialog(entity);
         _confirmMessage.Text("Save as (workspace-relative path):");
         var input = DomElement.Create("input")
-            .Class("inline-title-input")
             .Id(k_SaveAsInputId)
             .Attr("type", "text")
             .Attr("aria-label", "New file path")
@@ -293,6 +292,7 @@ internal sealed partial class BrowserEditorPage
             $"Delete the {noun} '{name}'? This cannot be undone.",
             ("Delete", "editor-page-dialog-delete-confirm"),
             ("Cancel", "editor-page-dialog-delete-cancel"));
+        _confirmButtons[^1].Focus();
     }
 
     private async Task ConfirmDeleteAsync(string argument)
@@ -309,9 +309,9 @@ internal sealed partial class BrowserEditorPage
             static file => file,
             file => (Content: file.Get<WorkspaceFile>().Content,
                 Tab: _state.Tabs.GetValueOrDefault(TabIdFor(file))));
+        CancelLanguageDiagnostics();
         await _workspace.DeleteEntryAsync(entity, _lifetime.Token);
         InvalidateLanguageContext();
-        ScheduleLanguageDiagnostics(ActiveLanguageBinding());
         if (_disposed) {
             return;
         }
@@ -345,6 +345,7 @@ internal sealed partial class BrowserEditorPage
         ApplyLayout();
         UpdateChrome();
         RenderExplorer();
+        ScheduleLanguageDiagnostics(ActiveLanguageBinding());
     }
 
     private void ShowConfirmBanner(string message, params (string Label, string Payload)[] actions)

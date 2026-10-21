@@ -86,8 +86,9 @@ public sealed partial class BrowserEditorHost
             _completionCount!.Text($"{_completionIndex + 1} / {completion.Items.Count}");
             var position = completion.Items[0].ReplaceStart;
             var line = State.Value.Doc.LineAt(position);
-            if (isNew) _view.MountOverlay(popup, line.Number - 1, position - line.From);
-            else _view.PlaceOverlay(popup, line.Number - 1, position - line.From);
+            var caret = State.Value.Doc.LineAt(_completionPosition);
+            if (isNew) _view.MountOverlay(popup, line.Number - 1, position - line.From, caret.Number - 1, _completionPosition - caret.From);
+            else _view.PlaceOverlay(popup, line.Number - 1, position - line.From, caret.Number - 1, _completionPosition - caret.From);
             if (revealSelection && selectedRow >= 0 && selectedRow < length)
                 DomRuntime.EnsureVisible(_completionList, _completionItems[selectedRow].Element);
             _view.SetCompletionSelection($"{_cellId}-suggestions", selectedRow >= 0 && selectedRow < length
@@ -172,7 +173,8 @@ public sealed partial class BrowserEditorHost
         if (_completionPopup is not { } popup) return;
         var position = completion.Items[0].ReplaceStart;
         var line = State.Value.Doc.LineAt(position);
-        _view.PlaceOverlay(popup, line.Number - 1, position - line.From);
+        var caret = State.Value.Doc.LineAt(_completionPosition);
+        _view.PlaceOverlay(popup, line.Number - 1, position - line.From, caret.Number - 1, _completionPosition - caret.From);
     }
 
     private void RevealCompletionSelection()

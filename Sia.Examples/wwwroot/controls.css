@@ -3,43 +3,42 @@
         display: inline-grid;
         place-items: center;
         flex: 0 0 auto;
-        width: 1.8rem;
-        height: 1.8rem;
+        width: var(--control-size);
+        height: var(--control-size);
         border: 1px solid transparent;
         border-radius: var(--radius-control);
         background: transparent;
         color: inherit;
         font: inherit;
         cursor: pointer;
-    }
+        line-height: var(--line-height-ui);
 
-    .icon-btn:hover,
-    .icon-btn:focus-visible {
-        border-color: var(--color-muted);
-        background: var(--surface-hover);
-    }
+        &:hover, &:focus-visible {
+            border-color: var(--color-muted);
+            background: var(--surface-hover);
+        }
 
-    .icon-btn:focus-visible {
-        outline: 1px solid var(--color-accent);
-        outline-offset: 1px;
-    }
-
-    .icon-btn.danger:hover,
-    .icon-btn.danger:focus-visible {
-        color: var(--color-danger);
+        &:focus-visible { outline: 1px solid var(--color-accent); outline-offset: 1px; }
+        &.danger:is(:hover, :focus-visible) { color: var(--color-danger); }
     }
 
     .btn {
+        min-width: var(--control-size);
+        min-height: var(--control-size);
         padding: 0.2rem 0.55rem;
         border: 1px solid var(--border-control);
         border-radius: var(--radius-control);
         background: transparent;
         font: inherit;
         font-size: 0.72rem;
+        line-height: var(--line-height-ui);
+        color: inherit;
         cursor: pointer;
 
         &:hover {
             background: var(--surface-hover);
         }
+
+        @media (any-pointer: coarse), (max-width: 899px) { padding: 0.15rem 0.4rem; }
     }
 }

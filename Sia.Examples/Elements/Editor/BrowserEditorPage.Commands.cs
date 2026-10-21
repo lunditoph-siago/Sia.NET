@@ -45,6 +45,9 @@ internal sealed partial class BrowserEditorPage
             case "editor-page-open":
                 OpenPanelWindow(argument);
                 return true;
+            case "editor-page-toggle-output":
+                ToggleOutputPane();
+                return true;
             case "editor-page-clear":
                 ClearOutput();
                 return true;
@@ -166,10 +169,13 @@ internal sealed partial class BrowserEditorPage
                     EditorCommandId.NavigateForward => _navigationForward.Any(static bookmark => bookmark.Entity.IsValid),
                     EditorCommandId.CheckCode => ActiveLanguageBinding() is not null,
                     _ => true,
-                } : _editors.CanExecuteCommand(binding, command);
+                } : _editors.CanExecuteCommand(ResolveCommandBinding(binding), command);
+
+    internal string ResolveCommandBinding(string binding) => binding.Length == 0 ? ActiveLanguageBinding() ?? "" : binding;
 
     internal bool ExecuteCommand(EditorCommand command, string binding)
     {
+        binding = ResolveCommandBinding(binding);
         if (command.Id == EditorCommandId.QuickOpen) {
             if (!_initialized || _disposed) return false;
             OpenFilePicker(binding); return true;
@@ -190,9 +196,13 @@ internal sealed partial class BrowserEditorPage
             return;
         }
         var saved = entity.Get<WorkspaceFile>().SavedContent;
+        SaveEditorSources(synchronizeNativeInput: true);
+        foreach (var (group, current) in _editorEntities) {
+            if (current == entity) _editors.RestoreSavedSource(group, saved);
+        }
         _workspace.SetContent(entity, saved);
         _workspace.Pin(entity);
-        RefreshEditorForEntity(entity);
+        SyncDirtyIndicators();
         CheckShaderSources();
         UpdateChrome("reverted to the saved version");
     }

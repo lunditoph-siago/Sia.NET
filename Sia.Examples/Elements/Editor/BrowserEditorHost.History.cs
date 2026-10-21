@@ -65,6 +65,17 @@ public sealed partial class BrowserEditorHost
 
     private void EndHistoryGroup() => _historyGroup = EditGroup.None;
 
+    internal void RestoreSavedSource(string source)
+    {
+        SynchronizeNativeInput();
+        CancelCompletion(); CancelSignature();
+        EndHistoryGroup();
+        var state = State.Value;
+        if (Source != source) Commit(state.Apply(new() {
+            Changes = [new(0, state.Doc.Length, source)],
+        }), revealSelection: false);
+    }
+
     private void RecordHistory(ChangeSet changes, EditorState before, EditorState after,
         EditorSelection selection, EditGroup group)
     {

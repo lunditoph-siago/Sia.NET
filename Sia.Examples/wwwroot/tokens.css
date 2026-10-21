@@ -4,6 +4,9 @@
     :root {
         color-scheme: light dark;
         --font-mono: ui-monospace, monospace;
+        --control-size: 1.75rem;
+        --line-height-ui: 1.25;
+        --line-height-copy: 1.55;
         --color-bg: #eff1f5;
         --color-fg: #4c4f69;
         --color-muted: #9ca0b0;
@@ -52,6 +55,10 @@
         --z-drag-ghost: 80;
         --z-overlay-root: 90;
         --z-boot-overlay: 85;
+    }
+
+    @media (any-pointer: coarse), (max-width: 899px) {
+        :root { --control-size: 2rem; }
     }
 
     @media (prefers-color-scheme: dark) {

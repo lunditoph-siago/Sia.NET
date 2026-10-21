@@ -1,6 +1,6 @@
 @layer components {
     .file-tree {
-        --file-tree-row-size: 1.8rem;
+        --file-tree-row-size: var(--control-size);
         --file-tree-inline-action-opacity: 0;
         display: flex;
         flex-direction: column;
@@ -8,9 +8,9 @@
         min-width: 0;
         padding: 0.15rem 0;
 
-        @media (pointer: coarse), (max-width: 899px) {
-            --file-tree-row-size: 2.75rem;
+        @media (any-pointer: coarse), (max-width: 899px) {
             --file-tree-inline-action-opacity: 0.65;
+            --file-tree-row-size: 2.25rem;
         }
 
         .file-tree-placeholder {
@@ -249,6 +249,8 @@
             font: inherit;
             font-size: 0.75rem;
 
+            @media (any-pointer: coarse), (max-width: 899px) { font-size: 1rem; }
+
             &:focus {
                 outline: 1px solid var(--color-accent);
                 outline-offset: 1px;
@@ -259,10 +261,6 @@
     .file-tree-actions {
         .menu-item {
             grid-template-columns: 1fr;
-
-            @media (pointer: coarse), (max-width: 899px) {
-                min-height: 2.75rem;
-            }
         }
     }
 }

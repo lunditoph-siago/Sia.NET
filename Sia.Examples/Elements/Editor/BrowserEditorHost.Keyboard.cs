@@ -27,7 +27,7 @@ public sealed partial class BrowserEditorHost
             EndHistoryGroup();
             CancelCompletion(); CancelSignature();
             if (_inputSession is null) ChangeInputMode(keymap.InitialMode);
-            if (InputMode == EditorInputMode.Normal) {
+            if (InputMode == EditorInputMode.Normal && _state is not null) {
                 var state = State.Value;
                 Commit(state.Apply(new() { Selection = EditorSelection.Single(ModalEditing.Clamp(state.Doc, state.Selection.Main.Head)) }));
             }

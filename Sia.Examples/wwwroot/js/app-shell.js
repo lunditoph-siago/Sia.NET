@@ -31,7 +31,7 @@ document.addEventListener('click', (event) => {
         if (document.getElementById('app')?.classList.contains('sidebar-open')) {
             if (toggle.hasAttribute('data-sidebar-toggle')) selectSidebarView('files');
             if (document.getElementById('sidebar')?.dataset.sidebarView === 'workspace') focusWorkspaceFiles();
-            else document.querySelector('#sidebar .sidebar-tab.active')?.focus();
+            else document.querySelector('#sidebar .sidebar-tab[aria-selected="true"]')?.focus();
         }
     } else if (compactSidebar.matches && document.getElementById('app')?.classList.contains('sidebar-open')) {
         if (event.target.closest?.('[data-sidebar-dismiss]')) closeSidebar(true);
@@ -68,12 +68,8 @@ function selectSidebarView(view, focus = false) {
     sidebar.dataset.sidebarView = view;
     for (const tab of sidebarTabs) {
         const selected = tab.dataset.sidebarTab === view;
-        tab.classList.toggle('active', selected);
         tab.setAttribute('aria-selected', selected ? 'true' : 'false');
         tab.tabIndex = selected ? 0 : -1;
-        document
-            .getElementById(tab.getAttribute('aria-controls') ?? '')
-            ?.classList.toggle('hidden', !selected);
         if (selected && focus) {
             tab.focus();
         }
@@ -109,10 +105,8 @@ document.getElementById('sidebar')?.addEventListener('click', (event) => {
     if (!toggle) {
         return;
     }
-    const items = document.getElementById(toggle.dataset.libraryToggle);
     const expanded = toggle.getAttribute('aria-expanded') !== 'false';
     toggle.setAttribute('aria-expanded', expanded ? 'false' : 'true');
-    items?.classList.toggle('hidden', expanded);
 });
 
 function beginFileTreeRename(trigger) {

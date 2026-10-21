@@ -239,6 +239,7 @@ internal static class DomApplication
 
             void ExecuteCommand(EditorCommand command, string binding)
             {
+                binding = editorPage?.ResolveCommandBinding(binding) ?? binding;
                 if (command.Id is EditorCommandId.Commands or EditorCommandId.Keybindings) {
                     commands.Open(command.Id == EditorCommandId.Keybindings, binding, candidate =>
                         candidate.Context == CommandContext.Workbench

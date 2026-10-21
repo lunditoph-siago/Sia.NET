@@ -22,6 +22,7 @@ public sealed class BrowserEditorView : IEditorView
     private readonly IEditorLinesOwner _lineOwner;
 
     private DomElement? _completionAction;
+    private DomElement _modeAction = null!;
     private EditorSelectionView? _selection;
     private int? _activeLineIdentity;
     private bool _suppressSelectionUpdate;
@@ -94,6 +95,7 @@ public sealed class BrowserEditorView : IEditorView
             var button = Own(DomElement.Create("button").Attr("type", "button")
                 .Attr("data-editor-touch-command", command.ToString()).Attr("aria-label", label).Attr("title", label));
             if (command == EditorCommandId.Escape) {
+                _modeAction = button;
                 actions.Append(button.Text("Esc"));
                 continue;
             }
@@ -133,6 +135,10 @@ public sealed class BrowserEditorView : IEditorView
         _projectedInputMode = (profile, mode);
         _lines.Attr("data-editor-profile", profile.ToString()).Attr("data-editor-mode", mode.ToString());
         _inputMode.Text(mode.ToString().ToUpperInvariant()).ToggleClass("hidden", profile != KeyboardProfile.Vim);
+        var insert = profile == KeyboardProfile.Vim && mode == EditorInputMode.Normal;
+        _modeAction.Attr("data-editor-touch-command", (insert ? EditorCommandId.InsertMode : EditorCommandId.Escape).ToString())
+            .Attr("aria-label", insert ? "Enter Insert mode" : "Escape")
+            .Attr("title", insert ? "Enter Insert mode" : "Escape").Text(insert ? "Insert" : "Esc");
     }
 
     internal void BeginUpdate()
@@ -228,11 +234,11 @@ public sealed class BrowserEditorView : IEditorView
         }
     }
 
-    public void MountOverlay(DomElement overlay, int lineIndex, int column)
+    public void MountOverlay(DomElement overlay, int lineIndex, int column, int endLineIndex = -1, int endColumn = -1)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         _container.Append(overlay);
-        PlaceOverlay(overlay, lineIndex, column);
+        PlaceOverlay(overlay, lineIndex, column, endLineIndex, endColumn);
     }
 
     internal void SetCompletionSelection(string listId, string itemId, int generation = -1)
@@ -250,10 +256,10 @@ public sealed class BrowserEditorView : IEditorView
 
     internal void SetSignatureHelp(string id) => _lines.Attr("aria-describedby", id);
 
-    public void PlaceOverlay(DomElement overlay, int lineIndex, int column)
+    public void PlaceOverlay(DomElement overlay, int lineIndex, int column, int endLineIndex = -1, int endColumn = -1)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        DomRuntime.PlaceOverlay(_container, _lines, overlay, lineIndex, column);
+        DomRuntime.PlaceOverlay(_container, _lines, overlay, lineIndex, column, endLineIndex, endColumn);
     }
 
     void IRenderHost<EditorLinesView>.Upsert(in EditorLinesView view)
