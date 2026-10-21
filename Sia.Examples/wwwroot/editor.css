@@ -1,6 +1,7 @@
 @layer components {
     :is(.keymap-dialog, .editor-dialog) {
         --dialog-top: min(8dvh, calc(0.08 * var(--editor-viewport-height, 100dvh)));
+        --dialog-section-padding: 0.35rem 0.65rem;
         width: min(48rem, calc(100vw - 1rem));
         max-height: min(calc(var(--editor-viewport-height, 100dvh) - var(--dialog-top) - 0.5rem), 44rem);
         margin: calc(var(--editor-viewport-top, 0px) + var(--dialog-top)) auto auto;
@@ -24,20 +25,21 @@
             justify-content: space-between;
             align-items: center;
             gap: 0.5rem;
-            padding: 0.35rem 0.65rem;
+            padding: var(--dialog-section-padding);
 
             h2 { margin: 0; font-size: 0.95rem; }
         }
 
         > input, .keymap-edit > input, .keymap-edit > select {
             min-width: 0;
-            min-height: var(--control-size);
+            min-height: var(--field-size);
             padding: 0.45rem 0.6rem;
             border: 1px solid var(--border-control);
             border-radius: var(--radius-control);
             background: var(--color-bg-secondary);
             color: inherit;
             font: inherit;
+            font-size: var(--field-font-size, inherit);
 
             &:focus-visible { outline: 2px solid var(--focus-muted); outline-offset: 1px; }
         }
@@ -72,7 +74,7 @@
             gap: 0.5rem;
             width: 100%;
             margin: 0;
-            min-height: var(--control-size);
+            min-height: var(--list-row-size);
             padding: 0.3rem 0.65rem;
             border: 0;
             border-bottom: 1px solid var(--border-subtle);
@@ -97,6 +99,15 @@
             align-items: center;
             gap: 0.25rem;
 
+            .keymap-binding {
+                display: inline-flex;
+                gap: inherit;
+                min-width: 0;
+                max-width: 100%;
+
+                > button:first-child { overflow-wrap: anywhere; }
+            }
+
             button {
                 min-width: var(--control-size);
                 min-height: var(--control-size);
@@ -112,23 +123,33 @@
             }
         }
 
-        :is(.keymap-message, .keymap-empty, .editor-dialog-message) { flex: none; margin: 0; padding: 0.35rem 0.65rem; color: var(--color-text-dim); }
+        :is(.keymap-message, .keymap-empty, .editor-dialog-message) { flex: none; margin: 0; padding: var(--dialog-section-padding); color: var(--color-text-dim); }
         :is(.keymap-message, .editor-dialog-message):empty { display: none; }
         :is(.keymap-footer, .editor-dialog-footer) {
             display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: 0.5rem;
-            padding: 0.35rem 0.65rem; font-size: 0.72rem; color: var(--color-text-dim);
+            padding: var(--dialog-section-padding); font-size: 0.72rem; color: var(--color-text-dim);
             > span { flex: 1 1 12rem; }
         }
         .keymap-edit { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.6rem; padding: 0.8rem; }
         .keymap-edit > h3 { grid-column: 1 / -1; margin: 0; font-size: 0.9rem; }
         &.is-editing > :is(.keymap-list, input) { display: none; }
 
-        @media (max-width: 640px) {
+        @media (any-pointer: coarse), (max-width: 899px) {
             --dialog-top: 0.5rem;
+            --dialog-section-padding: 0.2rem 0.45rem;
+            max-width: calc(100vw - 1rem);
+            max-height: calc(var(--editor-viewport-height, 100dvh) - var(--dialog-top) - 0.5rem);
+            > input, .keymap-edit > input, .keymap-edit > select { padding: 0.2rem 0.45rem; }
+            > input { margin: 0 0.45rem 0.25rem; }
+            .keymap-profiles { gap: 0.25rem; padding: 0 0.45rem 0.25rem; }
+            :is(.keymap-footer, .editor-dialog-footer) { gap: 0.25rem; }
+            .keymap-edit { gap: 0.4rem; padding: 0.45rem; }
+            :is(.keymap-row, .editor-dialog-row) { gap: 0.15rem; padding-block: 0.15rem; }
+        }
+
+        @media (max-width: 640px) {
             &[data-keymap-dialog='settings'] .keymap-row { grid-template-columns: minmax(0, 1fr); }
             .keymap-bindings { justify-content: start; }
-            .keymap-bindings button, .btn { min-width: 2.75rem; min-height: 2.75rem; }
-            input, select { font-size: 16px; }
         }
     }
 
@@ -267,9 +288,9 @@
         button {
             display: grid;
             place-items: center;
-            width: 2.75rem;
-            height: 2.75rem;
-            min-width: 2.75rem;
+            width: 2.5rem;
+            height: 2.5rem;
+            min-width: 2.5rem;
             padding: 0;
             border: 0;
             border-radius: var(--radius-control);
@@ -347,6 +368,7 @@
                 background: var(--color-bg);
                 color: inherit;
                 font: inherit;
+                font-size: var(--field-font-size, inherit);
             }
 
             button {
@@ -367,12 +389,8 @@
             .editor-find-summary { display: block; overflow-wrap: anywhere; padding-top: 0.15rem; color: var(--color-text-dim); }
 
             @media (any-pointer: coarse), (max-width: 899px) {
-                :is(input, button) { min-height: var(--control-size); }
-                button { min-width: var(--control-size); }
-                input { font-size: 16px; }
-                :is([data-editor-find-action='case'], [data-editor-find-action='word'], [data-editor-find-action='regex']) {
-                    min-width: 2rem; min-height: 2rem;
-                }
+                button { min-width: var(--control-size); min-height: var(--control-size); }
+                input { min-height: var(--field-size); }
 
                 .editor-find-row {
                     flex-wrap: wrap;
@@ -506,7 +524,6 @@
 
                 &:hover, &:focus-visible { background: var(--surface-hover); }
 
-                @media (pointer: coarse) { min-width: 2.75rem; min-height: 2.75rem; }
             }
         }
 
@@ -591,7 +608,7 @@
             @media (any-pointer: coarse), (max-width: 720px) {
                 display: flex;
                 align-items: center;
-                min-height: 2.75rem;
+                min-height: var(--list-row-size);
             }
         }
 
@@ -660,7 +677,7 @@
 
             > button {
                 display: flex;
-                min-height: var(--control-size);
+                min-height: var(--list-row-size);
                 flex-direction: column;
                 align-items: stretch;
                 width: 100%;

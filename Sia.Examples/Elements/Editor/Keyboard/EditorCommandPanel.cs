@@ -224,10 +224,12 @@ internal sealed class EditorCommandPanel : IDisposable
                 using var actions = DomElement.Create("div").Class("keymap-bindings");
                 for (var bindingIndex = 0; bindingIndex < bindings.Length; bindingIndex++) {
                     var binding = bindings[bindingIndex];
-                    actions.Append(RowButton(binding.Mode is { } mode ? $"{binding.Key} · {mode}" : binding.Key, "edit", $"{command.Id}:{bindingIndex}")
+                    using var group = DomElement.Create("span").Class("keymap-binding");
+                    group.Append(RowButton(binding.Mode is { } mode ? $"{binding.Key} · {mode}" : binding.Key, "edit", $"{command.Id}:{bindingIndex}")
                         .Attr("title", $"Edit {command.Title} in {binding.When ?? command.Context}, {binding.Mode?.ToString() ?? "all modes"}"))
                         .Append(RowButton("×", "remove", $"{command.Id}:{bindingIndex}")
                             .Attr("aria-label", $"Remove {binding.Key} from {command.Title}"));
+                    actions.Append(group);
                 }
                 if (bindings.Length == 0) actions.Append(RowButton("Unbound", "edit", $"{command.Id}:0"));
                 actions.Append(RowButton("+", "edit", $"{command.Id}:{bindings.Length}").Attr("aria-label", $"Add shortcut for {command.Title}"));

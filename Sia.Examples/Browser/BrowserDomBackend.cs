@@ -287,10 +287,10 @@ internal sealed partial class BrowserDomBackend(BrowserMainThread mainThread) : 
         _writes.Add(reveal ? 1 : 0);
     }
 
-    public void PlaceOverlay(IDomNode container, IDomNode surface, IDomNode overlay, int lineIndex, int column)
+    public void PlaceOverlay(IDomNode container, IDomNode surface, IDomNode overlay, int lineIndex, int column, int endLineIndex = -1, int endColumn = -1)
     {
         VerifyAccess();
-        BrowserInterop.PlaceOverlay(Handle(container), Handle(surface), Handle(overlay), lineIndex, column);
+        BrowserInterop.PlaceOverlay(Handle(container), Handle(surface), Handle(overlay), lineIndex, column, endLineIndex, endColumn);
     }
 
     public void ClearOverlayPlacement(IDomNode overlay)
@@ -624,7 +624,9 @@ internal static partial class BrowserInterop
         JSObject surface,
         JSObject overlay,
         int lineIndex,
-        int column);
+        int column,
+        int endLineIndex,
+        int endColumn);
 
     [JSImport("clearOverlayPlacement", "main.js")]
     public static partial void ClearOverlayPlacement(JSObject overlay);

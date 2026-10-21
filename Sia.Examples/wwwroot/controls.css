@@ -38,5 +38,7 @@
         &:hover {
             background: var(--surface-hover);
         }
+
+        @media (any-pointer: coarse), (max-width: 899px) { padding: 0.15rem 0.4rem; }
     }
 }

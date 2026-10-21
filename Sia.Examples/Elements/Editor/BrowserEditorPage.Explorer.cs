@@ -304,8 +304,6 @@ internal sealed partial class BrowserEditorPage
         sidebar?.Attr("data-sidebar-view", "workspace");
         SetSidebarTab("sidebar-explorer-tab", active: false);
         SetSidebarTab("sidebar-files-tab", active: false);
-        SetSidebarPanel("sidebar-explorer", hidden: true);
-        SetSidebarPanel("sidebar-files", hidden: false);
         using var files = DomElement.TryFind("sidebar-files");
         files?.Attr("role", "region").Attr("aria-label", "Workspace files").Attr("aria-labelledby", string.Empty);
     }
@@ -316,8 +314,6 @@ internal sealed partial class BrowserEditorPage
         sidebar?.Attr("data-sidebar-view", "explorer");
         SetSidebarTab("sidebar-explorer-tab", active: true);
         SetSidebarTab("sidebar-files-tab", active: false);
-        SetSidebarPanel("sidebar-explorer", hidden: false);
-        SetSidebarPanel("sidebar-files", hidden: true);
         using var files = DomElement.TryFind("sidebar-files");
         files?.Attr("role", "tabpanel").Attr("aria-label", string.Empty).Attr("aria-labelledby", "sidebar-files-tab");
     }
@@ -325,14 +321,7 @@ internal sealed partial class BrowserEditorPage
     private static void SetSidebarTab(string id, bool active)
     {
         using var tab = DomElement.TryFind(id);
-        tab?.ToggleClass("active", active)
-            .Attr("aria-selected", active ? "true" : "false")
+        tab?.Attr("aria-selected", active ? "true" : "false")
             .Attr("tabindex", active ? "0" : "-1");
-    }
-
-    private static void SetSidebarPanel(string id, bool hidden)
-    {
-        using var panel = DomElement.TryFind(id);
-        panel?.ToggleClass("hidden", hidden);
     }
 }

@@ -83,7 +83,9 @@ internal interface IDomBackend : IDisposable
         IDomNode surface,
         IDomNode overlay,
         int lineIndex,
-        int column);
+        int column,
+        int endLineIndex = -1,
+        int endColumn = -1);
 
     public void ClearOverlayPlacement(IDomNode overlay);
 

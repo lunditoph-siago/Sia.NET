@@ -52,7 +52,7 @@
         display: grid;
         grid-template-columns: 1.5rem 1fr;
         align-items: center;
-        min-height: var(--control-size);
+        min-height: var(--list-row-size);
         gap: 0.35rem;
         padding: 0.3rem 0.45rem;
         border: 0;

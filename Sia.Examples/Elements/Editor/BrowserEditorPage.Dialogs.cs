@@ -206,7 +206,6 @@ internal sealed partial class BrowserEditorPage
         BeginDialog(entity);
         _confirmMessage.Text("Save as (workspace-relative path):");
         var input = DomElement.Create("input")
-            .Class("inline-title-input")
             .Id(k_SaveAsInputId)
             .Attr("type", "text")
             .Attr("aria-label", "New file path")

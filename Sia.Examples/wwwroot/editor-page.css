@@ -42,13 +42,13 @@
 
         @media (pointer: coarse),
         (max-width: 899px) {
-            --editor-command-size: 2.75rem;
-            grid-template-rows: 48px auto minmax(0, 1fr) auto 24px;
+            --editor-command-size: 2.25rem;
+            grid-template-rows: 40px auto minmax(0, 1fr) auto 24px;
 
         }
 
         @media (any-pointer: coarse), (max-width: 720px) {
-            grid-template-rows: 48px auto minmax(0, 1fr) 24px auto;
+            grid-template-rows: 40px auto minmax(0, 1fr) 24px auto;
 
             &.input-tools-open > .editor-page-touchbar { display: flex; }
         }
@@ -147,10 +147,6 @@
                 @media (any-pointer: coarse), (max-width: 720px) { display: grid; }
             }
 
-            @media (pointer: coarse),
-            (max-width: 720px) {
-                min-height: var(--control-size);
-            }
         }
     }
 
@@ -174,6 +170,8 @@
     }
 
     .editor-page-workbench {
+        --cell-tabs-block-padding: 0px;
+        --cell-split-line-offset: 50%;
         position: relative;
         display: flex;
         grid-column: 1;
@@ -184,57 +182,20 @@
         min-height: 0;
         overflow: hidden;
 
-        .cell-group > .cell-tabs { padding-block: 0; }
-
         .cell-split {
-            min-height: 0;
             overflow: hidden;
-
-            > .split-child:not(.collapsed) {
-                display: flex;
-                flex: var(--cell-split-share, 1) 1 0;
-            }
-
-            &.horizontal {
-                flex-direction: row !important;
-
-                > .separator {
-                    width: var(--editor-split-size, 7px);
-                    height: auto;
-
-                    &::after {
-                        top: 0;
-                        bottom: 0;
-                        left: 50%;
-                        width: 1px;
-                    }
-                }
-            }
-
-            &.vertical > .separator {
-                height: var(--editor-split-size, 7px);
-
-                &::after { top: 50%; }
-            }
 
             &.vertical > .split-child.tabs-only {
                 flex: 0 0 auto;
 
-                > .cell-group {
-                    > :is(.group-content, .editor-render-tools) { display: none; }
-                }
+                > .cell-group > :is(.group-content, .editor-render-tools) { display: none; }
             }
-
-            &:is(.horizontal, .vertical) > .separator { flex: 0 0 var(--editor-split-size, 7px); }
 
             @media (any-pointer: coarse), (max-width: 720px) {
-                --editor-split-size: 18px;
-            }
-        }
+                --cell-split-size: 8px;
 
-        .cell-split .split-child > .cell-group {
-            display: flex;
-            flex: 1 1 0;
+                > .separator::before { content: ""; position: absolute; inset: -5px; }
+            }
         }
 
         .cell-group:has(> .editor-render-tools[role='toolbar']) {
@@ -400,7 +361,7 @@
         text-align: left;
 
         &:is(button) {
-            min-height: var(--control-size);
+            min-height: var(--list-row-size);
             cursor: pointer;
 
             &:hover {
@@ -636,11 +597,20 @@
         align-items: center;
         gap: 0.4rem;
 
-        input { min-width: 0; }
+        input {
+            flex: 1;
+            min-width: 0;
+            min-height: var(--field-size);
+            padding: 0.2rem 0.45rem;
+            border: 1px solid var(--border-control);
+            border-radius: var(--radius-control);
+            background: var(--color-bg);
+            color: inherit;
+            font: inherit;
+        }
 
         @media (any-pointer: coarse), (max-width: 720px) {
-            :is(input, button) { min-height: 2.75rem; }
-            button { min-width: 2.75rem; }
+            input { font-size: var(--field-font-size); }
         }
     }
 
@@ -763,6 +733,10 @@
 
         @media (pointer: coarse),
         (max-width: 720px) {
+            padding: 0.5rem;
+            header { top: -0.5rem; }
+            .editor-uniform-fields fieldset { margin-top: 0.5rem; }
+            .editor-uniform-field { gap: 0.25rem; padding-block: 0.35rem; }
             button {
                 min-height: var(--control-size);
                 min-width: var(--control-size);
@@ -770,7 +744,7 @@
 
             input:not([type='checkbox']):not([type='color']),
             select {
-                min-height: var(--control-size);
+                min-height: var(--field-size);
                 font-size: 16px;
             }
         }

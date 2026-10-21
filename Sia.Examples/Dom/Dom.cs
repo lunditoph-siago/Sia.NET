@@ -87,13 +87,17 @@ internal static class DomRuntime
         DomElement surface,
         DomElement overlay,
         int lineIndex,
-        int column)
+        int column,
+        int endLineIndex = -1,
+        int endColumn = -1)
         => Backend.PlaceOverlay(
             container.Node,
             surface.Node,
             overlay.Node,
             lineIndex,
-            column);
+            column,
+            endLineIndex,
+            endColumn);
 
     public static void ClearOverlayPlacement(DomElement overlay)
         => Backend.ClearOverlayPlacement(overlay.Node);

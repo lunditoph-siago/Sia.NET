@@ -167,6 +167,9 @@
             display: none;
         }
 
+        &:not([data-sidebar-view='explorer']) > #sidebar-explorer,
+        &[data-sidebar-view='explorer'] > #sidebar-files { display: none; }
+
         .sidebar-tabs {
             display: flex;
             align-items: stretch;
@@ -200,11 +203,11 @@
 
             &:hover,
             &:focus-visible,
-            &.active {
+            &[aria-selected='true'] {
                 opacity: 1;
             }
 
-            &.active::after {
+            &[aria-selected='true']::after {
                 background: var(--color-accent);
             }
         }
@@ -232,7 +235,7 @@
             align-items: center;
             gap: 0.25rem;
             width: 100%;
-            min-height: var(--control-size);
+            min-height: var(--list-row-size);
             padding: 0.25rem 0.3rem;
             border: 0;
             background: transparent;
@@ -260,8 +263,9 @@
             }
         }
 
-        .library-folder-toggle[aria-expanded='false'] .folder-caret {
-            transform: rotate(-90deg);
+        .library-folder-toggle[aria-expanded='false'] {
+            .folder-caret { transform: rotate(-90deg); }
+            + .library-items { display: none; }
         }
 
         .library-items {
@@ -277,7 +281,7 @@
             flex-direction: row;
             gap: 0.1rem;
             width: 100%;
-            min-height: var(--control-size);
+            min-height: var(--list-row-size);
             padding: 0.25rem 0.5rem;
             border: 1px solid transparent;
             border-radius: var(--radius-control);
@@ -481,6 +485,8 @@
                     box-shadow: var(--shadow-overlay);
                     font-size: 0.85rem;
 
+                    @media (any-pointer: coarse), (max-width: 899px) { padding: 0.4rem 0.5rem; }
+
                     .packages-empty {
                         padding: 0.2rem 0 0.5rem;
                         opacity: 0.6;
@@ -531,15 +537,14 @@
                         .package-add-input {
                             min-width: 9em;
                             max-width: 100%;
-                            min-height: var(--control-size);
+                            min-height: var(--field-size);
                             padding: 0.25rem 0.5rem;
                             border: 1px solid var(--border-control);
                             border-radius: var(--radius-control);
                             background: var(--color-bg);
                             color: var(--color-fg);
                             font: inherit;
-                            font-size: 0.8rem;
-                            @media (any-pointer: coarse), (max-width: 899px) { font-size: 16px; }
+                            font-size: var(--field-font-size, 0.8rem);
                         }
                     }
                 }
@@ -564,8 +569,6 @@
 
             @media (max-width: 899px) {
                 display: inline-grid;
-                width: 2.75rem;
-                height: 2.75rem;
                 margin-left: auto;
             }
         }

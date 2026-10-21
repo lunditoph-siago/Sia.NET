@@ -97,7 +97,9 @@ internal sealed partial class ConsoleDomBackend
         IDomNode surface,
         IDomNode overlay,
         int lineIndex,
-        int column)
+        int column,
+        int endLineIndex = -1,
+        int endColumn = -1)
     {
         _ = AsNode(container);
         _ = AsNode(surface);

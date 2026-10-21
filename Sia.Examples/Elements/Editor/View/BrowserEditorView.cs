@@ -234,11 +234,11 @@ public sealed class BrowserEditorView : IEditorView
         }
     }
 
-    public void MountOverlay(DomElement overlay, int lineIndex, int column)
+    public void MountOverlay(DomElement overlay, int lineIndex, int column, int endLineIndex = -1, int endColumn = -1)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         _container.Append(overlay);
-        PlaceOverlay(overlay, lineIndex, column);
+        PlaceOverlay(overlay, lineIndex, column, endLineIndex, endColumn);
     }
 
     internal void SetCompletionSelection(string listId, string itemId, int generation = -1)
@@ -256,10 +256,10 @@ public sealed class BrowserEditorView : IEditorView
 
     internal void SetSignatureHelp(string id) => _lines.Attr("aria-describedby", id);
 
-    public void PlaceOverlay(DomElement overlay, int lineIndex, int column)
+    public void PlaceOverlay(DomElement overlay, int lineIndex, int column, int endLineIndex = -1, int endColumn = -1)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        DomRuntime.PlaceOverlay(_container, _lines, overlay, lineIndex, column);
+        DomRuntime.PlaceOverlay(_container, _lines, overlay, lineIndex, column, endLineIndex, endColumn);
     }
 
     void IRenderHost<EditorLinesView>.Upsert(in EditorLinesView view)
