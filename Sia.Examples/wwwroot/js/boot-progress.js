@@ -9,7 +9,6 @@ function countInitialResources(resources) {
         return 0;
     }
     const size = (group) => (Array.isArray(group) ? group.length : 0);
-    // JavaScript modules are imported outside the SDK's download progress callback.
     return (
         size(resources.wasmNative) +
         Math.min(1, size(resources.icu)) +
