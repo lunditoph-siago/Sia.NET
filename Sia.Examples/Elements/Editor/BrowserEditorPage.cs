@@ -21,7 +21,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
 
     private readonly EditorWorkspace _workspace;
     private readonly BrowserEditorRegistry _editors;
-    private readonly DomElement _container;
+    private readonly DomElement _container = DomElement.Find("notebook");
     private readonly DomElement _root;
     private readonly DomElement _workbench;
     private readonly DomElement _runAction;
@@ -55,7 +55,6 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         _workspace = new(world, storage);
         _packageReferences = references;
         _shaderCompiler = new(references);
-        _container = DomElement.Find("notebook");
         _root = Own(DomElement.Create("section")
             .Class("editor-page")
             .Attr("aria-label", "Sia C# Editor Lab"));

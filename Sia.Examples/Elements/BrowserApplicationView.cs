@@ -12,7 +12,7 @@ public sealed class BrowserApplicationView :
     private readonly DomElement _userNotebooks = DomElement.Find("user-notebooks");
     private readonly SortedDictionary<int, ExampleNode> _examples = [];
     private readonly DomElement _newButton;
-    private readonly DomElement _home;
+    private readonly DomElement _home = DomElement.Find("notebook-home");
     private readonly DomElement[] _navigationButtons;
     private readonly DomElement _homeNavigation = DomElement.Find("application-home");
     private readonly DomElement _contentHeader = DomElement.Find("content-header");
@@ -31,7 +31,6 @@ public sealed class BrowserApplicationView :
 
     public BrowserApplicationView()
     {
-        _home = DomElement.Find("notebook-home");
         _navigationButtons = [
             BindAction("home-start-guide", "select:0"),
             BindAction("home-open-editor", "open-editor"),

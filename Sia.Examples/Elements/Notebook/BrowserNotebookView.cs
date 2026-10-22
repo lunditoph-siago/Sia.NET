@@ -8,7 +8,7 @@ public sealed class BrowserNotebookView :
     INotebookView,
     IDisposable
 {
-    private readonly DomElement _container;
+    private readonly DomElement _container = DomElement.Find("notebook");
     private readonly DomElement _root;
     private readonly DomElement _floatingLayer;
     private readonly BrowserEditorRegistry _editors;
@@ -30,7 +30,6 @@ public sealed class BrowserNotebookView :
         ICompilationReferenceResolver references,
         NotebookCellState cellState)
     {
-        _container = DomElement.Find("notebook");
         _root = DomElement.Create("div").Class("notebook-document");
         _editors = new(world, references);
         _packages = new();

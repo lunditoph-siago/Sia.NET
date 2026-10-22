@@ -8,11 +8,9 @@ public sealed class BrowserPackagePanel : IDisposable
     private readonly DomElement? _badge;
     private readonly DomElement _id;
     private readonly DomElement _version;
-    private readonly DomElement _body = DomElement.Create("div").Class("packages-body");
-    private readonly DomElement _empty = DomElement.Create("div")
-        .Class("packages-empty")
-        .Text("No packages declared or added yet.");
-    private readonly DomElement _list = DomElement.Create("div");
+    private readonly DomElement _body;
+    private readonly DomElement _empty;
+    private readonly DomElement _list;
     private readonly Dictionary<PackageIdentity, PackageNode> _nodes = [];
     internal DomElement Element => _container;
 
@@ -22,6 +20,11 @@ public sealed class BrowserPackagePanel : IDisposable
     {
         _container = container;
         _badge = badge;
+        _body = DomElement.Create("div").Class("packages-body");
+        _empty = DomElement.Create("div")
+            .Class("packages-empty")
+            .Text("No packages declared or added yet.");
+        _list = DomElement.Create("div");
         _body.Append(_empty).Append(_list);
         using var addRow = DomElement.Create("form").Class("package-add")
             .Attr("data-package-form", string.Empty).On("submit", addAction);
