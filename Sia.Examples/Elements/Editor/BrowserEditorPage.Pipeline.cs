@@ -38,7 +38,7 @@ internal sealed partial class BrowserEditorPage
         try {
             using var capture = console.Capture();
             session = await EditorPipelineSession.CreateAsync(assembly, artifacts, render, message => {
-                if (!_disposed && (revision == _shaderRevision || session is not null && ReferenceEquals(_pipeline, session))) {
+                if (!_disposed && (_shaderJobs.IsCurrent(revision) || session is not null && ReferenceEquals(_pipeline, session))) {
                     SetBuildStatus(message);
                     DomRuntime.Flush();
                 }
@@ -72,7 +72,7 @@ internal sealed partial class BrowserEditorPage
 
     private void StopPipeline(bool cancelPending = true)
     {
-        if (cancelPending && _shaderCancellation is not null) CancelShaderOperation("Pipeline stopped");
+        if (cancelPending && _shaderJobs.IsRunning) CancelShaderOperation("Pipeline stopped", clearPending: true);
 #if BROWSER
         var pipeline = _pipeline;
         _pipeline = null;

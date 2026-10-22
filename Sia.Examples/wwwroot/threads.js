@@ -87,7 +87,13 @@ if (typeof window === "undefined") {
 
         window.sessionStorage.setItem(reloadKey, "1");
         window.location.reload();
-    })().catch(error => {
+    })().catch(async error => {
         console.error("Failed to start threaded WebAssembly page:", error);
+        try {
+            const { showBootError } = await import("./js/boot-progress.js");
+            showBootError("Sia.NET Examples could not start. Check your connection and reload.");
+        } catch (displayError) {
+            console.error("Failed to display the startup error:", displayError);
+        }
     });
 }

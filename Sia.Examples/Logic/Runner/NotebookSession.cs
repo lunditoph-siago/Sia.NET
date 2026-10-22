@@ -10,9 +10,7 @@ public sealed class NotebookSession : IDisposable
 
     private NotebookDocument _document;
     private List<CellScript> _scripts = [];
-    private Dictionary<string, CodeCellBlock> _owners = [];
-    private Dictionary<string, string> _scopeKeys = [];
-    private Dictionary<string, int> _scopeIndices = [];
+    private Dictionary<string, ScriptLocation> _scriptLocations = [];
     private Dictionary<string, ScopeState> _scopes = [];
     private Dictionary<string, CellState> _states = [];
 
@@ -47,7 +45,27 @@ public sealed class NotebookSession : IDisposable
 
     public CellState GetState(string scriptId) => _states[scriptId];
 
-    public bool IsScriptEditable(string scriptId) => _owners[scriptId].Editable;
+    public bool IsScriptEditable(string scriptId) => _scriptLocations[scriptId].Cell.Editable;
+
+    internal bool ContainsScript(string scriptId) => _scriptLocations.ContainsKey(scriptId);
+
+    internal IEnumerable<(string Id, string Name, string Path)> GetScriptFiles()
+    {
+        VerifyAccess();
+        return Enumerate(_document);
+
+        static IEnumerable<(string Id, string Name, string Path)> Enumerate(NotebookDocument document)
+        {
+            foreach (var section in document.Sections) {
+                foreach (var cell in section.Blocks.OfType<CodeCellBlock>()) {
+                    foreach (var script in cell.Scripts) {
+                        var name = script.Name ?? "Script";
+                        yield return (script.Id, name, $"{section.Title}/{name}");
+                    }
+                }
+            }
+        }
+    }
 
     public bool IsBusy => _operationCancellation is not null || _activeRun is not null;
 
@@ -81,7 +99,7 @@ public sealed class NotebookSession : IDisposable
         CancellationToken cancellationToken = default)
     {
         VerifyAccess();
-        if (!_scopeKeys.TryGetValue(scriptId, out var scopeKey)
+        if (!_scriptLocations.TryGetValue(scriptId, out var location)
             || _states[scriptId].Source == source) {
             return;
         }
@@ -93,7 +111,7 @@ public sealed class NotebookSession : IDisposable
             Source = source,
             Highlights = highlights.ToImmutableArray(),
         });
-        InvalidateFrom(_scopes[scopeKey], _scopeIndices[scriptId]);
+        InvalidateFrom(_scopes[location.ScopeKey], location.ScopeIndex);
         Publish();
     }
 
@@ -103,7 +121,7 @@ public sealed class NotebookSession : IDisposable
         var cellId = Guid.NewGuid().ToString("N");
         var newCell = new CodeCellBlock(
             cellId, [new CellScript(Guid.NewGuid().ToString("N"), "", "New script")], Editable: true, scope);
-        _document = _document with { Sections = InsertBlockAfter(_document.Sections, afterBlockId, newCell) };
+        _document = _document with { Sections = NotebookDocumentEdits.InsertBlockAfter(_document.Sections, afterBlockId, newCell) };
         Rebuild();
         Publish(structural: true);
         return cellId;
@@ -113,7 +131,7 @@ public sealed class NotebookSession : IDisposable
     {
         VerifyAccess();
         var newParagraph = new ParagraphBlock(Guid.NewGuid().ToString("N"), [new TextInline("")], Editable: true);
-        _document = _document with { Sections = InsertBlockAfter(_document.Sections, afterBlockId, newParagraph) };
+        _document = _document with { Sections = NotebookDocumentEdits.InsertBlockAfter(_document.Sections, afterBlockId, newParagraph) };
         Rebuild();
         Publish(structural: true);
         return newParagraph.Id;
@@ -124,7 +142,7 @@ public sealed class NotebookSession : IDisposable
         VerifyAccess();
         string? newScriptId = null;
         _document = _document with {
-            Sections = UpdateBlock(_document.Sections, cellId, block => {
+            Sections = NotebookDocumentEdits.UpdateBlock(_document.Sections, cellId, block => {
                 if (block is not CodeCellBlock cell) {
                     return block;
                 }
@@ -145,20 +163,17 @@ public sealed class NotebookSession : IDisposable
     public void RemoveScript(string scriptId)
     {
         VerifyAccess();
-        var owner = _document.Sections
-            .SelectMany(static section => section.Blocks)
-            .OfType<CodeCellBlock>()
-            .FirstOrDefault(cell => cell.Scripts.Any(script => script.Id == scriptId));
-        if (owner is null) {
+        if (!_scriptLocations.TryGetValue(scriptId, out var location)) {
             return;
         }
+        var owner = location.Cell;
         if (owner.Scripts.Count <= 1) {
             RemoveCell(owner.Id);
             return;
         }
 
         _document = _document with {
-            Sections = UpdateBlock(_document.Sections, owner.Id, block =>
+            Sections = NotebookDocumentEdits.UpdateBlock(_document.Sections, owner.Id, block =>
                 block is CodeCellBlock cell
                     ? cell with { Scripts = [.. cell.Scripts.Where(script => script.Id != scriptId)] }
                     : block),
@@ -171,20 +186,17 @@ public sealed class NotebookSession : IDisposable
     {
         VerifyAccess();
         var normalized = string.IsNullOrWhiteSpace(name) ? null : name.Trim();
-        var owner = _document.Sections
-            .SelectMany(static section => section.Blocks)
-            .OfType<CodeCellBlock>()
-            .FirstOrDefault(cell => cell.Scripts.Any(script => script.Id == scriptId));
-        if (owner is null) {
+        if (!_scriptLocations.TryGetValue(scriptId, out var location)) {
             return;
         }
+        var owner = location.Cell;
         var current = owner.Scripts.First(script => script.Id == scriptId).Name;
         if (current == normalized) {
             return;
         }
 
         _document = _document with {
-            Sections = UpdateBlock(_document.Sections, owner.Id, block =>
+            Sections = NotebookDocumentEdits.UpdateBlock(_document.Sections, owner.Id, block =>
                 block is CodeCellBlock cell
                     ? cell with {
                         Scripts = [.. cell.Scripts.Select(script =>
@@ -209,7 +221,7 @@ public sealed class NotebookSession : IDisposable
         }
 
         _document = _document with {
-            Sections = UpdateBlock(_document.Sections, cellId, block =>
+            Sections = NotebookDocumentEdits.UpdateBlock(_document.Sections, cellId, block =>
                 block is CodeCellBlock cell ? cell with { Scope = normalized } : block),
         };
         Rebuild();
@@ -220,7 +232,7 @@ public sealed class NotebookSession : IDisposable
     {
         VerifyAccess();
         _document = _document with {
-            Sections = UpdateBlock(_document.Sections, blockId, block =>
+            Sections = NotebookDocumentEdits.UpdateBlock(_document.Sections, blockId, block =>
                 block is ParagraphBlock { Editable: true } paragraph
                     ? paragraph with { Inlines = [new TextInline(text)] }
                     : block),
@@ -231,7 +243,7 @@ public sealed class NotebookSession : IDisposable
     public void RemoveCell(string cellId)
     {
         VerifyAccess();
-        _document = _document with { Sections = RemoveBlock(_document.Sections, cellId) };
+        _document = _document with { Sections = NotebookDocumentEdits.RemoveBlock(_document.Sections, cellId) };
         Rebuild();
         Publish(structural: true);
     }
@@ -242,7 +254,7 @@ public sealed class NotebookSession : IDisposable
         if (offset is not (-1 or 1)) {
             throw new ArgumentOutOfRangeException(nameof(offset), offset, "MoveCell only supports -1 (up) or +1 (down).");
         }
-        _document = _document with { Sections = MoveBlock(_document.Sections, cellId, offset) };
+        _document = _document with { Sections = NotebookDocumentEdits.MoveBlock(_document.Sections, cellId, offset) };
         Rebuild();
         Publish(structural: true);
     }
@@ -264,7 +276,7 @@ public sealed class NotebookSession : IDisposable
         _document = _document with { Sections = sections };
         Rebuild();
         Publish(structural: true);
-        return GetBlockId(starterBlock)!;
+        return NotebookDocumentEdits.GetBlockId(starterBlock)!;
     }
 
     public void RemoveSection(string sectionId)
@@ -552,23 +564,12 @@ public sealed class NotebookSession : IDisposable
     private void Rebuild()
     {
         var scripts = new List<CellScript>();
-        var cells = new List<CodeCellBlock>();
-        var owners = new Dictionary<string, CodeCellBlock>();
+        var locations = new Dictionary<string, ScriptLocation>(StringComparer.Ordinal);
+        var groupedCells = new Dictionary<string, List<CodeCellBlock>>();
         foreach (var block in _document.Sections.SelectMany(static section => section.Blocks)) {
             if (block is not CodeCellBlock cell) {
                 continue;
             }
-            cells.Add(cell);
-            foreach (var script in cell.Scripts) {
-                scripts.Add(script);
-                owners[script.Id] = cell;
-            }
-        }
-
-        var scopeKeys = new Dictionary<string, string>();
-        var scopeIndices = new Dictionary<string, int>();
-        var groupedCells = new Dictionary<string, List<CodeCellBlock>>();
-        foreach (var cell in cells) {
             var scopeKey = cell.Scope ?? $"$cell:{cell.Id}";
             if (!groupedCells.TryGetValue(scopeKey, out var scopeCells)) {
                 scopeCells = [];
@@ -577,8 +578,8 @@ public sealed class NotebookSession : IDisposable
             var scopeIndex = scopeCells.Count;
             scopeCells.Add(cell);
             foreach (var script in cell.Scripts) {
-                scopeKeys.Add(script.Id, scopeKey);
-                scopeIndices.Add(script.Id, scopeIndex);
+                scripts.Add(script);
+                locations.Add(script.Id, new(cell, scopeKey, scopeIndex));
             }
         }
 
@@ -603,7 +604,7 @@ public sealed class NotebookSession : IDisposable
                     Highlights = CSharpHighlighter.Classify(script.InitialSource).ToImmutableArray(),
                 };
             }
-            else if (changedScopeKeys.Contains(scopeKeys[script.Id])) {
+            else if (changedScopeKeys.Contains(locations[script.Id].ScopeKey)) {
                 states[script.Id] = existing with {
                     Phase = CellPhase.Idle,
                     Diagnostics = [],
@@ -619,9 +620,7 @@ public sealed class NotebookSession : IDisposable
         }
 
         _scripts = scripts;
-        _owners = owners;
-        _scopeKeys = scopeKeys;
-        _scopeIndices = scopeIndices;
+        _scriptLocations = locations;
         _scopes = scopes;
         _states = states;
         _cellsDirty = true;
@@ -648,112 +647,6 @@ public sealed class NotebookSession : IDisposable
         return true;
     }
 
-    private static IReadOnlyList<NotebookSection> InsertBlockAfter(
-        IReadOnlyList<NotebookSection> sections, string? afterCellId, NotebookBlock newBlock)
-    {
-        if (afterCellId is null) {
-            if (sections.Count == 0) {
-                throw new InvalidOperationException("Cannot insert a cell into a notebook with no sections.");
-            }
-            var lastIndex = sections.Count - 1;
-            var updatedLast = sections.ToList();
-            updatedLast[lastIndex] = sections[lastIndex] with {
-                Blocks = [.. sections[lastIndex].Blocks, newBlock],
-            };
-            return updatedLast;
-        }
-
-        for (var sectionIndex = 0; sectionIndex < sections.Count; sectionIndex++) {
-            var blockIndex = FindBlockIndex(sections[sectionIndex].Blocks, afterCellId);
-            if (blockIndex < 0) {
-                continue;
-            }
-            var updatedBlocks = sections[sectionIndex].Blocks.ToList();
-            updatedBlocks.Insert(blockIndex + 1, newBlock);
-            var updated = sections.ToList();
-            updated[sectionIndex] = sections[sectionIndex] with { Blocks = updatedBlocks };
-            return updated;
-        }
-
-        throw new ArgumentException($"No block with id '{afterCellId}' found.", nameof(afterCellId));
-    }
-
-    private static IReadOnlyList<NotebookSection> RemoveBlock(
-        IReadOnlyList<NotebookSection> sections, string cellId)
-    {
-        for (var sectionIndex = 0; sectionIndex < sections.Count; sectionIndex++) {
-            var blockIndex = FindBlockIndex(sections[sectionIndex].Blocks, cellId);
-            if (blockIndex < 0) {
-                continue;
-            }
-            var updatedBlocks = sections[sectionIndex].Blocks.ToList();
-            updatedBlocks.RemoveAt(blockIndex);
-            var updated = sections.ToList();
-            updated[sectionIndex] = sections[sectionIndex] with { Blocks = updatedBlocks };
-            return updated;
-        }
-        throw new ArgumentException($"No block with id '{cellId}' found.", nameof(cellId));
-    }
-
-    private static IReadOnlyList<NotebookSection> MoveBlock(
-        IReadOnlyList<NotebookSection> sections, string cellId, int offset)
-    {
-        for (var sectionIndex = 0; sectionIndex < sections.Count; sectionIndex++) {
-            var blocks = sections[sectionIndex].Blocks;
-            var blockIndex = FindBlockIndex(blocks, cellId);
-            if (blockIndex < 0) {
-                continue;
-            }
-            var targetIndex = blockIndex + offset;
-            if (targetIndex < 0 || targetIndex >= blocks.Count) {
-                return sections;
-            }
-            var updatedBlocks = blocks.ToList();
-            (updatedBlocks[blockIndex], updatedBlocks[targetIndex]) =
-                (updatedBlocks[targetIndex], updatedBlocks[blockIndex]);
-            var updated = sections.ToList();
-            updated[sectionIndex] = sections[sectionIndex] with { Blocks = updatedBlocks };
-            return updated;
-        }
-        throw new ArgumentException($"No block with id '{cellId}' found.", nameof(cellId));
-    }
-
-    private static IReadOnlyList<NotebookSection> UpdateBlock(
-        IReadOnlyList<NotebookSection> sections,
-        string blockId,
-        Func<NotebookBlock, NotebookBlock> transform)
-    {
-        for (var sectionIndex = 0; sectionIndex < sections.Count; sectionIndex++) {
-            var blockIndex = FindBlockIndex(sections[sectionIndex].Blocks, blockId);
-            if (blockIndex < 0) {
-                continue;
-            }
-            var updatedBlocks = sections[sectionIndex].Blocks.ToList();
-            updatedBlocks[blockIndex] = transform(updatedBlocks[blockIndex]);
-            var updated = sections.ToList();
-            updated[sectionIndex] = sections[sectionIndex] with { Blocks = updatedBlocks };
-            return updated;
-        }
-        return sections;
-    }
-
-    private static int FindBlockIndex(IReadOnlyList<NotebookBlock> blocks, string blockId)
-    {
-        for (var index = 0; index < blocks.Count; index++) {
-            if (GetBlockId(blocks[index]) == blockId) {
-                return index;
-            }
-        }
-        return -1;
-    }
-
-    private static string? GetBlockId(NotebookBlock block)
-        => block switch {
-            CodeCellBlock cell => cell.Id,
-            ParagraphBlock paragraph => paragraph.Id,
-            _ => null,
-        };
-
     private static string NextDefaultScriptName(IReadOnlyList<CellScript> existing)
     {
         var names = existing.Select(static script => script.Name).ToHashSet(StringComparer.Ordinal);
@@ -772,9 +665,9 @@ public sealed class NotebookSession : IDisposable
         out ScopeState scope,
         out int targetIndex)
     {
-        if (_scopeKeys.TryGetValue(scriptId, out var scopeKey)) {
-            scope = _scopes[scopeKey];
-            targetIndex = _scopeIndices[scriptId];
+        if (_scriptLocations.TryGetValue(scriptId, out var location)) {
+            scope = _scopes[location.ScopeKey];
+            targetIndex = location.ScopeIndex;
             return true;
         }
 
@@ -858,6 +751,8 @@ public sealed class NotebookSession : IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         _mainThread.VerifyAccess();
     }
+
+    private readonly record struct ScriptLocation(CodeCellBlock Cell, string ScopeKey, int ScopeIndex);
 
     private sealed class ScopeState(IReadOnlyList<CodeCellBlock> cells)
     {

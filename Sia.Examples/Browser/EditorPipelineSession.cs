@@ -1,6 +1,5 @@
 #if BROWSER
 using System.Reflection;
-using System.Text.Json;
 using Sia;
 using Sia.Graphics;
 using Sia.Graphics.Reactive;
@@ -39,7 +38,7 @@ internal sealed partial class EditorPipelineSession : IDisposable
     private JSObject? _canvas;
     private static int s_CanvasNumber;
     private static readonly RenderGraphTextureKey s_Output = new("editor.canvas");
-    private readonly List<double> _frameInputs = [];
+    private readonly EditorPipelineFrames _frames = new();
     private readonly EditorUniformSession _uniforms;
     private readonly ProgramConsole _console;
 
@@ -77,8 +76,9 @@ internal sealed partial class EditorPipelineSession : IDisposable
         _status("Creating programmable pipeline…");
         var canvasId = "editor-pipeline-canvas-" + Interlocked.Increment(ref s_CanvasNumber);
         _canvas = CreateCanvas("editor-pipeline-preview", canvasId);
-        await NextFrame(_canvas).WaitAsync(cancellationToken);
+        var packet = await NextFrame(_canvas).WaitAsync(cancellationToken);
         await Task.Yield();
+        _frames.Receive(packet);
         cancellationToken.ThrowIfCancellationRequested();
         _instance = Wgpu.CreateInstance();
         _adapter = await AwaitGpuAsync(RequestAdapterAsync(cancellationToken), cancellationToken);
@@ -103,8 +103,9 @@ internal sealed partial class EditorPipelineSession : IDisposable
             try {
                 canvasId = "editor-pipeline-canvas-" + Interlocked.Increment(ref s_CanvasNumber);
                 _canvas = CreateCanvas("editor-pipeline-preview", canvasId);
-                await NextFrame(_canvas).WaitAsync(cancellationToken);
+                var fallbackPacket = await NextFrame(_canvas).WaitAsync(cancellationToken);
                 await Task.Yield();
+                _frames.Receive(fallbackPacket);
                 _target = await WgpuRenderTarget.FromCanvasAsync(_instance, _device, _queue, canvasId,
                     WgpuCanvasPresentation.Readback, cancellationToken);
             }
@@ -142,9 +143,10 @@ internal sealed partial class EditorPipelineSession : IDisposable
     private async Task<T> AwaitGpuAsync<T>(Task<T> request, CancellationToken cancellationToken)
     {
         do {
-            await NextFrame(_canvas!).WaitAsync(cancellationToken);
+            var packet = await NextFrame(_canvas!).WaitAsync(cancellationToken);
             await Task.Yield();
             cancellationToken.ThrowIfCancellationRequested();
+            _frames.Receive(packet);
         } while (!request.IsCompleted);
         return request.GetAwaiter().GetResult();
     }
@@ -158,7 +160,7 @@ internal sealed partial class EditorPipelineSession : IDisposable
         return _render(in frame, ref hooks);
     }
 
-    private unsafe bool Frame(double milliseconds, double cssWidth, double cssHeight, double scale, ReadOnlySpan<double> inputs)
+    private unsafe bool Frame(double milliseconds, double cssWidth, double cssHeight, double scale, ReadOnlySpan<EditorPipelineInput> inputs)
     {
         if (_disposed || _graph is null) return false;
         var maximum = System.Math.Min(EditorShaderPreview.k_MaxRenderDimension, _maxTextureDimension);
@@ -180,8 +182,7 @@ internal sealed partial class EditorPipelineSession : IDisposable
                 _previousTime = milliseconds;
                 if (_mount.IsMounted) _mount.Update(in frame);
                 else _mount = _world.Mount<EditorPipelineFrame>(Render, in frame);
-                for (var i = 0; i + 4 < inputs.Length; i += 5)
-                    Input((int)inputs[i], inputs[i + 1], inputs[i + 2], (int)inputs[i + 3], (int)inputs[i + 4]);
+                foreach (var input in inputs) Input(input);
                 _world.FlushReactive();
                 _uniforms.Sync();
                 using var binding = _graph.BindImportedTexture(s_Output, output.Texture);
@@ -204,20 +205,20 @@ internal sealed partial class EditorPipelineSession : IDisposable
         if (previous.ContentScale != next.ContentScale) _world.Send(_window, new WindowEvents.ContentScaleChanged(next.ContentScale));
     }
 
-    private void Input(int kind, double x, double y, int code, int modifiers)
+    private void Input(in EditorPipelineInput input)
     {
-        var mods = (KeyModifiers)modifiers;
-        switch (kind) {
-            case 0: _world.Send(_window, new InputEvents.MouseMoved(new(x, y))); break;
-            case 1: _world.Send(_window, new InputEvents.MouseScrolled(new(x, y))); break;
-            case 2: _world.Send(_window, new InputEvents.MouseEntered()); break;
-            case 3: _world.Send(_window, new InputEvents.MouseExited()); break;
-            case 4: _world.Send(_window, new InputEvents.MouseButtonPressed((MouseButton)code, mods)); break;
-            case 5: _world.Send(_window, new InputEvents.MouseButtonReleased((MouseButton)code, mods)); break;
-            case 6: _world.Send(_window, new InputEvents.KeyPressed((Key)code, 0, mods)); break;
-            case 7: _world.Send(_window, new InputEvents.KeyRepeated((Key)code, 0, mods)); break;
-            case 8: _world.Send(_window, new InputEvents.KeyReleased((Key)code, 0, mods)); break;
-            case 9: _world.Send(_window, new InputEvents.TextEntered((uint)code)); break;
+        var mods = (KeyModifiers)input.Modifiers;
+        switch (input.Kind) {
+            case EditorPipelineInputKind.MouseMoved: _world.Send(_window, new InputEvents.MouseMoved(new(input.X, input.Y))); break;
+            case EditorPipelineInputKind.MouseScrolled: _world.Send(_window, new InputEvents.MouseScrolled(new(input.X, input.Y))); break;
+            case EditorPipelineInputKind.MouseEntered: _world.Send(_window, new InputEvents.MouseEntered()); break;
+            case EditorPipelineInputKind.MouseExited: _world.Send(_window, new InputEvents.MouseExited()); break;
+            case EditorPipelineInputKind.MouseButtonPressed: _world.Send(_window, new InputEvents.MouseButtonPressed((MouseButton)input.Code, mods)); break;
+            case EditorPipelineInputKind.MouseButtonReleased: _world.Send(_window, new InputEvents.MouseButtonReleased((MouseButton)input.Code, mods)); break;
+            case EditorPipelineInputKind.KeyPressed: _world.Send(_window, new InputEvents.KeyPressed((Key)input.Code, 0, mods)); break;
+            case EditorPipelineInputKind.KeyRepeated: _world.Send(_window, new InputEvents.KeyRepeated((Key)input.Code, 0, mods)); break;
+            case EditorPipelineInputKind.KeyReleased: _world.Send(_window, new InputEvents.KeyReleased((Key)input.Code, 0, mods)); break;
+            case EditorPipelineInputKind.TextEntered: _world.Send(_window, new InputEvents.TextEntered((uint)input.Code)); break;
         }
     }
 
@@ -264,12 +265,11 @@ internal sealed partial class EditorPipelineSession : IDisposable
                 // Leave the JavaScript Promise callback before native work or DOM imports.
                 await Task.Yield();
                 if (_disposed) return;
-                var frame = JsonSerializer.Deserialize<double[]>(packet)!;
-                for (var i = 4; i < frame.Length; i++) _frameInputs.Add(frame[i]);
+                _frames.Receive(packet);
                 if (Paused) continue;
                 _uniforms.ApplyEdits();
-                if (!Frame(frame[0], frame[1], frame[2], frame[3], CollectionsMarshal.AsSpan(_frameInputs))) continue;
-                _frameInputs.Clear();
+                if (!Frame(_frames.Time, _frames.CssWidth, _frames.CssHeight, _frames.Scale, _frames.Inputs)) continue;
+                _frames.ClearInputs();
                 if (_disposed) return;
                 if (_firstFrameValidation is { IsCompleted: true } validation) {
                     validation.GetAwaiter().GetResult();

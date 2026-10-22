@@ -20,11 +20,12 @@ public sealed partial class BrowserResourceLoader : IResourceLoader
         _mainThread.VerifyAccess();
         cancellationToken.ThrowIfCancellationRequested();
 
-        var base64 = await FetchBase64Async(url);
+        // Promise<byte[]> is unsupported by the interop generator; own the carrier until the copy completes.
+        using var resource = await FetchBytesCoreAsync(url);
 
         _mainThread.VerifyAccess();
         cancellationToken.ThrowIfCancellationRequested();
-        return Convert.FromBase64String(base64);
+        return resource.GetPropertyAsByteArray("bytes")!;
     }
 
     public async ValueTask<string> FetchTextAsync(
@@ -41,9 +42,9 @@ public sealed partial class BrowserResourceLoader : IResourceLoader
         return text;
     }
 
-    [JSImport("fetchBase64", "main.js")]
-    [return: JSMarshalAs<JSType.Promise<JSType.String>>]
-    private static partial Task<string> FetchBase64Async(string url);
+    [JSImport("fetchBytes", "main.js")]
+    [return: JSMarshalAs<JSType.Promise<JSType.Object>>]
+    private static partial Task<JSObject> FetchBytesCoreAsync(string url);
 
     [JSImport("fetchText", "main.js")]
     [return: JSMarshalAs<JSType.Promise<JSType.String>>]

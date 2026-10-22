@@ -22,16 +22,11 @@ internal sealed partial class BrowserEditorPage
     private ShaderCompilation? _shaderCompilation;
     private ShaderArtifact? _shaderArtifact;
     private readonly Dictionary<int, ShaderArtifact> _shaderArtifacts = [];
-    private CancellationTokenSource? _shaderCancellation;
-    private ShaderRequest? _pendingShaderRequest;
+    private readonly EditorShaderJobs _shaderJobs = new();
     private string? _shaderFolder;
     private string? _shaderSourcesHash;
     private string? _selectedShaderName;
-    private int _shaderRevision;
     private EditorUniformInspector? _uniformInspector;
-
-    private enum ShaderAction { Compile, Run }
-    private sealed record ShaderRequest(ShaderAction Action, string Folder, string? EntryName);
 
     private void InitShaderPanel()
     {
@@ -101,8 +96,7 @@ internal sealed partial class BrowserEditorPage
                 return true;
             case "editor-shader-cancel":
                 if (_runningMain) { SetBuildStatus("Main is still running · arbitrary C# execution cannot be interrupted"); return true; }
-                _pendingShaderRequest = null;
-                CancelShaderOperation("Cancelled · an active compiler phase may still finish");
+                CancelShaderOperation("Cancelled · an active compiler phase may still finish", clearPending: true);
                 return true;
             case "editor-shader-entry":
                 if (_shaderCompilation is { } compilation && int.TryParse(_shaderEntry.Value(), out var token)) {
@@ -121,9 +115,9 @@ internal sealed partial class BrowserEditorPage
     private (string Label, string Command, string Title, bool Disabled) CompileActionState()
     {
         if (_runningMain) return ("Compile", "editor-shader-compile", "Main is running · wait for it to finish", true);
-        if (_shaderCancellation is { } job) return ("Cancel", "editor-shader-cancel",
-            job.IsCancellationRequested ? "Cancellation requested · waiting for the current phase" : "Cancel the current compiler job", job.IsCancellationRequested);
-        return ("Compile", "editor-shader-compile", "Compile C# and inspect shader artifacts without executing the program", _busy);
+        if (_shaderJobs.IsRunning) return ("Cancel", "editor-shader-cancel",
+            _shaderJobs.IsCancellationRequested ? "Cancellation requested · waiting for the current phase" : "Cancel the current compiler job", _shaderJobs.IsCancellationRequested);
+        return ("Compile", "editor-shader-compile", "Compile C# and inspect shader artifacts without executing the program", false);
     }
 
     private (string Label, string Command, string Title, bool Disabled) RunActionState()
@@ -134,14 +128,14 @@ internal sealed partial class BrowserEditorPage
         rendering |= _pipeline is not null;
 #endif
         return rendering
-            ? ("Stop", "editor-shader-stop", _busy ? "Wait for the current operation, or cancel compilation first" : "Release the current rendering resources", _busy)
-            : ("Run", "editor-shader-run", _busy ? "Wait for the current operation" : "Run the C# program or RenderGraph from the active folder and its subfolders", _busy);
+            ? ("Stop", "editor-shader-stop", _shaderJobs.IsRunning ? "Wait for the current operation, or cancel compilation first" : "Release the current rendering resources", _shaderJobs.IsRunning)
+            : ("Run", "editor-shader-run", _shaderJobs.IsRunning ? "Wait for the current operation" : "Run the C# program or RenderGraph from the active folder and its subfolders", _shaderJobs.IsRunning);
     }
 
     private void UpdateActions()
     {
         if (_disposed) return;
-        _lastActionStatus.ToggleClass("hidden", _shaderCancellation is not null || _runningMain);
+        _lastActionStatus.ToggleClass("hidden", _shaderJobs.IsRunning || _runningMain);
         UpdateIconAction(_runAction, RunActionState());
         UpdateIconAction(_compileAction, CompileActionState());
     }
@@ -181,14 +175,9 @@ internal sealed partial class BrowserEditorPage
             SetBuildStatus("Main is still running · wait for it to finish");
             return;
         }
-        if (_busy) {
-            if (_shaderCancellation is not null) {
-                _pendingShaderRequest = request;
-                CancelShaderOperation("New shader job queued · finishing the current phase");
-            }
-            else {
-                SetBuildStatus("Wait for the current operation to finish");
-            }
+        if (_shaderJobs.IsRunning) {
+            _shaderJobs.Queue(request);
+            ShowShaderCancellation("New shader job queued · finishing the current phase");
             return;
         }
         SaveEditorSources(synchronizeNativeInput: true);
@@ -203,10 +192,9 @@ internal sealed partial class BrowserEditorPage
         _selectedShaderName = request.EntryName;
         CheckShaderSources();
         CancelLanguageDiagnostics();
-        _busy = true;
-        _shaderCancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        var job = _shaderJobs.Start(request, _lifetime.Token);
         UpdateActions();
-        var revision = ++_shaderRevision;
+        var revision = job.Revision;
         _shaderPreview?.Invalidate(revision);
         ClearDiagnostics();
         ResetDiagnosticStatus();
@@ -217,7 +205,7 @@ internal sealed partial class BrowserEditorPage
         if (request.Action == ShaderAction.Compile) OpenPanelWindow("compilation");
         _shaderScope.Text($"Source: {SourceScope()} · including subfolders");
         DomRuntime.Flush();
-        Track(BuildShaderAsync(request, revision, _shaderCancellation));
+        Track(BuildShaderAsync(job));
     }
 
     private string SourceScope() => string.IsNullOrEmpty(_shaderFolder) ? "workspace root" : _shaderFolder;
@@ -263,18 +251,22 @@ internal sealed partial class BrowserEditorPage
         _shaderOutput.Text("Source changed · compile to update the artifacts");
         _shaderScope.Text($"Source changed · {SourceScope()} · including subfolders · compile to update");
         CancelShaderOperation("Source changed · compile to update");
-        if (!_busy && !_runningMain) SetBuildStatus("Source changed · compile to update" + PreviousShaderPreview());
+        if (!_shaderJobs.IsRunning && !_runningMain) SetBuildStatus("Source changed · compile to update" + PreviousShaderPreview());
     }
 
-    private void CancelShaderOperation(string message)
+    private void CancelShaderOperation(string message, bool clearPending = false)
     {
         if (_runningMain && !_disposed) {
             SetBuildStatus("Main continues using its compiled snapshot · source changes apply to the next Run");
             return;
         }
-        ++_shaderRevision;
-        _shaderCancellation?.Cancel();
-        _shaderPreview?.Invalidate(_shaderRevision);
+        _shaderJobs.Cancel(clearPending);
+        ShowShaderCancellation(message);
+    }
+
+    private void ShowShaderCancellation(string message)
+    {
+        _shaderPreview?.Invalidate(_shaderJobs.Revision);
         SetBuildStatus(message + PreviousShaderPreview());
         UpdateActions();
     }
@@ -288,14 +280,16 @@ internal sealed partial class BrowserEditorPage
 
     private bool CurrentShaderJob(int revision)
     {
-        if (_disposed || revision != _shaderRevision) return false;
+        if (_disposed || !_shaderJobs.IsCurrent(revision)) return false;
         CheckShaderSources();
-        return revision == _shaderRevision;
+        return _shaderJobs.IsCurrent(revision);
     }
 
-    private async Task BuildShaderAsync(ShaderRequest request, int revision, CancellationTokenSource cancellation)
+    private async Task BuildShaderAsync(EditorShaderJob job)
     {
-        var token = cancellation.Token;
+        var request = job.Request;
+        var revision = job.Revision;
+        var token = job.Token;
         var clock = Stopwatch.StartNew();
         try {
             await _workspace.EnsureAllLoadedAsync(token);
@@ -365,8 +359,9 @@ internal sealed partial class BrowserEditorPage
             _shaderArtifact = artifact;
             RefreshShaderArtifact();
             _shaderScope.Text($"{SourceScope()} · {files.Length} C# files including subfolders · snapshot {hash[..8]} · {artifact.QualifiedName}");
-            _compilationOutput.Text(FormattableString.Invariant(
-                $"Compiled snapshot timings (ms) · source {(compilationCached ? "cached" : "new")} · artifact {(artifactCached ? "cached" : "new")}\nC# + references: {source.CSharpMilliseconds:F1}\nIL analysis: {source.AnalysisMilliseconds:F1}\nLowering: {artifact.LoweringMilliseconds:F1}\nWGSL: {artifact.WgslMilliseconds:F1}\nSPIR-V: {artifact.SpirvMilliseconds:F1}\nSPIR-V → WGSL: {artifact.TranslationMilliseconds:F1}\nWGSL: {artifact.Wgsl.Length} chars · SPIR-V: {artifact.Spirv.Length} bytes\n"));
+            var timings = FormattableString.Invariant(
+                $"Compiled snapshot timings (ms) · source {(compilationCached ? "cached" : "new")} · artifact {(artifactCached ? "cached" : "new")}\nC# + references: {source.CSharpMilliseconds:F1}\nIL analysis: {source.AnalysisMilliseconds:F1}\nLowering: {artifact.LoweringMilliseconds:F1}\nWGSL: {artifact.WgslMilliseconds:F1}\nSPIR-V: {artifact.SpirvMilliseconds:F1}\nSPIR-V → WGSL: {artifact.TranslationMilliseconds:F1}\nWGSL: {artifact.Wgsl.Length} chars · SPIR-V: {artifact.Spirv.Length} bytes\n");
+            _compilationOutput.Text(timings);
             if (request.Action == ShaderAction.Compile) {
                 SetBuildStatus(_shaderPreviewSnapshot is null
                     ? "Shaders compiled · Run to render"
@@ -382,7 +377,7 @@ internal sealed partial class BrowserEditorPage
             if (!CurrentShaderJob(revision) || gpuMilliseconds < 0) return;
             StopPipeline(cancelPending: false);
             _shaderPreviewSnapshot = $"{hash[..8]} · {artifact.QualifiedName}";
-            _compilationOutput.Text(_compilationOutput.TextContent() + FormattableString.Invariant($"GPU pipeline: {gpuMilliseconds:F1} ms\n"));
+            _compilationOutput.Text(timings + FormattableString.Invariant($"GPU pipeline: {gpuMilliseconds:F1} ms\n"));
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) {
             if (!_disposed) SetBuildStatus("Shader job cancelled");
@@ -399,17 +394,12 @@ internal sealed partial class BrowserEditorPage
                 _lastActionStatus.Text(FormattableString.Invariant($"{request.Action} {elapsed:F0} ms"))
                     .Attr("title", FormattableString.Invariant($"{request.Action} · {request.Folder}/**/*.cs · {elapsed:F1} ms wall time, including execution for Run"));
             }
-            cancellation.Dispose();
-            _shaderCancellation = null;
-            _busy = false;
+            var next = _shaderJobs.Complete(job);
             if (!_disposed) {
                 _buildStatus.ToggleClass("busy", false);
                 UpdateActions();
                 DomRuntime.Flush();
-                if (_pendingShaderRequest is { } next) {
-                    _pendingShaderRequest = null;
-                    StartShaderOperation(next);
-                }
+                if (next is not null) StartShaderOperation(next);
             }
         }
     }
@@ -428,8 +418,7 @@ internal sealed partial class BrowserEditorPage
     private void StopRendering()
     {
         _shaderPreviewSnapshot = null;
-        CancelShaderOperation("Preview closed");
-        _pendingShaderRequest = null;
+        CancelShaderOperation("Preview closed", clearPending: true);
         try { StopPipeline(cancelPending: false); }
         finally {
             var preview = _shaderPreview;

@@ -47,20 +47,22 @@ import { clearOverlayPlacement, ensureVisible, placeOverlay } from './js/editor-
 import {
     cancelScheduledEvent,
     emit,
-    fetchBase64,
-    fetchText,
+    scheduleEvent,
+    waitForEvent,
+} from './js/notebook-runtime.js';
+import { fetchBytes, fetchText } from './js/resources.js';
+import {
     notebookGetAllJson,
     notebookGetJson,
     notebookPut,
     notebookRemove,
-    scheduleEvent,
-    waitForEvent,
+    notebookRename,
     workspaceGetAllJson,
     workspaceGetJson,
     workspacePut,
     workspaceRemove,
     workspaceRename,
-} from './js/notebook-runtime.js';
+} from './js/workspace-storage.js';
 
 document.querySelector('base').href = new URL('./', import.meta.url).href;
 
@@ -299,12 +301,13 @@ const domImports = {
     placeOverlay,
     clearOverlayPlacement,
     ensureVisible,
-    fetchBase64,
+    fetchBytes,
     fetchText,
     notebookGetAllJson,
     notebookGetJson,
     notebookPut,
     notebookRemove,
+    notebookRename,
     workspaceGetAllJson,
     workspaceGetJson,
     workspacePut,

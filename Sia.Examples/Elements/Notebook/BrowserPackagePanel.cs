@@ -45,10 +45,21 @@ public sealed class BrowserPackagePanel : IDisposable
     }
 
     public PackageRef? ReadAddition()
-        => string.IsNullOrWhiteSpace(_id.Value()) ? null
-            : new(_id.Value().Trim(), string.IsNullOrWhiteSpace(_version.Value()) ? null : _version.Value().Trim());
+    {
+        var id = _id.Value();
+        if (string.IsNullOrWhiteSpace(id)) return null;
+        var version = _version.Value();
+        return new(id.Trim(), string.IsNullOrWhiteSpace(version) ? null : version.Trim());
+    }
 
     internal void Synchronize(IReadOnlyList<PackageStatus> statuses)
+    {
+        DomRuntime.BeginUpdate(_container);
+        try { SynchronizeContents(statuses); }
+        finally { DomRuntime.EndUpdate(_container); }
+    }
+
+    private void SynchronizeContents(IReadOnlyList<PackageStatus> statuses)
     {
         var wanted = statuses.Select(static status => PackageIdentity.From(status.Package)).ToHashSet();
         foreach (var key in _nodes.Keys.Where(key => !wanted.Contains(key)).ToArray())

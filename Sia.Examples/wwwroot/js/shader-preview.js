@@ -18,14 +18,13 @@ export function createShaderPreview(containerId, statusId, inspector, maximumDim
 export function setShaderPreviewRevision(owner, revision) {
     owner.invalidate(revision);
 }
-export function showShaderPreview(owner, wgsl, entry, layoutJson, revision, route) {
-    return owner.show(wgsl, entry, JSON.parse(layoutJson), revision, route);
+export function showShaderPreview(owner, wgsl, entry, layoutJson, revision) {
+    return owner.show(wgsl, entry, JSON.parse(layoutJson), revision);
 }
 export function disposeShaderPreview(owner) {
     owner.dispose();
 }
-export function downloadShaderBinary(name, base64) {
-    const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
+export function downloadShaderBinary(name, bytes) {
     const url = URL.createObjectURL(new Blob([bytes], { type: 'application/octet-stream' }));
     const anchor = document.createElement('a');
     anchor.href = url;
@@ -174,7 +173,7 @@ class ShaderPreview {
         }
     }
 
-    async show(wgsl, entry, layout, revision, route) {
+    async show(wgsl, entry, layout, revision) {
         const started = performance.now();
         const device = await this.ensureDevice();
         if (this.disposed || revision !== this.revision) return -1;
@@ -273,7 +272,7 @@ class ShaderPreview {
             this.started = performance.now();
             oldBuffer?.destroy();
             const milliseconds = performance.now() - started;
-            this.pipelineStatus = `${route} · ${this.presentation} · ${entry} · GPU pipeline ${milliseconds.toFixed(1)} ms`;
+            this.pipelineStatus = `WGSL · ${this.presentation} · ${entry} · GPU pipeline ${milliseconds.toFixed(1)} ms`;
             this.drawError = false;
             this.setStatus(this.pipelineStatus);
             this.refresh();

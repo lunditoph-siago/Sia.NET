@@ -50,11 +50,15 @@ public sealed partial class IndexedDbNotebookStorage(BrowserMainThread mainThrea
     {
         mainThread.VerifyAccess();
         var key = KeyOf(path);
-        await CheckVersionAsync(key, expectedVersion);
+        var previous = await CheckVersionAsync(key, expectedVersion);
         cancellationToken.ThrowIfCancellationRequested();
 
-        await PutAsync(key, content, DateTimeOffset.UtcNow.ToString("O"));
+        var written = await PutAsync(key, content, DateTimeOffset.UtcNow.ToString("O"), previous, expectedVersion is not null);
         mainThread.VerifyAccess();
+        if (!written) {
+            var actual = await ReadFileAsync(path, cancellationToken);
+            throw new WorkspaceConflictException(path, expectedVersion, actual?.Version);
+        }
         return new WorkspaceFileContent(content, WorkspaceVersioning.ComputeVersion(content));
     }
 
@@ -63,13 +67,13 @@ public sealed partial class IndexedDbNotebookStorage(BrowserMainThread mainThrea
     {
         mainThread.VerifyAccess();
         var key = KeyOf(path);
-        if (await GetJsonAsync(key) is not null) {
-            throw new WorkspaceEntryExistsException(path);
-        }
         cancellationToken.ThrowIfCancellationRequested();
 
-        await PutAsync(key, content, DateTimeOffset.UtcNow.ToString("O"));
+        var written = await PutAsync(key, content, DateTimeOffset.UtcNow.ToString("O"), null, true);
         mainThread.VerifyAccess();
+        if (!written) {
+            throw new WorkspaceEntryExistsException(path);
+        }
     }
 
     public ValueTask CreateFolderAsync(string path, CancellationToken cancellationToken = default)
@@ -80,11 +84,16 @@ public sealed partial class IndexedDbNotebookStorage(BrowserMainThread mainThrea
     {
         mainThread.VerifyAccess();
         var key = KeyOf(path);
-        await CheckVersionAsync(key, expectedVersion);
+        var previous = await CheckVersionAsync(key, expectedVersion);
         cancellationToken.ThrowIfCancellationRequested();
 
-        await RemoveAsync(key);
+        var result = JsonSerializer.Deserialize<RemovalResult>(
+            await RemoveAsync(key, previous, expectedVersion is not null), s_JsonOptions)!;
         mainThread.VerifyAccess();
+        if (!result.Removed && expectedVersion is { } expected) {
+            var actual = result.Current is { } current ? WorkspaceVersioning.ComputeVersion(current.Xml) : null;
+            throw new WorkspaceConflictException(path, expected, actual);
+        }
     }
 
     public async ValueTask RenameEntryAsync(
@@ -96,31 +105,32 @@ public sealed partial class IndexedDbNotebookStorage(BrowserMainThread mainThrea
         if (oldKey == newKey) {
             return;
         }
-        var json = await GetJsonAsync(oldKey)
-            ?? throw new InvalidOperationException($"No entry named '{oldPath}' exists in the workspace.");
-        if (await GetJsonAsync(newKey) is not null) {
-            throw new WorkspaceEntryExistsException(newPath);
-        }
         cancellationToken.ThrowIfCancellationRequested();
 
-        var record = JsonSerializer.Deserialize<RawRecord>(json, s_JsonOptions)!;
-        await PutAsync(newKey, record.Xml, record.SavedAt);
-        await RemoveAsync(oldKey);
+        var result = await RenameAsync(oldKey, newKey);
         mainThread.VerifyAccess();
+        if (result == 1) {
+            throw new InvalidOperationException($"No entry named '{oldPath}' exists in the workspace.");
+        }
+        if (result == 2) {
+            throw new WorkspaceEntryExistsException(newPath);
+        }
     }
 
-    private async Task CheckVersionAsync(string key, string? expectedVersion)
+    private async Task<string?> CheckVersionAsync(string key, string? expectedVersion)
     {
         if (expectedVersion is not { } expected) {
-            return;
+            return null;
         }
         var json = await GetJsonAsync(key);
+        mainThread.VerifyAccess();
         var actual = json is null
             ? null
             : WorkspaceVersioning.ComputeVersion(JsonSerializer.Deserialize<RawRecord>(json, s_JsonOptions)!.Xml);
         if (actual != expected) {
             throw new WorkspaceConflictException(key + k_Extension, expected, actual);
         }
+        return json;
     }
 
     private static WorkspaceStorageEntry Describe(RawRecord record)
@@ -137,6 +147,8 @@ public sealed partial class IndexedDbNotebookStorage(BrowserMainThread mainThrea
 
     private sealed record RawRecord(string Key, string Xml, string SavedAt);
 
+    private sealed record RemovalResult(bool Removed, RawRecord? Current);
+
     [JSImport("notebookGetAllJson", "main.js")]
     [return: JSMarshalAs<JSType.Promise<JSType.String>>]
     private static partial Task<string> GetAllJsonAsync();
@@ -146,11 +158,15 @@ public sealed partial class IndexedDbNotebookStorage(BrowserMainThread mainThrea
     private static partial Task<string?> GetJsonAsync(string key);
 
     [JSImport("notebookPut", "main.js")]
-    [return: JSMarshalAs<JSType.Promise<JSType.Void>>]
-    private static partial Task PutAsync(string key, string xml, string savedAt);
+    [return: JSMarshalAs<JSType.Promise<JSType.Boolean>>]
+    private static partial Task<bool> PutAsync(string key, string xml, string savedAt, string? expected, bool compare);
 
     [JSImport("notebookRemove", "main.js")]
-    [return: JSMarshalAs<JSType.Promise<JSType.Void>>]
-    private static partial Task RemoveAsync(string key);
+    [return: JSMarshalAs<JSType.Promise<JSType.String>>]
+    private static partial Task<string> RemoveAsync(string key, string? expected, bool compare);
+
+    [JSImport("notebookRename", "main.js")]
+    [return: JSMarshalAs<JSType.Promise<JSType.Number>>]
+    private static partial Task<int> RenameAsync(string oldKey, string newKey);
 }
 #endif

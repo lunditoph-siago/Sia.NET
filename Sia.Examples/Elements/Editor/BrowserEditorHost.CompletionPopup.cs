@@ -10,7 +10,7 @@ public sealed partial class BrowserEditorHost
     private DomElement? _completionPopup;
     private DomElement? _completionList;
     private DomElement? _completionDescription;
-    private CancellationTokenSource? _completionDescriptionCancellation;
+    private readonly EditorLatestRequest<CompletionCandidate> _completionDescriptions = new();
     private CompletionCandidate? _completionDescriptionCandidate;
     private Text? _completionDescriptionDocument;
     private int _completionWindowStart;
@@ -130,8 +130,7 @@ public sealed partial class BrowserEditorHost
         if (_completion is not { } completion || _completionDescription is not { } description) return;
         var candidate = completion.Items[_completionIndex];
         if (candidate.Edit is null || _completionDocument is null) {
-            _completionDescriptionCancellation?.Cancel();
-            _completionDescriptionCancellation = null;
+            _completionDescriptions.Cancel();
             _completionDescriptionCandidate = null;
             _completionDescriptionDocument = null;
             description.Text("").Attr("aria-busy", "true");
@@ -140,31 +139,29 @@ public sealed partial class BrowserEditorHost
         if (_completionDescriptionCandidate is { } previous && previous.SameIdentity(candidate)
             && ReferenceEquals(previous.PreparedQuery, candidate.PreparedQuery)
             && ReferenceEquals(_completionDescriptionDocument, _completionDocument)) return;
-        _completionDescriptionCancellation?.Cancel();
+        _completionDescriptions.Cancel();
         _completionDescriptionCandidate = candidate;
         _completionDescriptionDocument = _completionDocument;
         description.Attr("aria-busy", "true");
-        var cancellation = new CancellationTokenSource();
-        _completionDescriptionCancellation = cancellation;
-        _ = ShowCompletionDescriptionAsync(completion, candidate, description, cancellation);
+        var request = _completionDescriptions.Start(candidate);
+        _ = ShowCompletionDescriptionAsync(completion, description, request);
     }
 
-    private async Task ShowCompletionDescriptionAsync(CompletionResult completion, CompletionCandidate candidate,
-        DomElement description, CancellationTokenSource cancellation)
+    private async Task ShowCompletionDescriptionAsync(CompletionResult completion,
+        DomElement description, EditorLatestRequest<CompletionCandidate>.Request request)
     {
         try {
-            var text = await CSharpCompletionProvider.GetDescriptionAsync(completion, candidate, cancellation.Token);
-            if (!cancellation.IsCancellationRequested && ReferenceEquals(_completionDescription, description)) {
+            var text = await CSharpCompletionProvider.GetDescriptionAsync(completion, request.Context, request.Token);
+            if (request.IsCurrent && ReferenceEquals(_completionDescription, description)) {
                 description.Text(text).Attr("aria-busy", "false");
                 RenderCompletionPlacement(completion);
                 RevealCompletionSelection();
             }
         }
-        catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
-        catch (Exception error) { if (!cancellation.IsCancellationRequested) DomRuntime.ReportError(error.ToString()); }
+        catch (OperationCanceledException) when (request.Token.IsCancellationRequested) { }
+        catch (Exception error) { if (request.IsCurrent) DomRuntime.ReportError(error.ToString()); }
         finally {
-            if (ReferenceEquals(_completionDescriptionCancellation, cancellation)) _completionDescriptionCancellation = null;
-            cancellation.Dispose();
+            request.Dispose();
         }
     }
 
@@ -201,8 +198,7 @@ public sealed partial class BrowserEditorHost
             _signaturePopup.Remove();
             _signaturePopup.ToggleClass("combined", false);
         }
-        _completionDescriptionCancellation?.Cancel();
-        _completionDescriptionCancellation = null;
+        _completionDescriptions.Cancel();
         _completionDescriptionCandidate = null;
         _completionDescriptionDocument = null;
         _completionDocument = null;

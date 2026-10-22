@@ -40,7 +40,6 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
     private readonly HashSet<Task> _operations = [];
 
     private NotebookCellState _state;
-    private bool _busy;
     private bool _disposed;
     private bool _initialized;
     private bool _compactInput;
@@ -240,7 +239,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
             catch (Exception error) { (failures ??= []).Add(error); }
         }
         Release(_lifetime.Cancel);
-        Release(() => _liveDiagnosticsCancellation?.Cancel());
+        Release(CancelLanguageDiagnostics);
         Release(ClearLanguageResults);
         Release(() => _referenceResults.Dispose());
         Release(_renamePanel.Dispose);
@@ -295,8 +294,6 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         }
         catch (Exception error) {
             if (!_disposed) {
-                _busy = false;
-                _buildStatus.ToggleClass("busy", false);
                 ShowOperationError($"Operation failed: {error.Message}", error);
                 DomRuntime.ReportError(error.ToString());
                 DomRuntime.Flush();

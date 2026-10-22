@@ -17,8 +17,6 @@ public sealed partial class BrowserEditorHost : IDisposable
 
     private State<EditorState>? _state;
     private bool _disposed;
-    private Text? _sourceDocument;
-    private string _source = string.Empty;
 
     public BrowserEditorHost(
         World world,
@@ -49,7 +47,7 @@ public sealed partial class BrowserEditorHost : IDisposable
         }
     }
 
-    public string Source => ReadSource(State.Value.Doc);
+    public string Source => State.Value.Doc.SliceDoc();
 
     internal event Action<BrowserEditorHost>? SourceChanged;
 
@@ -63,15 +61,6 @@ public sealed partial class BrowserEditorHost : IDisposable
             return (line.Number, head - line.From + 1,
                 state.Selection.Ranges.Sum(static range => range.To - range.From), state.Doc.Lines, state.Doc.Length);
         }
-    }
-
-    private string ReadSource(Text document)
-    {
-        if (!ReferenceEquals(_sourceDocument, document)) {
-            _source = document.SliceDoc();
-            _sourceDocument = document;
-        }
-        return _source;
     }
 
     internal string BindingId => _cellId;
@@ -140,8 +129,6 @@ public sealed partial class BrowserEditorHost : IDisposable
         _view.Dispose();
         _domDocuments.Clear();
         ClearHistory();
-        _sourceDocument = null;
-        _source = string.Empty;
         _pendingRestore = null;
     }
 
@@ -188,7 +175,7 @@ public sealed partial class BrowserEditorHost : IDisposable
             EndHistoryGroup();
         }
 
-        ScheduleHighlight(ReadSource(state.Doc));
+        ScheduleHighlight(state.Doc.SliceDoc());
         var viewport = Viewport.Value;
         if (!ReferenceEquals(state.LineUpdate, before.LineUpdate) && state.LineUpdate is { } update) {
             _viewState.ApplyChanges(update, state.Doc);
