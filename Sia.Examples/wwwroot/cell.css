@@ -50,6 +50,7 @@
         min-height: 0;
 
         .cell-tabs {
+            --cell-tab-inline-padding: 0.75rem;
             display: flex;
             align-items: center;
             flex-wrap: nowrap;
@@ -114,7 +115,7 @@
                         min-width: 3.5rem;
                         min-height: var(--control-size);
                         max-width: 18rem;
-                        padding: 0.2rem 0.75rem;
+                        padding: 0.2rem var(--cell-tab-inline-padding);
                         overflow: hidden;
                         border: 0;
                         border-bottom: 2px solid transparent;
@@ -286,6 +287,7 @@
 
             @container (max-width: 30rem) {
                 &:has(> .toolbar) {
+                    --cell-tab-inline-padding: 0.5rem;
                     gap: 0.25rem;
                     padding-block: 0.25rem;
                     background: var(--surface-subtle);
@@ -293,10 +295,6 @@
                     .tab-list {
                         flex: 1 1 7rem;
                         scrollbar-width: none;
-
-                        .tab-entry .tab {
-                            padding-inline: 0.5rem;
-                        }
                     }
                 }
 
