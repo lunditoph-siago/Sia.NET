@@ -214,12 +214,23 @@
             }
 
             .toolbar {
+                --cell-control-size: 1.15rem;
                 display: contents;
 
                 .phase,
                 .scope-editor,
                 .cell-controls {
                     flex: 0 0 auto;
+                }
+
+                .cell-controls {
+                    align-items: center;
+
+                    > .icon-btn {
+                        width: var(--cell-control-size);
+                        height: var(--cell-control-size);
+                        font-size: 0.7rem;
+                    }
                 }
 
                 .scope-editor {
@@ -229,8 +240,8 @@
 
                     .scope-summary {
                         max-width: 9rem;
-                        min-height: var(--control-size);
-                        padding: 0.15rem 0.5rem;
+                        min-height: var(--cell-control-size);
+                        padding: 0 0.5rem;
                         overflow: hidden;
                         border: 1px solid transparent;
                         border-radius: var(--radius-pill);
@@ -238,6 +249,7 @@
                         color: var(--color-subtle);
                         font: inherit;
                         font-size: 0.72rem;
+                        line-height: 1;
                         text-overflow: ellipsis;
                         white-space: nowrap;
                         cursor: pointer;
@@ -343,7 +355,7 @@
                             flex: 0 0 auto;
 
                             .scope-summary {
-                                width: var(--control-size);
+                                width: var(--cell-control-size);
                                 font-size: 0;
 
                                 &::before {
