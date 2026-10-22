@@ -208,7 +208,7 @@ public sealed class BrowserCellView : IDisposable
                 .Attr("type", "button")
                 .Attr("data-inline-begin", scopeInputId)
                 .Attr("aria-label", "Edit cell scope")
-                .Attr("title", "Edit cell scope")
+                .Attr("title", $"Edit scope: {ScopeLabel(cell.Scope)}")
                 .Text(ScopeLabel(cell.Scope));
             _scopeInput = DomElement.Create("input")
                 .Class("scope-input")
@@ -222,7 +222,6 @@ public sealed class BrowserCellView : IDisposable
                 .Attr("data-allow-empty", "true")
                 .Attr("data-inline-trim", "true")
                 .Attr("data-inline-summary", scopeSummaryId)
-                .Attr("data-inline-prefix", "Scope: ")
                 .Attr("data-inline-empty-label", "Isolated")
                 .Attr("data-saved-value", cell.Scope ?? string.Empty);
             var scopeActions = DomElement.Create("div")
@@ -346,7 +345,7 @@ public sealed class BrowserCellView : IDisposable
             _scopeInput
                 .Attr("value", value)
                 .Attr("data-saved-value", value);
-            _scopeSummary.Text(ScopeLabel(value));
+            _scopeSummary.Text(ScopeLabel(value)).Attr("title", $"Edit scope: {ScopeLabel(value)}");
         }
 
         public void DiscardChanges(BrowserEditorRegistry editors)
@@ -452,7 +451,7 @@ public sealed class BrowserCellView : IDisposable
         }
 
         private static string ScopeLabel(string? scope)
-            => string.IsNullOrWhiteSpace(scope) ? "Isolated" : $"Scope: {scope}";
+            => string.IsNullOrWhiteSpace(scope) ? "Isolated" : scope;
 
         private static void RenderHighlightedCode(
             DomElement element,
