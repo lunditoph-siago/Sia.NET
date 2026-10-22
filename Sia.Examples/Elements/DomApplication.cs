@@ -214,7 +214,7 @@ internal static class DomApplication
                     packages);
                 if (page.Target == Destination.Editor) {
                     view.ShowEditor();
-                    editorPage = new BrowserEditorPage(world, references, workspaceStorage);
+                    editorPage = new BrowserEditorPage(world, references, workspaceStorage, view.HomeNavigation);
                     editorPage.ConfigureKeyboard(keyboard.Value);
                     editorPage.CommandInvoked += ExecuteCommand;
                     RefreshSidebarSelection();
@@ -301,10 +301,6 @@ internal static class DomApplication
 
                             case "open-editor":
                                 await NavigateAsync(new(Destination.Editor));
-                                break;
-
-                            case "editor-page-home" when editorPage is not null:
-                                await NavigateAsync(new(Destination.Home));
                                 break;
 
                             case "navigation-save":

@@ -15,6 +15,7 @@ public sealed class BrowserApplicationView :
     private readonly DomElement _home;
     private readonly DomElement[] _navigationButtons;
     private readonly DomElement _homeNavigation = DomElement.Find("application-home");
+    private readonly DomElement _contentHeader = DomElement.Find("content-header");
     private readonly DomElement _pageTitle = DomElement.Find("page-title");
     private readonly DomElement _headerPackages = DomElement.Find("header-packages");
     private readonly DomElement _loading;
@@ -25,6 +26,8 @@ public sealed class BrowserApplicationView :
     private readonly DomElement _conflictBanner;
     private readonly DomElement _conflictMessage;
     private readonly List<DomElement> _noticeButtons = [];
+
+    internal DomElement HomeNavigation => _homeNavigation;
 
     public BrowserApplicationView()
     {
@@ -111,6 +114,7 @@ public sealed class BrowserApplicationView :
 
     private void SetPage(string? title, bool notebook = false)
     {
+        _contentHeader.Append(_homeNavigation);
         _homeNavigation.ToggleClass("hidden", title is null);
         _headerPackages.ToggleClass("hidden", !notebook);
         _pageTitle.Text(title is null ? "Sia.NET Examples" : $"{title} · Sia.NET Examples");
@@ -210,6 +214,7 @@ public sealed class BrowserApplicationView :
         }
         _home.Dispose();
         _homeNavigation.Dispose();
+        _contentHeader.Dispose();
         _pageTitle.Dispose();
         _headerPackages.Dispose();
         _userNotebooks.Dispose();

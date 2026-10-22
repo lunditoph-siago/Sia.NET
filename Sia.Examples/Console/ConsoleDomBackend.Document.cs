@@ -17,13 +17,13 @@ internal sealed partial class ConsoleDomBackend
 
         var content = Element(app, "main", "content");
         var header = Element(content, "div", "content-header");
-        Element(header, "button", "application-home", "Examples home").Classes.Add("hidden");
         Element(header, "div", "notebook-actions");
         var packages = Element(header, "div", "header-packages");
         packages.Classes.Add("hidden");
         var packagesToggle = Element(packages, "button", "packages-toggle", "Packages");
         Element(packagesToggle, "span", "packages-badge");
         Element(packages, "div", "packages-popover");
+        Element(header, "button", "application-home", "Examples home").Classes.Add("hidden");
 
         var notebook = Element(content, "div", "notebook");
         var home = Element(notebook, "div", "notebook-home");

@@ -410,6 +410,7 @@
             align-items: center;
             justify-content: space-between;
             min-height: calc(var(--control-size) + 0.25rem);
+            gap: 0.25rem;
             padding: 0.125rem 0.6rem;
             border-bottom: 1px solid var(--border-subtle);
 
@@ -454,7 +455,6 @@
             }
 
             .header-packages {
-                position: relative;
                 flex: none;
                 margin-left: auto;
 
@@ -502,7 +502,7 @@
                 .packages-popover {
                     position: absolute;
                     top: calc(100% + 0.4rem);
-                    right: 0;
+                    right: 0.6rem;
                     display: none;
                     width: min(26rem, 90vw);
                     max-height: min(70vh, 32rem);

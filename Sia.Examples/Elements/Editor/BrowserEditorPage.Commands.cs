@@ -73,8 +73,6 @@ internal sealed partial class BrowserEditorPage
             case "editor-page-new-file":
                 Track(CreateUntitledAsync());
                 return true;
-            case "editor-page-home":
-                return true;
             case "editor-page-tree-open":
                 Track(OpenEntryAsync(argument, pin: false));
                 return true;

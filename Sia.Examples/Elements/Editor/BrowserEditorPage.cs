@@ -46,7 +46,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
     private bool _inputToolsOpen;
     private int _inputResetGeneration;
 
-    public BrowserEditorPage(World world, MetadataReferenceProvider references, IWorkspaceStorage storage)
+    public BrowserEditorPage(World world, MetadataReferenceProvider references, IWorkspaceStorage storage, DomElement homeNavigation)
     {
         ArgumentNullException.ThrowIfNull(world);
         ArgumentNullException.ThrowIfNull(references);
@@ -116,7 +116,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         actions
             .Append(_runAction)
             .Append(_compileAction)
-            .Append(CreateAction("Close", "editor-page-home", "Return to the examples home"));
+            .Append(homeNavigation);
         titlebar.Append(menus).Append(actions);
 
         _workbench = Own(DomElement.Create("div")
