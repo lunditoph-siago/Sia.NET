@@ -10,10 +10,9 @@ internal sealed partial class ConsoleDomBackend
         Element(document, "title", "page-title").Classes.Add("hidden");
         var app = Element(document, "div", "app");
         var sidebar = Element(app, "aside", "sidebar");
-        Element(sidebar, "div", "sidebar-actions");
         Element(sidebar, "div", "built-in-notebooks");
+        Element(sidebar, "div", "user-notebook-actions");
         Element(sidebar, "div", "user-notebooks");
-        Element(sidebar, "button", "empty-create-notebook", "Create notebook");
         Element(sidebar, "div", "notebook-files");
 
         var content = Element(app, "main", "content");
@@ -30,7 +29,6 @@ internal sealed partial class ConsoleDomBackend
         var home = Element(notebook, "div", "notebook-home");
         Element(home, "button", "home-start-guide", "Open the first example");
         Element(home, "button", "home-open-editor", "Open Editor Lab");
-        Element(home, "button", "home-create-notebook", "Create notebook");
         return document;
 
         ConsoleDomNode Element(ConsoleDomNode parent, string tagName, string id, string? text = null)

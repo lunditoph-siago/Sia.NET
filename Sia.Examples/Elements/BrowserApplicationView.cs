@@ -32,12 +32,10 @@ public sealed class BrowserApplicationView :
         _navigationButtons = [
             BindAction("home-start-guide", "select:0"),
             BindAction("home-open-editor", "open-editor"),
-            BindAction("home-create-notebook", "new-notebook"),
-            BindAction("empty-create-notebook", "new-notebook"),
         ];
         _homeNavigation.On("click", "application-home");
 
-        using (var actions = DomElement.Find("sidebar-actions")) {
+        using (var actions = DomElement.Find("user-notebook-actions")) {
             _newButton = CreateIconButton("+", "New notebook", "new-notebook")
                 .Attr("data-sidebar-dismiss", string.Empty);
             actions.Append(_newButton);

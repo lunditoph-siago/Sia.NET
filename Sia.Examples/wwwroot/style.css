@@ -234,14 +234,15 @@
             }
         }
 
-        .sidebar-actions {
+        .library-folder {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+        }
+
+        .library-actions {
             display: flex;
             align-items: center;
             opacity: 0.75;
-        }
-
-        &[data-sidebar-view='files'] .sidebar-actions {
-            visibility: hidden;
         }
 
         .sidebar-panel {
@@ -292,36 +293,15 @@
 
         .library-folder-toggle[aria-expanded='false'] {
             .folder-caret { transform: rotate(-90deg); }
-            + .library-items { display: none; }
-
-            ~ .library-empty {
-                display: none;
-            }
+            ~ .library-items { display: none; }
         }
 
         .library-items {
             display: flex;
+            grid-column: 1 / -1;
             flex-direction: column;
             gap: 0.1rem;
             padding-left: 0.35rem;
-
-            &:not(:empty) + .library-empty {
-                display: none;
-            }
-        }
-
-        .library-empty {
-            display: grid;
-            gap: 0.5rem;
-            padding: 0.5rem;
-            color: var(--color-subtle);
-            font-size: 0.75rem;
-            line-height: var(--line-height-copy);
-
-            .btn {
-                justify-self: start;
-                color: var(--color-fg);
-            }
         }
 
         .example-btn {
