@@ -5,8 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex" />
     <title>Page not found · Sia.NET</title>
+    <script>
+        document.documentElement.classList.add('resolving');
+        document.title = 'Loading Sia.NET Examples…';
+    </script>
     <style>
         :root { color-scheme: light dark; }
+        :root.resolving .not-found,
+        :root:not(.resolving) .route-loading { display: none; }
         body {
             box-sizing: border-box;
             display: grid;
@@ -65,6 +71,7 @@
     </style>
 </head>
 <body>
+    <p class="route-loading" role="status">Loading Sia.NET Examples…</p>
     <main class="not-found">
         <p class="code">404</p>
         <h1>Page not found.</h1>
@@ -79,35 +86,44 @@
     </main>
     <script>
         (async () => {
-            const entry = new URL(location.href);
-            for (let home = new URL('./', entry); ; home = new URL('../', home)) {
-                try {
-                    const response = await fetch(new URL('index.html', home));
-                    if (response.ok && (await response.text()).includes('id="home-open-editor"')) {
-                        document.getElementById('home').href = home.href;
-                        const theme = document.createElement('link');
-                        theme.rel = 'stylesheet';
-                        theme.href = new URL('tokens.css', home).href;
-                        document.head.append(theme);
-                        if (entry.pathname.endsWith('/404.html')) {
-                            const path = entry.searchParams.get('path');
-                            const requested = path && new URL(path, entry);
-                            if (requested && requested.origin === home.origin
-                                && requested.pathname.startsWith(home.pathname)) {
-                                history.replaceState(null, '', requested);
+            let redirecting = false;
+            try {
+                const entry = new URL(location.href);
+                for (let home = new URL('./', entry); ; home = new URL('../', home)) {
+                    try {
+                        const response = await fetch(new URL('index.html', home));
+                        if (response.ok && (await response.text()).includes('id="home-open-editor"')) {
+                            document.getElementById('home').href = home.href;
+                            const theme = document.createElement('link');
+                            theme.rel = 'stylesheet';
+                            theme.href = new URL('tokens.css', home).href;
+                            document.head.append(theme);
+                            if (entry.pathname.endsWith('/404.html')) {
+                                const path = entry.searchParams.get('path');
+                                const requested = path && new URL(path, entry);
+                                if (requested && requested.origin === home.origin
+                                    && requested.pathname.startsWith(home.pathname)) {
+                                    history.replaceState(null, '', requested);
+                                }
+                            } else {
+                                const path = entry.pathname.slice(home.pathname.length).replace(/^\/+|\/+$/g, '');
+                                if (/^(editor|new)$|^notebooks\//.test(path)) {
+                                    const target = new URL(home);
+                                    target.searchParams.set('__path', entry.pathname + entry.search + entry.hash);
+                                    location.replace(target);
+                                    redirecting = true;
+                                }
                             }
-                        } else {
-                            const path = entry.pathname.slice(home.pathname.length).replace(/^\/+|\/+$/g, '');
-                            if (/^(editor|new)$|^notebooks\//.test(path)) {
-                                const target = new URL(home);
-                                target.searchParams.set('__path', entry.pathname + entry.search + entry.hash);
-                                location.replace(target);
-                            }
+                            return;
                         }
-                        return;
-                    }
-                } catch {}
-                if (home.pathname === '/') return;
+                    } catch {}
+                    if (home.pathname === '/') return;
+                }
+            } finally {
+                if (!redirecting) {
+                    document.title = 'Page not found · Sia.NET';
+                    document.documentElement.classList.remove('resolving');
+                }
             }
         })();
     </script>

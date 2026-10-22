@@ -9,10 +9,9 @@ function countInitialResources(resources) {
         return 0;
     }
     const size = (group) => (Array.isArray(group) ? group.length : 0);
+    // JavaScript modules are imported outside the SDK's download progress callback.
     return (
         size(resources.wasmNative) +
-        size(resources.jsModuleNative) +
-        size(resources.jsModuleRuntime) +
         Math.min(1, size(resources.icu)) +
         size(resources.coreAssembly) +
         size(resources.assembly)
@@ -21,7 +20,7 @@ function countInitialResources(resources) {
 
 function updateBootProgress(loaded, total) {
     const overlay = document.getElementById('boot-overlay');
-    if (!overlay) {
+    if (!overlay || overlay.classList.contains('failed')) {
         return;
     }
     const percent = total === 0 ? 0 : Math.min(100, Math.floor((loaded / total) * 100));
@@ -31,6 +30,10 @@ function updateBootProgress(loaded, total) {
     const label = overlay.querySelector('.boot-progress-label');
     if (label) {
         label.textContent = `${loaded} / ${total} (${percent}%)`;
+    }
+    if (total > 0 && loaded >= total) {
+        const message = overlay.querySelector('.boot-message');
+        if (message) message.textContent = 'Starting the Sia.NET runtime…';
     }
 }
 
@@ -68,7 +71,7 @@ export function showBootError(message) {
     overlay.querySelector('.boot-spinner')?.setAttribute('aria-hidden', 'true');
     const text = overlay.querySelector('.boot-message');
     if (text) {
-        text.textContent = 'The runtime could not be downloaded. Check your connection and reload.';
+        text.textContent = message;
     }
     overlay.querySelector('.boot-reload')?.removeAttribute('hidden');
 }
