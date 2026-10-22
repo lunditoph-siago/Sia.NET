@@ -25,50 +25,85 @@
             background: var(--color-bg, light-dark(#eff1f5, #1e1e2e));
             color: var(--color-fg, light-dark(#4c4f69, #cdd6f4));
             font: normal 1rem/normal system-ui, monospace;
-        }
-        .boot-overlay * { box-sizing: border-box; }
-        .boot-spinner {
-            width: 2.2rem;
-            height: 2.2rem;
-            border: 2px solid var(--border-subtle, rgb(127 127 127 / 0.3));
-            border-top-color: var(--color-accent, light-dark(#8839ef, #cba6f7));
-            border-radius: 50%;
-            animation: boot-spin 0.9s linear infinite;
-        }
-        .boot-message {
-            margin: 0;
-            opacity: 0.7;
-            font-size: 0.85rem;
-            text-align: center;
-        }
-        .boot-progress {
-            width: min(18rem, 70vw);
-            height: 4px;
-            overflow: hidden;
-            border-radius: 999px;
-            background: var(--surface-hover, rgb(127 127 127 / 0.15));
-        }
-        .boot-progress-fill {
-            width: 30%;
-            height: 100%;
-            border-radius: inherit;
-            background: var(--color-accent, light-dark(#8839ef, #cba6f7));
-            animation: boot-pending 1.5s ease-in-out infinite alternate;
-        }
-        .boot-progress-label {
-            margin: 0;
-            opacity: 0.55;
-            font-size: 0.7rem;
-        }
-        @keyframes boot-spin { to { transform: rotate(360deg); } }
-        @keyframes boot-pending { to { transform: translateX(235%); } }
-        @media (prefers-reduced-motion: reduce) {
-            .boot-spinner, .boot-progress-fill { animation: none; }
+
+            * {
+                box-sizing: border-box;
+            }
+
+            .boot-spinner {
+                width: 2.2rem;
+                height: 2.2rem;
+                border: 2px solid var(--border-subtle, rgb(127 127 127 / 0.3));
+                border-top-color: var(--color-accent, light-dark(#8839ef, #cba6f7));
+                border-radius: 50%;
+                animation: boot-spin 0.9s linear infinite;
+            }
+
+            .boot-message {
+                margin: 0;
+                opacity: 0.7;
+                font-size: 0.85rem;
+                text-align: center;
+            }
+
+            .boot-progress {
+                width: min(18rem, 70vw);
+                height: 4px;
+                overflow: hidden;
+                border-radius: 999px;
+                background: var(--surface-hover, rgb(127 127 127 / 0.15));
+            }
+
+            .boot-progress-fill {
+                width: 30%;
+                height: 100%;
+                border-radius: inherit;
+                background: var(--color-accent, light-dark(#8839ef, #cba6f7));
+                animation: boot-pending 1.5s ease-in-out infinite alternate;
+            }
+
+            .boot-progress-label {
+                margin: 0;
+                opacity: 0.55;
+                font-size: 0.7rem;
+            }
+
+            @media (prefers-reduced-motion: reduce) {
+                .boot-spinner,
+                .boot-progress-fill {
+                    animation: none;
+                }
+            }
         }
 
-        :root { color-scheme: light dark; }
-        :root.resolving .not-found,
-        :root:not(.resolving) .boot-overlay { display: none; }
+        @keyframes boot-spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @keyframes boot-pending {
+            to {
+                transform: translateX(235%);
+            }
+        }
+
+        :root {
+            color-scheme: light dark;
+
+            &.resolving {
+                .not-found {
+                    display: none;
+                }
+            }
+
+            &:not(.resolving) {
+                .boot-overlay {
+                    display: none;
+                }
+            }
+        }
+
         body {
             box-sizing: border-box;
             display: grid;
@@ -80,6 +115,7 @@
             color: var(--color-fg, light-dark(#4c4f69, #cdd6f4));
             font-family: system-ui, sans-serif;
         }
+
         .not-found {
             width: min(100%, 40rem);
             margin-inline: auto;
@@ -89,6 +125,7 @@
                 font: 600 0.85rem var(--font-mono, ui-monospace, monospace);
                 letter-spacing: 0.12em;
             }
+
             h1 {
                 margin: 0.75rem 0 1rem;
                 font-size: clamp(2.5rem, 7vw, 4.8rem);
@@ -96,11 +133,13 @@
                 line-height: 1.05;
                 letter-spacing: -0.055em;
             }
+
             .message {
                 max-width: 36ch;
                 color: var(--color-subtle, light-dark(#7c7f93, #9399b2));
                 line-height: 1.65;
             }
+
             a {
                 display: inline-flex;
                 align-items: center;
@@ -118,6 +157,7 @@
                     border-color: var(--color-accent, light-dark(#8839ef, #cba6f7));
                     background: var(--surface-hover, rgb(127 127 127 / 0.15));
                 }
+
                 &:focus-visible {
                     outline: 2px solid var(--color-accent, light-dark(#8839ef, #cba6f7));
                     outline-offset: 4px;
@@ -136,6 +176,7 @@
         <p class="boot-progress-label">Preparing…</p>
         <button id="boot-reload" class="boot-reload" type="button" hidden>Reload page</button>
     </div>
+
     <main class="not-found">
         <p class="code">404</p>
         <h1>Page not found.</h1>
@@ -148,6 +189,7 @@
             Back to Home
         </a>
     </main>
+
     <script>
         (async () => {
             let redirecting = false;
@@ -180,8 +222,11 @@
                             }
                             return;
                         }
-                    } catch {}
-                    if (home.pathname === '/') return;
+                    } catch {
+                    }
+                    if (home.pathname === '/') {
+                        return;
+                    }
                 }
             } finally {
                 if (!redirecting) {

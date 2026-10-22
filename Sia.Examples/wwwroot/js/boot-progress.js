@@ -30,8 +30,11 @@ function updateBootProgress(loaded, total) {
         ?.style.setProperty('--boot-progress-share', `${percent}%`);
     const label = overlay.querySelector('.boot-progress-label');
     if (label) {
-        label.textContent = total === 0 ? 'Preparing…'
-            : loaded >= total ? 'Starting…' : `Loading resources… ${percent}%`;
+        label.textContent = total === 0
+            ? 'Preparing…'
+            : loaded >= total
+                ? 'Starting…'
+                : `Loading resources… ${percent}%`;
     }
 }
 
