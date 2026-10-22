@@ -386,12 +386,6 @@
                     .cell-controls {
                         order: 3;
                         gap: 0.125rem;
-
-                        > .icon-btn {
-                            border-radius: var(--radius-popover);
-                            background: var(--color-accent);
-                            color: var(--color-bg);
-                        }
                     }
                 }
 
@@ -400,10 +394,6 @@
                     .cell-controls {
                         display: none;
                     }
-                }
-
-                &:has(.phase-compiling, .phase-running) .cell-controls > .icon-btn {
-                    background: var(--color-danger);
                 }
             }
         }
