@@ -9,16 +9,11 @@
         flex-direction: column;
         gap: 1rem;
         padding: 1.5rem;
-        box-sizing: border-box;
         color-scheme: light dark;
         background: var(--color-bg);
         color: var(--color-fg);
-        font: normal 1rem/normal system-ui, monospace;
+        font: 1rem system-ui, monospace;
         transition: opacity 0.4s ease;
-
-        * {
-            box-sizing: border-box;
-        }
 
         &.done {
             opacity: 0;
@@ -35,7 +30,6 @@
         }
 
         .boot-message {
-            margin: 0;
             opacity: 0.7;
             font-size: 0.85rem;
             text-align: center;
@@ -58,7 +52,6 @@
         }
 
         .boot-progress-label {
-            margin: 0;
             opacity: 0.55;
             font-size: 0.7rem;
             font-variant-numeric: tabular-nums;
@@ -85,10 +78,6 @@
                 width: var(--boot-progress-share, 0%);
                 animation: none;
                 transition: width 0.2s ease;
-
-                @media (prefers-reduced-motion: reduce) {
-                    transition: none;
-                }
             }
         }
 
@@ -111,7 +100,8 @@
         @media (prefers-reduced-motion: reduce) {
             transition: none;
 
-            .boot-progress-fill {
+            .boot-progress-fill,
+            &.loading-resources .boot-progress-fill {
                 transition: none;
             }
 
