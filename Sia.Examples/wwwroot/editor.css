@@ -16,12 +16,23 @@
         font-size: 0.8rem;
         line-height: var(--line-height-ui);
 
-        &[open] { display: flex; flex-direction: column; }
-        &::backdrop { background: color-mix(in srgb, var(--color-bg) 65%, transparent); }
+        &[open] {
+            display: flex;
+            flex-direction: column;
+        }
+
+        &::backdrop {
+            background: color-mix(in srgb, var(--color-bg) 65%, transparent);
+        }
 
         &[data-editor-dialog="editor-packages"] {
-            .packages-body { padding: var(--dialog-section-padding); }
-            .editor-dialog-message { overflow-wrap: anywhere; }
+            .packages-body {
+                padding: var(--dialog-section-padding);
+            }
+
+            .editor-dialog-message {
+                overflow-wrap: anywhere;
+            }
         }
 
         :is(.keymap-header, .editor-dialog-header) {
@@ -32,12 +43,15 @@
             gap: 0.5rem;
             padding: var(--dialog-section-padding);
 
-            h2 { margin: 0; font-size: 0.95rem; }
+            h2 {
+                margin: 0;
+                font-size: 0.95rem;
+            }
         }
 
         > input, .keymap-edit > input, .keymap-edit > select {
             min-width: 0;
-            min-height: var(--control-size);
+            min-height: var(--control-row-size);
             padding: 0.45rem 0.6rem;
             border: 1px solid var(--border-control);
             border-radius: var(--radius-control);
@@ -45,10 +59,16 @@
             color: inherit;
             font: inherit;
 
-            &:focus-visible { outline: 2px solid var(--focus-muted); outline-offset: 1px; }
+            &:focus-visible {
+                outline: 2px solid var(--focus-muted);
+                outline-offset: 1px;
+            }
         }
 
-        > input { flex: none; margin: 0 0.65rem 0.35rem; }
+        > input {
+            flex: none;
+            margin: 0 0.65rem 0.35rem;
+        }
 
         .keymap-profiles {
             display: flex;
@@ -57,10 +77,18 @@
             gap: 0.5rem;
             padding: 0 0.65rem 0.35rem;
 
-            > button { min-height: var(--control-size); }
+            > button {
+                min-height: var(--control-size);
+            }
 
-            > span { margin-right: auto; color: var(--color-text-dim); }
-            > button[aria-pressed="true"] { background: var(--surface-hover); }
+            > span {
+                margin-right: auto;
+                color: var(--color-text-dim);
+            }
+
+            > button[aria-pressed="true"] {
+                background: var(--surface-hover);
+            }
         }
 
         :is(.keymap-list, .editor-dialog-list) {
@@ -78,7 +106,7 @@
             gap: 0.5rem;
             width: 100%;
             margin: 0;
-            min-height: var(--control-size);
+            min-height: var(--control-row-size);
             padding: 0.3rem 0.65rem;
             border: 0;
             border-bottom: 1px solid var(--border-subtle);
@@ -87,14 +115,33 @@
             font: inherit;
             text-align: left;
 
-            &[aria-selected="true"] { background: var(--surface-hover); outline: 1px solid var(--focus-muted); outline-offset: -1px; }
-            &[aria-disabled="true"] { color: var(--color-muted); }
-            &:is(button) { cursor: pointer; }
-            kbd { font: inherit; color: var(--color-text-dim); }
-            kbd:empty { display: none; }
+            &[aria-selected="true"] {
+                background: var(--surface-hover);
+                outline: 1px solid var(--focus-muted);
+                outline-offset: -1px;
+            }
+
+            &[aria-disabled="true"] {
+                color: var(--color-muted);
+            }
+
+            &:is(button) {
+                cursor: pointer;
+            }
+
+            kbd {
+                font: inherit;
+                color: var(--color-text-dim);
+            }
+
+            kbd:empty {
+                display: none;
+            }
         }
 
-        .keymap-command-title { overflow-wrap: anywhere; }
+        .keymap-command-title {
+            overflow-wrap: anywhere;
+        }
 
         .keymap-bindings {
             display: flex;
@@ -109,7 +156,9 @@
                 min-width: 0;
                 max-width: 100%;
 
-                > button:first-child { overflow-wrap: anywhere; }
+                > button:first-child {
+                    overflow-wrap: anywhere;
+                }
             }
 
             button {
@@ -123,41 +172,98 @@
                 font: inherit;
                 cursor: pointer;
 
-                &:hover { background: var(--surface-hover); }
+                &:hover {
+                    background: var(--surface-hover);
+                }
             }
         }
 
-        :is(.keymap-message, .keymap-empty, .editor-dialog-message) { flex: none; margin: 0; padding: var(--dialog-section-padding); color: var(--color-text-dim); }
-        :is(.keymap-message, .editor-dialog-message):empty { display: none; }
-        :is(.keymap-footer, .editor-dialog-footer) {
-            display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: 0.5rem;
-            padding: var(--dialog-section-padding); font-size: 0.72rem; color: var(--color-text-dim);
-            > span { flex: 1 1 12rem; }
+        :is(.keymap-message, .keymap-empty, .editor-dialog-message) {
+            flex: none;
+            margin: 0;
+            padding: var(--dialog-section-padding);
+            color: var(--color-text-dim);
         }
-        .keymap-edit { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.6rem; padding: 0.8rem; }
-        .keymap-edit > h3 { grid-column: 1 / -1; margin: 0; font-size: 0.9rem; }
-        &.is-editing > :is(.keymap-list, input) { display: none; }
+
+        :is(.keymap-message, .editor-dialog-message):empty {
+            display: none;
+        }
+
+        :is(.keymap-footer, .editor-dialog-footer) {
+            display: flex;
+            flex: none;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.5rem;
+            padding: var(--dialog-section-padding);
+            font-size: 0.72rem;
+            color: var(--color-text-dim);
+
+            > span {
+                flex: 1 1 12rem;
+            }
+        }
+
+        .keymap-edit {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 0.6rem;
+            padding: 0.8rem;
+        }
+
+        .keymap-edit > h3 {
+            grid-column: 1 / -1;
+            margin: 0;
+            font-size: 0.9rem;
+        }
+
+        &.is-editing > :is(.keymap-list, input) {
+            display: none;
+        }
 
         @media (any-pointer: coarse), (max-width: 899px) {
             --dialog-top: 0.5rem;
             --dialog-section-padding: 0.2rem 0.45rem;
             max-width: calc(100vw - 1rem);
             max-height: calc(var(--editor-viewport-height, 100dvh) - var(--dialog-top) - 0.5rem);
+
             > input, .keymap-edit > input, .keymap-edit > select {
-                min-height: 2.25rem;
                 padding: 0.2rem 0.45rem;
                 font-size: 1rem;
             }
-            > input { margin: 0 0.45rem 0.25rem; }
-            .keymap-profiles { gap: 0.25rem; padding: 0 0.45rem 0.25rem; }
-            :is(.keymap-footer, .editor-dialog-footer) { gap: 0.25rem; }
-            .keymap-edit { gap: 0.4rem; padding: 0.45rem; }
-            :is(.keymap-row, .editor-dialog-row) { min-height: 2.25rem; gap: 0.15rem; padding-block: 0.15rem; }
+
+            > input {
+                margin: 0 0.45rem 0.25rem;
+            }
+
+            .keymap-profiles {
+                gap: 0.25rem;
+                padding: 0 0.45rem 0.25rem;
+            }
+
+            :is(.keymap-footer, .editor-dialog-footer) {
+                gap: 0.25rem;
+            }
+
+            .keymap-edit {
+                gap: 0.4rem;
+                padding: 0.45rem;
+            }
+
+            :is(.keymap-row, .editor-dialog-row) {
+                gap: 0.15rem;
+                padding-block: 0.15rem;
+            }
         }
 
         @media (max-width: 640px) {
-            &[data-keymap-dialog='settings'] .keymap-row { grid-template-columns: minmax(0, 1fr); }
-            .keymap-bindings { justify-content: start; }
+            &[data-keymap-dialog='settings'] .keymap-row {
+                grid-template-columns: minmax(0, 1fr);
+            }
+
+            .keymap-bindings {
+                justify-content: start;
+            }
         }
     }
 
@@ -174,7 +280,9 @@
         font-size: 0.75rem;
         pointer-events: none;
 
-        &:empty { display: none; }
+        &:empty {
+            display: none;
+        }
     }
 
     .code {
@@ -188,7 +296,8 @@
 
         &.code-edit {
             min-height: 8rem;
-            font-size: 13px; /* editor metric, inherited by gutter/lines/status */
+            font-size: 13px;
+            /* editor metric, inherited by gutter/lines/status */
             line-height: 1.5;
 
             &:focus {
@@ -289,7 +398,9 @@
         flex: none;
         align-items: center;
 
-        &[aria-disabled="true"] { opacity: 0.5; }
+        &[aria-disabled="true"] {
+            opacity: 0.5;
+        }
     }
 
     :is(.editor-touch-actions, .editor-page-touchbar) {
@@ -307,8 +418,14 @@
             font: inherit;
             touch-action: manipulation;
 
-            &:active { background: var(--surface-hover); }
-            &:focus-visible { outline: 2px solid var(--focus-muted); outline-offset: -2px; }
+            &:active {
+                background: var(--surface-hover);
+            }
+
+            &:focus-visible {
+                outline: 2px solid var(--focus-muted);
+                outline-offset: -2px;
+            }
         }
     }
 
@@ -326,8 +443,14 @@
 
         &.editor-find-open {
             grid-template-rows: auto minmax(0, 1fr) auto;
-            > .editor-scroll { grid-row: 2; }
-            > .editor-status { grid-row: 3; }
+
+            > .editor-scroll {
+                grid-row: 2;
+            }
+
+            > .editor-status {
+                grid-row: 3;
+            }
         }
 
         @media (any-pointer: coarse), (max-width: 720px) {
@@ -336,16 +459,29 @@
                 gap: 0.25rem;
                 padding: 0 0.25rem;
 
-                > .editor-touch-actions { display: flex; }
-                > .editor-document-size { display: none; }
-                > .editor-cursor-position { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+                > .editor-touch-actions {
+                    display: flex;
+                }
+
+                > .editor-document-size {
+                    display: none;
+                }
+
+                > .editor-cursor-position {
+                    min-width: 0;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                }
             }
         }
 
         @media (max-width: 380px) {
             &:has(.editor-lines:focus, .editor-touch-actions:focus-within) > .editor-status {
                 flex-wrap: wrap;
-                > span { display: none; }
+
+                > span {
+                    display: none;
+                }
             }
         }
 
@@ -362,8 +498,10 @@
                 display: flex;
                 align-items: center;
                 gap: 0.2rem;
-                &.hidden { display: none; }
-                + .editor-find-row { margin-top: 0.2rem; }
+
+                + .editor-find-row {
+                    margin-top: 0.2rem;
+                }
             }
 
             input {
@@ -388,22 +526,53 @@
                 color: inherit;
                 font: inherit;
                 cursor: pointer;
-                > svg { display: block; margin-inline: auto; }
-                &:hover, &[aria-pressed="true"] { background: var(--surface-hover); border-color: var(--border-control); }
+
+                > svg {
+                    display: block;
+                    margin-inline: auto;
+                }
+
+                &:hover, &[aria-pressed="true"] {
+                    background: var(--surface-hover);
+                    border-color: var(--border-control);
+                }
             }
 
-            :is(input, button):focus-visible { outline: 1px solid var(--focus-muted); outline-offset: 1px; }
-            .editor-find-summary { display: block; overflow-wrap: anywhere; padding-top: 0.15rem; color: var(--color-text-dim); }
+            :is(input, button):focus-visible {
+                outline: 1px solid var(--focus-muted);
+                outline-offset: 1px;
+            }
+
+            .editor-find-summary {
+                display: block;
+                overflow-wrap: anywhere;
+                padding-top: 0.15rem;
+                color: var(--color-text-dim);
+            }
 
             @media (any-pointer: coarse), (max-width: 899px) {
-                button { min-width: var(--control-size); min-height: var(--control-size); }
-                input { min-height: 2.25rem; font-size: 1rem; }
+                button {
+                    min-width: var(--control-size);
+                    min-height: var(--control-size);
+                }
+
+                input {
+                    min-height: 2.25rem;
+                    font-size: 1rem;
+                }
 
                 .editor-find-row {
                     flex-wrap: wrap;
+
                     &:has([data-editor-find-field='query']) {
-                        input { order: -2; flex: 1 0 calc(100% - var(--control-size) - 0.25rem); }
-                        [data-editor-find-action='close'] { order: -1; }
+                        input {
+                            order: -2;
+                            flex: 1 0 calc(100% - var(--control-size) - 0.25rem);
+                        }
+
+                        [data-editor-find-action='close'] {
+                            order: -1;
+                        }
                     }
                 }
             }
@@ -439,10 +608,18 @@
         word-break: break-all;
         caret-color: var(--color-accent);
 
-        &[data-editor-mode="Normal"] { caret-shape: block; }
-        &[data-editor-mode="Insert"] { caret-shape: bar; }
+        &[data-editor-mode="Normal"] {
+            caret-shape: block;
+        }
 
-        &::highlight(sia-editor-find) { background-color: var(--selection-bg); color: inherit; }
+        &[data-editor-mode="Insert"] {
+            caret-shape: bar;
+        }
+
+        &::highlight(sia-editor-find) {
+            background-color: var(--selection-bg);
+            color: inherit;
+        }
 
         &::selection {
             background: var(--selection-bg);
@@ -518,7 +695,9 @@
             padding: 0.15rem 0.4rem;
             color: var(--color-text-dim);
 
-            span { margin-right: auto; }
+            span {
+                margin-right: auto;
+            }
 
             button {
                 min-width: var(--control-size);
@@ -529,8 +708,9 @@
                 color: inherit;
                 cursor: pointer;
 
-                &:hover, &:focus-visible { background: var(--surface-hover); }
-
+                &:hover, &:focus-visible {
+                    background: var(--surface-hover);
+                }
             }
         }
 
@@ -540,9 +720,17 @@
             overflow-wrap: anywhere;
         }
 
-        .signature-label { font-family: var(--font-mono); }
-        .inapplicable, p { color: var(--color-text-dim); }
-        .signature-parameter-doc { color: inherit; }
+        .signature-label {
+            font-family: var(--font-mono);
+        }
+
+        .inapplicable, p {
+            color: var(--color-text-dim);
+        }
+
+        .signature-parameter-doc {
+            color: inherit;
+        }
     }
 
     .completion-popup {
@@ -573,7 +761,9 @@
             overflow-anchor: none;
         }
 
-        .completion-spacer { pointer-events: none; }
+        .completion-spacer {
+            pointer-events: none;
+        }
 
         .completion-count {
             flex: none;
@@ -593,8 +783,13 @@
             white-space: pre-wrap;
             overflow-wrap: anywhere;
 
-            &:empty { display: none; }
-            &[aria-busy="true"] { visibility: hidden; }
+            &:empty {
+                display: none;
+            }
+
+            &[aria-busy="true"] {
+                visibility: hidden;
+            }
         }
 
         .completion-item {
@@ -609,8 +804,14 @@
                 color: var(--color-bg);
             }
 
-            &.soft-selected { outline: 1px solid var(--focus-muted); outline-offset: -1px; }
-            &[aria-disabled="true"] { color: var(--color-text-dim); }
+            &.soft-selected {
+                outline: 1px solid var(--focus-muted);
+                outline-offset: -1px;
+            }
+
+            &[aria-disabled="true"] {
+                color: var(--color-text-dim);
+            }
 
             @media (any-pointer: coarse), (max-width: 720px) {
                 display: flex;
@@ -620,7 +821,9 @@
         }
 
         &[data-overlay-compact="true"] {
-            :is(.signature-help.combined, .completion-count, .completion-description) { display: none; }
+            :is(.signature-help.combined, .completion-count, .completion-description) {
+                display: none;
+            }
         }
     }
 
@@ -644,9 +847,7 @@
             font-size: 0.66rem;
         }
     }
-}
 
-@layer components {
     .editor-reference-results {
         display: flex;
         flex: 0 1 auto;
@@ -667,13 +868,35 @@
             padding: 0.3rem 0.5rem;
             border-bottom: 1px solid var(--border-subtle);
 
-            > strong { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-            > button { min-width: var(--control-size); min-height: var(--control-size); padding: 0.1rem 0.35rem; font: inherit; }
-            .editor-reference-summary { opacity: 0.65; }
-            [aria-disabled="true"] { opacity: 0.4; cursor: default; }
+            > strong {
+                flex: 1;
+                min-width: 0;
+                overflow: hidden;
+                white-space: nowrap;
+                text-overflow: ellipsis;
+            }
+
+            > button {
+                min-width: var(--control-size);
+                min-height: var(--control-size);
+                padding: 0.1rem 0.35rem;
+                font: inherit;
+            }
+
+            .editor-reference-summary {
+                opacity: 0.65;
+            }
+
+            [aria-disabled="true"] {
+                opacity: 0.4;
+                cursor: default;
+            }
 
             @media (max-width: 480px) {
-                .editor-reference-summary { flex-basis: 100%; order: 1; }
+                .editor-reference-summary {
+                    flex-basis: 100%;
+                    order: 1;
+                }
             }
         }
 
@@ -684,7 +907,7 @@
 
             > button {
                 display: flex;
-                min-height: var(--control-size);
+                min-height: var(--control-row-size);
                 flex-direction: column;
                 align-items: stretch;
                 width: 100%;
@@ -695,14 +918,34 @@
                 text-align: start;
                 cursor: pointer;
 
-                &:hover, &:focus-visible { background: var(--surface-hover); }
-                @media (any-pointer: coarse), (max-width: 899px) { min-height: 2.25rem; }
-                .editor-reference-location { opacity: 0.65; font-size: 0.7rem; }
-                > code { overflow: hidden; font: 0.75rem/1.5 var(--font-mono); white-space: pre; text-overflow: ellipsis; }
+                &:hover, &:focus-visible {
+                    background: var(--surface-hover);
+                }
+
+                .editor-reference-location {
+                    opacity: 0.65;
+                    font-size: 0.7rem;
+                }
+
+                > code {
+                    overflow: hidden;
+                    font: 0.75rem/1.5 var(--font-mono);
+                    white-space: pre;
+                    text-overflow: ellipsis;
+                }
             }
 
-            > pre { margin: 0; padding: 0.4rem 0.5rem; font: 0.75rem/1.5 var(--font-mono); }
-            mark { background: var(--surface-hover); color: inherit; outline: 1px solid var(--focus-muted); }
+            > pre {
+                margin: 0;
+                padding: 0.4rem 0.5rem;
+                font: 0.75rem/1.5 var(--font-mono);
+            }
+
+            mark {
+                background: var(--surface-hover);
+                color: inherit;
+                outline: 1px solid var(--focus-muted);
+            }
         }
     }
 }

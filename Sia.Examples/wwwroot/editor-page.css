@@ -28,7 +28,7 @@
     }
 
     .editor-page {
-        --editor-command-size: 2rem;
+        --editor-command-size: max(2rem, var(--control-row-size));
         display: grid;
         grid-template-columns: minmax(0, 1fr);
         grid-template-rows: 38px auto minmax(0, 1fr) auto 24px;
@@ -42,18 +42,20 @@
 
         @media (pointer: coarse),
         (max-width: 899px) {
-            --editor-command-size: 2.25rem;
             grid-template-rows: 40px auto minmax(0, 1fr) auto 24px;
-
         }
 
         @media (any-pointer: coarse), (max-width: 720px) {
             grid-template-rows: 40px auto minmax(0, 1fr) 24px auto;
 
-            &.input-tools-open > .editor-page-touchbar { display: flex; }
+            &.input-tools-open > .editor-page-touchbar {
+                display: flex;
+            }
         }
 
-        .editor-container .editor-status { display: none; }
+        .editor-container .editor-status {
+            display: none;
+        }
     }
 
     .editor-page-titlebar {
@@ -68,13 +70,17 @@
         border-bottom: 1px solid var(--border-subtle);
         background: var(--surface-subtle);
 
-        .btn { padding-inline: 0.35rem; }
+        .btn {
+            padding-inline: 0.35rem;
+        }
 
         @media (max-width: 360px) {
             gap: 0;
             padding-inline: 0.25rem;
 
-            :is(.editor-page-menus, .editor-page-actions) { gap: 0; }
+            :is(.editor-page-menus, .editor-page-actions) {
+                gap: 0;
+            }
         }
     }
 
@@ -129,7 +135,10 @@
     .editor-page-menu {
         .editor-input-reset {
             display: none;
-            @media (any-pointer: coarse), (max-width: 720px) { display: grid; }
+
+            @media (any-pointer: coarse), (max-width: 720px) {
+                display: grid;
+            }
         }
 
         .menu-item {
@@ -138,15 +147,18 @@
             &[role='menuitemcheckbox'] {
                 grid-template-columns: minmax(0, 1fr) auto;
 
-                &[aria-checked='true']::after { content: '✓'; }
-
+                &[aria-checked='true']::after {
+                    content: '✓';
+                }
             }
 
             &.editor-input-action {
                 display: none;
-                @media (any-pointer: coarse), (max-width: 720px) { display: grid; }
-            }
 
+                @media (any-pointer: coarse), (max-width: 720px) {
+                    display: grid;
+                }
+            }
         }
     }
 
@@ -188,13 +200,19 @@
             &.vertical > .split-child.tabs-only {
                 flex: 0 0 auto;
 
-                > .cell-group > :is(.group-content, .editor-render-tools) { display: none; }
+                > .cell-group > :is(.group-content, .editor-render-tools) {
+                    display: none;
+                }
             }
 
             @media (any-pointer: coarse), (max-width: 720px) {
                 --cell-split-size: 8px;
 
-                > .separator::before { content: ""; position: absolute; inset: -5px; }
+                > .separator::before {
+                    content: "";
+                    position: absolute;
+                    inset: -5px;
+                }
             }
         }
 
@@ -254,7 +272,9 @@
             grid-row: 5;
             padding: 0 0.25rem env(safe-area-inset-bottom, 0px);
 
-            > .editor-touch-actions { display: flex; }
+            > .editor-touch-actions {
+                display: flex;
+            }
         }
     }
 
@@ -281,7 +301,6 @@
                 cursor: default;
             }
         }
-
     }
 
     .editor-page-editor,
@@ -335,7 +354,11 @@
             margin: 0.4rem 0 0;
             font: 0.75rem/1.5 var(--font-mono);
 
-            mark { background: var(--surface-hover); color: inherit; outline: 1px solid var(--focus-muted); }
+            mark {
+                background: var(--surface-hover);
+                color: inherit;
+                outline: 1px solid var(--focus-muted);
+            }
         }
     }
 
@@ -361,10 +384,8 @@
         text-align: left;
 
         &:is(button) {
-            min-height: var(--control-size);
+            min-height: var(--control-row-size);
             cursor: pointer;
-
-            @media (any-pointer: coarse), (max-width: 899px) { min-height: 2.25rem; }
 
             &:hover {
                 background: var(--surface-hover);
@@ -581,10 +602,6 @@
         border-bottom: 1px solid var(--color-warning);
         background: color-mix(in srgb, var(--color-warning) 12%, var(--color-bg));
         font-size: 0.78rem;
-
-        &.hidden {
-            display: none;
-        }
     }
 
     .editor-page-confirm-message {
@@ -602,27 +619,36 @@
         input {
             flex: 1;
             min-width: 0;
-            min-height: var(--control-size);
+            min-height: var(--control-row-size);
             padding: 0.2rem 0.45rem;
             border: 1px solid var(--border-control);
             border-radius: var(--radius-control);
             background: var(--color-bg);
             color: inherit;
             font: inherit;
-
-            @media (any-pointer: coarse), (max-width: 899px) { min-height: 2.25rem; }
         }
 
         @media (any-pointer: coarse), (max-width: 720px) {
-            input { font-size: 1rem; }
+            input {
+                font-size: 1rem;
+            }
         }
     }
 
     @media (max-width: 640px) {
-        .editor-page-confirm-banner { flex-direction: column; align-items: stretch; }
+        .editor-page-confirm-banner {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
         .editor-page-confirm-actions {
             flex-wrap: wrap;
-            input { flex: 1 0 100%; width: 100%; box-sizing: border-box; }
+
+            input {
+                flex: 1 0 100%;
+                width: 100%;
+                box-sizing: border-box;
+            }
         }
     }
 
@@ -738,9 +764,20 @@
         @media (pointer: coarse),
         (max-width: 720px) {
             padding: 0.5rem;
-            header { top: -0.5rem; }
-            .editor-uniform-fields fieldset { margin-top: 0.5rem; }
-            .editor-uniform-field { gap: 0.25rem; padding-block: 0.35rem; }
+
+            header {
+                top: -0.5rem;
+            }
+
+            .editor-uniform-fields fieldset {
+                margin-top: 0.5rem;
+            }
+
+            .editor-uniform-field {
+                gap: 0.25rem;
+                padding-block: 0.35rem;
+            }
+
             button {
                 min-height: var(--control-size);
                 min-width: var(--control-size);

@@ -1,43 +1,47 @@
 @layer components {
+    .icon-btn,
+    .btn {
+        border: 1px solid var(--border-control);
+        border-radius: var(--radius-control);
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        line-height: var(--line-height-ui);
+        cursor: pointer;
+
+        &:hover {
+            background: var(--surface-hover);
+        }
+    }
+
     .icon-btn {
         display: inline-grid;
         place-items: center;
         flex: 0 0 auto;
         width: var(--control-size);
         height: var(--control-size);
-        border: 1px solid transparent;
-        border-radius: var(--radius-control);
-        background: transparent;
-        color: inherit;
-        font: inherit;
-        cursor: pointer;
-        line-height: var(--line-height-ui);
+        border-color: transparent;
 
         &:hover, &:focus-visible {
             border-color: var(--color-muted);
             background: var(--surface-hover);
         }
 
-        &:focus-visible { outline: 1px solid var(--color-accent); outline-offset: 1px; }
-        &.danger:is(:hover, :focus-visible) { color: var(--color-danger); }
+        &:focus-visible {
+            outline: 1px solid var(--color-accent);
+            outline-offset: 1px;
+        }
+
+        &.danger:is(:hover, :focus-visible) {
+            color: var(--color-danger);
+        }
     }
 
     .btn {
         min-width: var(--control-size);
         min-height: var(--control-size);
         padding: 0.2rem 0.55rem;
-        border: 1px solid var(--border-control);
-        border-radius: var(--radius-control);
-        background: transparent;
-        font: inherit;
         font-size: 0.72rem;
-        line-height: var(--line-height-ui);
-        color: inherit;
-        cursor: pointer;
-
-        &:hover {
-            background: var(--surface-hover);
-        }
 
         &:focus-visible {
             outline: 2px solid var(--color-accent);
@@ -49,11 +53,49 @@
             cursor: default;
         }
 
-        @media (any-pointer: coarse), (max-width: 899px) { padding: 0.15rem 0.4rem; }
+        @media (any-pointer: coarse), (max-width: 899px) {
+            padding: 0.15rem 0.4rem;
+        }
     }
-}
 
-@layer components {
+    .inline-input {
+        min-height: var(--control-size);
+        border: 1px solid transparent;
+        border-radius: var(--radius-small);
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        text-overflow: ellipsis;
+
+        &:focus {
+            outline: none;
+        }
+    }
+
+    .inline-edit-actions {
+        display: none;
+        align-items: center;
+    }
+
+    .is-editing {
+        > .inline-edit-actions {
+            display: flex;
+        }
+
+        > .inline-input,
+        > .scope-edit-panel > .inline-input {
+            border-color: var(--color-muted);
+        }
+    }
+
+    .is-dirty {
+        > .inline-input,
+        > .scope-edit-panel > .inline-input {
+            border-color: var(--color-accent);
+            box-shadow: 0 0 0 1px var(--color-accent);
+        }
+    }
+
     .packages-body {
         .packages-empty {
             padding: 0.2rem 0 0.5rem;
@@ -81,16 +123,19 @@
             &.package-loading .package-state {
                 color: var(--color-warning);
             }
+
             &.package-loaded .package-state {
                 color: var(--color-success);
             }
+
             &.package-failed .package-state {
                 color: var(--color-danger);
             }
         }
 
         .package-error {
-            padding: 0 0 0.3rem; overflow-wrap: anywhere;
+            padding: 0 0 0.3rem;
+            overflow-wrap: anywhere;
             opacity: 0.85;
             color: var(--color-danger);
             font-size: 0.78rem;
@@ -106,9 +151,10 @@
             border-top: 1px dashed var(--border-subtle);
 
             .package-add-input {
-                flex: 1 1 8rem; min-width: 0;
+                flex: 1 1 8rem;
+                min-width: 0;
                 max-width: 100%;
-                min-height: var(--control-size);
+                min-height: var(--control-row-size);
                 padding: 0.25rem 0.5rem;
                 border: 1px solid var(--border-control);
                 border-radius: var(--radius-control);
@@ -118,13 +164,14 @@
                 font-size: 0.8rem;
 
                 @media (any-pointer: coarse), (max-width: 899px) {
-                    min-height: 2.25rem;
                     font-size: 1rem;
                 }
             }
 
             @media (any-pointer: coarse), (max-width: 899px) {
-                .package-add-input:first-child { flex-basis: 100%; }
+                .package-add-input:first-child {
+                    flex-basis: 100%;
+                }
             }
         }
     }

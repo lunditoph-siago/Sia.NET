@@ -77,15 +77,18 @@
                 &.phase-idle {
                     color: var(--color-muted);
                 }
+
                 &.phase-compiling,
                 &.phase-running {
                     color: var(--color-warning);
                 }
+
                 &.phase-compileerror,
                 &.phase-ranerror,
                 &.phase-interrupted {
                     color: var(--color-danger);
                 }
+
                 &.phase-compiled,
                 &.phase-ransuccess {
                     color: var(--color-success);
@@ -260,24 +263,12 @@
                     .scope-input {
                         width: 7rem;
                         min-width: 3rem;
-                        min-height: var(--control-size);
+                        min-height: var(--control-row-size);
                         padding: 0.05rem 0.3rem;
-                        border: 1px solid transparent;
-                        border-radius: var(--radius-small);
-                        background: transparent;
-                        color: inherit;
-                        font: inherit;
-
                         font-size: 0.72rem;
-                        text-overflow: ellipsis;
 
                         @media (any-pointer: coarse), (max-width: 899px) {
-                            min-height: 2.25rem;
                             font-size: 1rem;
-                        }
-
-                        &:focus {
-                            outline: none;
                         }
                     }
 
@@ -288,17 +279,6 @@
 
                         .scope-edit-panel {
                             display: flex;
-                        }
-
-                        .scope-input {
-                            border-color: var(--color-muted);
-                        }
-                    }
-
-                    &.is-dirty {
-                        .scope-input {
-                            border-color: var(--color-accent);
-                            box-shadow: 0 0 0 1px var(--color-accent);
                         }
                     }
                 }
@@ -512,8 +492,8 @@
                 flex-basis: auto;
                 min-height: 0;
                 transition:
-                    min-height 0.25s ease,
-                    visibility 0.25s;
+                min-height 0.25s ease,
+                visibility 0.25s;
 
                 &:not(.collapsed) {
                     min-height: min(28vh, 14rem);
@@ -537,8 +517,8 @@
             min-height: 0;
             overflow: hidden;
             transition:
-                flex-grow 0.25s ease,
-                visibility 0.25s;
+            flex-grow 0.25s ease,
+            visibility 0.25s;
 
             &.collapsed {
                 flex-grow: 0;
@@ -561,7 +541,9 @@
 
         @media (max-width: 720px) {
             &:where(:not(.editor-page-workbench *)) {
-                &:is(.horizontal, .vertical) { flex-direction: column; }
+                &:is(.horizontal, .vertical) {
+                    flex-direction: column;
+                }
 
                 &.horizontal > .separator {
                     flex-basis: 1px;

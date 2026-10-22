@@ -214,13 +214,7 @@ public sealed class BrowserNotebookView :
             "Notebook title",
             title,
             "Untitled");
-        using var actions = DomElement.Create("div").Class("inline-edit-actions");
-        AppendInlineSaveButton(
-            actions,
-            "Save title",
-            "notebook-title-input",
-            "rename-title");
-        AppendDiscardButton(actions, "notebook-title-input");
+        using var actions = BrowserControls.InlineActions("notebook-title-input", "Save title", "rename-title");
         using var documentActions = DomElement.Create("div").Class("title-actions");
         using var shortcuts = DomElement.Create("button").Attr("type", "button").Class("btn")
             .Attr("data-workbench-command", "Keybindings").Attr("title", "Configure keyboard shortcuts").Text("Shortcuts");
@@ -246,13 +240,7 @@ public sealed class BrowserNotebookView :
             section.Title,
             "Untitled section");
         _sectionTitleInputs.Add(section.Id, input);
-        using var titleActions = DomElement.Create("div").Class("inline-edit-actions");
-        AppendInlineSaveButton(
-            titleActions,
-            "Save section title",
-            inputId,
-            $"rename-section:{section.Id}");
-        AppendDiscardButton(titleActions, inputId);
+        using var titleActions = BrowserControls.InlineActions(inputId, "Save section title", $"rename-section:{section.Id}");
         var sectionActions = DomElement.Create("div").Class("section-actions");
         _sectionActionHosts.Add(section.Id, sectionActions);
         RefreshSectionActions(section.Id, section.Blocks);
@@ -527,7 +515,7 @@ public sealed class BrowserNotebookView :
         string value,
         string placeholder)
         => DomElement.Create("input")
-            .Class("inline-title-input")
+            .Class("inline-input").Class("inline-title-input")
             .Id(id)
             .Attr("type", "text")
             .Attr("aria-label", label)
@@ -542,42 +530,7 @@ public sealed class BrowserNotebookView :
         string label,
         string payload)
     {
-        using var button = DomElement.Create("button")
-            .Class("icon-btn")
-            .Attr("type", "button")
-            .Attr("aria-label", label)
-            .Attr("title", label)
-            .On("click", payload)
-            .Text(icon);
-        parent.Append(button);
-    }
-
-    private static void AppendDiscardButton(DomElement parent, string inputId)
-    {
-        using var button = DomElement.Create("button")
-            .Class("icon-btn")
-            .Attr("type", "button")
-            .Attr("aria-label", "Discard changes")
-            .Attr("title", "Discard changes")
-            .Attr("data-inline-discard", inputId)
-            .Text("↶");
-        parent.Append(button);
-    }
-
-    private static void AppendInlineSaveButton(
-        DomElement parent,
-        string label,
-        string inputId,
-        string payload)
-    {
-        using var button = DomElement.Create("button")
-            .Class("icon-btn")
-            .Attr("type", "button")
-            .Attr("aria-label", label)
-            .Attr("title", label)
-            .Attr("data-inline-save", inputId)
-            .On("click", payload)
-            .Text("▣");
+        using var button = BrowserControls.IconButton(icon, label).On("click", payload);
         parent.Append(button);
     }
 
@@ -602,7 +555,7 @@ public sealed class BrowserNotebookView :
         var text = FlattenInlines(paragraph.Inlines);
         var wrapper = DomElement.Create("div").Class("paragraph-editor");
         using var textarea = DomElement.Create("textarea")
-            .Class("inline-title-input")
+            .Class("inline-input").Class("inline-title-input")
             .Class("paragraph-textarea")
             .Id(elementId)
             .Attr("aria-label", "Paragraph text")
@@ -611,9 +564,7 @@ public sealed class BrowserNotebookView :
             .Attr("data-saved-value", text)
             .Attr("data-allow-empty", "true")
             .Text(text);
-        using var actions = DomElement.Create("div").Class("inline-edit-actions");
-        AppendInlineSaveButton(actions, "Save paragraph", elementId, $"save-paragraph:{paragraph.Id}");
-        AppendDiscardButton(actions, elementId);
+        using var actions = BrowserControls.InlineActions(elementId, "Save paragraph", $"save-paragraph:{paragraph.Id}");
         using var blockActions = DomElement.Create("div").Class("section-actions");
         AppendIconButton(blockActions, "↑", "Move up", $"move-cell-up:{paragraph.Id}");
         AppendIconButton(blockActions, "↓", "Move down", $"move-cell-down:{paragraph.Id}");
@@ -654,16 +605,7 @@ public sealed class BrowserNotebookView :
         string label,
         string payload)
     {
-        using var button = DomElement.Create("button")
-            .Class("menu-item")
-            .Attr("type", "button")
-            .On("click", payload);
-        using var glyph = DomElement.Create("span")
-            .Class("menu-icon")
-            .Attr("aria-hidden", "true")
-            .Text(icon);
-        using var text = DomElement.Create("span").Text(label);
-        button.Append(glyph).Append(text);
+        using var button = BrowserControls.MenuItem(icon, label).On("click", payload);
         menu.Append(button);
     }
 

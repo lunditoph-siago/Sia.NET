@@ -39,7 +39,7 @@ public sealed class BrowserApplicationView :
         _homeNavigation.On("click", "application-home");
 
         using (var actions = DomElement.Find("user-notebook-actions")) {
-            _newButton = CreateIconButton("+", "New notebook", "new-notebook")
+            _newButton = BrowserControls.IconButton("+", "New notebook").On("click", "new-notebook")
                 .Attr("data-sidebar-dismiss", string.Empty);
             actions.Append(_newButton);
         }
@@ -49,14 +49,8 @@ public sealed class BrowserApplicationView :
                 .Class("notebook-bar")
                 .Class("hidden");
             _status = DomElement.Create("span").Class("notebook-status").Attr("role", "status");
-            _saveButton = CreateIconButton(
-                "▣",
-                "Save notebook",
-                "save-notebook");
-            _deleteButton = CreateIconButton(
-                "×",
-                "Delete notebook",
-                "delete-notebook").Class("danger");
+            _saveButton = BrowserControls.IconButton("▣", "Save notebook").On("click", "save-notebook");
+            _deleteButton = BrowserControls.IconButton("×", "Delete notebook").On("click", "delete-notebook").Class("danger");
             _notebookBar.Append(_status).Append(_saveButton).Append(_deleteButton);
             actions.Append(_notebookBar);
         }
@@ -230,18 +224,6 @@ public sealed class BrowserApplicationView :
         }
         return null;
     }
-
-    private static DomElement CreateIconButton(
-        string icon,
-        string label,
-        string payload)
-        => DomElement.Create("button")
-            .Class("icon-btn")
-            .Attr("type", "button")
-            .Attr("aria-label", label)
-            .Attr("title", label)
-            .On("click", payload)
-            .Text(icon);
 
     private static DomElement BindAction(string id, string payload)
         => DomElement.Find(id).On("click", payload);

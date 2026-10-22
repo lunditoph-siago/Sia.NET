@@ -1,6 +1,6 @@
 @layer components {
     .file-tree {
-        --file-tree-row-size: var(--control-size);
+        --file-tree-row-size: var(--control-row-size);
         --file-tree-inline-action-opacity: 0;
         display: flex;
         flex-direction: column;
@@ -10,7 +10,6 @@
 
         @media (any-pointer: coarse), (max-width: 899px) {
             --file-tree-inline-action-opacity: 0.65;
-            --file-tree-row-size: 2.25rem;
         }
 
         .file-tree-placeholder {
@@ -249,7 +248,9 @@
             font: inherit;
             font-size: 0.75rem;
 
-            @media (any-pointer: coarse), (max-width: 899px) { font-size: 1rem; }
+            @media (any-pointer: coarse), (max-width: 899px) {
+                font-size: 1rem;
+            }
 
             &:focus {
                 outline: 1px solid var(--color-accent);
