@@ -33,7 +33,7 @@ function updateBootProgress(loaded, total) {
             ? 'Preparing…'
             : loaded >= total
                 ? 'Starting…'
-                : `Loading resources… ${percent}%`;
+                : `${loaded} / ${total}`;
     }
 }
 
