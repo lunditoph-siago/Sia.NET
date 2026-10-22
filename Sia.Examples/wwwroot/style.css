@@ -1,7 +1,7 @@
 @layer layout {
     .boot-overlay {
         position: fixed;
-        z-index: var(--z-boot-overlay, 85);
+        z-index: var(--z-boot-overlay);
         inset: 0;
         display: flex;
         align-items: center;
@@ -11,8 +11,8 @@
         padding: 1.5rem;
         box-sizing: border-box;
         color-scheme: light dark;
-        background: var(--color-bg, light-dark(#eff1f5, #1e1e2e));
-        color: var(--color-fg, light-dark(#4c4f69, #cdd6f4));
+        background: var(--color-bg);
+        color: var(--color-fg);
         font: normal 1rem/normal system-ui, monospace;
         transition: opacity 0.4s ease;
 
@@ -28,9 +28,9 @@
         .boot-spinner {
             width: 2.2rem;
             height: 2.2rem;
-            border: 2px solid var(--border-subtle, rgb(127 127 127 / 0.3));
-            border-top-color: var(--color-accent, light-dark(#8839ef, #cba6f7));
-            border-radius: var(--radius-circle, 50%);
+            border: 2px solid var(--border-subtle);
+            border-top-color: var(--color-accent);
+            border-radius: var(--radius-circle);
             animation: boot-spin 0.9s linear infinite;
         }
 
@@ -45,15 +45,15 @@
             width: min(18rem, 70vw);
             height: 4px;
             overflow: hidden;
-            border-radius: var(--radius-pill, 999px);
-            background: var(--surface-hover, rgb(127 127 127 / 0.15));
+            border-radius: var(--radius-pill);
+            background: var(--surface-hover);
         }
 
         .boot-progress-fill {
             width: 30%;
             height: 100%;
             border-radius: inherit;
-            background: var(--color-accent, light-dark(#8839ef, #cba6f7));
+            background: var(--color-accent);
             animation: boot-pending 1.5s ease-in-out infinite alternate;
         }
 
@@ -66,17 +66,17 @@
 
         .boot-reload {
             padding: 0.35rem 1rem;
-            border: 1px solid var(--border-subtle, rgb(127 127 127 / 0.3));
-            border-radius: var(--radius-control, 4px);
-            background: var(--surface-hover, rgb(127 127 127 / 0.15));
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-control);
+            background: var(--surface-hover);
             color: inherit;
             font: inherit;
             font-size: 0.8rem;
             cursor: pointer;
 
             &:hover {
-                border-color: var(--color-accent, light-dark(#8839ef, #cba6f7));
-                color: var(--color-accent, light-dark(#8839ef, #cba6f7));
+                border-color: var(--color-accent);
+                color: var(--color-accent);
             }
         }
 
@@ -94,7 +94,7 @@
 
         &.failed {
             .boot-spinner {
-                border-color: var(--color-danger, light-dark(#d20f39, #f38ba8));
+                border-color: var(--color-danger);
                 animation-play-state: paused;
             }
 
@@ -104,7 +104,7 @@
 
             .boot-message {
                 opacity: 1;
-                color: var(--color-danger, light-dark(#d20f39, #f38ba8));
+                color: var(--color-danger);
             }
         }
 
