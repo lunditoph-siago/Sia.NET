@@ -48,4 +48,26 @@
     <EmccExtraLDFlags>$(EmccExtraLDFlags) -sMALLOC=mimalloc</EmccExtraLDFlags>
   </PropertyGroup>
 
+  <!-- The recovery page needs the loading screen before it knows the application base URL. -->
+  <Target Name="ExpandBootScreen" BeforeTargets="ResolveProjectStaticWebAssets">
+    <PropertyGroup>
+      <_BootScreenStyle>&lt;style id="boot-screen-style"&gt;$([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)/Browser/BootScreen.css'))&lt;/style&gt;</_BootScreenStyle>
+      <_BootScreenMarkup>$([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)/Browser/BootScreen.html'))</_BootScreenMarkup>
+    </PropertyGroup>
+    <ItemGroup>
+      <_BootPage Include="wwwroot/index.html;wwwroot/404.html" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(IntermediateOutputPath)boot-pages/%(_BootPage.Filename).html"
+                      Lines="$([MSBuild]::Escape($([System.IO.File]::ReadAllText('%(_BootPage.FullPath)').Replace('&lt;!-- boot-screen-style --&gt;', '$(_BootScreenStyle)').Replace('&lt;!-- boot-screen --&gt;', '$(_BootScreenMarkup)'))))"
+                      Overwrite="true" WriteOnlyWhenDifferent="true" Encoding="UTF-8" />
+    <ItemGroup>
+      <Content Remove="@(_BootPage)" MatchOnMetadata="FullPath" MatchOnMetadataOptions="PathLike" />
+      <Content Include="$([MSBuild]::NormalizePath('$(IntermediateOutputPath)', 'boot-pages', 'index.html'))"
+               Link="wwwroot/index.html" CopyToPublishDirectory="PreserveNewest" />
+      <Content Include="$([MSBuild]::NormalizePath('$(IntermediateOutputPath)', 'boot-pages', '404.html'))"
+               Link="wwwroot/404.html" CopyToPublishDirectory="PreserveNewest" />
+      <FileWrites Include="@(_BootPage->'$(IntermediateOutputPath)boot-pages/%(Filename).html')" />
+    </ItemGroup>
+  </Target>
+
 </Project>

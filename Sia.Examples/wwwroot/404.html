@@ -9,10 +9,11 @@
         document.documentElement.classList.add('resolving');
         document.title = 'Loading Sia.NET Examples…';
     </script>
+    <!-- boot-screen-style -->
     <style>
         :root { color-scheme: light dark; }
         :root.resolving .not-found,
-        :root:not(.resolving) .route-loading { display: none; }
+        :root:not(.resolving) .boot-overlay { display: none; }
         body {
             box-sizing: border-box;
             display: grid;
@@ -71,7 +72,7 @@
     </style>
 </head>
 <body>
-    <p class="route-loading" role="status">Loading Sia.NET Examples…</p>
+    <!-- boot-screen -->
     <main class="not-found">
         <p class="code">404</p>
         <h1>Page not found.</h1>

@@ -24,16 +24,14 @@ function updateBootProgress(loaded, total) {
         return;
     }
     const percent = total === 0 ? 0 : Math.min(100, Math.floor((loaded / total) * 100));
+    overlay.classList.toggle('loading-resources', total > 0);
     overlay
         .querySelector('.boot-progress-fill')
         ?.style.setProperty('--boot-progress-share', `${percent}%`);
     const label = overlay.querySelector('.boot-progress-label');
     if (label) {
-        label.textContent = `${loaded} / ${total} (${percent}%)`;
-    }
-    if (total > 0 && loaded >= total) {
-        const message = overlay.querySelector('.boot-message');
-        if (message) message.textContent = 'Starting the Sia.NET runtime…';
+        label.textContent = total === 0 ? 'Preparing…'
+            : loaded >= total ? 'Starting…' : `Loading resources… ${percent}%`;
     }
 }
 
