@@ -9,7 +9,10 @@
         flex-direction: column;
         gap: 1rem;
         padding: 1.5rem;
+        color-scheme: light dark;
         background: var(--color-bg);
+        color: var(--color-fg);
+        font: 1rem system-ui, monospace;
         transition: opacity 0.4s ease;
 
         &.done {
@@ -17,72 +20,95 @@
             pointer-events: none;
         }
 
-        &.failed .boot-spinner {
-            border-color: var(--color-danger);
-            border-top-color: var(--color-danger);
-            animation-play-state: paused;
+        .boot-spinner {
+            width: 2.2rem;
+            height: 2.2rem;
+            border: 2px solid var(--border-subtle);
+            border-top-color: var(--color-accent);
+            border-radius: var(--radius-circle);
+            animation: boot-spin 0.9s linear infinite;
         }
 
-        &.failed .boot-message {
-            opacity: 1;
-            color: var(--color-danger);
+        .boot-message {
+            opacity: 0.7;
+            font-size: 0.85rem;
+            text-align: center;
         }
-    }
 
-    .boot-spinner {
-        width: 2.2rem;
-        height: 2.2rem;
-        border: 2px solid var(--border-subtle);
-        border-top-color: var(--color-accent);
-        border-radius: var(--radius-circle);
-        animation: boot-spin 0.9s linear infinite;
-    }
+        .boot-progress {
+            width: min(18rem, 70vw);
+            height: 4px;
+            overflow: hidden;
+            border-radius: var(--radius-pill);
+            background: var(--surface-hover);
+        }
 
-    .boot-message {
-        margin: 0;
-        opacity: 0.7;
-        color: var(--color-fg);
-        font-size: 0.85rem;
-        text-align: center;
-    }
+        .boot-progress-fill {
+            width: 30%;
+            height: 100%;
+            border-radius: inherit;
+            background: var(--color-accent);
+            animation: boot-pending 1.5s ease-in-out infinite alternate;
+        }
 
-    .boot-progress {
-        width: min(18rem, 70vw);
-        height: 4px;
-        overflow: hidden;
-        border-radius: var(--radius-pill);
-        background: var(--surface-hover);
-    }
+        .boot-progress-label {
+            opacity: 0.55;
+            font-size: 0.7rem;
+            font-variant-numeric: tabular-nums;
+        }
 
-    .boot-progress-fill {
-        width: var(--boot-progress-share, 0%);
-        height: 100%;
-        border-radius: var(--radius-pill);
-        background: var(--color-accent);
-        transition: width 0.2s ease;
-    }
+        .boot-reload {
+            padding: 0.35rem 1rem;
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-control);
+            background: var(--surface-hover);
+            color: inherit;
+            font: inherit;
+            font-size: 0.8rem;
+            cursor: pointer;
 
-    .boot-progress-label {
-        margin: 0;
-        opacity: 0.55;
-        color: var(--color-fg);
-        font-size: 0.7rem;
-        font-variant-numeric: tabular-nums;
-    }
+            &:hover {
+                border-color: var(--color-accent);
+                color: var(--color-accent);
+            }
+        }
 
-    .boot-reload {
-        padding: 0.35rem 1rem;
-        border: 1px solid var(--border-subtle);
-        border-radius: var(--radius-control);
-        background: var(--surface-hover);
-        color: var(--color-fg);
-        font: inherit;
-        font-size: 0.8rem;
-        cursor: pointer;
+        &.loading-resources {
+            .boot-progress-fill {
+                width: var(--boot-progress-share, 0%);
+                animation: none;
+                transition: width 0.2s ease;
+            }
+        }
 
-        &:hover {
-            border-color: var(--color-accent);
-            color: var(--color-accent);
+        &.failed {
+            .boot-spinner {
+                border-color: var(--color-danger);
+                animation-play-state: paused;
+            }
+
+            .boot-progress-fill {
+                animation-play-state: paused;
+            }
+
+            .boot-message {
+                opacity: 1;
+                color: var(--color-danger);
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            transition: none;
+
+            .boot-progress-fill,
+            &.loading-resources .boot-progress-fill {
+                transition: none;
+            }
+
+            .boot-spinner,
+            .boot-progress-fill {
+                animation: none;
+            }
         }
     }
 
@@ -92,13 +118,9 @@
         }
     }
 
-    @media (prefers-reduced-motion: reduce) {
-        .boot-overlay {
-            transition: none;
-        }
-
-        .boot-spinner {
-            animation-duration: 2.4s;
+    @keyframes boot-pending {
+        to {
+            transform: translateX(235%);
         }
     }
 
