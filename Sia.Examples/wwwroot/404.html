@@ -9,8 +9,63 @@
         document.documentElement.classList.add('resolving');
         document.title = 'Loading Sia.NET Examples…';
     </script>
-    <!-- boot-screen-style -->
     <style>
+        /* Standalone pending state: the application stylesheet is unreachable until root discovery. */
+        .boot-overlay {
+            position: fixed;
+            z-index: 85;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 1rem;
+            padding: 1.5rem;
+            box-sizing: border-box;
+            background: var(--color-bg, light-dark(#eff1f5, #1e1e2e));
+            color: var(--color-fg, light-dark(#4c4f69, #cdd6f4));
+            font: normal 1rem/normal system-ui, monospace;
+        }
+        .boot-overlay * { box-sizing: border-box; }
+        .boot-spinner {
+            width: 2.2rem;
+            height: 2.2rem;
+            border: 2px solid var(--border-subtle, rgb(127 127 127 / 0.3));
+            border-top-color: var(--color-accent, light-dark(#8839ef, #cba6f7));
+            border-radius: 50%;
+            animation: boot-spin 0.9s linear infinite;
+        }
+        .boot-message {
+            margin: 0;
+            opacity: 0.7;
+            font-size: 0.85rem;
+            text-align: center;
+        }
+        .boot-progress {
+            width: min(18rem, 70vw);
+            height: 4px;
+            overflow: hidden;
+            border-radius: 999px;
+            background: var(--surface-hover, rgb(127 127 127 / 0.15));
+        }
+        .boot-progress-fill {
+            width: 30%;
+            height: 100%;
+            border-radius: inherit;
+            background: var(--color-accent, light-dark(#8839ef, #cba6f7));
+            animation: boot-pending 1.5s ease-in-out infinite alternate;
+        }
+        .boot-progress-label {
+            margin: 0;
+            opacity: 0.55;
+            font-size: 0.7rem;
+        }
+        @keyframes boot-spin { to { transform: rotate(360deg); } }
+        @keyframes boot-pending { to { transform: translateX(235%); } }
+        @media (prefers-reduced-motion: reduce) {
+            .boot-spinner, .boot-progress-fill { animation: none; }
+        }
+
         :root { color-scheme: light dark; }
         :root.resolving .not-found,
         :root:not(.resolving) .boot-overlay { display: none; }
@@ -72,7 +127,15 @@
     </style>
 </head>
 <body>
-    <!-- boot-screen -->
+    <div id="boot-overlay" class="boot-overlay" role="status" aria-live="polite">
+        <div class="boot-spinner" aria-hidden="true"></div>
+        <p class="boot-message">Loading Sia.NET Examples…</p>
+        <div class="boot-progress" aria-hidden="true">
+            <div class="boot-progress-fill"></div>
+        </div>
+        <p class="boot-progress-label">Preparing…</p>
+        <button id="boot-reload" class="boot-reload" type="button" hidden>Reload page</button>
+    </div>
     <main class="not-found">
         <p class="code">404</p>
         <h1>Page not found.</h1>

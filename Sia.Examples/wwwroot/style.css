@@ -1,4 +1,109 @@
 @layer layout {
+    .boot-overlay {
+        position: fixed;
+        z-index: var(--z-boot-overlay, 85);
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 1rem;
+        padding: 1.5rem;
+        box-sizing: border-box;
+        color-scheme: light dark;
+        background: var(--color-bg, light-dark(#eff1f5, #1e1e2e));
+        color: var(--color-fg, light-dark(#4c4f69, #cdd6f4));
+        font: normal 1rem/normal system-ui, monospace;
+        transition: opacity 0.4s ease;
+
+        * { box-sizing: border-box; }
+
+        &.done {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        &.failed .boot-spinner {
+            border-color: var(--color-danger, light-dark(#d20f39, #f38ba8));
+            animation-play-state: paused;
+        }
+
+        &.failed .boot-progress-fill { animation-play-state: paused; }
+
+        &.failed .boot-message {
+            opacity: 1;
+            color: var(--color-danger, light-dark(#d20f39, #f38ba8));
+        }
+    }
+
+    .boot-spinner {
+        width: 2.2rem;
+        height: 2.2rem;
+        border: 2px solid var(--border-subtle, rgb(127 127 127 / 0.3));
+        border-top-color: var(--color-accent, light-dark(#8839ef, #cba6f7));
+        border-radius: var(--radius-circle, 50%);
+        animation: boot-spin 0.9s linear infinite;
+    }
+
+    .boot-message {
+        margin: 0;
+        opacity: 0.7;
+        font-size: 0.85rem;
+        text-align: center;
+    }
+
+    .boot-progress {
+        width: min(18rem, 70vw);
+        height: 4px;
+        overflow: hidden;
+        border-radius: var(--radius-pill, 999px);
+        background: var(--surface-hover, rgb(127 127 127 / 0.15));
+    }
+
+    .boot-progress-fill {
+        width: 30%;
+        height: 100%;
+        border-radius: inherit;
+        background: var(--color-accent, light-dark(#8839ef, #cba6f7));
+        animation: boot-pending 1.5s ease-in-out infinite alternate;
+    }
+
+    .loading-resources .boot-progress-fill {
+        width: var(--boot-progress-share, 0%);
+        animation: none;
+        transition: width 0.2s ease;
+    }
+
+    .boot-progress-label {
+        margin: 0;
+        opacity: 0.55;
+        font-size: 0.7rem;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .boot-reload {
+        padding: 0.35rem 1rem;
+        border: 1px solid var(--border-subtle, rgb(127 127 127 / 0.3));
+        border-radius: var(--radius-control, 4px);
+        background: var(--surface-hover, rgb(127 127 127 / 0.15));
+        color: inherit;
+        font: inherit;
+        font-size: 0.8rem;
+        cursor: pointer;
+
+        &:hover {
+            border-color: var(--color-accent, light-dark(#8839ef, #cba6f7));
+            color: var(--color-accent, light-dark(#8839ef, #cba6f7));
+        }
+    }
+
+    @keyframes boot-spin { to { transform: rotate(360deg); } }
+    @keyframes boot-pending { to { transform: translateX(235%); } }
+
+    @media (prefers-reduced-motion: reduce) {
+        .boot-overlay, .boot-overlay .boot-progress-fill { transition: none; }
+        .boot-spinner, .boot-overlay .boot-progress-fill { animation: none; }
+    }
     .boot-error-banner {
         flex-shrink: 0;
         padding: 0.5rem 1rem;

@@ -5,7 +5,6 @@
     <base href="./">
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Sia.NET Examples</title>
-    <!-- boot-screen-style -->
     <link rel="preload" id="webassembly" />
     <link rel="stylesheet" href="tokens.css" />
     <link rel="stylesheet" href="base.css" />
@@ -154,6 +153,14 @@ world.Create(HList.From(
         </main>
     </div>
     <div id="overlay-root" aria-live="off"></div>
-    <!-- boot-screen -->
+    <div id="boot-overlay" class="boot-overlay" role="status" aria-live="polite">
+        <div class="boot-spinner" aria-hidden="true"></div>
+        <p class="boot-message">Loading Sia.NET Examples…</p>
+        <div class="boot-progress" aria-hidden="true">
+            <div class="boot-progress-fill"></div>
+        </div>
+        <p class="boot-progress-label">Preparing…</p>
+        <button id="boot-reload" class="boot-reload" type="button" hidden>Reload page</button>
+    </div>
 </body>
 </html>
