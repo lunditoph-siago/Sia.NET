@@ -10,9 +10,7 @@ public sealed class NotebookSession : IDisposable
 
     private NotebookDocument _document;
     private List<CellScript> _scripts = [];
-    private Dictionary<string, CodeCellBlock> _owners = [];
-    private Dictionary<string, string> _scopeKeys = [];
-    private Dictionary<string, int> _scopeIndices = [];
+    private Dictionary<string, ScriptLocation> _scriptLocations = [];
     private Dictionary<string, ScopeState> _scopes = [];
     private Dictionary<string, CellState> _states = [];
 
@@ -47,7 +45,27 @@ public sealed class NotebookSession : IDisposable
 
     public CellState GetState(string scriptId) => _states[scriptId];
 
-    public bool IsScriptEditable(string scriptId) => _owners[scriptId].Editable;
+    public bool IsScriptEditable(string scriptId) => _scriptLocations[scriptId].Cell.Editable;
+
+    internal bool ContainsScript(string scriptId) => _scriptLocations.ContainsKey(scriptId);
+
+    internal IEnumerable<(string Id, string Name, string Path)> GetScriptFiles()
+    {
+        VerifyAccess();
+        return Enumerate(_document);
+
+        static IEnumerable<(string Id, string Name, string Path)> Enumerate(NotebookDocument document)
+        {
+            foreach (var section in document.Sections) {
+                foreach (var cell in section.Blocks.OfType<CodeCellBlock>()) {
+                    foreach (var script in cell.Scripts) {
+                        var name = script.Name ?? "Script";
+                        yield return (script.Id, name, $"{section.Title}/{name}");
+                    }
+                }
+            }
+        }
+    }
 
     public bool IsBusy => _operationCancellation is not null || _activeRun is not null;
 
@@ -81,7 +99,7 @@ public sealed class NotebookSession : IDisposable
         CancellationToken cancellationToken = default)
     {
         VerifyAccess();
-        if (!_scopeKeys.TryGetValue(scriptId, out var scopeKey)
+        if (!_scriptLocations.TryGetValue(scriptId, out var location)
             || _states[scriptId].Source == source) {
             return;
         }
@@ -93,7 +111,7 @@ public sealed class NotebookSession : IDisposable
             Source = source,
             Highlights = highlights.ToImmutableArray(),
         });
-        InvalidateFrom(_scopes[scopeKey], _scopeIndices[scriptId]);
+        InvalidateFrom(_scopes[location.ScopeKey], location.ScopeIndex);
         Publish();
     }
 
@@ -145,13 +163,10 @@ public sealed class NotebookSession : IDisposable
     public void RemoveScript(string scriptId)
     {
         VerifyAccess();
-        var owner = _document.Sections
-            .SelectMany(static section => section.Blocks)
-            .OfType<CodeCellBlock>()
-            .FirstOrDefault(cell => cell.Scripts.Any(script => script.Id == scriptId));
-        if (owner is null) {
+        if (!_scriptLocations.TryGetValue(scriptId, out var location)) {
             return;
         }
+        var owner = location.Cell;
         if (owner.Scripts.Count <= 1) {
             RemoveCell(owner.Id);
             return;
@@ -171,13 +186,10 @@ public sealed class NotebookSession : IDisposable
     {
         VerifyAccess();
         var normalized = string.IsNullOrWhiteSpace(name) ? null : name.Trim();
-        var owner = _document.Sections
-            .SelectMany(static section => section.Blocks)
-            .OfType<CodeCellBlock>()
-            .FirstOrDefault(cell => cell.Scripts.Any(script => script.Id == scriptId));
-        if (owner is null) {
+        if (!_scriptLocations.TryGetValue(scriptId, out var location)) {
             return;
         }
+        var owner = location.Cell;
         var current = owner.Scripts.First(script => script.Id == scriptId).Name;
         if (current == normalized) {
             return;
@@ -552,23 +564,12 @@ public sealed class NotebookSession : IDisposable
     private void Rebuild()
     {
         var scripts = new List<CellScript>();
-        var cells = new List<CodeCellBlock>();
-        var owners = new Dictionary<string, CodeCellBlock>();
+        var locations = new Dictionary<string, ScriptLocation>(StringComparer.Ordinal);
+        var groupedCells = new Dictionary<string, List<CodeCellBlock>>();
         foreach (var block in _document.Sections.SelectMany(static section => section.Blocks)) {
             if (block is not CodeCellBlock cell) {
                 continue;
             }
-            cells.Add(cell);
-            foreach (var script in cell.Scripts) {
-                scripts.Add(script);
-                owners[script.Id] = cell;
-            }
-        }
-
-        var scopeKeys = new Dictionary<string, string>();
-        var scopeIndices = new Dictionary<string, int>();
-        var groupedCells = new Dictionary<string, List<CodeCellBlock>>();
-        foreach (var cell in cells) {
             var scopeKey = cell.Scope ?? $"$cell:{cell.Id}";
             if (!groupedCells.TryGetValue(scopeKey, out var scopeCells)) {
                 scopeCells = [];
@@ -577,8 +578,8 @@ public sealed class NotebookSession : IDisposable
             var scopeIndex = scopeCells.Count;
             scopeCells.Add(cell);
             foreach (var script in cell.Scripts) {
-                scopeKeys.Add(script.Id, scopeKey);
-                scopeIndices.Add(script.Id, scopeIndex);
+                scripts.Add(script);
+                locations.Add(script.Id, new(cell, scopeKey, scopeIndex));
             }
         }
 
@@ -603,7 +604,7 @@ public sealed class NotebookSession : IDisposable
                     Highlights = CSharpHighlighter.Classify(script.InitialSource).ToImmutableArray(),
                 };
             }
-            else if (changedScopeKeys.Contains(scopeKeys[script.Id])) {
+            else if (changedScopeKeys.Contains(locations[script.Id].ScopeKey)) {
                 states[script.Id] = existing with {
                     Phase = CellPhase.Idle,
                     Diagnostics = [],
@@ -619,9 +620,7 @@ public sealed class NotebookSession : IDisposable
         }
 
         _scripts = scripts;
-        _owners = owners;
-        _scopeKeys = scopeKeys;
-        _scopeIndices = scopeIndices;
+        _scriptLocations = locations;
         _scopes = scopes;
         _states = states;
         _cellsDirty = true;
@@ -666,9 +665,9 @@ public sealed class NotebookSession : IDisposable
         out ScopeState scope,
         out int targetIndex)
     {
-        if (_scopeKeys.TryGetValue(scriptId, out var scopeKey)) {
-            scope = _scopes[scopeKey];
-            targetIndex = _scopeIndices[scriptId];
+        if (_scriptLocations.TryGetValue(scriptId, out var location)) {
+            scope = _scopes[location.ScopeKey];
+            targetIndex = location.ScopeIndex;
             return true;
         }
 
@@ -752,6 +751,8 @@ public sealed class NotebookSession : IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         _mainThread.VerifyAccess();
     }
+
+    private readonly record struct ScriptLocation(CodeCellBlock Cell, string ScopeKey, int ScopeIndex);
 
     private sealed class ScopeState(IReadOnlyList<CodeCellBlock> cells)
     {

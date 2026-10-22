@@ -5,7 +5,7 @@ using Sia.Examples.Editor;
 
 namespace Sia.Examples.Notebook;
 
-public sealed class NotebookWorkspace : IAsyncDisposable
+public sealed partial class NotebookWorkspace : IAsyncDisposable
 {
     internal void ConfigureKeyboard(EditorKeymap keymap) => _view.Editors.ConfigureKeyboard(keymap, CommandContext.Notebook);
     internal void FlushCommands() => _view.Editors.FlushCommands();
@@ -60,31 +60,16 @@ public sealed class NotebookWorkspace : IAsyncDisposable
         _session = new(mainThread, document, references);
         var cellState = NotebookCellState.Create(document);
         _view = new(world, document, references, cellState);
-        _referenceResults = new("notebook-reference", NavigateEditorSource, () => {
-            if (_view.Editors.TryResolveCellId(_referenceReturnBinding ?? "", out var script)) {
-                var layout = _mount.GetState<NotebookCellState>().Value;
-                if (NotebookCellLayout.FindGroupContaining(layout, layout.GetTabForWindow(layout.GetScriptWindow(script).Id).Id) is not null) {
-                    _view.RevealEditor(script);
-                    _view.Editors.Focus(script);
-                }
-            }
-        });
+        _referenceResults = new("notebook-reference", NavigateEditorSource, RestoreReferenceFocus);
         _view.AttachLanguageResults(_referenceResults.Element);
         _workspaceEdits = new(CaptureWorkspaceBuffers, CommitWorkspaceBuffers, ReportRename);
-        _renamePanel = new(_view.Editors, _workspaceEdits, "notebook-rename", () => {
-            if (_view.Editors.TryResolveCellId(_renameReturnBinding ?? "", out var id)) { _view.RevealEditor(id); _view.Editors.Focus(id); }
-        });
+        _renamePanel = new(_view.Editors, _workspaceEdits, "notebook-rename", RestoreRenameFocus);
         _view.Editors.RenameReady += (binding, target, source, position) => {
-            _renameReturnBinding = binding; _renamePanel.Open(binding, target, source, position);
+            _renameReturnBinding = binding;
+            _renamePanel.Open(binding, target, source, position);
         };
         _view.Editors.LanguageContext = CaptureLanguageSnapshot;
-        _navigationPicker = new("notebook-navigation-picker", CaptureFileChoices, choice => {
-            if (_disposed || !_session.Scripts.Any(script => script.Id == choice.Id)) return;
-            UpdateCell(state => NotebookCellLayout.OpenTabIntoHome(state,
-                state.GetTabForWindow(state.GetScriptWindow(choice.Id).Id).Id));
-            _view.RevealEditor(choice.Id);
-            _view.Editors.Focus(choice.Id);
-        });
+        _navigationPicker = new("notebook-navigation-picker", CaptureFileChoices, OpenScriptChoice);
         _view.Editors.SourceChanged += HandleEditorSourceChanged;
         _view.Editors.DefinitionReady += HandleEditorDefinition;
         _view.Editors.ReferencesReady += HandleEditorReferences;
@@ -98,107 +83,6 @@ public sealed class NotebookWorkspace : IAsyncDisposable
     }
 
     public NotebookInfo Info => _info;
-
-    private ValueTask<CSharpProjectSnapshot> CaptureLanguageSnapshot(string binding, string source, CSharpQueryKind kind, CancellationToken cancellation)
-    {
-        cancellation.ThrowIfCancellationRequested();
-        if (_disposed || !_view.Editors.TryResolveCellId(binding, out var active)) throw new OperationCanceledException(cancellation);
-        if (kind is CSharpQueryKind.DocumentSymbols or CSharpQueryKind.WorkspaceSymbols) {
-            var documents = CaptureFileChoices().Where(file => kind == CSharpQueryKind.WorkspaceSymbols || file.Id == active)
-                .Select(file => new CSharpSourceDocument(file.Id, file.Name, file.Path,
-                    file.Id == active ? source : ReadScriptSource(file.Id), _session.IsScriptEditable(file.Id))).ToArray();
-            return ValueTask.FromResult(new CSharpProjectSnapshot(active, documents));
-        }
-        var cells = _session.GetProgramCells(active, id => id == active ? source
-            : _view.Editors.TryGetSource(id, out var live) ? live : _session.GetState(id).Source, includeFollowing: kind == CSharpQueryKind.References);
-        var readOnly = cells.SelectMany(static cell => cell.Files).Where(file => !_session.IsScriptEditable(file.Id)).Select(static file => file.Id).ToHashSet(StringComparer.Ordinal);
-        return new(CSharpCompilationEngine.RunRoslynAsync(() => CSharpProjectSnapshot.ForNotebook(active, cells, cancellation, readOnly), cancellation));
-    }
-
-    private void HandleEditorSourceChanged(string binding)
-    {
-        if (!_disposed && _view.Editors.TryResolveCellId(binding, out var cellId)) {
-            _renamePanel.Invalidate();
-            _referenceResults.Clear();
-            _view.UpdateEditorDirty(cellId);
-        }
-    }
-
-    private void HandleEditorDefinition(string binding, SymbolDefinition? definition)
-    {
-        if (_disposed || definition?.Locations.FirstOrDefault() is not { } target) return;
-        _referenceReturnBinding = binding;
-        _referenceResults.Clear();
-        NavigateEditorSource(target);
-    }
-
-    private void HandleEditorReferences(string binding, SymbolReferences? references)
-    {
-        if (_disposed || !_view.Editors.TryResolveCellId(binding, out _)) return;
-        _referenceReturnBinding = binding;
-        _referenceResults.Show(references);
-        _view.RevealLanguageResults(_referenceResults.Element);
-        _referenceResults.Focus();
-    }
-
-    internal bool RouteReferences(string argument) => !_disposed && _referenceResults.Route(argument);
-    internal bool RouteNavigationPicker(string argument) => !_disposed && _navigationPicker.Route(argument);
-
-    private IReadOnlyList<EditorNavigationChoice> CaptureFileChoices()
-        => [.. _session.ToDocument().Sections.SelectMany(section => section.Blocks.OfType<CodeCellBlock>()
-            .SelectMany(cell => cell.Scripts.Select(script => new EditorNavigationChoice(script.Id,
-                script.Name ?? "Script", $"{section.Title}/{script.Name ?? "Script"}"))))];
-
-    private string ReadScriptSource(string id)
-    {
-        _view.Editors.SynchronizeNativeInput(id);
-        return _view.Editors.TryGetSource(id, out var live) ? live : _session.GetState(id).Source;
-    }
-    internal void RouteRename(string argument) => Track(_renamePanel.RouteAsync(argument));
-    private void ReportRename(string message) => _renamePanel.Report(message);
-
-    private IReadOnlyDictionary<string, WorkspaceEditBuffer> CaptureWorkspaceBuffers(RenamePlan plan)
-    {
-        var buffers = new Dictionary<string, WorkspaceEditBuffer>(StringComparer.Ordinal);
-        if (!_session.Scripts.Any(script => script.Id == plan.Origin)) return buffers;
-        foreach (var file in _session.GetProgramCells(plan.Origin, id => _session.GetState(id).Source, includeFollowing: true).SelectMany(static cell => cell.Files)) {
-            if (_view.Editors.TryCaptureWorkspaceBuffer(file.Id, out var buffer)) buffers.Add(file.Id, buffer with { Editable = _session.IsScriptEditable(file.Id) });
-            else buffers.Add(file.Id, new(file.Source, new(EditorSelection.Single(0), 0, 0, 0, 0, 0), false));
-        }
-        return buffers;
-    }
-
-    private void CommitWorkspaceBuffers(IReadOnlyList<WorkspaceBufferChange> changes)
-    {
-        foreach (var change in changes) {
-            if (!_view.Editors.ApplyWorkspaceChange(change.DocumentId, change)) throw new InvalidOperationException("An affected editor is no longer available.");
-            _view.UpdateEditorDirty(change.DocumentId);
-        }
-    }
-
-    private void NavigateEditorSource(SourcePosition target)
-    {
-        if (_disposed) return;
-        if (target.Generated) {
-            _referenceResults.ShowSource(target);
-            _view.RevealLanguageResults(_referenceResults.Element);
-            return;
-        }
-        if (!_session.Scripts.Any(script => script.Id == target.DocumentId)) return;
-        UpdateCell(state => NotebookCellLayout.OpenTabIntoHome(state,
-            state.GetTabForWindow(state.GetScriptWindow(target.DocumentId).Id).Id));
-        var targetBinding = _view.Editors.GetBindingId(target.DocumentId) ?? target.DocumentId;
-        if (_view.Editors.TryResolveCellId(targetBinding, out var cellId)
-            && _view.Editors.GetSource(cellId) == target.Source) {
-            _view.Editors.NavigateToLine(cellId, target.Line, target.Column, target.Length);
-            _view.RevealEditor(cellId);
-            _referenceReturnBinding = targetBinding;
-        }
-        else if (!_session.IsScriptEditable(target.DocumentId) && _session.GetState(target.DocumentId).Source == target.Source) {
-            _referenceResults.ShowSource(target);
-            _view.RevealLanguageResults(_referenceResults.Element);
-        }
-    }
 
     internal bool CanExecuteCommand(EditorCommand command, string binding)
         => command.Id == EditorCommandId.QuickOpen && !_disposed
@@ -221,7 +105,7 @@ public sealed class NotebookWorkspace : IAsyncDisposable
             if (_disposed) return false;
             var workspace = command.Id == EditorCommandId.WorkspaceSymbols;
             Track(_navigationPicker.OpenSymbolsAsync(workspace, token => _view.Editors.QuerySymbolsAsync(binding, workspace, token),
-                target => !_disposed && _session.Scripts.Any(script => script.Id == target.DocumentId)
+                target => !_disposed && _session.ContainsScript(target.DocumentId)
                     && ReadScriptSource(target.DocumentId) == target.Source,
                 NavigateEditorSource, () => _view.Editors.Focus(cellId)));
             return true;
@@ -729,84 +613,14 @@ public sealed class NotebookWorkspace : IAsyncDisposable
 
     private void SynchronizeSurfaceWindows(NotebookSessionSnapshot snapshot)
     {
-        var previous = _previousSnapshot.Cells.ToDictionary(
-            static cell => cell.Id,
-            static cell => cell.State);
         var layout = _mount.GetState<NotebookCellState>();
-        var next = layout.Value;
-
-        var groups = new Dictionary<string, List<(CellState State, CellState? Previous)>>(StringComparer.Ordinal);
-        foreach (var cell in snapshot.Cells) {
-            var presentationId = next.GetScriptWindow(cell.Id).CellId;
-            var member = (cell.State, previous.TryGetValue(cell.Id, out var old) ? old : (CellState?)null);
-            if (!groups.TryGetValue(presentationId, out var members)) {
-                members = [];
-                groups.Add(presentationId, members);
-            }
-            members.Add(member);
+        var next = NotebookCellLayout.SynchronizeSurfaces(layout.Value, _previousSnapshot, snapshot);
+        if (next == layout.Value) return;
+        if (!NotebookCellLayout.IsValid(next)) {
+            throw new InvalidOperationException("Surface synchronization produced an invalid cell layout.");
         }
-
-        foreach (var (presentationId, members) in groups) {
-            var hasOutput = members.Exists(static m => HasOutput(m.State));
-            var hadOutput = members.Exists(static m => m.Previous is { } old && HasOutput(old));
-            var outputChanged = members.Exists(static m =>
-                m.Previous is not { } old
-                || old.StandardOutput != m.State.StandardOutput
-                || old.StandardError != m.State.StandardError
-                || CompletedRun(old, m.State));
-            if (hasOutput && (!hadOutput || outputChanged)) {
-                next = OpenCellWindow(next, presentationId, CellWindowKind.Output);
-            }
-            else if (!hasOutput && hadOutput) {
-                next = CloseCellWindow(next, presentationId, CellWindowKind.Output);
-            }
-
-            var rendering = members.Exists(static m => m.State.RenderRequested);
-            var wasRendering = members.Exists(static m => m.Previous?.RenderRequested == true);
-            var renderChanged = members.Exists(static m =>
-                m.State.RenderRequested
-                && (m.Previous is not { } old
-                    || !old.RenderRequested
-                    || old.RenderOutput != m.State.RenderOutput
-                    || CompletedRun(old, m.State)));
-            if (rendering && renderChanged) {
-                next = OpenCellWindow(next, presentationId, CellWindowKind.Render);
-            }
-            else if (!rendering && wasRendering) {
-                next = CloseCellWindow(next, presentationId, CellWindowKind.Render);
-            }
-        }
-
-        if (next != layout.Value) {
-            if (!NotebookCellLayout.IsValid(next)) {
-                throw new InvalidOperationException(
-                    "Surface synchronization produced an invalid cell layout.");
-            }
-            layout.Set(next with { Revision = layout.Value.Revision + 1 });
-        }
+        layout.Set(next with { Revision = layout.Value.Revision + 1 });
     }
-
-    private static bool CompletedRun(CellState old, CellState state)
-        => old.Phase == CellPhase.Running && state.Phase is CellPhase.RanSuccess or CellPhase.RanError;
-
-    private static bool HasOutput(CellState state)
-        => state.StandardOutput.Length > 0 || state.StandardError.Length > 0;
-
-    private static NotebookCellState OpenCellWindow(
-        NotebookCellState state,
-        string cellId,
-        CellWindowKind kind)
-        => NotebookCellLayout.OpenWindow(
-            state,
-            state.GetWindow(cellId, kind).Id);
-
-    private static NotebookCellState CloseCellWindow(
-        NotebookCellState state,
-        string cellId,
-        CellWindowKind kind)
-        => NotebookCellLayout.CloseWindow(
-            state,
-            state.GetWindow(cellId, kind).Id);
 
     private void ThrowIfDisposed()
         => ObjectDisposedException.ThrowIf(_disposed, this);
