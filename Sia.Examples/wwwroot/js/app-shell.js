@@ -7,6 +7,8 @@ function syncSidebar() {
     const open = !compactSidebar.matches || document.getElementById('app')?.classList.contains('sidebar-open');
     const sidebar = document.getElementById('sidebar');
     if (sidebar) sidebar.inert = !open;
+    const content = document.getElementById('content');
+    if (content) content.inert = compactSidebar.matches && open;
     for (const button of document.querySelectorAll('#sidebar-toggle, [data-sidebar-toggle]')) {
         if (button.getAttribute('aria-expanded') !== String(open)) button.setAttribute('aria-expanded', String(open));
     }
@@ -29,6 +31,7 @@ document.addEventListener('click', (event) => {
         document.getElementById('app')?.classList.toggle('sidebar-open');
         syncSidebar();
         if (document.getElementById('app')?.classList.contains('sidebar-open')) {
+            setPackagesOpen(false);
             if (toggle.hasAttribute('data-sidebar-toggle')) selectSidebarView('files');
             if (document.getElementById('sidebar')?.dataset.sidebarView === 'workspace') focusWorkspaceFiles();
             else document.querySelector('#sidebar .sidebar-tab[aria-selected="true"]')?.focus();
@@ -518,7 +521,13 @@ document.addEventListener('click', (event) => {
         }
     }
     if (event.target.closest?.('.menu-item')) {
-        menuOwner(event.target)?.removeAttribute('open');
+        const menu = menuOwner(event.target);
+        const restoreFocus = menuPortals.get(menu)?.popover.contains(document.activeElement);
+        menu?.removeAttribute('open');
+        closeMenuPortal(menu);
+        if (restoreFocus) {
+            menu.querySelector(':scope > summary')?.focus({ preventScroll: true });
+        }
     }
 
     const currentMenu = menuOwner(event.target);
@@ -530,11 +539,15 @@ document.addEventListener('click', (event) => {
 });
 
 document.addEventListener('keydown', (event) => {
+    if (event.defaultPrevented) {
+        return;
+    }
     const menu = menuOwner(event.target);
     if (menu?.open) {
         const state = menuPortals.get(menu);
         const summary = menu.querySelector(':scope > summary');
-        const items = [...(state?.popover.querySelectorAll('.menu-item') ?? [])];
+        const items = [...(state?.popover.querySelectorAll('.menu-item:not(:disabled)') ?? [])]
+            .filter((item) => item.getClientRects().length);
         const itemIndex = items.indexOf(event.target.closest?.('.menu-item'));
         if (event.key === 'Escape') {
             event.preventDefault();
@@ -549,12 +562,20 @@ document.addEventListener('keydown', (event) => {
         }
         if (event.key === 'Tab' && event.shiftKey && itemIndex === 0) {
             event.preventDefault();
+            menu.removeAttribute('open');
+            closeMenuPortal(menu);
             summary?.focus();
             return;
         }
         if (event.key === 'Tab' && !event.shiftKey && itemIndex === items.length - 1) {
-            event.preventDefault();
+            menu.removeAttribute('open');
+            closeMenuPortal(menu);
             summary?.focus();
+            return;
+        }
+        if ((event.key === 'Home' || event.key === 'End') && items.length > 0) {
+            event.preventDefault();
+            items[event.key === 'Home' ? 0 : items.length - 1].focus();
             return;
         }
         if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && items.length > 0) {
@@ -573,14 +594,65 @@ document.addEventListener('keydown', (event) => {
 
 });
 
-document.getElementById('packages-toggle')?.addEventListener('click', (event) => {
-    event.stopPropagation();
-    document.getElementById('header-packages')?.classList.toggle('open');
+const packages = document.getElementById('header-packages');
+const packagesToggle = document.getElementById('packages-toggle');
+
+function setPackagesOpen(open, returnFocus = false) {
+    packages?.classList.toggle('open', open);
+    packagesToggle?.setAttribute('aria-expanded', String(open));
+    if (open) {
+        packages?.querySelector('input')?.focus();
+    } else if (returnFocus && packagesToggle?.getClientRects().length) {
+        packagesToggle.focus();
+    }
+}
+
+packagesToggle?.addEventListener('click', () => {
+    setPackagesOpen(!packages?.classList.contains('open'));
 });
 
 document.addEventListener('click', (event) => {
-    const packages = document.getElementById('header-packages');
     if (packages?.classList.contains('open') && !packages.contains(event.target)) {
-        packages.classList.remove('open');
+        setPackagesOpen(false);
+    }
+    if (event.target.closest?.('[data-notice-cancel]')) {
+        document.getElementById('notebook')?.focus({ preventScroll: true });
     }
 });
+
+document.addEventListener('focusin', (event) => {
+    if (packages?.classList.contains('open') && !packages.contains(event.target)) {
+        setPackagesOpen(false);
+    }
+});
+
+document.addEventListener('keydown', (event) => {
+    if (event.defaultPrevented || event.isComposing || event.key !== 'Escape') {
+        return;
+    }
+    if (packages?.classList.contains('open') && packages.contains(event.target)) {
+        event.preventDefault();
+        setPackagesOpen(false, true);
+        return;
+    }
+    const cancel = document.querySelector('.save-conflict-banner:not(.hidden) [data-notice-cancel]');
+    if (cancel && !event.target.closest?.('dialog, .menu-popover')) {
+        event.preventDefault();
+        cancel.click();
+    }
+});
+
+document.addEventListener('submit', (event) => {
+    if (event.target.matches?.('[data-package-form]')) {
+        event.preventDefault();
+    }
+});
+
+const packagesContent = document.getElementById('packages-popover');
+if (packagesContent) {
+    new MutationObserver((records) => {
+        if (records.some((record) => record.removedNodes.length)) {
+            setPackagesOpen(false);
+        }
+    }).observe(packagesContent, { childList: true });
+}

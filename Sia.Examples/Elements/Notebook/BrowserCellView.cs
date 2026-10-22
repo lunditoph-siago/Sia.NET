@@ -208,10 +208,10 @@ public sealed class BrowserCellView : IDisposable
                 .Attr("type", "button")
                 .Attr("data-inline-begin", scopeInputId)
                 .Attr("aria-label", "Edit cell scope")
-                .Attr("title", "Edit cell scope")
+                .Attr("title", $"Edit scope: {ScopeLabel(cell.Scope)}")
                 .Text(ScopeLabel(cell.Scope));
             _scopeInput = DomElement.Create("input")
-                .Class("scope-input")
+                .Class("inline-input").Class("scope-input")
                 .Id(scopeInputId)
                 .Attr("type", "text")
                 .Attr("aria-label", "Cell scope")
@@ -222,28 +222,13 @@ public sealed class BrowserCellView : IDisposable
                 .Attr("data-allow-empty", "true")
                 .Attr("data-inline-trim", "true")
                 .Attr("data-inline-summary", scopeSummaryId)
-                .Attr("data-inline-prefix", "Scope: ")
                 .Attr("data-inline-empty-label", "Isolated")
                 .Attr("data-saved-value", cell.Scope ?? string.Empty);
-            var scopeActions = DomElement.Create("div")
-                .Class("inline-edit-actions")
-                .Class("scope-actions");
-            using (var saveScope = CreateIconButton(
-                "▣",
+            using var scopeActions = BrowserControls.InlineActions(
+                scopeInputId,
                 "Save scope",
-                $"set-scope:{cell.Id}")) {
-                saveScope.Attr("data-inline-save", scopeInputId);
-                scopeActions.Append(saveScope);
-            }
-            using (var discardScope = DomElement.Create("button")
-                .Class("icon-btn")
-                .Attr("type", "button")
-                .Attr("aria-label", "Discard scope changes")
-                .Attr("title", "Discard scope changes")
-                .Attr("data-inline-discard", scopeInputId)
-                .Text("↶")) {
-                scopeActions.Append(discardScope);
-            }
+                $"set-scope:{cell.Id}",
+                "Discard scope changes");
             var scopeEditPanel = DomElement.Create("div")
                 .Class("scope-edit-panel")
                 .Append(_scopeInput);
@@ -253,18 +238,13 @@ public sealed class BrowserCellView : IDisposable
                 _editActions = DomElement.Create("div")
                     .Class("cell-edit-actions")
                     .Class("hidden");
-                using (var save = CreateIconButton("▣", "Save changes", $"save:{script.Id}")
-                    .Attr("title", "Save changes")) {
+                using (var save = BrowserControls.IconButton("▣", "Save changes").On("click", $"save:{script.Id}")) {
                     _editActions.Append(save);
                 }
-                using (var discard = CreateIconButton(
-                    "↶",
-                    "Discard changes",
-                    $"discard:{script.Id}")) {
+                using (var discard = BrowserControls.IconButton("↶", "Discard changes").On("click", $"discard:{script.Id}")) {
                     _editActions.Append(discard);
                 }
-                _runStop = CreateIconButton("▶", "Run cell", $"toggle-run:{script.Id}")
-                    .Attr("title", "Run cell");
+                _runStop = BrowserControls.IconButton("▶", "Run cell").On("click", $"toggle-run:{script.Id}");
                 using var more = DomElement.Create("details").Class("menu-toggle");
                 using var summary = DomElement.Create("summary")
                     .Class("icon-btn")
@@ -346,7 +326,7 @@ public sealed class BrowserCellView : IDisposable
             _scopeInput
                 .Attr("value", value)
                 .Attr("data-saved-value", value);
-            _scopeSummary.Text(ScopeLabel(value));
+            _scopeSummary.Text(ScopeLabel(value)).Attr("title", $"Edit scope: {ScopeLabel(value)}");
         }
 
         public void DiscardChanges(BrowserEditorRegistry editors)
@@ -400,34 +380,13 @@ public sealed class BrowserCellView : IDisposable
             Window.Dispose();
         }
 
-        private static DomElement CreateIconButton(
-            string icon,
-            string label,
-            string payload)
-            => DomElement.Create("button")
-                .Class("icon-btn")
-                .Attr("type", "button")
-                .Attr("aria-label", label)
-                .Attr("title", label)
-                .On("click", payload)
-                .Text(icon);
-
         private static void AppendMenuButton(
             DomElement menu,
             string icon,
             string label,
             string payload)
         {
-            using var button = DomElement.Create("button")
-                .Class("menu-item")
-                .Attr("type", "button")
-                .On("click", payload);
-            using var glyph = DomElement.Create("span")
-                .Class("menu-icon")
-                .Attr("aria-hidden", "true")
-                .Text(icon);
-            using var text = DomElement.Create("span").Text(label);
-            button.Append(glyph).Append(text);
+            using var button = BrowserControls.MenuItem(icon, label).On("click", payload);
             menu.Append(button);
         }
 
@@ -438,21 +397,12 @@ public sealed class BrowserCellView : IDisposable
             string attribute,
             string value)
         {
-            using var button = DomElement.Create("button")
-                .Class("menu-item")
-                .Attr("type", "button")
-                .Attr(attribute, value);
-            using var glyph = DomElement.Create("span")
-                .Class("menu-icon")
-                .Attr("aria-hidden", "true")
-                .Text(icon);
-            using var text = DomElement.Create("span").Text(label);
-            button.Append(glyph).Append(text);
+            using var button = BrowserControls.MenuItem(icon, label).Attr(attribute, value);
             menu.Append(button);
         }
 
         private static string ScopeLabel(string? scope)
-            => string.IsNullOrWhiteSpace(scope) ? "Isolated" : $"Scope: {scope}";
+            => string.IsNullOrWhiteSpace(scope) ? "Isolated" : scope;
 
         private static void RenderHighlightedCode(
             DomElement element,

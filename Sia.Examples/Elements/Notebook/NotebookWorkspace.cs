@@ -124,6 +124,8 @@ public sealed partial class NotebookWorkspace : IAsyncDisposable
 
     public string? Version => _version;
 
+    internal string Title => _session.Title;
+
     public bool CanDelete
         => _info.Origin == NotebookOrigin.User && _info.Key.Length > 0;
 

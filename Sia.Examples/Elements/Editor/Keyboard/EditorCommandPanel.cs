@@ -6,7 +6,7 @@ internal sealed class EditorCommandPanel : IDisposable
 {
     private readonly EditorKeyboardSettings _keyboard;
     private readonly DomElement _root = DomElement.Find("app");
-    private readonly DomElement _chordStatus = DomElement.Create("span").Id("keymap-chord").Class("keymap-chord").Attr("role", "status");
+    private readonly DomElement _chordStatus;
     private readonly List<DomElement> _elements = [];
     private readonly List<DomElement> _rows = [];
     private readonly List<DomElement> _formElements = [];
@@ -34,6 +34,7 @@ internal sealed class EditorCommandPanel : IDisposable
     internal EditorCommandPanel(EditorKeyboardSettings keyboard)
     {
         _keyboard = keyboard;
+        _chordStatus = DomElement.Create("span").Id("keymap-chord").Class("keymap-chord").Attr("role", "status");
         _root.Append(_chordStatus);
     }
 

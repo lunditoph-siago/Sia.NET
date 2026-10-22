@@ -150,9 +150,11 @@
                 .bar-top {
                     transform: translateY(6px) rotate(45deg);
                 }
+
                 .bar-mid {
                     opacity: 0;
                 }
+
                 .bar-bot {
                     transform: translateY(-6px) rotate(-45deg);
                 }
@@ -171,8 +173,8 @@
         border-right: 1px solid;
         white-space: nowrap;
         transition:
-            width 0.25s ease,
-            padding 0.25s ease;
+        width 0.25s ease,
+        padding 0.25s ease;
 
         .sidebar-heading {
             display: flex;
@@ -190,7 +192,9 @@
         }
 
         &:not([data-sidebar-view='explorer']) > #sidebar-explorer,
-        &[data-sidebar-view='explorer'] > #sidebar-files { display: none; }
+        &[data-sidebar-view='explorer'] > #sidebar-files {
+            display: none;
+        }
 
         .sidebar-tabs {
             display: flex;
@@ -234,14 +238,15 @@
             }
         }
 
-        .sidebar-actions {
+        .library-folder {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+        }
+
+        .library-actions {
             display: flex;
             align-items: center;
             opacity: 0.75;
-        }
-
-        &[data-sidebar-view='files'] .sidebar-actions {
-            visibility: hidden;
         }
 
         .sidebar-panel {
@@ -253,9 +258,7 @@
         }
 
         :is(.library-folder-toggle, .example-btn) {
-            min-height: var(--control-size);
-
-            @media (any-pointer: coarse), (max-width: 899px) { min-height: 2.25rem; }
+            min-height: var(--control-row-size);
         }
 
         .library-folder-toggle {
@@ -291,12 +294,18 @@
         }
 
         .library-folder-toggle[aria-expanded='false'] {
-            .folder-caret { transform: rotate(-90deg); }
-            + .library-items { display: none; }
+            .folder-caret {
+                transform: rotate(-90deg);
+            }
+
+            ~ .library-items {
+                display: none;
+            }
         }
 
         .library-items {
             display: flex;
+            grid-column: 1 / -1;
             flex-direction: column;
             gap: 0.1rem;
             padding-left: 0.35rem;
@@ -341,6 +350,7 @@
                 font-size: 0.875rem;
                 font-weight: 500;
             }
+
             .desc {
                 opacity: 0.5;
                 font-size: 0.72rem;
@@ -376,9 +386,6 @@
             position: fixed;
             z-index: var(--z-navigation-drawer);
             inset: 0 auto 0 0;
-            width: var(--sidebar-width);
-            padding: 0.5rem;
-            border-right-color: currentColor;
             background: var(--color-bg);
             box-shadow: var(--shadow-drawer);
         }
@@ -408,6 +415,7 @@
             align-items: center;
             justify-content: space-between;
             min-height: calc(var(--control-size) + 0.25rem);
+            gap: 0.25rem;
             padding: 0.125rem 0.6rem;
             border-bottom: 1px solid var(--border-subtle);
 
@@ -432,16 +440,18 @@
                     stroke-width: 2;
                     stroke-linecap: round;
                     transition:
-                        transform 0.25s ease,
-                        opacity 0.2s ease;
+                    transform 0.25s ease,
+                    opacity 0.2s ease;
                 }
 
                 .bar-top {
                     transform-origin: 12px 6px;
                 }
+
                 .bar-mid {
                     transform-origin: 12px 12px;
                 }
+
                 .bar-bot {
                     transform-origin: 12px 18px;
                 }
@@ -452,7 +462,6 @@
             }
 
             .header-packages {
-                position: relative;
                 flex: none;
                 margin-left: auto;
 
@@ -500,7 +509,7 @@
                 .packages-popover {
                     position: absolute;
                     top: calc(100% + 0.4rem);
-                    right: 0;
+                    right: 0.6rem;
                     display: none;
                     width: min(26rem, 90vw);
                     max-height: min(70vh, 32rem);
@@ -512,15 +521,16 @@
                     box-shadow: var(--shadow-overlay);
                     font-size: 0.85rem;
 
-                    @media (any-pointer: coarse), (max-width: 899px) { padding: 0.4rem 0.5rem; }
-
-
+                    @media (any-pointer: coarse), (max-width: 899px) {
+                        padding: 0.4rem 0.5rem;
+                    }
                 }
 
                 &.open {
                     .packages-popover {
                         display: block;
                     }
+
                     .packages-caret {
                         transform: rotate(180deg);
                     }

@@ -47,8 +47,11 @@ internal sealed partial class ConsoleDomBackend
 
             switch (key.Key) {
                 case ConsoleKey.Q:
-                case ConsoleKey.Escape:
                     return "quit";
+                case ConsoleKey.Escape:
+                    var cancel = _document.DescendantsAndSelf()
+                        .FirstOrDefault(static node => node.IsVisible && node.Attributes.ContainsKey("data-notice-cancel"));
+                    return cancel?.ActivationPayload ?? "quit";
                 case ConsoleKey.UpArrow:
                     MoveFocus(-1);
                     Flush();

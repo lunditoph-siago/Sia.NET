@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <base href="./">
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Sia.NET Examples</title>
+    <title id="page-title">Sia.NET Examples</title>
     <link rel="preload" id="webassembly" />
     <link rel="stylesheet" href="tokens.css" />
     <link rel="stylesheet" href="base.css" />
@@ -35,7 +35,6 @@
                         Files
                     </button>
                 </div>
-                <span id="sidebar-actions" class="sidebar-actions"></span>
                 <button class="icon-btn sidebar-dismiss" type="button" data-sidebar-dismiss
                         aria-label="Close sidebar" title="Close sidebar">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
@@ -64,6 +63,7 @@
                         </svg>
                         <span>User notebooks</span>
                     </button>
+                    <span id="user-notebook-actions" class="library-actions"></span>
                     <div id="user-notebooks" class="library-items"></div>
                 </section>
             </div>
@@ -84,17 +84,25 @@
                     </svg>
                 </button>
                 <div id="notebook-actions"></div>
-                <div id="header-packages" class="header-packages">
-                    <button id="packages-toggle" class="packages-toggle" aria-label="Packages">
+                <div id="header-packages" class="header-packages hidden">
+                    <button id="packages-toggle" class="packages-toggle" type="button"
+                            aria-label="Packages" aria-controls="packages-popover" aria-expanded="false">
                         Packages<span id="packages-badge" class="packages-badge"></span>
                         <svg class="packages-caret" viewBox="0 0 24 24" width="14" height="14">
                             <polyline points="6 9 12 15 18 9" />
                         </svg>
                     </button>
-                    <div id="packages-popover" class="packages-popover"></div>
+                    <div id="packages-popover" class="packages-popover" role="region" aria-label="Notebook packages"></div>
                 </div>
+                <button id="application-home" class="icon-btn hidden" type="button"
+                        aria-label="Examples home" title="Back to examples home">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+                         stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="m3 10 9-7 9 7M5 9v12h5v-7h4v7h5V9" />
+                    </svg>
+                </button>
             </div>
-            <div id="notebook">
+            <div id="notebook" tabindex="-1">
                 <article id="notebook-home" class="notebook-home">
                     <section class="home-intro">
                         <p class="home-eyebrow">Sia.NET</p>

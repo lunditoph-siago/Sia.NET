@@ -27,8 +27,7 @@ internal sealed partial class ConsoleDomBackend
         }
         var rows = _renderer.Render(new(
             _sidebar,
-            _contentHeader,
-            _notebook,
+            _content,
             _focused,
             _activePane,
             _error,
@@ -43,13 +42,13 @@ internal sealed partial class ConsoleDomBackend
     private ConsoleDomNode[] InteractiveNodes(Pane pane)
         => pane switch {
             Pane.Sidebar => Interactive(_sidebar),
-            _ => [.. Interactive(_contentHeader), .. Interactive(_notebook)],
+            _ => Interactive(_content),
         };
 
     private static ConsoleDomNode[] Interactive(ConsoleDomNode root)
         => root.DescendantsAndSelf()
             .Where(static node => node.IsVisible
-                && (node.Listeners.ContainsKey("click") || node.HasClass("editor-surface")))
+                && (node.ActivationPayload is not null || node.HasClass("editor-surface")))
             .ToArray();
 
     private void NormalizeFocus()
@@ -104,7 +103,7 @@ internal sealed partial class ConsoleDomBackend
     private string? ActivateFocused()
     {
         NormalizeFocus();
-        return _focused?.Listeners.GetValueOrDefault("click");
+        return _focused?.ActivationPayload;
     }
 
     private void MarkChanged() => _dirty = true;

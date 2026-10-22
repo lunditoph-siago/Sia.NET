@@ -306,6 +306,8 @@ public sealed class NotebookSession : IDisposable
         Publish();
     }
 
+    internal string Title => _document.Title;
+
     public void SetTitle(string title)
     {
         VerifyAccess();

@@ -8,7 +8,7 @@ internal sealed class ConsoleDomRenderer
     private const int k_SidebarWidth = 22;
 
     private int _sidebarScroll;
-    private int _notebookScroll;
+    private int _contentScroll;
 
     public IReadOnlyList<string> Render(ConsoleRenderRequest request)
     {
@@ -37,14 +37,11 @@ internal sealed class ConsoleDomRenderer
         var sidebarLines = new List<ConsoleLine>();
         RenderNode(sidebarLines, request.Sidebar, depth: 0, request.Focused, cursor: null);
 
-        var headerLines = new List<ConsoleLine>();
-        RenderNode(headerLines, request.ContentHeader, depth: 0, request.Focused, cursor: null);
-
-        var notebookLines = new List<ConsoleLine>();
-        RenderNode(notebookLines, request.Notebook, depth: 0, request.Focused, request.Cursor);
+        var contentLines = new List<ConsoleLine>();
+        RenderNode(contentLines, request.Content, depth: 0, request.Focused, request.Cursor);
         if (!string.IsNullOrWhiteSpace(request.Error)) {
             AddLines(
-                notebookLines,
+                contentLines,
                 $"Error: {request.Error}",
                 new(ConsoleColor.Red),
                 depth: 0,
@@ -53,16 +50,12 @@ internal sealed class ConsoleDomRenderer
                 preserveWhitespace: false);
         }
 
-        var notebookHeight = System.Math.Max(contentArea.Height - 1, 0);
         var focusedInActivePane = request.ActivePane == Pane.Content ? request.Focused : null;
         KeepVisible(sidebarLines, request.Focused, sidebarArea.Height, ref _sidebarScroll);
-        KeepVisible(notebookLines, focusedInActivePane, notebookHeight, ref _notebookScroll);
+        KeepVisible(contentLines, focusedInActivePane, contentArea.Height, ref _contentScroll);
 
         var sidebarRows = Materialize(sidebarLines, _sidebarScroll, sidebarArea.Width, sidebarArea.Height);
-        var headerRow = headerLines.Count > 0
-            ? headerLines[0].Render(contentArea.Width)
-            : RenderLine(string.Empty, default, contentArea.Width);
-        var notebookRows = Materialize(notebookLines, _notebookScroll, contentArea.Width, notebookHeight);
+        var contentRows = Materialize(contentLines, _contentScroll, contentArea.Width, contentArea.Height);
 
         var rows = new string[request.Height];
         if (titleArea.Height > 0) {
@@ -109,9 +102,7 @@ internal sealed class ConsoleDomRenderer
         string InnerRow(int y)
         {
             var sidebarRow = sidebarRows[y - sidebarArea.Y];
-            var contentRow = y == contentArea.Y
-                ? headerRow
-                : notebookRows[y - contentArea.Y - 1];
+            var contentRow = contentRows[y - contentArea.Y];
             return $"{BoxDrawing.Vertical}{sidebarRow}{BoxDrawing.Vertical}{contentRow}{BoxDrawing.Vertical}";
         }
     }
@@ -319,7 +310,8 @@ internal sealed class ConsoleDomRenderer
     private static string ButtonText(ConsoleDomNode node)
     {
         if (!node.HasClass("example-btn")) {
-            return node.TextContent();
+            var text = node.TextContent();
+            return text.Length <= 2 ? node.Attributes.GetValueOrDefault("aria-label", text) : text;
         }
         var name = node.FirstWithClass("name")?.TextContent() ?? string.Empty;
         var description = node.FirstWithClass("desc")?.TextContent() ?? string.Empty;

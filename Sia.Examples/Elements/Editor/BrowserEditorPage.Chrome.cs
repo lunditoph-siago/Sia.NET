@@ -81,9 +81,7 @@ internal sealed partial class BrowserEditorPage
 
     private DomElement CreateIconAction(string label, string payload)
     {
-        var button = Own(DomElement.Create("button").Class("icon-btn").Class("editor-action")
-            .Attr("type", "button").Attr("aria-label", label).Attr("title", label)
-            .On("click", payload));
+        var button = Own(BrowserControls.IconButton(string.Empty, label).Class("editor-action").On("click", payload));
         var icons = label == "Run"
             ? new[] { ("run", "M8 4.5 20 12 8 19.5Z"), ("stop", "M6.5 6.5h11v11h-11Z") }
             : new[] {
