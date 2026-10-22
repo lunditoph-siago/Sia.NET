@@ -18,8 +18,8 @@ export function createShaderPreview(containerId, statusId, inspector, maximumDim
 export function setShaderPreviewRevision(owner, revision) {
     owner.invalidate(revision);
 }
-export function showShaderPreview(owner, wgsl, entry, layoutJson, revision, route) {
-    return owner.show(wgsl, entry, JSON.parse(layoutJson), revision, route);
+export function showShaderPreview(owner, wgsl, entry, layoutJson, revision) {
+    return owner.show(wgsl, entry, JSON.parse(layoutJson), revision);
 }
 export function disposeShaderPreview(owner) {
     owner.dispose();
@@ -174,7 +174,7 @@ class ShaderPreview {
         }
     }
 
-    async show(wgsl, entry, layout, revision, route) {
+    async show(wgsl, entry, layout, revision) {
         const started = performance.now();
         const device = await this.ensureDevice();
         if (this.disposed || revision !== this.revision) return -1;
@@ -273,7 +273,7 @@ class ShaderPreview {
             this.started = performance.now();
             oldBuffer?.destroy();
             const milliseconds = performance.now() - started;
-            this.pipelineStatus = `${route} · ${this.presentation} · ${entry} · GPU pipeline ${milliseconds.toFixed(1)} ms`;
+            this.pipelineStatus = `WGSL · ${this.presentation} · ${entry} · GPU pipeline ${milliseconds.toFixed(1)} ms`;
             this.drawError = false;
             this.setStatus(this.pipelineStatus);
             this.refresh();

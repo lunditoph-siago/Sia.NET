@@ -34,8 +34,7 @@ internal sealed partial class EditorShaderPreview : IDisposable
         if (artifact.Preview.UnsupportedReason is { } reason) throw new InvalidOperationException(reason);
 #if BROWSER
         return Show(_handle, artifact.Wgsl,
-            artifact.EntryName, JsonSerializer.Serialize(artifact.Preview, s_JsonOptions), revision,
-            "WGSL");
+            artifact.EntryName, JsonSerializer.Serialize(artifact.Preview, s_JsonOptions), revision);
 #else
         return Task.FromException<double>(new PlatformNotSupportedException("GPU preview is available in the browser editor."));
 #endif
@@ -66,7 +65,7 @@ internal sealed partial class EditorShaderPreview : IDisposable
     [JSImport("showShaderPreview", "main.js")]
     [return: JSMarshalAs<JSType.Promise<JSType.Number>>]
     private static partial Task<double> Show(JSObject owner, string wgsl, string entry,
-        string layoutJson, int revision, string route);
+        string layoutJson, int revision);
     [JSImport("disposeShaderPreview", "main.js")]
     private static partial void Release(JSObject owner);
     [JSImport("downloadShaderBinary", "main.js")]
