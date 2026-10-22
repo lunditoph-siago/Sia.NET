@@ -309,20 +309,25 @@
                     display: contents;
 
                     .phase {
-                        grid-column: 1;
+                        grid-column: 3;
                         grid-row: 2;
-                        margin-left: 0;
+                        align-self: center;
+                        justify-self: end;
+                        padding: 0;
+                        border: 0;
                     }
 
                     .scope-editor {
-                        grid-column: 2 / 4;
+                        grid-column: 1 / 3;
                         grid-row: 2;
-                        width: 100%;
 
                         .scope-summary {
-                            width: 100%;
-                            max-width: none;
-                            min-height: 1.75rem;
+                            max-width: 100%;
+                            min-height: 2rem;
+                            padding-inline: 0.25rem;
+                            border-radius: var(--radius-control);
+                            background: transparent;
+                            text-align: left;
                         }
 
                         .scope-edit-panel {
