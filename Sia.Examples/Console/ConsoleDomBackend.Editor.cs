@@ -118,11 +118,13 @@ internal sealed partial class ConsoleDomBackend
     {
         _ = AsNode(container);
         var target = AsNode(element);
-        if (target.Listeners.ContainsKey("click")) {
+        if (target.ActivationPayload is not null || target.HasClass("editor-surface")) {
             _activePane = PaneOf(target);
             _focused = target;
             MarkChanged();
         }
     }
+
+    public void Focus(IDomNode node) => EnsureVisible(node, node);
 }
 #endif

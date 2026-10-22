@@ -171,7 +171,8 @@ document.addEventListener('keydown', event => {
             return;
         }
         if (event.key === 'Escape') { event.preventDefault(); panelEvent('escape'); }
-        else if (dialog.dataset.editorDialog && event.key === 'Enter' && event.target.matches('input')) {
+        else if (dialog.dataset.editorDialog && event.key === 'Enter' && event.target.matches('input')
+            && !event.target.closest('[data-package-form]')) {
             event.preventDefault(); panelEvent('accept');
         }
         else if (dialog.dataset.keymapDialog === 'commands'

@@ -8,8 +8,7 @@ internal sealed partial class ConsoleDomBackend : IDomBackend
     private readonly IConsoleTerminal _terminal;
     private readonly ConsoleDomNode _document;
     private readonly ConsoleDomNode _sidebar;
-    private readonly ConsoleDomNode _contentHeader;
-    private readonly ConsoleDomNode _notebook;
+    private readonly ConsoleDomNode _content;
     private bool _disposed;
 
     public bool SupportsNativeInput => false;
@@ -19,8 +18,7 @@ internal sealed partial class ConsoleDomBackend : IDomBackend
         _terminal = terminal;
         _document = CreateDocument();
         _sidebar = FindNode("sidebar");
-        _contentHeader = FindNode("content-header");
-        _notebook = FindNode("notebook");
+        _content = FindNode("content");
     }
 
     public IDomNode Find(string id)

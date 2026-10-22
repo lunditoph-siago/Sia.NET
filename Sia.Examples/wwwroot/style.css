@@ -293,6 +293,10 @@
         .library-folder-toggle[aria-expanded='false'] {
             .folder-caret { transform: rotate(-90deg); }
             + .library-items { display: none; }
+
+            ~ .library-empty {
+                display: none;
+            }
         }
 
         .library-items {
@@ -300,6 +304,24 @@
             flex-direction: column;
             gap: 0.1rem;
             padding-left: 0.35rem;
+
+            &:not(:empty) + .library-empty {
+                display: none;
+            }
+        }
+
+        .library-empty {
+            display: grid;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            color: var(--color-subtle);
+            font-size: 0.75rem;
+            line-height: var(--line-height-copy);
+
+            .btn {
+                justify-self: start;
+                color: var(--color-fg);
+            }
         }
 
         .example-btn {

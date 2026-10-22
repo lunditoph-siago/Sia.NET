@@ -42,6 +42,18 @@ internal sealed class ConsoleDomNode(
 
     public bool HasClass(string className) => Classes.Contains(className);
 
+    public string? ActivationPayload
+    {
+        get {
+            if (Listeners.TryGetValue("click", out var click)) return click;
+            if (TagName != "button" || Attributes.GetValueOrDefault("type") != "submit") return null;
+            for (var parent = Parent; parent is not null; parent = parent.Parent) {
+                if (parent.TagName == "form") return parent.Listeners.GetValueOrDefault("submit");
+            }
+            return null;
+        }
+    }
+
     public ConsoleDomNode? FirstWithClass(string className)
         => DescendantsAndSelf().FirstOrDefault(node => node.HasClass(className));
 

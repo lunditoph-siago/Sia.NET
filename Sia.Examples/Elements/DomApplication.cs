@@ -44,6 +44,7 @@ internal static class DomApplication
                 workspace?.ConfigureKeyboard(keymap);
             };
             NavigationAttempt? pendingNavigation = null;
+            (NotebookWorkspace Owner, long Generation)? pendingDeletion = null;
             long navigationGeneration = 0;
             var quitting = false;
 
@@ -67,6 +68,7 @@ internal static class DomApplication
             void ClearNavigation()
             {
                 pendingNavigation = null;
+                pendingDeletion = null;
                 view.HideConflict();
             }
 
@@ -76,7 +78,7 @@ internal static class DomApplication
                 if (navigation?.IsCurrent(request.HistoryTicket) == false) return;
                 var generation = ++navigationGeneration;
                 pendingNavigation = new(request, owner, generation);
-                view.ShowNotice(
+                view.ShowConfirmation(
                     error ?? "There are unsaved changes. Save before leaving?",
                     ("Save", $"navigation-save:{generation}"),
                     ("Don't Save", $"navigation-discard:{generation}"),
@@ -108,6 +110,7 @@ internal static class DomApplication
                     ? -1
                     : IndexOf(library.Notebooks, workspace.Info);
                 app.GetState<ExampleAppState>().Set(new(selected));
+                app.Invalidate();
                 world.FlushReactive();
             }
 
@@ -210,6 +213,7 @@ internal static class DomApplication
                     frameworkAssemblies,
                     packages);
                 if (page.Target == Destination.Editor) {
+                    view.ShowEditor();
                     editorPage = new BrowserEditorPage(world, references, workspaceStorage);
                     editorPage.ConfigureKeyboard(keyboard.Value);
                     editorPage.CommandInvoked += ExecuteCommand;
@@ -233,7 +237,7 @@ internal static class DomApplication
                     workspace.InsertSection(null, "Notes");
                 }
                 RefreshSidebarSelection();
-                view.ShowNotebookBar(info, version);
+                view.ShowNotebookBar(info with { Name = workspace.Title }, version);
                 await workspace.InitializeAsync();
             }
 
@@ -273,6 +277,10 @@ internal static class DomApplication
 
                             case "application-home":
                                 await NavigateAsync(new(Destination.Home));
+                                break;
+
+                            case "dismiss-notice":
+                                ClearNavigation();
                                 break;
 
                             case "quit":
@@ -323,7 +331,7 @@ internal static class DomApplication
                                                     view.ShowConflict(conflict);
                                                     break;
                                                 }
-                                                view.ShowNotebookBar(workspace.Info, version);
+                                                view.ShowNotebookBar(workspace.Info with { Name = workspace.Title }, version);
                                                 RefreshSidebarSelection();
                                                 await CommitCurrentRouteAsync(replace: true);
                                             }
@@ -376,22 +384,43 @@ internal static class DomApplication
                                 break;
 
                             case "save-notebook" when workspace is not null: {
+                                    ClearNavigation();
                                     var (version, conflict) = await workspace.SaveToStorageAsync();
                                     if (conflict is not null) {
                                         view.ShowConflict(conflict);
                                     }
                                     else {
-                                        view.ShowNotebookBar(workspace.Info, version);
+                                        view.ShowNotebookBar(workspace.Info with { Name = workspace.Title }, version);
                                         RefreshSidebarSelection();
                                         await CommitCurrentRouteAsync(replace: true);
                                     }
                                     break;
                                 }
 
-                            case "delete-notebook" when workspace is not null:
+                            case "delete-notebook" when workspace is { CanDelete: true }: {
+                                    ClearNavigation();
+                                    var generation = ++navigationGeneration;
+                                    pendingDeletion = (workspace, generation);
+                                    view.ShowConfirmation(
+                                        $"Delete '{workspace.Title}' from this browser? This cannot be undone.",
+                                        ("Delete", $"delete-notebook-confirm:{generation}"),
+                                        ("Cancel", $"delete-notebook-cancel:{generation}"));
+                                    break;
+                                }
+
+                            case "delete-notebook-cancel":
+                            case "delete-notebook-confirm":
+                                if (pendingDeletion is not { Owner: var target, Generation: var deletionExpected }
+                                    || !ReferenceEquals(target, workspace)
+                                    || !long.TryParse(argument, out var deletionGeneration)
+                                    || deletionGeneration != deletionExpected || deletionExpected != navigationGeneration) {
+                                    break;
+                                }
+                                ClearNavigation();
+                                if (eventName == "delete-notebook-cancel") break;
                                 try {
-                                    if (await workspace.DeleteFromStorageAsync()) {
-                                        await workspace.DisposeAsync();
+                                    if (await target.DeleteFromStorageAsync()) {
+                                        await target.DisposeAsync();
                                         workspace = null;
                                         RefreshSidebarSelection();
                                         view.ShowHome();
@@ -404,12 +433,13 @@ internal static class DomApplication
                                 break;
 
                             case "resolve-conflict-overwrite" when workspace is not null: {
+                                    ClearNavigation();
                                     var (version, conflict) = await workspace.SaveToStorageAsync(force: true);
                                     if (conflict is not null) {
                                         view.ShowConflict(conflict);
                                     }
                                     else {
-                                        view.ShowNotebookBar(workspace.Info, version);
+                                        view.ShowNotebookBar(workspace.Info with { Name = workspace.Title }, version);
                                         RefreshSidebarSelection();
                                         await CommitCurrentRouteAsync(replace: true);
                                     }
@@ -417,6 +447,8 @@ internal static class DomApplication
                                 }
 
                             case "resolve-conflict-reload" when workspace is not null:
+                                ClearNavigation();
+                                await library.RefreshAsync();
                                 await NavigateAsync(new(Destination.Notebook, workspace.Info, Reload: true, Discard: true));
                                 break;
 
@@ -472,7 +504,9 @@ internal static class DomApplication
                                 break;
 
                             case "rename-title" when workspace is not null:
+                                ClearNavigation();
                                 workspace.RenameTitle();
+                                view.ShowNotebookTitle(workspace.Title);
                                 break;
 
                             case "add-package" when workspace is not null:
@@ -530,6 +564,8 @@ internal static class DomApplication
                         workspace?.FlushCommands();
                     }
                     catch (Exception error) {
+                        ClearNavigation();
+                        view.ShowNotice($"Action failed: {error.Message}", ("Dismiss", "dismiss-notice"));
                         DomRuntime.ReportError(error.ToString());
                     }
                     DomRuntime.Flush();

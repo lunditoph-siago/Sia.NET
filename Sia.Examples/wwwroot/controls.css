@@ -39,6 +39,16 @@
             background: var(--surface-hover);
         }
 
+        &:focus-visible {
+            outline: 2px solid var(--color-accent);
+            outline-offset: 2px;
+        }
+
+        &:disabled {
+            opacity: 0.5;
+            cursor: default;
+        }
+
         @media (any-pointer: coarse), (max-width: 899px) { padding: 0.15rem 0.4rem; }
     }
 }

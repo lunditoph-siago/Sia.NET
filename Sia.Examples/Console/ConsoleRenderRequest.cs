@@ -5,8 +5,7 @@ namespace Sia.Examples.Console;
 
 internal readonly record struct ConsoleRenderRequest(
     ConsoleDomNode Sidebar,
-    ConsoleDomNode ContentHeader,
-    ConsoleDomNode Notebook,
+    ConsoleDomNode Content,
     ConsoleDomNode? Focused,
     Pane ActivePane,
     string? Error,
