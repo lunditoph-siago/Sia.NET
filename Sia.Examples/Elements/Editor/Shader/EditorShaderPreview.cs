@@ -43,7 +43,7 @@ internal sealed partial class EditorShaderPreview : IDisposable
     public static void Download(ShaderArtifact artifact)
     {
 #if BROWSER
-        DownloadBinary(artifact.QualifiedName + ".spv", Convert.ToBase64String(artifact.Spirv));
+        DownloadBinary(artifact.QualifiedName + ".spv", artifact.Spirv);
 #endif
     }
 
@@ -69,6 +69,7 @@ internal sealed partial class EditorShaderPreview : IDisposable
     [JSImport("disposeShaderPreview", "main.js")]
     private static partial void Release(JSObject owner);
     [JSImport("downloadShaderBinary", "main.js")]
-    private static partial void DownloadBinary(string name, string base64);
+    private static partial void DownloadBinary(string name,
+        [JSMarshalAs<JSType.Array<JSType.Number>>] byte[] bytes);
 #endif
 }

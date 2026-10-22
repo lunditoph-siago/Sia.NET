@@ -24,8 +24,7 @@ export function showShaderPreview(owner, wgsl, entry, layoutJson, revision) {
 export function disposeShaderPreview(owner) {
     owner.dispose();
 }
-export function downloadShaderBinary(name, base64) {
-    const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
+export function downloadShaderBinary(name, bytes) {
     const url = URL.createObjectURL(new Blob([bytes], { type: 'application/octet-stream' }));
     const anchor = document.createElement('a');
     anchor.href = url;
