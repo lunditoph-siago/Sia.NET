@@ -36,7 +36,7 @@ public sealed partial class BrowserEditorHost : IDisposable
             source,
             EditorDecorations.FromHighlights(highlights));
         _domDocuments.Add(0, new(initialState.Doc, ChangeSet.Empty(initialState.Doc.Length), 0));
-        _viewState = EditorViewState.Create(initialState.Doc, lineWrapping: false);
+        _viewState = EditorViewState.Create(initialState.Doc, lineWrapping: true);
         _view.BeginUpdate();
         try {
             _view.SetDocumentRevision(0);

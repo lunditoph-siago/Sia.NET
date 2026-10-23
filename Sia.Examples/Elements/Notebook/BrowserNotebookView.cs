@@ -15,6 +15,7 @@ public sealed class BrowserNotebookView :
     private readonly BrowserPackagePanel _packages;
     private readonly BrowserNotebookFileTree _fileTree;
     private readonly BrowserCellWorkspaceView _cellWorkspace;
+    private DomElement _wordWrapAction = null!;
     private readonly Dictionary<string, BrowserCellView> _cellsByBlock = [];
     private readonly Dictionary<string, BrowserCellView> _cellsByScript = [];
     private readonly Dictionary<string, DomElement> _sectionElements = [];
@@ -54,6 +55,12 @@ public sealed class BrowserNotebookView :
     }
 
     public BrowserEditorRegistry Editors => _editors;
+    internal void ConfigureLineWrapping(bool enabled)
+    {
+        _root.ToggleClass("code-nowrap", !enabled);
+        _editors.ConfigureLineWrapping(enabled);
+        _wordWrapAction.Attr("aria-checked", enabled ? "true" : "false");
+    }
     internal PackageRef? ReadPackageAddition() => _packages.ReadAddition();
 
     internal void AttachLanguageResults(DomElement element)
@@ -200,6 +207,7 @@ public sealed class BrowserNotebookView :
         _cellsByScript.Clear();
         _fileTree.Dispose();
         _packages.Dispose();
+        _wordWrapAction.Dispose();
         _root.Remove();
         _root.Dispose();
         _container.Dispose();
@@ -218,6 +226,8 @@ public sealed class BrowserNotebookView :
         using var shortcuts = DomElement.Create("button").Attr("type", "button").Class("btn")
             .Attr("data-workbench-command", "Keybindings").Attr("title", "Configure keyboard shortcuts").Text("Shortcuts");
         documentActions.Append(shortcuts);
+        _wordWrapAction = BrowserControls.WordWrapToggle(menu: false);
+        documentActions.Append(_wordWrapAction);
         AppendAddMenu(
             documentActions,
             "New section",

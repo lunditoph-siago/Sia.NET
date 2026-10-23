@@ -598,6 +598,11 @@
         overflow-wrap: anywhere;
         caret-color: var(--color-accent);
 
+        &.editor-nowrap {
+            white-space: pre;
+            overflow-wrap: normal;
+        }
+
         &[data-editor-mode="Normal"] {
             caret-shape: block;
         }

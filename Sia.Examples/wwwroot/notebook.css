@@ -1,4 +1,10 @@
 @layer components {
+    .notebook-document {
+        &.code-nowrap .code:not(.code-edit) {
+            white-space: pre;
+        }
+    }
+
     #content {
         container: notebook / inline-size;
         position: relative;

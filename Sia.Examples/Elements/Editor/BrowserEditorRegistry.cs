@@ -14,8 +14,15 @@ public sealed class BrowserEditorRegistry(
     private EditorKeymap _keymap = EditorKeymap.Default;
     private CommandContext _commandContext = CommandContext.Editor;
     private string? _activeBinding;
+    private bool _lineWrapping = true;
     internal EditorInputMode InputMode { get; private set; } = EditorInputMode.Standard;
     internal event Action<EditorInputMode>? InputModeChanged;
+
+    internal void ConfigureLineWrapping(bool enabled)
+    {
+        _lineWrapping = enabled;
+        foreach (var entry in _editors.Values) entry.Editor.ConfigureLineWrapping(enabled);
+    }
 
     internal void SetInputMode(EditorInputMode mode)
     {
@@ -93,6 +100,7 @@ public sealed class BrowserEditorRegistry(
             highlights,
             _completionProvider);
         editor.BindInputSession(this);
+        editor.ConfigureLineWrapping(_lineWrapping);
         editor.ConfigureKeyboard(_keymap, _commandContext);
         _editors.Add(cellId, (container, editor));
         editor.SourceChanged += OnSourceChanged;

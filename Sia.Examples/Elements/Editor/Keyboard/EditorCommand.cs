@@ -7,7 +7,7 @@ internal enum CommandContext { Workbench, Editor, EditorLab, Notebook, Suggestio
 [JsonConverter(typeof(JsonStringEnumConverter<EditorCommandId>))]
 internal enum EditorCommandId
 {
-    Commands, Keybindings, QuickOpen, DocumentSymbols, WorkspaceSymbols, NewFile, Save, SaveAll, SaveAs, Revert, CloseFile,
+    Commands, Keybindings, ToggleWordWrap, QuickOpen, DocumentSymbols, WorkspaceSymbols, NewFile, Save, SaveAll, SaveAs, Revert, CloseFile,
     Compile, Run, Console, Compilation, Render, ClearOutput, NotebookRun, NotebookSave,
     Undo, Redo, Suggest, AcceptSuggestion, NextSuggestion, PreviousSuggestion, HideSuggestions,
     SignatureHelp, NextSignature, PreviousSignature, HideSignature,
@@ -44,6 +44,7 @@ internal sealed record EditorCommand(
         new(EditorCommandId.OutdentOperator, "Vim: Outdent Lines", CommandContext.Editor, Modal: true),
         new(EditorCommandId.Commands, "Show All Commands", CommandContext.Workbench),
         new(EditorCommandId.Keybindings, "Preferences: Keyboard Shortcuts", CommandContext.Workbench),
+        new(EditorCommandId.ToggleWordWrap, "View: Toggle Word Wrap", CommandContext.Workbench),
         new(EditorCommandId.QuickOpen, "Go: Quick Open File", CommandContext.Workbench),
         new(EditorCommandId.DocumentSymbols, "Go: Symbol in File", CommandContext.Workbench),
         new(EditorCommandId.WorkspaceSymbols, "Go: Symbol in Workspace", CommandContext.Workbench),

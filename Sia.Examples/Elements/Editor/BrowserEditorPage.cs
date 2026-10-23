@@ -7,6 +7,11 @@ namespace Sia.Examples.Editor;
 internal sealed partial class BrowserEditorPage : IAsyncDisposable
 {
     internal void ConfigureKeyboard(EditorKeymap keymap) => _editors.ConfigureKeyboard(keymap, CommandContext.EditorLab);
+    internal void ConfigureLineWrapping(bool enabled)
+    {
+        _editors.ConfigureLineWrapping(enabled);
+        _wordWrapAction.Attr("aria-checked", enabled ? "true" : "false");
+    }
     internal void FlushCommands() => _editors.FlushCommands();
     internal event Action<EditorCommand, string> CommandInvoked {
         add => _editors.CommandInvoked += value;
@@ -28,6 +33,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
     private readonly DomElement _compileAction;
     private readonly DomElement _compactInputAction;
     private readonly DomElement _inputToolsAction;
+    private readonly DomElement _wordWrapAction;
     private readonly DomElement _operationError;
     private readonly DomElement _compilationOutput;
     private readonly DomElement _programOutput;
@@ -97,6 +103,8 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         _outputPaneAction = CreateAction("Output Pane", "editor-page-toggle-output", "Collapse the output pane to its tabs, or restore its previous size")
             .Class("menu-item").Attr("role", "menuitemcheckbox").Attr("aria-checked", "true");
         view.Append(_outputPaneAction);
+        _wordWrapAction = Own(BrowserControls.WordWrapToggle());
+        view.Append(_wordWrapAction);
         var tools = CreateMenu(menus, "Tools", [
             ("Command Palette…", "workbench-command:Commands", "Search and run commands"),
             ("Keyboard Shortcuts…", "workbench-command:Keybindings", "Configure keyboard shortcuts"),

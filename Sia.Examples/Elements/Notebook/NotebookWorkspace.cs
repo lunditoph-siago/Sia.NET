@@ -8,6 +8,7 @@ namespace Sia.Examples.Notebook;
 public sealed partial class NotebookWorkspace : IAsyncDisposable
 {
     internal void ConfigureKeyboard(EditorKeymap keymap) => _view.Editors.ConfigureKeyboard(keymap, CommandContext.Notebook);
+    internal void ConfigureLineWrapping(bool enabled) => _view.ConfigureLineWrapping(enabled);
     internal void FlushCommands() => _view.Editors.FlushCommands();
     internal event Action<EditorCommand, string> CommandInvoked {
         add => _view.Editors.CommandInvoked += value;

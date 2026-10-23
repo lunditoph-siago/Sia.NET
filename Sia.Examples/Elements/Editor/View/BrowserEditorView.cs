@@ -79,6 +79,8 @@ public sealed class BrowserEditorView : IEditorView
         DomRuntime.AttachGutterHeights(_gutter, _lines, _cellId);
     }
 
+    internal void SetLineWrapping(bool enabled) => _lines.ToggleClass("editor-nowrap", !enabled);
+
     private DomElement CreateTouchActions()
     {
         DomElement Own(DomElement element) { _touchActions.Add(element); return element; }
