@@ -221,7 +221,7 @@
             display: none;
         }
 
-        @media (any-pointer: coarse), (max-width: 899px) {
+        @media (any-pointer: coarse), (width < 900px) {
             --dialog-top: 0.5rem;
             --dialog-section-padding: 0.2rem 0.45rem;
             max-width: calc(100vw - 1rem);
@@ -550,7 +550,7 @@
                 color: var(--color-text-dim);
             }
 
-            @media (any-pointer: coarse), (max-width: 899px) {
+            @media (any-pointer: coarse), (width < 900px) {
                 button {
                     min-width: var(--control-size);
                     min-height: var(--control-size);

@@ -104,7 +104,7 @@
         .editor-files-toggle {
             display: none;
 
-            @media (max-width: 899px) {
+            @media (width < 900px) {
                 display: inline-grid;
             }
         }

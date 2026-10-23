@@ -362,14 +362,14 @@
             }
         }
 
-        @media (max-width: 899px) {
+        @media (width < 900px) {
             width: 0;
             padding: 0.5rem 0;
             border-right-color: transparent;
         }
     }
 
-    @media (max-width: 899px) {
+    @media (width < 900px) {
         #app {
             --sidebar-width: min(20rem, calc(100vw - 3.5rem));
 
@@ -521,7 +521,7 @@
                     box-shadow: var(--shadow-overlay);
                     font-size: 0.85rem;
 
-                    @media (any-pointer: coarse), (max-width: 899px) {
+                    @media (any-pointer: coarse), (width < 900px) {
                         padding: 0.4rem 0.5rem;
                     }
                 }
@@ -545,7 +545,7 @@
         .sidebar-dismiss {
             display: none;
 
-            @media (max-width: 899px) {
+            @media (width < 900px) {
                 display: inline-grid;
                 margin-left: auto;
             }

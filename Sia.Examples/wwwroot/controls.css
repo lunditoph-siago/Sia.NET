@@ -165,12 +165,12 @@
                 font: inherit;
                 font-size: 0.8rem;
 
-                @media (any-pointer: coarse), (max-width: 899px) {
+                @media (any-pointer: coarse), (width < 900px) {
                     font-size: 1rem;
                 }
             }
 
-            @media (any-pointer: coarse), (max-width: 899px) {
+            @media (any-pointer: coarse), (width < 900px) {
                 .package-add-input:first-child {
                     flex-basis: 100%;
                 }

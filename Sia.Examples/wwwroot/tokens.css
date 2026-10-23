@@ -62,7 +62,7 @@
         --z-boot-overlay: 85;
     }
 
-    @media (any-pointer: coarse), (max-width: 899px) {
+    @media (any-pointer: coarse), (width < 900px) {
         :root {
             --control-size: 2.25rem;
         }

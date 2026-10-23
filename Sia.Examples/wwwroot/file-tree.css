@@ -8,7 +8,7 @@
         min-width: 0;
         padding: 0.15rem 0;
 
-        @media (any-pointer: coarse), (max-width: 899px) {
+        @media (any-pointer: coarse), (width < 900px) {
             --file-tree-inline-action-opacity: 0.65;
         }
 
@@ -248,7 +248,7 @@
             font: inherit;
             font-size: 0.75rem;
 
-            @media (any-pointer: coarse), (max-width: 899px) {
+            @media (any-pointer: coarse), (width < 900px) {
                 font-size: 1rem;
             }
 

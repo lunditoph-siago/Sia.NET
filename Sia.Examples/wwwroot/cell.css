@@ -295,7 +295,7 @@
                         padding: 0.05rem 0.3rem;
                         font-size: 0.72rem;
 
-                        @media (any-pointer: coarse), (max-width: 899px) {
+                        @media (any-pointer: coarse), (width < 900px) {
                             font-size: 1rem;
                         }
                     }

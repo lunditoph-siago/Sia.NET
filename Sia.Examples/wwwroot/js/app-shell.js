@@ -1,6 +1,6 @@
 import { emit } from './notebook-runtime.js';
 
-const compactSidebar = matchMedia('(max-width: 899px)');
+const compactSidebar = matchMedia('(width < 900px)');
 let sidebarReturnFocus;
 
 function syncSidebar() {
@@ -54,7 +54,7 @@ document.addEventListener('keydown', (event) => {
 document.getElementById('sidebar')?.addEventListener('click', (event) => {
     if (
         event.target.closest?.('.example-btn, [data-file-tree-open]') &&
-        matchMedia('(max-width: 899px)').matches
+        matchMedia('(width < 900px)').matches
     ) {
         closeSidebar(true);
     }
