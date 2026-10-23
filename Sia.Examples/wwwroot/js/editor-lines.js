@@ -93,8 +93,8 @@ function renderRows(owner, rows, identities, active, force) {
         let nextChunk = owner.linesAfter;
         for (let i = count - 1; i >= 0; i--) {
             const chunk = owner.chunks[i], size = Math.min(50, rows.length - i * 50);
-            chunk.style.minBlockSize = size * 1.5 + 'em';
-            chunk.style.containIntrinsicBlockSize = 'auto ' + size * 1.5 + 'em';
+            chunk.style.minBlockSize = size + 'lh';
+            chunk.style.containIntrinsicBlockSize = 'auto ' + size + 'lh';
             if (chunk.parentElement !== owner.lines || chunk.nextSibling !== nextChunk) owner.lines.insertBefore(chunk, nextChunk);
             nextChunk = chunk;
             let next = null;

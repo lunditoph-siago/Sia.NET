@@ -13,6 +13,7 @@
         --font-size-caption: 0.6875rem;
         --line-height-ui: 1.25;
         --line-height-copy: 1.55;
+        --line-height-code: 1.15rem;
         --color-bg: #eff1f5;
         --color-fg: #4c4f69;
         --color-muted: #9ca0b0;
@@ -66,7 +67,7 @@
     @media (any-pointer: coarse), (width < 900px) {
         :root {
             --control-size: 2.25rem;
-            --page-header-size: calc(var(--control-size) + 0.75rem);
+            --page-header-size: calc(var(--control-size) + 0.625rem);
         }
     }
 
