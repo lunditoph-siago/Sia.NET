@@ -2,6 +2,8 @@
 
 @layer tokens {
     :root {
+        color-scheme: light dark;
+
         --font-mono: ui-monospace, monospace;
         --font-size-xs: 0.6875rem;
         --font-size-sm: 0.8125rem;
@@ -11,7 +13,6 @@
         --control-size: 1.75rem;
         --icon-size: 1rem;
 
-        color-scheme: light dark;
         --color-bg: #eff1f5;
         --color-fg: #4c4f69;
         --color-muted: #9ca0b0;
