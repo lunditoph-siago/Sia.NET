@@ -414,7 +414,7 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            min-height: calc(var(--control-size) + 0.5rem);
+            min-height: var(--page-header-size);
             gap: 0.25rem;
             padding: 0.125rem 0.6rem;
             border-bottom: 1px solid var(--border-subtle);

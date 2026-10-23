@@ -282,7 +282,7 @@
     }
 
     .code {
-        padding: 0.5rem;
+        padding: 0.125rem;
         overflow-x: auto;
         background: var(--surface-subtle);
         font-family: var(--font-mono);

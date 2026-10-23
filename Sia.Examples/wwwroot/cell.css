@@ -66,6 +66,10 @@
                 display: flex;
                 gap: 0.35rem;
                 margin-left: auto;
+
+                > .icon-btn {
+                    font-size: calc(var(--control-icon-size) * 0.95);
+                }
             }
 
             .phase {

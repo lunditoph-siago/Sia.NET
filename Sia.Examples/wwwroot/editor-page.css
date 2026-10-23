@@ -30,7 +30,7 @@
     .editor-page {
         display: grid;
         grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: calc(var(--control-size) + 0.5rem) auto minmax(0, 1fr) auto 24px;
+        grid-template-rows: var(--page-header-size) auto minmax(0, 1fr) auto 24px;
         width: 100%;
         height: 100%;
         min-height: 0;
@@ -40,7 +40,7 @@
         font-size: var(--font-size-ui);
 
         @media (any-pointer: coarse), (max-width: 720px) {
-            grid-template-rows: calc(var(--control-size) + 0.5rem) auto minmax(0, 1fr) 24px auto;
+            grid-template-rows: var(--page-header-size) auto minmax(0, 1fr) 24px auto;
 
             &.input-tools-open > .editor-page-touchbar {
                 display: flex;
@@ -150,6 +150,10 @@
     }
 
     .editor-action {
+        [data-icon='run'] {
+            scale: 0.95;
+        }
+
         &[data-action='run'] [data-icon='run'],
         &[data-action='stop'] [data-icon='stop'],
         &[data-action='compile'] [data-icon='compile'],
