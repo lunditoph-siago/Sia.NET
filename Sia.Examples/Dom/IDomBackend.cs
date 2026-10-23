@@ -30,6 +30,10 @@ internal interface IDomBackend : IDisposable
 
     public void WriteKeymap(string json) => throw new NotSupportedException("This host cannot save keyboard shortcuts.");
 
+    public bool ReadEditorLineWrapping() => true;
+
+    public void WriteEditorLineWrapping(bool enabled) { }
+
     public void SetId(IDomNode node, string id);
 
     public void SetAttribute(IDomNode node, string name, string value);

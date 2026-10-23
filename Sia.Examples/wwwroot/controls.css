@@ -41,6 +41,11 @@
         &.danger:is(:hover, :focus-visible) {
             color: var(--color-danger);
         }
+
+        &.word-wrap-toggle[aria-checked="true"] {
+            color: var(--color-accent);
+            background: var(--surface-selected);
+        }
     }
 
     .btn {

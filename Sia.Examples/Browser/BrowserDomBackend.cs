@@ -137,6 +137,10 @@ internal sealed partial class BrowserDomBackend(BrowserMainThread mainThread) : 
 
     public void WriteKeymap(string json) { VerifyAccess(); BrowserInterop.WriteKeymap(json); }
 
+    public bool ReadEditorLineWrapping() { VerifyAccess(); return BrowserInterop.ReadEditorLineWrapping(); }
+
+    public void WriteEditorLineWrapping(bool enabled) { VerifyAccess(); BrowserInterop.WriteEditorLineWrapping(enabled); }
+
     public void SetId(IDomNode node, string id)
     {
         VerifyAccess();
@@ -540,6 +544,12 @@ internal static partial class BrowserInterop
 
     [JSImport("writeKeymap", "main.js")]
     public static partial void WriteKeymap(string json);
+
+    [JSImport("readEditorLineWrapping", "main.js")]
+    public static partial bool ReadEditorLineWrapping();
+
+    [JSImport("writeEditorLineWrapping", "main.js")]
+    public static partial void WriteEditorLineWrapping(bool enabled);
 
     [JSImport("setId", "main.js")]
     public static partial void SetId(JSObject element, string id);

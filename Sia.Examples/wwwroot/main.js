@@ -259,6 +259,14 @@ const domImports = {
     focus: (element) => element.focus({ preventScroll: true }),
     readKeymap: () => localStorage.getItem('sia.editor.keybindings.v1'),
     writeKeymap: (json) => localStorage.setItem('sia.editor.keybindings.v1', json),
+    readEditorLineWrapping: () => {
+        try { return localStorage.getItem('sia.editor.wordWrap') !== 'false'; }
+        catch { return true; }
+    },
+    writeEditorLineWrapping: (enabled) => {
+        try { localStorage.setItem('sia.editor.wordWrap', String(enabled)); }
+        catch { }
+    },
     setId: (element, id) =>
         writeEditorDom(() => {
             element.id = id;

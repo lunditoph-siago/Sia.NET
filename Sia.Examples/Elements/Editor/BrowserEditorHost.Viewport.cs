@@ -10,11 +10,21 @@ public sealed partial class BrowserEditorHost
     private double _lastScrollTop;
     private int _scrollGeneration;
     private EditorMemento? _pendingRestore;
+    private bool _lineWrapping = true;
+
+    internal void ConfigureLineWrapping(bool enabled)
+    {
+        if (_lineWrapping == enabled) return;
+        SynchronizeNativeInput();
+        if (TryGetPosition(out var position)) _pendingRestore = position;
+        _lineWrapping = enabled;
+        _view.SetLineWrapping(enabled);
+    }
 
     private bool HandleMeasure(string arguments)
     {
-        var parts = arguments.Split(':', 9);
-        if (parts.Length < 9
+        var parts = arguments.Split(':', 10);
+        if (parts.Length != 10
             || !TryParseInvariant(parts[0], out var scrollTop)
             || !TryParseInvariant(parts[1], out var clientHeight)
             || !int.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out var firstLineIndex)
@@ -23,6 +33,7 @@ public sealed partial class BrowserEditorHost
             || !TryParseInvariant(parts[5], out var lineHeight)
             || !int.TryParse(parts[7], out var revision)
             || !int.TryParse(parts[8], out var scrollGeneration)
+            || !bool.TryParse(parts[9], out var lineWrapping) || lineWrapping != _lineWrapping
             || scrollGeneration > _scrollGeneration || scrollGeneration < -_scrollGeneration
             || revision < 0 || revision > _documentRevision) {
             return false;
@@ -53,7 +64,7 @@ public sealed partial class BrowserEditorHost
         var lineLength = contentWidth / charWidth;
         if (charWidth > 1 && lineHeight > 0 && contentWidth > 20 && lineLength >= 10) {
             oracleChanged = oracle.Refresh(
-                lineWrapping: true,
+                lineWrapping: _lineWrapping,
                 lineHeight: lineHeight,
                 charWidth: charWidth,
                 textHeight: lineHeight,
@@ -187,8 +198,10 @@ public sealed partial class BrowserEditorHost
         var line = doc.Line(System.Math.Clamp(memento.ViewLine + 1, 1, doc.Lines));
         var block = _viewState.LineAt(line.From, QueryType.ByPos);
         var column = System.Math.Clamp(memento.ViewColumn, 0, line.Length);
-        var rowTop = System.Math.Min(block.Height - _viewState.Oracle.LineHeight,
-            System.Math.Floor(column / _viewState.Oracle.LineLength) * _viewState.Oracle.LineHeight);
+        var rowTop = _lineWrapping
+            ? System.Math.Min(block.Height - _viewState.Oracle.LineHeight,
+                System.Math.Floor(column / _viewState.Oracle.LineLength) * _viewState.Oracle.LineHeight)
+            : 0;
         var top = System.Math.Max(0, block.Top + System.Math.Max(0, rowTop) - memento.ViewOffset * _viewState.Oracle.LineHeight);
         ApplyViewport(_viewState.ComputeViewport(top, top + _lastClientHeight));
         _view.RestoreScroll(_scrollGeneration, new(top, memento.ScrollLeft, line.Number - 1, column, memento.ViewOffset));

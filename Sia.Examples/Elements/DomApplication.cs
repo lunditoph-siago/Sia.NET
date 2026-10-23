@@ -33,6 +33,7 @@ internal static class DomApplication
             using var view = new BrowserApplicationView();
             using var keyboard = new EditorKeyboardSettings();
             using var commands = new EditorCommandPanel(keyboard);
+            var lineWrapping = backend.ReadEditorLineWrapping();
             var app = world.Mount(ExampleApp.Definition, new(library, view));
             world.FlushReactive();
             DomRuntime.Flush();
@@ -216,6 +217,7 @@ internal static class DomApplication
                     view.ShowEditor();
                     editorPage = new BrowserEditorPage(world, references, workspaceStorage, view.HomeNavigation);
                     editorPage.ConfigureKeyboard(keyboard.Value);
+                    editorPage.ConfigureLineWrapping(lineWrapping);
                     editorPage.CommandInvoked += ExecuteCommand;
                     RefreshSidebarSelection();
                     await editorPage.InitializeAsync();
@@ -232,6 +234,7 @@ internal static class DomApplication
                     storage,
                     library);
                 workspace.ConfigureKeyboard(keyboard.Value);
+                workspace.ConfigureLineWrapping(lineWrapping);
                 workspace.CommandInvoked += ExecuteCommand;
                 if (page.Target == Destination.NewNotebook) {
                     workspace.InsertSection(null, "Notes");
@@ -244,7 +247,13 @@ internal static class DomApplication
             void ExecuteCommand(EditorCommand command, string binding)
             {
                 binding = editorPage?.ResolveCommandBinding(binding) ?? binding;
-                if (command.Id is EditorCommandId.Commands or EditorCommandId.Keybindings) {
+                if (command.Id == EditorCommandId.ToggleWordWrap) {
+                    lineWrapping = !lineWrapping;
+                    backend.WriteEditorLineWrapping(lineWrapping);
+                    editorPage?.ConfigureLineWrapping(lineWrapping);
+                    workspace?.ConfigureLineWrapping(lineWrapping);
+                }
+                else if (command.Id is EditorCommandId.Commands or EditorCommandId.Keybindings) {
                     commands.Open(command.Id == EditorCommandId.Keybindings, binding, candidate =>
                         candidate.Context == CommandContext.Workbench
                         || editorPage?.CanExecuteCommand(candidate, binding) == true

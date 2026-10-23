@@ -157,6 +157,7 @@ function measureRows(state) {
     state.lastCharWidth = (parseFloat(probeStyle.width) || probeRect.width) / state.probe.textContent.length;
     const gutterWidth = count > 0 ? parseFloat(getComputedStyle(lineEls[0]).paddingInlineStart) || 0 : 0;
     state.lastContentWidth = state.lines.clientWidth - gutterWidth;
+    state.lastLineWrapping = getComputedStyle(state.lines).whiteSpace !== 'pre';
 }
 
 function reportMeasurement(state) {
@@ -175,7 +176,7 @@ function reportMeasurement(state) {
     emit(
         `measure:${state.cellId}:${scrollTop}:${clientHeight}:${firstLineIndex}:` +
             `${state.lastContentWidth}:${state.lastCharWidth}:${state.lastLineHeight}:${heightsCsv}:` +
-            `${revision}:${scrollGeneration}`,
+            `${revision}:${scrollGeneration}:${state.lastLineWrapping}`,
         `measure:${state.cellId}:${revision}:${scrollGeneration}`,
     );
 }
@@ -248,6 +249,7 @@ export function attachGutterHeights(gutter, lines, cellId) {
         lastLineHeight: 0,
         lastCharWidth: 0,
         lastContentWidth: 0,
+        lastLineWrapping: true,
         report: null,
         needsMeasurement: true,
         anchor: null,
@@ -309,9 +311,12 @@ export function attachGutterHeights(gutter, lines, cellId) {
     resizeObserver.observe(state.probe);
     const mutationObserver = new MutationObserver((records) => {
         if (!isCurrent()) return;
+        records = records.filter(record => record.attributeName !== 'class' || record.target === lines);
+        if (!records.length) return;
         restoreAnchor(state);
         if (records.some((record) => record.type !== 'attributes'
-            || record.attributeName === 'style' || record.attributeName === 'data-ln')) {
+            || record.attributeName === 'style' || record.attributeName === 'data-ln'
+            || record.attributeName === 'class')) {
             state.needsMeasurement = true;
         }
         if (state.needsMeasurement) {
@@ -322,7 +327,7 @@ export function attachGutterHeights(gutter, lines, cellId) {
     });
     mutationObserver.observe(lines, {
         childList: true, subtree: true, characterData: true,
-        attributes: true, attributeFilter: ['data-editor-updating', 'data-editor-document-revision', 'style', 'data-ln'],
+        attributes: true, attributeFilter: ['data-editor-updating', 'data-editor-document-revision', 'style', 'class', 'data-ln'],
     });
     scrollElement?.addEventListener('scroll', onScroll, { passive: true });
     const onUserScroll = () => cancelEditorScroll(lines);

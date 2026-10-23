@@ -5,6 +5,7 @@ internal static class EditorDefaultBindings
     private static readonly IReadOnlyDictionary<EditorCommandId, KeyBinding[]> s_Standard = new Dictionary<EditorCommandId, KeyBinding[]> {
         [EditorCommandId.Commands] = [new("Mod+Shift+P"), new("F1")],
         [EditorCommandId.Keybindings] = [new("Mod+K Mod+S")],
+        [EditorCommandId.ToggleWordWrap] = [new("Alt+Z")],
         [EditorCommandId.QuickOpen] = [new("Mod+P", CommandContext.EditorLab), new("Mod+P", CommandContext.Notebook)],
         [EditorCommandId.DocumentSymbols] = [new("Mod+Shift+O", CommandContext.EditorLab), new("Mod+Shift+O", CommandContext.Notebook)],
         [EditorCommandId.WorkspaceSymbols] = [new("Mod+T", CommandContext.EditorLab), new("Mod+T", CommandContext.Notebook)],
