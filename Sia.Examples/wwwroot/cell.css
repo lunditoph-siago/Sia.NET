@@ -6,7 +6,7 @@
         margin: 0.5rem 0 0.75rem;
         overflow: hidden;
         border: 1px solid var(--border-subtle);
-        border-radius: var(--radius-container);
+        border-radius: var(--radius-lg);
 
         &.is-empty {
             display: grid;
@@ -20,7 +20,7 @@
 
         @media (max-width: 720px) {
             margin: 0.75rem -0.375rem 1rem;
-            border-radius: var(--radius-panel);
+            border-radius: var(--radius-xl);
 
             .editor-status {
                 border-color: var(--border-subtle);
@@ -58,8 +58,8 @@
             padding: 0 0.375rem;
             border-bottom: 1px solid var(--border-subtle);
             background: var(--surface-chrome);
-            font-size: var(--font-size-ui);
-            line-height: var(--line-height-ui);
+            font-size: var(--font-size-sm);
+            line-height: var(--line-height-tight);
 
             .cell-controls {
                 display: flex;
@@ -67,7 +67,7 @@
                 margin-left: auto;
 
                 > .icon-btn {
-                    font-size: calc(var(--control-icon-size) * 0.95);
+                    font-size: calc(var(--icon-size) * 0.95);
                 }
             }
 
@@ -76,10 +76,10 @@
                 border: 1px solid currentColor;
                 border-radius: var(--radius-pill);
                 opacity: 0.85;
-                font-size: var(--font-size-caption);
+                font-size: var(--font-size-xs);
 
                 &.phase-idle {
-                    color: var(--color-text-dim);
+                    color: var(--color-subtle);
                 }
 
                 &.phase-compiling,
@@ -173,7 +173,7 @@
                         width: var(--control-size);
                         height: var(--control-size);
                         border: 0;
-                        border-radius: var(--radius-small);
+                        border-radius: var(--radius-xs);
                         background: transparent;
                         opacity: 0;
                         color: inherit;
@@ -231,6 +231,7 @@
                 }
 
                 .scope-editor {
+                    --scope-mark-size: 1.15rem;
                     display: flex;
                     align-items: center;
                     min-width: 0;
@@ -244,7 +245,7 @@
                         height: var(--control-size);
                         padding: 0;
                         border: 0;
-                        border-radius: var(--radius-control);
+                        border-radius: var(--radius-sm);
                         background: transparent;
                         color: inherit;
                         font: inherit;
@@ -267,15 +268,15 @@
                     .scope-label {
                         min-width: 0;
                         max-width: 100%;
-                        height: var(--control-mark-size);
+                        height: var(--scope-mark-size);
                         padding: 0 0.5rem;
                         overflow: hidden;
                         border: 1px solid transparent;
                         border-radius: var(--radius-pill);
                         background: var(--surface-subtle);
                         color: var(--color-subtle);
-                        font-size: var(--font-size-caption);
-                        line-height: calc(var(--control-mark-size) - 2px);
+                        font-size: var(--font-size-xs);
+                        line-height: calc(var(--scope-mark-size) - 2px);
                         text-overflow: ellipsis;
                         white-space: nowrap;
 
@@ -295,7 +296,7 @@
                     .scope-input {
                         width: 7rem;
                         min-width: 3rem;
-                        min-height: var(--control-row-size);
+                        min-height: var(--control-size);
                         padding: 0.05rem 0.3rem;
                         font-size: 0.72rem;
 
@@ -336,7 +337,7 @@
                         order: 2;
                         padding: 0;
                         border: 0;
-                        font-size: var(--font-size-caption);
+                        font-size: var(--font-size-xs);
                         white-space: nowrap;
 
                         &.phase-idle {
@@ -359,7 +360,7 @@
 
                         .scope-label {
                             padding-inline: 0.4rem;
-                            border-radius: var(--radius-control);
+                            border-radius: var(--radius-sm);
                             background: var(--surface-selected);
                             text-align: left;
                         }
@@ -382,7 +383,7 @@
                             }
 
                             .scope-label {
-                                width: var(--control-mark-size);
+                                width: var(--scope-mark-size);
                                 padding-inline: 0;
                                 font-size: 0;
                                 text-align: center;
@@ -501,7 +502,7 @@
 
         > .separator {
             position: relative;
-            z-index: var(--z-split-handle);
+            z-index: 5;
             flex: 0 0 var(--cell-split-size, 7px);
             background: transparent;
             touch-action: none;
@@ -613,7 +614,7 @@
 
     .drop-preview {
         position: absolute;
-        z-index: var(--z-drop-preview);
+        z-index: 30;
         display: none;
         border: 1px solid var(--color-accent);
         background: color-mix(in srgb, var(--color-accent) 15%, transparent);
@@ -671,16 +672,16 @@
 
     .drag-ghost {
         position: fixed;
-        z-index: var(--z-drag-ghost);
+        z-index: calc(var(--z-overlay) - 10);
         top: 0;
         left: 0;
         max-width: min(20rem, 70vw);
         padding: 0.35rem 0.65rem;
         overflow: hidden;
         border: 1px solid var(--color-accent);
-        border-radius: var(--radius-control);
+        border-radius: var(--radius-sm);
         background: var(--color-bg);
-        box-shadow: var(--shadow-overlay);
+        box-shadow: var(--shadow-md);
         color: var(--color-fg);
         font-size: 0.78rem;
         text-overflow: ellipsis;
@@ -695,7 +696,7 @@
 
     .floating-layer {
         position: fixed;
-        z-index: var(--z-floating-window);
+        z-index: var(--z-floating);
         inset: 0;
         pointer-events: none;
 
@@ -704,9 +705,9 @@
             display: flex;
             overflow: hidden;
             border: 1px solid var(--border-control);
-            border-radius: var(--radius-container);
+            border-radius: var(--radius-lg);
             background: var(--color-bg);
-            box-shadow: var(--shadow-overlay);
+            box-shadow: var(--shadow-md);
             pointer-events: auto;
 
             @media (max-width: 720px) {

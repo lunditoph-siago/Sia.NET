@@ -2,18 +2,16 @@
 
 @layer tokens {
     :root {
-        color-scheme: light dark;
         --font-mono: ui-monospace, monospace;
+        --font-size-xs: 0.6875rem;
+        --font-size-sm: 0.8125rem;
+        --line-height-tight: 1.25;
+        --line-height-normal: 1.55;
+
         --control-size: 1.75rem;
-        --control-row-size: var(--control-size);
-        --control-mark-size: 1.15rem;
-        --control-icon-size: 1rem;
-        --page-header-size: calc(var(--control-size) + 0.5rem);
-        --font-size-ui: 0.8125rem;
-        --font-size-caption: 0.6875rem;
-        --line-height-ui: 1.25;
-        --line-height-copy: 1.55;
-        --line-height-code: 1.15rem;
+        --icon-size: 1rem;
+
+        color-scheme: light dark;
         --color-bg: #eff1f5;
         --color-fg: #4c4f69;
         --color-muted: #9ca0b0;
@@ -24,10 +22,6 @@
         --color-info: #1e66f5;
         --color-highlight: #fe640b;
         --color-danger: #d20f39;
-        --color-bg-secondary: var(--color-bg);
-        --color-border: var(--color-muted);
-        --color-text: var(--color-fg);
-        --color-text-dim: var(--color-subtle);
 
         --surface-subtle: rgba(127, 127, 127, 0.06);
         --surface-chrome: rgba(127, 127, 127, 0.1);
@@ -38,41 +32,47 @@
         --focus-muted: rgba(127, 127, 127, 0.5);
         --selection-bg: rgba(100, 150, 255, 0.3);
 
-        --radius-none: 0;
-        --radius-small: 3px;
-        --radius-control: 4px;
-        --radius-popover: 5px;
-        --radius-container: 6px;
-        --radius-panel: 8px;
+        --radius-xs: 3px;
+        --radius-sm: 4px;
+        --radius-md: 5px;
+        --radius-lg: 6px;
+        --radius-xl: 8px;
         --radius-pill: 999px;
-        --radius-circle: 50%;
 
-        --shadow-overlay: 0 8px 24px rgba(0, 0, 0, 0.2);
-        --shadow-drawer: 8px 0 24px rgba(0, 0, 0, 0.2);
-        --shadow-completion: 0 4px 12px rgba(0, 0, 0, 0.3);
+        --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.3);
+        --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.2);
 
-        --z-sticky-content: 2;
-        --z-split-handle: 5;
-        --z-page-header: 10;
-        --z-editor-popup: 20;
-        --z-drop-preview: 30;
-        --z-floating-window: 40;
-        --z-navigation-drawer: 60;
-        --z-navigation-control: 70;
-        --z-drag-ghost: 80;
-        --z-overlay-root: 90;
-        --z-boot-overlay: 85;
-    }
+        --z-sticky: 10;
+        --z-popup: 20;
+        --z-floating: 40;
+        --z-drawer: 60;
+        --z-overlay: 90;
 
-    @media (any-pointer: coarse), (width < 900px) {
-        :root {
+        @media (any-pointer: coarse), (width < 900px) {
             --control-size: 2.25rem;
-            --page-header-size: calc(var(--control-size) + 0.625rem);
         }
-    }
 
-    @media (prefers-color-scheme: dark) {
-        :root:not([data-theme="light"]) {
+        @media (prefers-color-scheme: dark) {
+            &:not([data-theme="light"]) {
+                --color-bg: #1e1e2e;
+                --color-fg: #cdd6f4;
+                --color-muted: #6c7086;
+                --color-subtle: #9399b2;
+                --color-accent: #cba6f7;
+                --color-success: #a6e3a1;
+                --color-warning: #f9e2af;
+                --color-info: #89b4fa;
+                --color-highlight: #fab387;
+                --color-danger: #f38ba8;
+            }
+        }
+
+        &[data-theme="light"] {
+            color-scheme: light;
+        }
+
+        &[data-theme="dark"] {
+            color-scheme: dark;
             --color-bg: #1e1e2e;
             --color-fg: #cdd6f4;
             --color-muted: #6c7086;
@@ -84,23 +84,5 @@
             --color-highlight: #fab387;
             --color-danger: #f38ba8;
         }
-    }
-
-    :root[data-theme="light"] {
-        color-scheme: light;
-    }
-
-    :root[data-theme="dark"] {
-        color-scheme: dark;
-        --color-bg: #1e1e2e;
-        --color-fg: #cdd6f4;
-        --color-muted: #6c7086;
-        --color-subtle: #9399b2;
-        --color-accent: #cba6f7;
-        --color-success: #a6e3a1;
-        --color-warning: #f9e2af;
-        --color-info: #89b4fa;
-        --color-highlight: #fab387;
-        --color-danger: #f38ba8;
     }
 }

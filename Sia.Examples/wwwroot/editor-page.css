@@ -37,7 +37,7 @@
         overflow: hidden;
         background: var(--color-bg);
         color: var(--color-fg);
-        font-size: var(--font-size-ui);
+        font-size: var(--font-size-sm);
 
         @media (any-pointer: coarse), (max-width: 720px) {
             grid-template-rows: var(--page-header-size) auto minmax(0, 1fr) 24px auto;
@@ -298,7 +298,7 @@
         &.editor-container {
             max-height: none;
             border: 0;
-            border-radius: var(--radius-none);
+            border-radius: 0;
             background: var(--color-bg);
         }
     }
@@ -354,12 +354,12 @@
         background: transparent;
         color: inherit;
         font: inherit;
-        font-size: var(--font-size-ui);
+        font-size: var(--font-size-sm);
         line-height: 1.45;
         text-align: left;
 
         &:is(button) {
-            min-height: var(--control-row-size);
+            min-height: var(--control-size);
             cursor: pointer;
 
             &:hover {
@@ -382,7 +382,7 @@
         padding: 0.65rem;
         overflow: auto;
         color: var(--color-fg);
-        font: var(--font-size-ui)/1.5 var(--font-mono);
+        font: var(--font-size-sm)/1.5 var(--font-mono);
         white-space: pre-wrap;
 
         &.output-error {
@@ -464,7 +464,7 @@
         overflow: hidden;
         border-top: 1px solid var(--border-subtle);
         background: var(--surface-subtle);
-        font-size: var(--font-size-caption);
+        font-size: var(--font-size-xs);
         white-space: nowrap;
 
         @media (any-pointer: coarse), (max-width: 720px) {
@@ -528,7 +528,7 @@
 
     .editor-page-build-status {
         margin-left: auto;
-        color: var(--color-text-dim);
+        color: var(--color-subtle);
         flex: 1 1 0;
         min-width: 0;
     }
@@ -544,7 +544,7 @@
 
     .editor-status-mode {
         flex: none;
-        color: var(--color-text);
+        color: var(--color-fg);
     }
 
     .editor-status-workspace,
@@ -592,10 +592,10 @@
             flex: 1 1 12rem;
             min-width: min(100%, 12rem);
             max-width: 100%;
-            min-height: var(--control-row-size);
+            min-height: var(--control-size);
             padding: 0.2rem 0.45rem;
             border: 1px solid var(--border-control);
-            border-radius: var(--radius-control);
+            border-radius: var(--radius-sm);
             background: var(--color-bg);
             color: inherit;
             font: inherit;
@@ -620,7 +620,7 @@
             max-width: 100%;
             padding: 0.3rem;
             border: 1px solid var(--border-subtle);
-            border-radius: var(--radius-control);
+            border-radius: var(--radius-sm);
             color: var(--color-fg);
             background: var(--color-bg);
             font: inherit;
@@ -698,7 +698,7 @@
         overflow: auto;
         overscroll-behavior: contain;
         border: 1px solid var(--border-control);
-        border-radius: var(--radius-control);
+        border-radius: var(--radius-sm);
         color: var(--color-fg);
         background: var(--color-bg);
         box-shadow: 0 8px 32px #0004;
@@ -848,7 +848,7 @@
     .editor-uniform-component {
         padding-left: 0.3rem;
         border: 1px solid var(--border-subtle);
-        border-radius: var(--radius-control);
+        border-radius: var(--radius-sm);
         background: var(--color-bg);
 
         &:focus-within {
@@ -923,8 +923,8 @@
     .editor-shader-output {
         overflow: auto;
         font-family: var(--font-mono);
-        font-size: var(--font-size-ui);
-        line-height: var(--line-height-copy);
+        font-size: var(--font-size-sm);
+        line-height: var(--line-height-normal);
         white-space: pre-wrap;
         overflow-wrap: anywhere;
     }

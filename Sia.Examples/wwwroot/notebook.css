@@ -5,7 +5,7 @@
 
         > .notebook-loading {
             position: absolute;
-            z-index: var(--z-page-header);
+            z-index: var(--z-sticky);
             inset: 0;
             display: grid;
             place-items: center;
@@ -63,7 +63,7 @@
         padding: 1rem 1.5rem 3rem;
         overflow-y: auto;
         font-size: 0.9rem;
-        line-height: var(--line-height-copy);
+        line-height: var(--line-height-normal);
 
         &:has(> .notebook-home) {
             padding: 0;
@@ -76,7 +76,7 @@
             padding: 0.15rem 0.3rem;
             font-size: 1.05rem;
             font-weight: 600;
-            line-height: var(--line-height-ui);
+            line-height: var(--line-height-tight);
         }
 
         .notebook-titlebar,
@@ -143,7 +143,7 @@
             max-width: 35rem;
             color: var(--color-subtle);
             font-size: clamp(0.9rem, 1.25vw, 1.02rem);
-            line-height: var(--line-height-copy);
+            line-height: var(--line-height-normal);
         }
 
         .home-actions {
@@ -162,12 +162,12 @@
             margin: 0;
             padding: 0.55rem 0.95rem;
             border: 1px solid var(--color-accent);
-            border-radius: var(--radius-small);
+            border-radius: var(--radius-xs);
             background: var(--color-accent);
             color: var(--color-bg);
             font: inherit;
             font-size: 0.8rem;
-            line-height: var(--line-height-ui);
+            line-height: var(--line-height-tight);
             font-weight: 600;
             cursor: pointer;
             transition:
@@ -199,7 +199,7 @@
             margin: 0;
             overflow: hidden;
             border: 1px solid var(--border-subtle);
-            border-radius: var(--radius-panel);
+            border-radius: var(--radius-xl);
             background: color-mix(in srgb, var(--surface-hover) 58%, transparent);
 
             figcaption {
@@ -238,7 +238,7 @@
         }
 
         .code-type {
-            color: color-mix(in srgb, var(--color-accent) 58%, var(--color-text));
+            color: color-mix(in srgb, var(--color-accent) 58%, var(--color-fg));
         }
 
         .home-projects {
@@ -291,7 +291,7 @@
 
             code {
                 padding: 0.05em 0.3em;
-                border-radius: var(--radius-small);
+                border-radius: var(--radius-xs);
                 background: var(--surface-hover);
                 opacity: 0.85;
                 font-family: var(--font-mono);
@@ -406,7 +406,7 @@
                     font-size: 0.75rem;
                     white-space: normal;
                     overflow-wrap: anywhere;
-                    line-height: var(--line-height-ui);
+                    line-height: var(--line-height-tight);
                 }
 
                 span {

@@ -1,7 +1,7 @@
 @layer layout {
     .boot-overlay {
         position: fixed;
-        z-index: var(--z-boot-overlay);
+        z-index: calc(var(--z-overlay) - 5);
         inset: 0;
         display: flex;
         align-items: center;
@@ -25,7 +25,7 @@
             height: 2.2rem;
             border: 2px solid var(--border-subtle);
             border-top-color: var(--color-accent);
-            border-radius: var(--radius-circle);
+            border-radius: 50%;
             animation: boot-spin 0.9s linear infinite;
         }
 
@@ -60,7 +60,7 @@
         .boot-reload {
             padding: 0.35rem 1rem;
             border: 1px solid var(--border-subtle);
-            border-radius: var(--radius-control);
+            border-radius: var(--radius-sm);
             background: var(--surface-hover);
             color: inherit;
             font: inherit;
@@ -135,9 +135,14 @@
 
     #app {
         --sidebar-width: 240px;
+        --page-header-size: calc(var(--control-size) + 0.5rem);
         display: flex;
         flex: 1;
         overflow: hidden;
+
+        @media (any-pointer: coarse), (width < 900px) {
+            --page-header-size: calc(var(--control-size) + 0.625rem);
+        }
 
         &.sidebar-open {
             #sidebar {
@@ -182,7 +187,7 @@
             justify-content: space-between;
             min-height: var(--control-size);
             padding: 0 0.35rem;
-            font-size: var(--font-size-ui);
+            font-size: var(--font-size-sm);
             font-weight: 600;
             letter-spacing: 0.08em;
         }
@@ -258,7 +263,7 @@
         }
 
         :is(.library-folder-toggle, .example-btn) {
-            min-height: var(--control-row-size);
+            min-height: var(--control-size);
         }
 
         .library-folder-toggle {
@@ -272,7 +277,7 @@
             color: inherit;
             font: inherit;
             font-size: 0.72rem;
-            line-height: var(--line-height-ui);
+            line-height: var(--line-height-tight);
             font-weight: 600;
             text-align: left;
             text-transform: uppercase;
@@ -319,10 +324,10 @@
             width: 100%;
             padding: 0.25rem 0.5rem;
             border: 1px solid transparent;
-            border-radius: var(--radius-control);
+            border-radius: var(--radius-sm);
             background: transparent;
             font: inherit;
-            line-height: var(--line-height-ui);
+            line-height: var(--line-height-tight);
             text-align: left;
             cursor: pointer;
 
@@ -375,7 +380,7 @@
 
             &.sidebar-open::after {
                 position: fixed;
-                z-index: calc(var(--z-navigation-drawer) - 1);
+                z-index: calc(var(--z-drawer) - 1);
                 inset: 0;
                 content: '';
                 background: rgb(0 0 0 / 0.35);
@@ -384,19 +389,19 @@
 
         #app.sidebar-open #sidebar {
             position: fixed;
-            z-index: var(--z-navigation-drawer);
+            z-index: var(--z-drawer);
             inset: 0 auto 0 0;
             background: var(--color-bg);
-            box-shadow: var(--shadow-drawer);
+            box-shadow: 8px 0 24px rgba(0, 0, 0, 0.2);
         }
 
         #app.sidebar-open #content-header .sidebar-toggle {
             position: fixed;
-            z-index: var(--z-navigation-control);
+            z-index: calc(var(--z-drawer) + 10);
             top: 0.35rem;
             left: calc(var(--sidebar-width) + 8px);
             border: 1px solid var(--color-muted);
-            border-radius: var(--radius-control);
+            border-radius: var(--radius-sm);
             background: var(--color-bg);
         }
     }
@@ -410,7 +415,7 @@
 
         #content-header {
             position: relative;
-            z-index: var(--z-page-header);
+            z-index: var(--z-sticky);
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -472,12 +477,12 @@
                     min-height: var(--control-size);
                     padding: 0.25rem 0.625rem;
                     border: 1px solid var(--border-control);
-                    border-radius: var(--radius-control);
+                    border-radius: var(--radius-sm);
                     background: transparent;
                     color: inherit;
                     font: inherit;
-                    font-size: var(--font-size-ui);
-                    line-height: var(--line-height-ui);
+                    font-size: var(--font-size-sm);
+                    line-height: var(--line-height-tight);
                     cursor: pointer;
 
                     .packages-badge {
@@ -516,9 +521,9 @@
                     padding: 0.7rem 0.9rem;
                     overflow-y: auto;
                     border: 1px solid var(--border-control);
-                    border-radius: var(--radius-panel);
+                    border-radius: var(--radius-xl);
                     background: var(--color-bg);
-                    box-shadow: var(--shadow-overlay);
+                    box-shadow: var(--shadow-md);
                     font-size: 0.85rem;
 
                     @media (any-pointer: coarse), (width < 900px) {
