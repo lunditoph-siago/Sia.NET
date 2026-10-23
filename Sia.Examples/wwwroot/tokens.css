@@ -4,7 +4,7 @@
     :root {
         color-scheme: light dark;
 
-        --font-mono: Consolas, "Cascadia Code", "SFMono-Regular", Menlo, Monaco, "Liberation Mono", monospace;
+        --font-mono: Consolas, monospace;
         --font-size-xs: 0.6875rem;
         --font-size-sm: 0.8125rem;
         --line-height-tight: 1.25;
