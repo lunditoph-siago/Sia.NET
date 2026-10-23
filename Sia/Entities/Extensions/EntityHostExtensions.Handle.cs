@@ -63,25 +63,4 @@ public static partial class EntityHostExtensions
 
     #endregion // CurrentThreadRunner
 
-    #region ParallelRunner
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void HandleOnParallel(
-        this IEntityHost host, EntityHostRangeHandler handler)
-    {
-        var barrier = RunnerBarrier.Get();
-        host.Handle(handler, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void HandleOnParallel<TData>(
-        this IEntityHost host, in TData data, EntityHostRangeHandler<TData> handler)
-    {
-        var barrier = RunnerBarrier.Get();
-        host.Handle(data, handler, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
-
-    #endregion // ParallelRunner
 }
