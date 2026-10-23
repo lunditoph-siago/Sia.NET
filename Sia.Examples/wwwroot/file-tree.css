@@ -15,7 +15,7 @@
         .file-tree-placeholder {
             padding: 0.65rem;
             opacity: 0.5;
-            font-size: 0.75rem;
+            font-size: var(--font-size-ui);
             line-height: 1.45;
             white-space: normal;
         }
@@ -37,7 +37,7 @@
             > span {
                 flex: 1;
                 opacity: 0.6;
-                font-size: 0.72rem;
+                font-size: var(--font-size-ui);
             }
         }
 
@@ -108,7 +108,7 @@
             background: transparent;
             color: inherit;
             font: inherit;
-            font-size: 0.75rem;
+            font-size: var(--font-size-ui);
             text-align: left;
             cursor: pointer;
 

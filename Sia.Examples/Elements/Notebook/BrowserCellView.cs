@@ -185,6 +185,7 @@ public sealed class BrowserCellView : IDisposable
         private readonly DomElement _editActions;
         private readonly DomElement _scopeInput;
         private readonly DomElement _scopeSummary;
+        private readonly DomElement _scopeLabel;
         private readonly DomElement _code;
         private BrowserEditorHost? _editor;
 
@@ -201,7 +202,12 @@ public sealed class BrowserCellView : IDisposable
 
             var scopeInputId = NotebookElementIds.ScopeInput(cell.Id);
             var scopeSummaryId = NotebookElementIds.ScopeSummary(cell.Id);
+            var scopeLabelId = $"{scopeSummaryId}-label";
             var scopeEditor = DomElement.Create("div").Class("scope-editor");
+            _scopeLabel = DomElement.Create("span")
+                .Class("scope-label")
+                .Id(scopeLabelId)
+                .Text(ScopeLabel(cell.Scope));
             _scopeSummary = DomElement.Create("button")
                 .Class("scope-summary")
                 .Id(scopeSummaryId)
@@ -209,7 +215,7 @@ public sealed class BrowserCellView : IDisposable
                 .Attr("data-inline-begin", scopeInputId)
                 .Attr("aria-label", "Edit cell scope")
                 .Attr("title", $"Edit scope: {ScopeLabel(cell.Scope)}")
-                .Text(ScopeLabel(cell.Scope));
+                .Append(_scopeLabel);
             _scopeInput = DomElement.Create("input")
                 .Class("inline-input").Class("scope-input")
                 .Id(scopeInputId)
@@ -221,7 +227,7 @@ public sealed class BrowserCellView : IDisposable
                 .Attr("data-inline-input", "true")
                 .Attr("data-allow-empty", "true")
                 .Attr("data-inline-trim", "true")
-                .Attr("data-inline-summary", scopeSummaryId)
+                .Attr("data-inline-summary", scopeLabelId)
                 .Attr("data-inline-empty-label", "Isolated")
                 .Attr("data-saved-value", cell.Scope ?? string.Empty);
             using var scopeActions = BrowserControls.InlineActions(
@@ -326,7 +332,8 @@ public sealed class BrowserCellView : IDisposable
             _scopeInput
                 .Attr("value", value)
                 .Attr("data-saved-value", value);
-            _scopeSummary.Text(ScopeLabel(value)).Attr("title", $"Edit scope: {ScopeLabel(value)}");
+            _scopeLabel.Text(ScopeLabel(value));
+            _scopeSummary.Attr("title", $"Edit scope: {ScopeLabel(value)}");
         }
 
         public void DiscardChanges(BrowserEditorRegistry editors)
@@ -373,6 +380,7 @@ public sealed class BrowserCellView : IDisposable
 
         public void Dispose()
         {
+            _scopeLabel.Dispose();
             _runStop.Dispose();
             _editActions.Dispose();
             _phase.Dispose();

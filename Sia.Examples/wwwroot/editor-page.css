@@ -28,25 +28,19 @@
     }
 
     .editor-page {
-        --editor-command-size: max(2rem, var(--control-row-size));
         display: grid;
         grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: 38px auto minmax(0, 1fr) auto 24px;
+        grid-template-rows: calc(var(--control-size) + 0.5rem) auto minmax(0, 1fr) auto 24px;
         width: 100%;
         height: 100%;
         min-height: 0;
         overflow: hidden;
         background: var(--color-bg);
         color: var(--color-fg);
-        font-family: var(--font-mono);
-
-        @media (pointer: coarse),
-        (max-width: 899px) {
-            grid-template-rows: 40px auto minmax(0, 1fr) auto 24px;
-        }
+        font-size: var(--font-size-ui);
 
         @media (any-pointer: coarse), (max-width: 720px) {
-            grid-template-rows: 40px auto minmax(0, 1fr) 24px auto;
+            grid-template-rows: calc(var(--control-size) + 0.5rem) auto minmax(0, 1fr) 24px auto;
 
             &.input-tools-open > .editor-page-touchbar {
                 display: flex;
@@ -96,11 +90,6 @@
     }
 
     .editor-page-actions {
-        button {
-            min-width: var(--editor-command-size);
-            min-height: var(--editor-command-size);
-        }
-
         .btn {
             white-space: nowrap;
         }
@@ -117,8 +106,6 @@
 
             @media (max-width: 899px) {
                 display: inline-grid;
-                min-width: var(--editor-command-size);
-                min-height: var(--editor-command-size);
             }
         }
 
@@ -126,8 +113,8 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            min-width: var(--editor-command-size);
-            min-height: var(--editor-command-size);
+            min-width: var(--control-size);
+            min-height: var(--control-size);
             border-color: transparent;
         }
     }
@@ -163,9 +150,6 @@
     }
 
     .editor-action {
-        width: 2rem;
-        height: 2rem;
-
         &[data-action='run'] [data-icon='run'],
         &[data-action='stop'] [data-icon='stop'],
         &[data-action='compile'] [data-icon='compile'],
@@ -176,13 +160,10 @@
 
     .editor-action-icon {
         display: none;
-        width: 1.25rem;
-        height: 1.25rem;
         pointer-events: none;
     }
 
     .editor-page-workbench {
-        --cell-tabs-block-padding: 0px;
         --cell-split-line-offset: 50%;
         position: relative;
         display: flex;
@@ -293,9 +274,6 @@
         }
 
         .icon-btn {
-            width: max(2rem, var(--control-size));
-            height: max(2rem, var(--control-size));
-
             &:disabled {
                 opacity: 0.4;
                 cursor: default;
@@ -379,7 +357,7 @@
         background: transparent;
         color: inherit;
         font: inherit;
-        font-size: 0.7rem;
+        font-size: var(--font-size-ui);
         line-height: 1.45;
         text-align: left;
 
@@ -407,9 +385,7 @@
         padding: 0.65rem;
         overflow: auto;
         color: var(--color-fg);
-        font: inherit;
-        font-size: 0.72rem;
-        line-height: 1.5;
+        font: var(--font-size-ui)/1.5 var(--font-mono);
         white-space: pre-wrap;
 
         &.output-error {
@@ -496,7 +472,7 @@
         overflow: hidden;
         border-top: 1px solid var(--border-subtle);
         background: var(--surface-subtle);
-        font-size: 0.65rem;
+        font-size: var(--font-size-caption);
         white-space: nowrap;
 
         @media (any-pointer: coarse), (max-width: 720px) {
@@ -964,7 +940,8 @@
 
     .editor-shader-output {
         overflow: auto;
-        font-size: 0.75rem;
+        font-family: var(--font-mono);
+        font-size: var(--font-size-ui);
         line-height: var(--line-height-copy);
         white-space: pre-wrap;
         overflow-wrap: anywhere;

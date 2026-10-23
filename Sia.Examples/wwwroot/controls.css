@@ -21,6 +21,12 @@
         width: var(--control-size);
         height: var(--control-size);
         border-color: transparent;
+        font-size: var(--control-icon-size);
+
+        > svg {
+            width: 1.125rem;
+            height: 1.125rem;
+        }
 
         &:hover, &:focus-visible {
             border-color: var(--color-muted);
@@ -39,9 +45,9 @@
 
     .btn {
         min-width: var(--control-size);
-        min-height: var(--control-size);
-        padding: 0.2rem 0.55rem;
-        font-size: 0.72rem;
+        min-height: var(--control-row-size);
+        padding: 0.25rem 0.625rem;
+        font-size: var(--font-size-ui);
 
         &:focus-visible {
             outline: 2px solid var(--color-accent);
@@ -52,14 +58,10 @@
             opacity: 0.5;
             cursor: default;
         }
-
-        @media (any-pointer: coarse), (max-width: 899px) {
-            padding: 0.15rem 0.4rem;
-        }
     }
 
     .inline-input {
-        min-height: var(--control-size);
+        min-height: var(--control-row-size);
         border: 1px solid transparent;
         border-radius: var(--radius-small);
         background: transparent;

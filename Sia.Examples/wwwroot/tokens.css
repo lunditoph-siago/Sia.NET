@@ -6,6 +6,10 @@
         --font-mono: ui-monospace, monospace;
         --control-size: 1.75rem;
         --control-row-size: var(--control-size);
+        --control-mark-size: 1.15rem;
+        --control-icon-size: 1rem;
+        --font-size-ui: 0.8125rem;
+        --font-size-caption: 0.6875rem;
         --line-height-ui: 1.25;
         --line-height-copy: 1.55;
         --color-bg: #eff1f5;
@@ -60,8 +64,7 @@
 
     @media (any-pointer: coarse), (max-width: 899px) {
         :root {
-            --control-size: 2rem;
-            --control-row-size: 2.25rem;
+            --control-size: 2.25rem;
         }
     }
 

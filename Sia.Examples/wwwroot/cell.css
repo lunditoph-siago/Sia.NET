@@ -56,10 +56,10 @@
             flex-wrap: nowrap;
             gap: 0.25rem 0.5rem;
             min-width: 0;
-            padding: var(--cell-tabs-block-padding, 0.125rem) 0.375rem;
+            padding: 0.125rem 0.375rem;
             border-bottom: 1px solid var(--border-subtle);
             background: var(--surface-chrome);
-            font-size: 0.78rem;
+            font-size: var(--font-size-ui);
             line-height: var(--line-height-ui);
 
             .cell-controls {
@@ -73,7 +73,7 @@
                 border: 1px solid currentColor;
                 border-radius: var(--radius-pill);
                 opacity: 0.85;
-                font-size: 0.7rem;
+                font-size: var(--font-size-caption);
 
                 &.phase-idle {
                     color: var(--color-muted);
@@ -214,7 +214,6 @@
             }
 
             .toolbar {
-                --cell-control-size: 1.15rem;
                 display: contents;
 
                 .phase,
@@ -225,12 +224,6 @@
 
                 .cell-controls {
                     align-items: center;
-
-                    > .icon-btn {
-                        width: var(--cell-control-size);
-                        height: var(--cell-control-size);
-                        font-size: 0.7rem;
-                    }
                 }
 
                 .scope-editor {
@@ -239,31 +232,53 @@
                     min-width: 0;
 
                     .scope-summary {
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        min-width: var(--control-size);
                         max-width: 9rem;
-                        min-height: var(--cell-control-size);
+                        height: var(--control-size);
+                        padding: 0;
+                        border: 0;
+                        border-radius: var(--radius-control);
+                        background: transparent;
+                        color: inherit;
+                        font: inherit;
+                        cursor: pointer;
+
+                        &:hover,
+                        &:focus-visible {
+                            .scope-label {
+                                border-color: var(--border-control);
+                                color: var(--color-fg);
+                            }
+                        }
+
+                        &:focus-visible {
+                            outline: 1px solid var(--color-accent);
+                            outline-offset: -1px;
+                        }
+                    }
+
+                    .scope-label {
+                        min-width: 0;
+                        max-width: 100%;
+                        height: var(--control-mark-size);
                         padding: 0 0.5rem;
                         overflow: hidden;
                         border: 1px solid transparent;
                         border-radius: var(--radius-pill);
                         background: var(--surface-subtle);
                         color: var(--color-subtle);
-                        font: inherit;
-                        font-size: 0.72rem;
-                        line-height: 1;
+                        font-size: var(--font-size-caption);
+                        line-height: calc(var(--control-mark-size) - 2px);
                         text-overflow: ellipsis;
                         white-space: nowrap;
-                        cursor: pointer;
 
                         &::before {
                             content: '◎';
                             margin-right: 0.3rem;
                             color: var(--color-accent);
-                        }
-
-                        &:hover,
-                        &:focus-visible {
-                            border-color: var(--border-control);
-                            color: var(--color-fg);
                         }
                     }
 
@@ -298,15 +313,17 @@
             }
 
             @container (max-width: 30rem) {
+                .tab-list {
+                    scrollbar-width: none;
+                }
+
                 &:has(> .toolbar) {
                     --cell-tab-inline-padding: 0.5rem;
                     gap: 0.25rem;
-                    padding-block: 0.25rem;
                     background: var(--surface-subtle);
 
                     .tab-list {
                         flex: 1 1 7rem;
-                        scrollbar-width: none;
                     }
                 }
 
@@ -315,7 +332,7 @@
                         order: 2;
                         padding: 0;
                         border: 0;
-                        font-size: 0.65rem;
+                        font-size: var(--font-size-caption);
                         white-space: nowrap;
 
                         &.phase-idle {
@@ -334,10 +351,12 @@
 
                         .scope-summary {
                             max-width: 100%;
+                        }
+
+                        .scope-label {
                             padding-inline: 0.4rem;
                             border-radius: var(--radius-control);
                             background: var(--surface-selected);
-                            font-size: 0.68rem;
                             text-align: left;
                         }
 
@@ -355,7 +374,11 @@
                             flex: 0 0 auto;
 
                             .scope-summary {
-                                width: var(--cell-control-size);
+                                width: var(--control-size);
+                            }
+
+                            .scope-label {
+                                width: var(--control-mark-size);
                                 padding-inline: 0;
                                 font-size: 0;
                                 text-align: center;

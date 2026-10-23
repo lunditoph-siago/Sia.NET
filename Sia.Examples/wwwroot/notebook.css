@@ -197,7 +197,7 @@
             margin: 0;
             overflow: hidden;
             border: 1px solid var(--border-subtle);
-            border-radius: var(--radius-medium);
+            border-radius: var(--radius-panel);
             background: color-mix(in srgb, var(--surface-hover) 58%, transparent);
 
             figcaption {
@@ -368,6 +368,10 @@
             .home-actions {
                 gap: 0.4rem;
                 margin-top: 0.65rem;
+
+                .home-primary {
+                    flex: 1 1 auto;
+                }
             }
 
             .home-code {

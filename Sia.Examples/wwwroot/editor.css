@@ -13,7 +13,7 @@
         color: var(--color-text);
         box-shadow: var(--shadow-overlay);
         font: inherit;
-        font-size: 0.8rem;
+        font-size: var(--font-size-ui);
         line-height: var(--line-height-ui);
 
         &[open] {
@@ -838,13 +838,12 @@
         border-top: 1px solid var(--color-border);
         background: var(--color-bg-secondary);
         color: var(--color-text-dim);
-        font-size: 0.7rem;
+        font-size: var(--font-size-caption);
         white-space: nowrap;
 
         @media (max-width: 720px) {
             gap: 0.5rem;
             padding: 0.15rem 0.45rem;
-            font-size: 0.66rem;
         }
     }
 

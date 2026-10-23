@@ -60,7 +60,7 @@
         background: transparent;
         color: inherit;
         font: inherit;
-        font-size: 0.78rem;
+        font-size: var(--font-size-ui);
         line-height: var(--line-height-ui);
         text-align: left;
         cursor: pointer;
