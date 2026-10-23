@@ -118,20 +118,20 @@ function positionOverlay(placement) {
             viewportRect.bottom = Math.min(viewportRect.bottom, clip.bottom);
         }
     }
+    const margin = 4;
     if (
         !anchorRect ||
         viewportRect.right <= viewportRect.left ||
         viewportRect.bottom <= viewportRect.top ||
         anchorRect.bottom <= viewportRect.top ||
         anchorRect.top >= viewportRect.bottom ||
-        anchorRect.right < viewportRect.left ||
-        anchorRect.left > viewportRect.right
+        anchorRect.right < viewportRect.left - margin ||
+        anchorRect.left > viewportRect.right + margin
     ) {
         overlay.style.visibility = 'hidden';
         return;
     }
 
-    const margin = 4;
     const rootFontSize =
         Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
     const availableWidth = Math.max(0, viewportRect.right - viewportRect.left - margin * 2);
@@ -240,6 +240,7 @@ export function placeOverlay(container, surface, overlay, lineIndex, column, end
             frame: 0,
             schedule: null,
             resizeObserver: null,
+            mutationObserver: null,
         };
         placement.schedule = () => {
             if (placement.frame) return;
@@ -250,6 +251,8 @@ export function placeOverlay(container, surface, overlay, lineIndex, column, end
         };
         placement.resizeObserver = new ResizeObserver(placement.schedule);
         placement.resizeObserver.observe(viewport);
+        placement.mutationObserver = new MutationObserver(placement.schedule);
+        placement.mutationObserver.observe(surface, { attributes: true, attributeFilter: ['class'] });
         viewport.addEventListener('scroll', placement.schedule, {
             passive: true,
             signal: controller.signal,
@@ -296,6 +299,7 @@ export function clearOverlayPlacement(overlay) {
     }
     cancelAnimationFrame(placement.frame);
     placement.resizeObserver.disconnect();
+    placement.mutationObserver.disconnect();
     placement.controller.abort();
     overlayPlacements.delete(overlay);
     delete overlay.dataset.overlaySide;

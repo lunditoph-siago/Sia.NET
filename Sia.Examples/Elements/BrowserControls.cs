@@ -10,7 +10,7 @@ internal static class BrowserControls
             .Class(menu ? "menu-item" : "icon-btn")
             .Attr("type", "button").Attr("role", menu ? "menuitemcheckbox" : "checkbox")
             .Attr("aria-label", "Word Wrap").Attr("aria-checked", "true")
-            .Attr("title", "Toggle word wrap (Alt+Z)")
+            .Attr("title", "Toggle word wrap")
             .Attr("data-workbench-command", "ToggleWordWrap");
         if (menu) return button.Text("Word Wrap");
         using var icon = DomElement.Create("svg").Attr("viewBox", "0 0 24 24")
