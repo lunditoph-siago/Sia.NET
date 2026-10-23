@@ -88,16 +88,6 @@
 
     :root[data-theme="light"] {
         color-scheme: light;
-        --color-bg: #eff1f5;
-        --color-fg: #4c4f69;
-        --color-muted: #9ca0b0;
-        --color-subtle: #7c7f93;
-        --color-accent: #8839ef;
-        --color-success: #40a02b;
-        --color-warning: #df8e1d;
-        --color-info: #1e66f5;
-        --color-highlight: #fe640b;
-        --color-danger: #d20f39;
     }
 
     :root[data-theme="dark"] {

@@ -5,6 +5,19 @@
         inset: 0;
         pointer-events: none;
     }
+
+    #overlay-root > .menu-popover.is-portaled {
+        position: fixed;
+        top: 0;
+        right: auto;
+        left: 0;
+        display: grid;
+        width: max-content;
+        max-width: calc(100vw - 1rem);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        pointer-events: auto;
+    }
 }
 
 @layer components {
@@ -30,24 +43,7 @@
         background: var(--color-bg);
         box-shadow: var(--shadow-overlay);
     }
-}
 
-@layer overlays {
-    #overlay-root > .menu-popover.is-portaled {
-        position: fixed;
-        top: 0;
-        right: auto;
-        left: 0;
-        display: grid;
-        width: max-content;
-        max-width: calc(100vw - 1rem);
-        overflow-y: auto;
-        overscroll-behavior: contain;
-        pointer-events: auto;
-    }
-}
-
-@layer components {
     .menu-item {
         display: grid;
         grid-template-columns: 1.5rem 1fr;

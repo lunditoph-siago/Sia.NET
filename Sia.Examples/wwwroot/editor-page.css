@@ -120,7 +120,8 @@
     }
 
     .editor-page-menu {
-        .editor-input-reset {
+        .editor-input-reset,
+        .menu-item.editor-input-action {
             display: none;
 
             @media (any-pointer: coarse), (max-width: 720px) {
@@ -136,14 +137,6 @@
 
                 &[aria-checked='true']::after {
                     content: '✓';
-                }
-            }
-
-            &.editor-input-action {
-                display: none;
-
-                @media (any-pointer: coarse), (max-width: 720px) {
-                    display: grid;
                 }
             }
         }
@@ -430,11 +423,6 @@
         align-self: flex-start;
         flex: 0 0 auto;
         margin: 0.25rem 0.65rem;
-
-        @media (pointer: coarse),
-        (max-width: 720px) {
-            min-height: var(--control-size);
-        }
     }
 
     .editor-compilation-details {
@@ -632,7 +620,7 @@
             max-width: 100%;
             padding: 0.3rem;
             border: 1px solid var(--border-subtle);
-            border-radius: 4px;
+            border-radius: var(--radius-control);
             color: var(--color-fg);
             background: var(--color-bg);
             font: inherit;
@@ -675,10 +663,8 @@
             max-width: 16rem;
         }
 
-        @media (pointer: coarse),
-        (max-width: 720px) {
-            select,
-            button {
+        @media (pointer: coarse), (max-width: 720px) {
+            select {
                 min-height: var(--control-size);
             }
         }
@@ -735,8 +721,7 @@
             }
         }
 
-        @media (pointer: coarse),
-        (max-width: 720px) {
+        @media (pointer: coarse), (max-width: 720px) {
             padding: 0.5rem;
 
             header {
@@ -816,8 +801,7 @@
             margin-right: auto;
         }
 
-        @media (pointer: coarse),
-        (max-width: 720px) {
+        @media (pointer: coarse), (max-width: 720px) {
             min-height: var(--control-size);
         }
     }
@@ -864,7 +848,7 @@
     .editor-uniform-component {
         padding-left: 0.3rem;
         border: 1px solid var(--border-subtle);
-        border-radius: 4px;
+        border-radius: var(--radius-control);
         background: var(--color-bg);
 
         &:focus-within {

@@ -210,12 +210,12 @@
             grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
             gap: 0.6rem;
             padding: 0.8rem;
-        }
 
-        .keymap-edit > h3 {
-            grid-column: 1 / -1;
-            margin: 0;
-            font-size: 0.9rem;
+            > h3 {
+                grid-column: 1 / -1;
+                margin: 0;
+                font-size: 0.9rem;
+            }
         }
 
         &.is-editing > :is(.keymap-list, input) {
@@ -347,10 +347,19 @@
         color: var(--color-subtle);
     }
 
-    .diagnostics {
-        padding: 0.4rem 1rem;
+    .diagnostics,
+    .output {
+        padding-inline: 1rem;
         border-top: 1px solid var(--border-subtle);
         font-family: var(--font-mono);
+
+        @media (max-width: 720px) {
+            padding-inline: 0.65rem;
+        }
+    }
+
+    .diagnostics {
+        padding-block: 0.4rem;
         font-size: 0.75rem;
 
         .diagnostic-error {
@@ -360,18 +369,11 @@
         .diagnostic-warning {
             color: var(--color-warning);
         }
-
-        @media (max-width: 720px) {
-            padding-right: 0.65rem;
-            padding-left: 0.65rem;
-        }
     }
 
     .output {
-        padding: 0.6rem 1rem;
-        border-top: 1px solid var(--border-subtle);
+        padding-block: 0.6rem;
         opacity: 0.85;
-        font-family: var(--font-mono);
         font-size: 0.78rem;
         line-height: 1.55;
         white-space: pre-wrap;
@@ -379,11 +381,6 @@
         &.output-error {
             opacity: 1;
             color: var(--color-danger);
-        }
-
-        @media (max-width: 720px) {
-            padding-right: 0.65rem;
-            padding-left: 0.65rem;
         }
     }
 
@@ -654,12 +651,11 @@
         user-select: none;
     }
 
-    .signature-help {
+    .signature-help,
+    .completion-popup {
         position: absolute;
         z-index: var(--z-editor-popup);
-        width: 26rem;
         max-height: 12rem;
-        overflow: auto;
         overscroll-behavior: contain;
         border: 1px solid var(--border-control);
         border-radius: var(--radius-control);
@@ -667,6 +663,11 @@
         box-shadow: var(--shadow-completion);
         font-size: 0.8rem;
         line-height: 1.4;
+    }
+
+    .signature-help {
+        width: 26rem;
+        overflow: auto;
 
         &.combined {
             position: static;
@@ -727,22 +728,12 @@
     .completion-popup {
         display: flex;
         flex-direction: column;
-        position: absolute;
-        z-index: var(--z-editor-popup);
         top: 0;
         left: var(--editor-gutter-width);
         contain: layout paint;
         width: 22rem;
-        max-height: 12rem;
         overflow: hidden;
-        overscroll-behavior: contain;
         scrollbar-gutter: stable;
-        border: 1px solid var(--border-control);
-        border-radius: var(--radius-control);
-        background: var(--color-bg);
-        box-shadow: var(--shadow-completion);
-        font-size: 0.8rem;
-        line-height: 1.4;
 
         .completion-list {
             min-height: 1.5rem;
