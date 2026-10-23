@@ -1,9 +1,22 @@
 @layer overlays {
     #overlay-root {
         position: fixed;
-        z-index: var(--z-overlay-root);
+        z-index: var(--z-overlay);
         inset: 0;
         pointer-events: none;
+    }
+
+    #overlay-root > .menu-popover.is-portaled {
+        position: fixed;
+        top: 0;
+        right: auto;
+        left: 0;
+        display: grid;
+        width: max-content;
+        max-width: calc(100vw - 1rem);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        pointer-events: auto;
     }
 }
 
@@ -26,42 +39,25 @@
         min-width: 11rem;
         padding: 0.25rem;
         border: 1px solid var(--color-muted);
-        border-radius: var(--radius-popover);
+        border-radius: var(--radius-md);
         background: var(--color-bg);
-        box-shadow: var(--shadow-overlay);
+        box-shadow: var(--shadow-md);
     }
-}
 
-@layer overlays {
-    #overlay-root > .menu-popover.is-portaled {
-        position: fixed;
-        top: 0;
-        right: auto;
-        left: 0;
-        display: grid;
-        width: max-content;
-        max-width: calc(100vw - 1rem);
-        overflow-y: auto;
-        overscroll-behavior: contain;
-        pointer-events: auto;
-    }
-}
-
-@layer components {
     .menu-item {
         display: grid;
         grid-template-columns: 1.5rem 1fr;
         align-items: center;
-        min-height: var(--control-row-size);
+        min-height: var(--control-size);
         gap: 0.35rem;
         padding: 0.3rem 0.45rem;
         border: 0;
-        border-radius: var(--radius-small);
+        border-radius: var(--radius-xs);
         background: transparent;
         color: inherit;
         font: inherit;
-        font-size: 0.78rem;
-        line-height: var(--line-height-ui);
+        font-size: var(--font-size-sm);
+        line-height: var(--line-height-tight);
         text-align: left;
         cursor: pointer;
 

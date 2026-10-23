@@ -2,11 +2,11 @@
     .icon-btn,
     .btn {
         border: 1px solid var(--border-control);
-        border-radius: var(--radius-control);
+        border-radius: var(--radius-sm);
         background: transparent;
         color: inherit;
         font: inherit;
-        line-height: var(--line-height-ui);
+        line-height: var(--line-height-tight);
         cursor: pointer;
 
         &:hover {
@@ -21,6 +21,12 @@
         width: var(--control-size);
         height: var(--control-size);
         border-color: transparent;
+        font-size: var(--icon-size);
+
+        > svg {
+            width: 1.125rem;
+            height: 1.125rem;
+        }
 
         &:hover, &:focus-visible {
             border-color: var(--color-muted);
@@ -40,8 +46,8 @@
     .btn {
         min-width: var(--control-size);
         min-height: var(--control-size);
-        padding: 0.2rem 0.55rem;
-        font-size: 0.72rem;
+        padding: 0.25rem 0.625rem;
+        font-size: var(--font-size-sm);
 
         &:focus-visible {
             outline: 2px solid var(--color-accent);
@@ -52,16 +58,12 @@
             opacity: 0.5;
             cursor: default;
         }
-
-        @media (any-pointer: coarse), (max-width: 899px) {
-            padding: 0.15rem 0.4rem;
-        }
     }
 
     .inline-input {
         min-height: var(--control-size);
         border: 1px solid transparent;
-        border-radius: var(--radius-small);
+        border-radius: var(--radius-xs);
         background: transparent;
         color: inherit;
         font: inherit;
@@ -151,26 +153,24 @@
             border-top: 1px dashed var(--border-subtle);
 
             .package-add-input {
-                flex: 1 1 8rem;
+                flex: 1 1 6rem;
                 min-width: 0;
                 max-width: 100%;
-                min-height: var(--control-row-size);
+                min-height: var(--control-size);
                 padding: 0.25rem 0.5rem;
                 border: 1px solid var(--border-control);
-                border-radius: var(--radius-control);
+                border-radius: var(--radius-sm);
                 background: var(--color-bg);
                 color: var(--color-fg);
                 font: inherit;
                 font-size: 0.8rem;
 
-                @media (any-pointer: coarse), (max-width: 899px) {
-                    font-size: 1rem;
+                &:first-child {
+                    flex-basis: 12rem;
                 }
-            }
 
-            @media (any-pointer: coarse), (max-width: 899px) {
-                .package-add-input:first-child {
-                    flex-basis: 100%;
+                @media (any-pointer: coarse), (width < 900px) {
+                    font-size: 1rem;
                 }
             }
         }

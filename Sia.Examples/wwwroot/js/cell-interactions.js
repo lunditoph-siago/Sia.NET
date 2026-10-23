@@ -8,6 +8,7 @@ let suppressCellClick = false;
 let pendingCellRevision = null;
 let splitResize = null;
 let pendingCellAnchor = null;
+const activeCellTabs = new WeakMap();
 
 function rememberCellAnchor(target) {
     const owner = menuOwner(target);
@@ -32,14 +33,33 @@ function restoreCellAnchor() {
     scroller.scrollTop += anchor.cell.getBoundingClientRect().top - anchor.top;
 }
 
+function revealActiveCellTabs() {
+    for (const list of document.querySelectorAll('#notebook .tab-list')) {
+        const tab = list.querySelector(':scope > .tab-entry > .tab.active');
+        const width = list.clientWidth;
+        const previous = activeCellTabs.get(list);
+        if (!tab || !width || (previous?.tab === tab && previous.width === width)) {
+            continue;
+        }
+        activeCellTabs.set(list, { tab, width });
+        const bounds = list.getBoundingClientRect();
+        const entry = tab.closest('.tab-entry').getBoundingClientRect();
+        if (entry.left < bounds.left) {
+            list.scrollLeft += entry.left - bounds.left;
+        } else if (entry.right > bounds.right) {
+            list.scrollLeft += Math.min(entry.left - bounds.left, entry.right - bounds.right);
+        }
+    }
+}
+
 new MutationObserver((records) => {
-    if (
-        !pendingCellAnchor ||
-        !records.some((record) => record.target.classList?.contains('floating-layer'))
-    ) {
+    if (!records.some((record) => record.target.classList?.contains('floating-layer'))) {
         return;
     }
-    requestAnimationFrame(restoreCellAnchor);
+    requestAnimationFrame(() => {
+        restoreCellAnchor();
+        revealActiveCellTabs();
+    });
 }).observe(document.getElementById('notebook'), {
     attributes: true,
     attributeFilter: ['data-cell-layout-revision'],
@@ -506,6 +526,7 @@ window.addEventListener('resize', () => {
     cancelAnimationFrame(normalizeCellFrame);
     normalizeCellFrame = requestAnimationFrame(() => {
         normalizeCellFrame = 0;
+        revealActiveCellTabs();
         emit(`cell-normalize:${window.innerWidth}:${window.innerHeight}`);
     });
 });

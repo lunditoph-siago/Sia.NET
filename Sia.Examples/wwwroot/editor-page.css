@@ -28,25 +28,19 @@
     }
 
     .editor-page {
-        --editor-command-size: max(2rem, var(--control-row-size));
         display: grid;
         grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: 38px auto minmax(0, 1fr) auto 24px;
+        grid-template-rows: var(--page-header-size) auto minmax(0, 1fr) auto 24px;
         width: 100%;
         height: 100%;
         min-height: 0;
         overflow: hidden;
         background: var(--color-bg);
         color: var(--color-fg);
-        font-family: var(--font-mono);
-
-        @media (pointer: coarse),
-        (max-width: 899px) {
-            grid-template-rows: 40px auto minmax(0, 1fr) auto 24px;
-        }
+        font-size: var(--font-size-sm);
 
         @media (any-pointer: coarse), (max-width: 720px) {
-            grid-template-rows: 40px auto minmax(0, 1fr) 24px auto;
+            grid-template-rows: var(--page-header-size) auto minmax(0, 1fr) 24px auto;
 
             &.input-tools-open > .editor-page-touchbar {
                 display: flex;
@@ -96,11 +90,6 @@
     }
 
     .editor-page-actions {
-        button {
-            min-width: var(--editor-command-size);
-            min-height: var(--editor-command-size);
-        }
-
         .btn {
             white-space: nowrap;
         }
@@ -115,10 +104,8 @@
         .editor-files-toggle {
             display: none;
 
-            @media (max-width: 899px) {
+            @media (width < 900px) {
                 display: inline-grid;
-                min-width: var(--editor-command-size);
-                min-height: var(--editor-command-size);
             }
         }
 
@@ -126,14 +113,15 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            min-width: var(--editor-command-size);
-            min-height: var(--editor-command-size);
+            min-width: var(--control-size);
+            min-height: var(--control-size);
             border-color: transparent;
         }
     }
 
     .editor-page-menu {
-        .editor-input-reset {
+        .editor-input-reset,
+        .menu-item.editor-input-action {
             display: none;
 
             @media (any-pointer: coarse), (max-width: 720px) {
@@ -151,20 +139,13 @@
                     content: '✓';
                 }
             }
-
-            &.editor-input-action {
-                display: none;
-
-                @media (any-pointer: coarse), (max-width: 720px) {
-                    display: grid;
-                }
-            }
         }
     }
 
     .editor-action {
-        width: 2rem;
-        height: 2rem;
+        [data-icon='run'] {
+            scale: 0.95;
+        }
 
         &[data-action='run'] [data-icon='run'],
         &[data-action='stop'] [data-icon='stop'],
@@ -176,13 +157,10 @@
 
     .editor-action-icon {
         display: none;
-        width: 1.25rem;
-        height: 1.25rem;
         pointer-events: none;
     }
 
     .editor-page-workbench {
-        --cell-tabs-block-padding: 0px;
         --cell-split-line-offset: 50%;
         position: relative;
         display: flex;
@@ -293,9 +271,6 @@
         }
 
         .icon-btn {
-            width: max(2rem, var(--control-size));
-            height: max(2rem, var(--control-size));
-
             &:disabled {
                 opacity: 0.4;
                 cursor: default;
@@ -323,7 +298,7 @@
         &.editor-container {
             max-height: none;
             border: 0;
-            border-radius: var(--radius-none);
+            border-radius: 0;
             background: var(--color-bg);
         }
     }
@@ -379,12 +354,12 @@
         background: transparent;
         color: inherit;
         font: inherit;
-        font-size: 0.7rem;
+        font-size: var(--font-size-sm);
         line-height: 1.45;
         text-align: left;
 
         &:is(button) {
-            min-height: var(--control-row-size);
+            min-height: var(--control-size);
             cursor: pointer;
 
             &:hover {
@@ -407,9 +382,7 @@
         padding: 0.65rem;
         overflow: auto;
         color: var(--color-fg);
-        font: inherit;
-        font-size: 0.72rem;
-        line-height: 1.5;
+        font: var(--font-size-sm)/1.5 var(--font-mono);
         white-space: pre-wrap;
 
         &.output-error {
@@ -450,11 +423,6 @@
         align-self: flex-start;
         flex: 0 0 auto;
         margin: 0.25rem 0.65rem;
-
-        @media (pointer: coarse),
-        (max-width: 720px) {
-            min-height: var(--control-size);
-        }
     }
 
     .editor-compilation-details {
@@ -496,7 +464,7 @@
         overflow: hidden;
         border-top: 1px solid var(--border-subtle);
         background: var(--surface-subtle);
-        font-size: 0.65rem;
+        font-size: var(--font-size-xs);
         white-space: nowrap;
 
         @media (any-pointer: coarse), (max-width: 720px) {
@@ -560,7 +528,7 @@
 
     .editor-page-build-status {
         margin-left: auto;
-        color: var(--color-muted);
+        color: var(--color-subtle);
         flex: 1 1 0;
         min-width: 0;
     }
@@ -576,7 +544,7 @@
 
     .editor-status-mode {
         flex: none;
-        color: var(--color-text);
+        color: var(--color-fg);
     }
 
     .editor-status-workspace,
@@ -597,6 +565,7 @@
         grid-column: 1;
         grid-row: 2;
         align-items: center;
+        flex-wrap: wrap;
         gap: 0.6rem;
         padding: 0.4rem 0.7rem;
         border-bottom: 1px solid var(--color-warning);
@@ -605,24 +574,28 @@
     }
 
     .editor-page-confirm-message {
-        flex: 1 1 auto;
+        flex: 1 1 20rem;
         min-width: 0;
         overflow-wrap: anywhere;
     }
 
     .editor-page-confirm-actions {
         display: flex;
-        flex: 0 0 auto;
+        flex: 1 1 20rem;
         align-items: center;
+        justify-content: end;
+        flex-wrap: wrap;
         gap: 0.4rem;
+        min-width: 0;
 
         input {
-            flex: 1;
-            min-width: 0;
-            min-height: var(--control-row-size);
+            flex: 1 1 12rem;
+            min-width: min(100%, 12rem);
+            max-width: 100%;
+            min-height: var(--control-size);
             padding: 0.2rem 0.45rem;
             border: 1px solid var(--border-control);
-            border-radius: var(--radius-control);
+            border-radius: var(--radius-sm);
             background: var(--color-bg);
             color: inherit;
             font: inherit;
@@ -635,21 +608,10 @@
         }
     }
 
-    @media (max-width: 640px) {
-        .editor-page-confirm-banner {
-            flex-direction: column;
-            align-items: stretch;
-        }
-
-        .editor-page-confirm-actions {
-            flex-wrap: wrap;
-
-            input {
-                flex: 1 0 100%;
-                width: 100%;
-                box-sizing: border-box;
-            }
-        }
+    .editor-page-confirm-buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
     }
 
     .editor-shader-actions,
@@ -658,7 +620,7 @@
             max-width: 100%;
             padding: 0.3rem;
             border: 1px solid var(--border-subtle);
-            border-radius: 4px;
+            border-radius: var(--radius-sm);
             color: var(--color-fg);
             background: var(--color-bg);
             font: inherit;
@@ -701,10 +663,8 @@
             max-width: 16rem;
         }
 
-        @media (pointer: coarse),
-        (max-width: 720px) {
-            select,
-            button {
+        @media (pointer: coarse), (max-width: 720px) {
+            select {
                 min-height: var(--control-size);
             }
         }
@@ -738,7 +698,7 @@
         overflow: auto;
         overscroll-behavior: contain;
         border: 1px solid var(--border-control);
-        border-radius: var(--radius-control);
+        border-radius: var(--radius-sm);
         color: var(--color-fg);
         background: var(--color-bg);
         box-shadow: 0 8px 32px #0004;
@@ -761,8 +721,7 @@
             }
         }
 
-        @media (pointer: coarse),
-        (max-width: 720px) {
+        @media (pointer: coarse), (max-width: 720px) {
             padding: 0.5rem;
 
             header {
@@ -842,8 +801,7 @@
             margin-right: auto;
         }
 
-        @media (pointer: coarse),
-        (max-width: 720px) {
+        @media (pointer: coarse), (max-width: 720px) {
             min-height: var(--control-size);
         }
     }
@@ -890,7 +848,7 @@
     .editor-uniform-component {
         padding-left: 0.3rem;
         border: 1px solid var(--border-subtle);
-        border-radius: 4px;
+        border-radius: var(--radius-sm);
         background: var(--color-bg);
 
         &:focus-within {
@@ -964,8 +922,9 @@
 
     .editor-shader-output {
         overflow: auto;
-        font-size: 0.75rem;
-        line-height: var(--line-height-copy);
+        font-family: var(--font-mono);
+        font-size: var(--font-size-sm);
+        line-height: var(--line-height-normal);
         white-space: pre-wrap;
         overflow-wrap: anywhere;
     }

@@ -8,13 +8,13 @@
         padding: 0;
         overflow: hidden;
         border: 1px solid var(--border-control);
-        border-radius: var(--radius-popover);
+        border-radius: var(--radius-md);
         background: var(--color-bg);
-        color: var(--color-text);
-        box-shadow: var(--shadow-overlay);
+        color: var(--color-fg);
+        box-shadow: var(--shadow-md);
         font: inherit;
-        font-size: 0.8rem;
-        line-height: var(--line-height-ui);
+        font-size: var(--font-size-sm);
+        line-height: var(--line-height-tight);
 
         &[open] {
             display: flex;
@@ -51,11 +51,11 @@
 
         > input, .keymap-edit > input, .keymap-edit > select {
             min-width: 0;
-            min-height: var(--control-row-size);
+            min-height: var(--control-size);
             padding: 0.45rem 0.6rem;
             border: 1px solid var(--border-control);
-            border-radius: var(--radius-control);
-            background: var(--color-bg-secondary);
+            border-radius: var(--radius-sm);
+            background: var(--color-bg);
             color: inherit;
             font: inherit;
 
@@ -83,7 +83,7 @@
 
             > span {
                 margin-right: auto;
-                color: var(--color-text-dim);
+                color: var(--color-subtle);
             }
 
             > button[aria-pressed="true"] {
@@ -106,7 +106,7 @@
             gap: 0.5rem;
             width: 100%;
             margin: 0;
-            min-height: var(--control-row-size);
+            min-height: var(--control-size);
             padding: 0.3rem 0.65rem;
             border: 0;
             border-bottom: 1px solid var(--border-subtle);
@@ -131,7 +131,7 @@
 
             kbd {
                 font: inherit;
-                color: var(--color-text-dim);
+                color: var(--color-subtle);
             }
 
             kbd:empty {
@@ -140,13 +140,14 @@
         }
 
         .keymap-command-title {
+            flex: 1 1 14rem;
             overflow-wrap: anywhere;
         }
 
         .keymap-bindings {
             display: flex;
             flex-wrap: wrap;
-            justify-content: end;
+            flex: 1 1 16rem;
             align-items: center;
             gap: 0.25rem;
 
@@ -166,8 +167,8 @@
                 min-height: var(--control-size);
                 padding: 0.2rem 0.35rem;
                 border: 1px solid var(--border-control);
-                border-radius: var(--radius-small);
-                background: var(--color-bg-secondary);
+                border-radius: var(--radius-xs);
+                background: var(--color-bg);
                 color: inherit;
                 font: inherit;
                 cursor: pointer;
@@ -182,7 +183,7 @@
             flex: none;
             margin: 0;
             padding: var(--dialog-section-padding);
-            color: var(--color-text-dim);
+            color: var(--color-subtle);
         }
 
         :is(.keymap-message, .editor-dialog-message):empty {
@@ -197,7 +198,7 @@
             gap: 0.5rem;
             padding: var(--dialog-section-padding);
             font-size: 0.72rem;
-            color: var(--color-text-dim);
+            color: var(--color-subtle);
 
             > span {
                 flex: 1 1 12rem;
@@ -206,22 +207,22 @@
 
         .keymap-edit {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) auto;
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
             gap: 0.6rem;
             padding: 0.8rem;
-        }
 
-        .keymap-edit > h3 {
-            grid-column: 1 / -1;
-            margin: 0;
-            font-size: 0.9rem;
+            > h3 {
+                grid-column: 1 / -1;
+                margin: 0;
+                font-size: 0.9rem;
+            }
         }
 
         &.is-editing > :is(.keymap-list, input) {
             display: none;
         }
 
-        @media (any-pointer: coarse), (max-width: 899px) {
+        @media (any-pointer: coarse), (width < 900px) {
             --dialog-top: 0.5rem;
             --dialog-section-padding: 0.2rem 0.45rem;
             max-width: calc(100vw - 1rem);
@@ -256,27 +257,22 @@
             }
         }
 
-        @media (max-width: 640px) {
-            &[data-keymap-dialog='settings'] .keymap-row {
-                grid-template-columns: minmax(0, 1fr);
-            }
-
-            .keymap-bindings {
-                justify-content: start;
-            }
+        &[data-keymap-dialog='settings'] .keymap-row {
+            display: flex;
+            flex-wrap: wrap;
         }
     }
 
     .keymap-chord {
         position: fixed;
-        z-index: var(--z-editor-popup);
+        z-index: var(--z-popup);
         inset: auto 0.5rem 0.5rem auto;
         max-width: calc(100vw - 1rem);
         padding: 0.4rem 0.6rem;
         border: 1px solid var(--border-control);
-        border-radius: var(--radius-control);
+        border-radius: var(--radius-sm);
         background: var(--color-bg);
-        color: var(--color-text-dim);
+        color: var(--color-subtle);
         font-size: 0.75rem;
         pointer-events: none;
 
@@ -285,20 +281,22 @@
         }
     }
 
+    .code,
+    .editor-container {
+        font-family: var(--font-mono);
+        line-height: 1.15rem;
+    }
+
     .code {
-        padding: 0.5rem;
+        padding: 0.125rem;
         overflow-x: auto;
         background: var(--surface-subtle);
-        font-family: var(--font-mono);
         font-size: 0.8rem;
-        line-height: 1.6;
         white-space: pre-wrap;
 
         &.code-edit {
-            min-height: 8rem;
+            min-height: 6rem;
             font-size: 13px;
-            /* editor metric, inherited by gutter/lines/status */
-            line-height: 1.5;
 
             &:focus {
                 outline: 2px solid var(--focus-muted);
@@ -353,10 +351,19 @@
         color: var(--color-subtle);
     }
 
-    .diagnostics {
-        padding: 0.4rem 1rem;
+    .diagnostics,
+    .output {
+        padding-inline: 1rem;
         border-top: 1px solid var(--border-subtle);
         font-family: var(--font-mono);
+
+        @media (max-width: 720px) {
+            padding-inline: 0.65rem;
+        }
+    }
+
+    .diagnostics {
+        padding-block: 0.4rem;
         font-size: 0.75rem;
 
         .diagnostic-error {
@@ -366,18 +373,11 @@
         .diagnostic-warning {
             color: var(--color-warning);
         }
-
-        @media (max-width: 720px) {
-            padding-right: 0.65rem;
-            padding-left: 0.65rem;
-        }
     }
 
     .output {
-        padding: 0.6rem 1rem;
-        border-top: 1px solid var(--border-subtle);
+        padding-block: 0.6rem;
         opacity: 0.85;
-        font-family: var(--font-mono);
         font-size: 0.78rem;
         line-height: 1.55;
         white-space: pre-wrap;
@@ -385,11 +385,6 @@
         &.output-error {
             opacity: 1;
             color: var(--color-danger);
-        }
-
-        @media (max-width: 720px) {
-            padding-right: 0.65rem;
-            padding-left: 0.65rem;
         }
     }
 
@@ -412,9 +407,9 @@
             min-width: 2.5rem;
             padding: 0;
             border: 0;
-            border-radius: var(--radius-control);
+            border-radius: var(--radius-sm);
             background: transparent;
-            color: var(--color-text);
+            color: var(--color-fg);
             font: inherit;
             touch-action: manipulation;
 
@@ -431,15 +426,14 @@
 
     .editor-container {
         --editor-gutter-width: 42px;
+        container: editor / inline-size;
         tab-size: 4;
         position: relative;
         display: grid;
         grid-template-rows: minmax(0, 1fr) auto;
         max-height: min(50dvh, 500px);
         overflow: hidden;
-        font-family: var(--font-mono);
         font-size: 13px;
-        line-height: 1.5;
 
         &.editor-find-open {
             grid-template-rows: auto minmax(0, 1fr) auto;
@@ -490,8 +484,8 @@
             grid-row: 1;
             min-width: 0;
             padding: 0.3rem 0.4rem;
-            border-bottom: 1px solid var(--color-border);
-            background: var(--color-bg-secondary);
+            border-bottom: 1px solid var(--color-muted);
+            background: var(--color-bg);
             font: 0.75rem/1.4 var(--font-mono);
 
             .editor-find-row {
@@ -508,7 +502,7 @@
                 width: 0;
                 min-width: 3rem;
                 flex: 1;
-                min-height: 2rem;
+                min-height: var(--control-size);
                 padding: 0.2rem 0.4rem;
                 border: 1px solid var(--border-control);
                 background: var(--color-bg);
@@ -518,8 +512,8 @@
 
             button {
                 flex: none;
-                min-width: 1.8rem;
-                min-height: 2rem;
+                min-width: var(--control-size);
+                min-height: var(--control-size);
                 padding: 0.2rem;
                 border: 1px solid transparent;
                 background: transparent;
@@ -547,20 +541,16 @@
                 display: block;
                 overflow-wrap: anywhere;
                 padding-top: 0.15rem;
-                color: var(--color-text-dim);
+                color: var(--color-subtle);
             }
 
-            @media (any-pointer: coarse), (max-width: 899px) {
-                button {
-                    min-width: var(--control-size);
-                    min-height: var(--control-size);
-                }
-
+            @media (any-pointer: coarse), (width < 900px) {
                 input {
-                    min-height: 2.25rem;
                     font-size: 1rem;
                 }
+            }
 
+            @container editor (width < 30rem) {
                 .editor-find-row {
                     flex-wrap: wrap;
 
@@ -599,13 +589,13 @@
     .editor-lines {
         --editor-line-gutter-width: max(var(--editor-gutter-width), calc(var(--editor-line-digits, 1) * 1ch + 9px));
         display: block;
-        background: linear-gradient(to right, var(--color-bg-secondary) var(--editor-line-gutter-width), transparent var(--editor-line-gutter-width));
+        background: linear-gradient(to right, var(--color-bg) var(--editor-line-gutter-width), transparent var(--editor-line-gutter-width));
         min-width: 0;
         min-height: 100%;
         outline: none;
-        color: var(--color-text);
+        color: var(--color-fg);
         white-space: pre-wrap;
-        word-break: break-all;
+        overflow-wrap: anywhere;
         caret-color: var(--color-accent);
 
         &[data-editor-mode="Normal"] {
@@ -632,7 +622,7 @@
 
     .editor-line {
         position: relative;
-        min-height: 1.5em;
+        min-height: 1lh;
         padding-inline-start: var(--editor-line-gutter-width);
 
         &::before {
@@ -643,8 +633,8 @@
             bottom: 0;
             width: var(--editor-line-gutter-width);
             padding: 0 6px 0 2px;
-            border-inline-end: 1px solid var(--color-border);
-            color: var(--color-text-dim);
+            border-inline-end: 1px solid var(--color-muted);
+            color: var(--color-subtle);
             text-align: right;
             pointer-events: none;
             user-select: none;
@@ -652,7 +642,7 @@
         }
 
         &.active::before {
-            color: var(--color-text);
+            color: var(--color-fg);
             font-weight: 600;
         }
     }
@@ -663,19 +653,23 @@
         user-select: none;
     }
 
-    .signature-help {
+    .signature-help,
+    .completion-popup {
         position: absolute;
-        z-index: var(--z-editor-popup);
-        width: 26rem;
+        z-index: var(--z-popup);
         max-height: 12rem;
-        overflow: auto;
         overscroll-behavior: contain;
         border: 1px solid var(--border-control);
-        border-radius: var(--radius-control);
+        border-radius: var(--radius-sm);
         background: var(--color-bg);
-        box-shadow: var(--shadow-completion);
+        box-shadow: var(--shadow-sm);
         font-size: 0.8rem;
         line-height: 1.4;
+    }
+
+    .signature-help {
+        width: 26rem;
+        overflow: auto;
 
         &.combined {
             position: static;
@@ -693,7 +687,7 @@
             align-items: center;
             gap: 0.25rem;
             padding: 0.15rem 0.4rem;
-            color: var(--color-text-dim);
+            color: var(--color-subtle);
 
             span {
                 margin-right: auto;
@@ -703,7 +697,7 @@
                 min-width: var(--control-size);
                 min-height: var(--control-size);
                 border: 0;
-                border-radius: var(--radius-control);
+                border-radius: var(--radius-sm);
                 background: transparent;
                 color: inherit;
                 cursor: pointer;
@@ -725,7 +719,7 @@
         }
 
         .inapplicable, p {
-            color: var(--color-text-dim);
+            color: var(--color-subtle);
         }
 
         .signature-parameter-doc {
@@ -736,22 +730,12 @@
     .completion-popup {
         display: flex;
         flex-direction: column;
-        position: absolute;
-        z-index: var(--z-editor-popup);
         top: 0;
         left: var(--editor-gutter-width);
         contain: layout paint;
         width: 22rem;
-        max-height: 12rem;
         overflow: hidden;
-        overscroll-behavior: contain;
         scrollbar-gutter: stable;
-        border: 1px solid var(--border-control);
-        border-radius: var(--radius-control);
-        background: var(--color-bg);
-        box-shadow: var(--shadow-completion);
-        font-size: 0.8rem;
-        line-height: 1.4;
 
         .completion-list {
             min-height: 1.5rem;
@@ -769,7 +753,7 @@
             flex: none;
             padding: 0.1rem 0.5rem;
             border-top: 1px solid var(--border-control);
-            color: var(--color-text-dim);
+            color: var(--color-subtle);
             font-size: 0.7rem;
         }
 
@@ -779,7 +763,7 @@
             padding: 0.4rem 0.5rem;
             overflow: auto;
             border-top: 1px solid var(--border-control);
-            color: var(--color-text-dim);
+            color: var(--color-subtle);
             white-space: pre-wrap;
             overflow-wrap: anywhere;
 
@@ -810,7 +794,7 @@
             }
 
             &[aria-disabled="true"] {
-                color: var(--color-text-dim);
+                color: var(--color-subtle);
             }
 
             @media (any-pointer: coarse), (max-width: 720px) {
@@ -835,16 +819,16 @@
         gap: 1rem;
         padding: 0.15rem 0.75rem;
         overflow: hidden;
-        border-top: 1px solid var(--color-border);
-        background: var(--color-bg-secondary);
-        color: var(--color-text-dim);
-        font-size: 0.7rem;
+        border-top: 1px solid var(--color-muted);
+        background: var(--color-bg);
+        color: var(--color-subtle);
+        font-size: var(--font-size-xs);
+        line-height: var(--line-height-tight);
         white-space: nowrap;
 
         @media (max-width: 720px) {
             gap: 0.5rem;
             padding: 0.15rem 0.45rem;
-            font-size: 0.66rem;
         }
     }
 
@@ -907,7 +891,7 @@
 
             > button {
                 display: flex;
-                min-height: var(--control-row-size);
+                min-height: var(--control-size);
                 flex-direction: column;
                 align-items: stretch;
                 width: 100%;

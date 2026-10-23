@@ -23,7 +23,7 @@ internal sealed partial class BrowserEditorPage
             UpdateFileStatus(entity, EditorWorkspace.IsDirty(entity));
         }
         else {
-            _activeFileName.Text(string.Empty);
+            _activeFileName.Text(string.Empty).Attr("title", string.Empty);
         }
         _workspaceStatus.Text(message ?? string.Empty);
         UpdateInputMode(_editors.InputMode);

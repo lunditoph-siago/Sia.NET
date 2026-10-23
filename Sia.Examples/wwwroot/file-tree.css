@@ -1,6 +1,6 @@
 @layer components {
     .file-tree {
-        --file-tree-row-size: var(--control-row-size);
+        --file-tree-row-size: var(--control-size);
         --file-tree-inline-action-opacity: 0;
         display: flex;
         flex-direction: column;
@@ -8,14 +8,14 @@
         min-width: 0;
         padding: 0.15rem 0;
 
-        @media (any-pointer: coarse), (max-width: 899px) {
+        @media (any-pointer: coarse), (width < 900px) {
             --file-tree-inline-action-opacity: 0.65;
         }
 
         .file-tree-placeholder {
             padding: 0.65rem;
             opacity: 0.5;
-            font-size: 0.75rem;
+            font-size: var(--font-size-sm);
             line-height: 1.45;
             white-space: normal;
         }
@@ -37,7 +37,7 @@
             > span {
                 flex: 1;
                 opacity: 0.6;
-                font-size: 0.72rem;
+                font-size: var(--font-size-sm);
             }
         }
 
@@ -104,11 +104,11 @@
             min-height: var(--file-tree-row-size);
             padding: 0.15rem 0.3rem;
             border: 0;
-            border-radius: var(--radius-small);
+            border-radius: var(--radius-xs);
             background: transparent;
             color: inherit;
             font: inherit;
-            font-size: 0.75rem;
+            font-size: var(--font-size-sm);
             text-align: left;
             cursor: pointer;
 
@@ -220,7 +220,7 @@
             flex: 0 0 auto;
             padding: 0;
             border: 0;
-            border-radius: var(--radius-small);
+            border-radius: var(--radius-xs);
             background: transparent;
             opacity: var(--file-tree-inline-action-opacity);
             color: inherit;
@@ -242,13 +242,13 @@
             margin: 0 0.2rem;
             padding: 0.1rem 0.35rem;
             border: 1px solid var(--color-accent);
-            border-radius: var(--radius-small);
+            border-radius: var(--radius-xs);
             background: var(--color-bg);
             color: inherit;
             font: inherit;
             font-size: 0.75rem;
 
-            @media (any-pointer: coarse), (max-width: 899px) {
+            @media (any-pointer: coarse), (width < 900px) {
                 font-size: 1rem;
             }
 
