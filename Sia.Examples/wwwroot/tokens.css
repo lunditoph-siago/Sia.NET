@@ -27,7 +27,7 @@
         --color-bg-secondary: var(--color-bg);
         --color-border: var(--color-muted);
         --color-text: var(--color-fg);
-        --color-text-dim: var(--color-muted);
+        --color-text-dim: var(--color-subtle);
 
         --surface-subtle: rgba(127, 127, 127, 0.06);
         --surface-chrome: rgba(127, 127, 127, 0.1);

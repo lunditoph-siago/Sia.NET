@@ -24,7 +24,6 @@
 
             .editor-status {
                 border-color: var(--border-subtle);
-                color: var(--color-subtle);
                 font-variant-numeric: tabular-nums;
             }
         }
@@ -80,7 +79,7 @@
                 font-size: var(--font-size-caption);
 
                 &.phase-idle {
-                    color: var(--color-muted);
+                    color: var(--color-text-dim);
                 }
 
                 &.phase-compiling,

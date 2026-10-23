@@ -540,7 +540,7 @@
 
     .editor-page-build-status {
         margin-left: auto;
-        color: var(--color-muted);
+        color: var(--color-text-dim);
         flex: 1 1 0;
         min-width: 0;
     }

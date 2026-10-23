@@ -596,7 +596,7 @@
         outline: none;
         color: var(--color-text);
         white-space: pre-wrap;
-        word-break: break-all;
+        overflow-wrap: anywhere;
         caret-color: var(--color-accent);
 
         &[data-editor-mode="Normal"] {

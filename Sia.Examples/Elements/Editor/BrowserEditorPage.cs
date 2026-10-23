@@ -217,6 +217,7 @@ internal sealed partial class BrowserEditorPage : IAsyncDisposable
         }
         SetBuildStatus("Ready");
         OpenPanelWindow("compilation");
+        ToggleOutputPane();
         UpdateChrome();
     }
 
