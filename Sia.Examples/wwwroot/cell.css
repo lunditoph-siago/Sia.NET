@@ -154,7 +154,7 @@
                             touch-action: pan-x;
                         }
 
-                        @media (max-width: 720px) {
+                        @container (width < 30rem) {
                             min-width: 2.5rem;
                             max-width: 12rem;
                         }

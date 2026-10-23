@@ -11,7 +11,7 @@ internal sealed partial class BrowserEditorPage
     private DomElement _confirmBanner = null!;
     private DomElement _confirmMessage = null!;
     private DomElement _confirmActions = null!;
-    private readonly List<DomElement> _confirmButtons = [];
+    private readonly List<DomElement> _confirmElements = [];
 
     private TaskCompletionSource<(CloseDecision Decision, string Content)>? _closeDecision;
     private (Entity Entity, CellTab? Tab, string Path)? _dialog;
@@ -224,10 +224,11 @@ internal sealed partial class BrowserEditorPage
             .Attr("data-inline-discard", k_SaveAsInputId)
             .On("click", $"editor-page-save-as-cancel:{_dialogGeneration}")
             .Text("Cancel");
-        _confirmButtons.Add(input);
-        _confirmButtons.Add(save);
-        _confirmButtons.Add(cancel);
-        _confirmActions.Append(input).Append(save).Append(cancel);
+        _confirmElements.Add(input);
+        _confirmElements.Add(save);
+        _confirmElements.Add(cancel);
+        _confirmActions.Append(input);
+        CreateConfirmButtons().Append(save).Append(cancel);
         _confirmBanner.ToggleClass("hidden", false);
         input.Focus();
     }
@@ -292,7 +293,7 @@ internal sealed partial class BrowserEditorPage
             $"Delete the {noun} '{name}'? This cannot be undone.",
             ("Delete", "editor-page-dialog-delete-confirm"),
             ("Cancel", "editor-page-dialog-delete-cancel"));
-        _confirmButtons[^1].Focus();
+        _confirmElements[^1].Focus();
     }
 
     private async Task ConfirmDeleteAsync(string argument)
@@ -352,25 +353,34 @@ internal sealed partial class BrowserEditorPage
     {
         ClearConfirmActions();
         _confirmMessage.Text(message);
+        var buttons = CreateConfirmButtons();
         foreach (var (label, payload) in actions) {
             var button = DomElement.Create("button")
                 .Class("btn")
                 .Attr("type", "button")
                 .On("click", $"{payload}:{_dialogGeneration}")
                 .Text(label);
-            _confirmButtons.Add(button);
-            _confirmActions.Append(button);
+            _confirmElements.Add(button);
+            buttons.Append(button);
         }
         _confirmBanner.ToggleClass("hidden", false);
+    }
+
+    private DomElement CreateConfirmButtons()
+    {
+        var buttons = DomElement.Create("div").Class("editor-page-confirm-buttons");
+        _confirmElements.Add(buttons);
+        _confirmActions.Append(buttons);
+        return buttons;
     }
 
     private void ClearConfirmActions()
     {
         _confirmActions.Text(string.Empty);
-        foreach (var button in _confirmButtons) {
-            button.Dispose();
+        foreach (var element in _confirmElements) {
+            element.Dispose();
         }
-        _confirmButtons.Clear();
+        _confirmElements.Clear();
     }
 
     private void HideConfirmBanner()

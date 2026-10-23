@@ -140,13 +140,14 @@
         }
 
         .keymap-command-title {
+            flex: 1 1 14rem;
             overflow-wrap: anywhere;
         }
 
         .keymap-bindings {
             display: flex;
             flex-wrap: wrap;
-            justify-content: end;
+            flex: 1 1 16rem;
             align-items: center;
             gap: 0.25rem;
 
@@ -206,7 +207,7 @@
 
         .keymap-edit {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) auto;
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
             gap: 0.6rem;
             padding: 0.8rem;
         }
@@ -256,14 +257,9 @@
             }
         }
 
-        @media (max-width: 640px) {
-            &[data-keymap-dialog='settings'] .keymap-row {
-                grid-template-columns: minmax(0, 1fr);
-            }
-
-            .keymap-bindings {
-                justify-content: start;
-            }
+        &[data-keymap-dialog='settings'] .keymap-row {
+            display: flex;
+            flex-wrap: wrap;
         }
     }
 
@@ -431,6 +427,7 @@
 
     .editor-container {
         --editor-gutter-width: 42px;
+        container: editor / inline-size;
         tab-size: 4;
         position: relative;
         display: grid;
@@ -508,7 +505,7 @@
                 width: 0;
                 min-width: 3rem;
                 flex: 1;
-                min-height: 2rem;
+                min-height: var(--control-size);
                 padding: 0.2rem 0.4rem;
                 border: 1px solid var(--border-control);
                 background: var(--color-bg);
@@ -518,8 +515,8 @@
 
             button {
                 flex: none;
-                min-width: 1.8rem;
-                min-height: 2rem;
+                min-width: var(--control-size);
+                min-height: var(--control-size);
                 padding: 0.2rem;
                 border: 1px solid transparent;
                 background: transparent;
@@ -551,16 +548,12 @@
             }
 
             @media (any-pointer: coarse), (width < 900px) {
-                button {
-                    min-width: var(--control-size);
-                    min-height: var(--control-size);
-                }
-
                 input {
-                    min-height: 2.25rem;
                     font-size: 1rem;
                 }
+            }
 
+            @container editor (width < 30rem) {
                 .editor-find-row {
                     flex-wrap: wrap;
 
