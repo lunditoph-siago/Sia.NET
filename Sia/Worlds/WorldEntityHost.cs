@@ -77,35 +77,103 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     public Entity Create() => Create(default!);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Entity Create(in TEntity initial)
+    public Entity Create(in TEntity initial) => Create(initial, out _);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Entity Create(in TEntity initial, out Entity acquired)
     {
         World.EnsureOwnerThread();
-        var entity = InnerHost.Create(initial);
-        entity.GetStateUnchecked().Host = this;
-
+        acquired = InnerHost.Create(initial);
+        acquired.GetStateUnchecked().Host = this;
         World.Count++;
-        OnEntityCreated?.Invoke(entity);
-
-        var dispatcher = World.Dispatcher;
-        dispatcher.Send(entity, WorldEvents.Add.Instance);
-        TEntity.HandleTypes(new EntityAddEventSender(entity, dispatcher));
-        return entity;
+        OnEntityCreated?.Invoke(acquired);
+        World.Dispatcher.Send(acquired, WorldEvents.Add.Instance);
+        TEntity.HandleTypes(new EntityAddEventSender(acquired, World.Dispatcher));
+        return acquired;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Release(Entity entity)
     {
         World.EnsureOwnerThread();
-        var dispatcher = World.Dispatcher;
+        var state = entity.GetState();
+        if (!ReferenceEquals(state.Host, this)) { throw new InvalidOperationException("Entity belongs to another host."); }
+        if (state.Releasing) { return; }
+        state.Releasing = true;
+        try {
+            var dispatcher = World.Dispatcher;
 
-        TEntity.HandleTypes(new EntityRemoveEventSender(entity, dispatcher));
-        dispatcher.Send(entity, WorldEvents.Remove.Instance);
-        dispatcher.UnlistenAll(entity);
+            TEntity.HandleTypes(new EntityRemoveEventSender(entity, dispatcher));
+            dispatcher.Send(entity, WorldEvents.Remove.Instance);
+            dispatcher.UnlistenAll(entity);
 
-        World.Count--;
-        OnEntityReleased?.Invoke(entity);
+            World.Count--;
+            OnEntityReleased?.Invoke(entity);
 
-        InnerHost.Release(entity);
+            InnerHost.Release(entity);
+        }
+        finally { state.Releasing = false; }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref TEntity GetOwnedRef(Entity entity)
+    {
+        World.EnsureOwnerThread();
+        var state = entity.GetState();
+        if (!ReferenceEquals(state.Host, this)) {
+            throw new InvalidOperationException("Owned output changed its host.");
+        }
+        return ref InnerHost.GetRef(state.Slot);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void NotifyOwnedSet<T>(Entity entity)
+    {
+        World.EnsureOwnerThread();
+        if (!ReferenceEquals(entity.Host, this)) {
+            throw new InvalidOperationException("Owned output changed its host.");
+        }
+        World.Dispatcher.Send(entity, WorldEvents.Set<T>.Instance);
+    }
+
+    public void ReleaseOwned(Entity entity)
+    {
+        World.EnsureOwnerThread();
+        var state = entity.GetState();
+        if (!ReferenceEquals(state.Host, this)) {
+            throw new InvalidOperationException("Owned output changed its host.");
+        }
+        if (state.Releasing) {
+            return;
+        }
+        state.Releasing = true;
+        try {
+            var dispatcher = World.Dispatcher;
+            var result = Outcome<Exception>.Success;
+            try {
+                TEntity.HandleTypes(new EntityRemoveEventSender(entity, dispatcher));
+            }
+            catch (Exception error) { result = result.Combine(Outcome<Exception>.Failure(error)); }
+            try {
+                dispatcher.Send(entity, WorldEvents.Remove.Instance);
+            }
+            catch (Exception error) { result = result.Combine(Outcome<Exception>.Failure(error)); }
+            try {
+                dispatcher.UnlistenAll(entity);
+            }
+            catch (Exception error) { result = result.Combine(Outcome<Exception>.Failure(error)); }
+            World.Count--;
+            try {
+                OnEntityReleased?.Invoke(entity);
+            }
+            catch (Exception error) { result = result.Combine(Outcome<Exception>.Failure(error)); }
+            try {
+                InnerHost.Release(entity);
+            }
+            catch (Exception error) { result = result.Combine(Outcome<Exception>.Failure(error)); }
+            result.ThrowIfFailed();
+        }
+        finally { state.Releasing = false; }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
