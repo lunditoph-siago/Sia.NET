@@ -19,7 +19,12 @@ public readonly struct ReactiveNode : IEquatable<ReactiveNode>
     public static ReactiveNode Erase<TTerm>(
         scoped in ReactiveNode<TTerm> node)
         where TTerm : struct, ITerm<TTerm>
-        => new(new Box<TTerm>(node.Term));
+    {
+        if (typeof(TTerm) == typeof(UnitTerm)) {
+            return new(Box<UnitTerm>.Empty);
+        }
+        return new(new Box<TTerm>(node.Term));
+    }
 
     internal void Mount(ref GraphContext context)
         => CurrentBox.Mount(ref context);

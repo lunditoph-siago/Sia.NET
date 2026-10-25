@@ -144,13 +144,25 @@ public readonly struct State<T>(
     StateCell<T> cell,
     Reconciler reconciler,
     Entity owner,
-    NodeIdentity identity)
+    NodeIdentity identity) : IEquatable<State<T>>
     where T : struct
 {
     private readonly StateCell<T> _cell = cell;
     private readonly Reconciler _reconciler = reconciler;
     private readonly EntityReference _owner = new(owner);
     private readonly NodeIdentity _identity = identity;
+
+    public bool Equals(State<T> other)
+        => ReferenceEquals(_cell, other._cell)
+            && ReferenceEquals(_reconciler, other._reconciler)
+            && _owner.Equals(other._owner)
+            && _identity == other._identity;
+
+    public override bool Equals(object? obj)
+        => obj is State<T> other && Equals(other);
+
+    public override int GetHashCode()
+        => HashCode.Combine(_cell, _reconciler, _owner, _identity);
 
     public T Value {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
