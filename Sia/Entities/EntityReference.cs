@@ -2,9 +2,18 @@ namespace Sia;
 
 using System.Runtime.CompilerServices;
 
-internal readonly struct EntityReference(Entity entity)
+internal readonly struct EntityReference(Entity entity) : IEquatable<EntityReference>
 {
     private readonly EntityState? _state = entity.GetState();
+
+    public bool Equals(EntityReference other)
+        => ReferenceEquals(_state, other._state);
+
+    public override bool Equals(object? obj)
+        => obj is EntityReference other && Equals(other);
+
+    public override int GetHashCode()
+        => _state is null ? 0 : RuntimeHelpers.GetHashCode(_state);
 
     public bool IsValid {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -48,5 +57,5 @@ internal readonly struct EntityReference(Entity entity)
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Matches(Entity entity)
-        => _state is { } state && entity.References(state);
+        => _state is {} state && entity.References(state);
 }

@@ -9,10 +9,48 @@ public sealed class WorldDispatcher : Dispatcher<IEvent>
         World = world;
     }
 
-    public new void Send<UEvent>(Entity target, in UEvent e)
-        where UEvent : IEvent
+    public override void Send<UEvent>(Entity target, in UEvent e)
     {
         World.EnsureOwnerThread();
-        base.Send(target, e);
+        var state = target.IsValid ? target.GetStateUnchecked() : null;
+        var owner = state?.EventSink;
+        if (owner != null && !ReferenceEquals(state!.Host!.World, World)) {
+            throw new ArgumentException("The entity belongs to a different world.", nameof(target));
+        }
+        SendCore(target, e, owner as IEventSink<Entity, UEvent>);
+    }
+
+    public void AttachEventSink(Entity target, IEventSink<Entity> owner)
+    {
+        World.EnsureOwnerThread();
+        ArgumentNullException.ThrowIfNull(owner);
+        var state = target.GetState();
+        if (!ReferenceEquals(state.Host!.World, World)) {
+            throw new ArgumentException("Foreign entity.", nameof(target));
+        }
+        if (state.EventSink != null) {
+            throw new InvalidOperationException("Entity already has an event owner.");
+        }
+        state.EventSink = owner;
+    }
+
+    public override void UnlistenAll(Entity target)
+    {
+        World.EnsureOwnerThread();
+        base.UnlistenAll(target);
+        if (target.IsValid && ReferenceEquals(target.Host.World, World)) {
+            target.GetStateUnchecked().EventSink = null;
+        }
+    }
+
+    public override void Clear()
+    {
+        World.EnsureOwnerThread();
+        base.Clear();
+        foreach (var host in World.Hosts) {
+            foreach (var entity in host.UnsafeGetEntitySpan()) {
+                entity.GetStateUnchecked().EventSink = null;
+            }
+        }
     }
 }

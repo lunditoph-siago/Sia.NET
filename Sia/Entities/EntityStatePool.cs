@@ -5,7 +5,9 @@ using System.Runtime.CompilerServices;
 internal sealed class EntityState
 {
     public IEntityHost? Host;
+    public IEventSink<Entity>? EventSink;
     public int Slot = -1;
+    public bool Releasing;
     public ulong Token;
 }
 
@@ -49,6 +51,7 @@ internal sealed class EntityStatePool
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Return(EntityState state)
     {
+        state.EventSink = null;
         state.Host = null;
         state.Slot = -1;
         if ((uint)(state.Token >> 32) == uint.MaxValue || _retired) {

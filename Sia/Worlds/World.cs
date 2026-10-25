@@ -105,7 +105,7 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
 
     internal void BindActor(WorldActor actor)
     {
-        if (Interlocked.CompareExchange(ref _actor, actor, null) is { } existing
+        if (Interlocked.CompareExchange(ref _actor, actor, null) is {} existing
             && !ReferenceEquals(existing, actor)) {
             throw new InvalidOperationException(
                 "The world is already bound to a different actor.");
@@ -133,6 +133,7 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
                 "The world is not bound to an actor."))
             .Post(target, e);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void EnsureOwnerThread()
     {
         var actor = _actor;

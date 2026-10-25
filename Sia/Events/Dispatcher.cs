@@ -143,7 +143,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
         listeners.Clear();
     }
 
-    public void UnlistenAll(TTarget target)
+    public virtual void UnlistenAll(TTarget target)
     {
         GuardNotSending();
 
@@ -153,7 +153,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
         }
     }
 
-    public void Clear()
+    public virtual void Clear()
     {
         GuardNotSending();
 
@@ -190,14 +190,18 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void GuardNotSending()
+    protected void GuardNotSending()
     {
         if (_sendDepth != 0) {
             throw new InvalidOperationException("This operation is not allowed while sending event.");
         }
     }
 
-    public void Send<UEvent>(TTarget target, in UEvent e)
+    public virtual void Send<UEvent>(TTarget target, in UEvent e)
+        where UEvent : TEvent
+        => SendCore(target, e, null);
+
+    protected void SendCore<UEvent>(TTarget target, in UEvent e, IEventSink<TTarget, UEvent>? owner)
         where UEvent : TEvent
     {
         var globalListeners = _globalListeners;
@@ -219,7 +223,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
             targetListenerCount = targetListeners.Count;
         }
 
-        if ((globalListenerCount | eventListenerCount | targetListenerCount) == 0) {
+        if ((globalListenerCount | eventListenerCount | targetListenerCount) == 0 && owner is null) {
             return;
         }
 
@@ -231,6 +235,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
             if (eventListenerCount != 0) {
                 ExecuteListeners(target, eventListeners!, e, eventListenerCount);
             }
+            owner?.OnEvent(target, e);
             if (targetListenerCount != 0) {
                 ExecuteListeners(target, targetListeners!, e, targetListenerCount);
             }
