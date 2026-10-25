@@ -33,7 +33,7 @@ public ref struct Hooks
     {
         ref var cellData = ref _cell.GetUnchecked<Cell>();
         var states = _states ??= cellData.States ??=
-            new StateCells(_cell.GetUnchecked<PrevTree<OpaqueTerm>>().Mounted);
+            new StateCells(cellData.Expanded);
         return new State<T>(states.NextState(initial), _reconciler, _cell, cellData.Identity);
     }
 
@@ -43,7 +43,7 @@ public ref struct Hooks
         ArgumentNullException.ThrowIfNull(factory);
         ref var cellData = ref _cell.GetUnchecked<Cell>();
         var states = _states ??= cellData.States ??=
-            new StateCells(_cell.GetUnchecked<PrevTree<OpaqueTerm>>().Mounted);
+            new StateCells(cellData.Expanded);
         return states.NextRef(factory);
     }
 
@@ -58,7 +58,7 @@ public ref struct Hooks
         ArgumentNullException.ThrowIfNull(cleanup);
         ref var cellData = ref _cell.GetUnchecked<Cell>();
         var states = _states ??= cellData.States ??=
-            new StateCells(_cell.GetUnchecked<PrevTree<OpaqueTerm>>().Mounted);
+            new StateCells(cellData.Expanded);
         states.NextEffect(_reconciler, dependencies, setup, cleanup);
     }
 }

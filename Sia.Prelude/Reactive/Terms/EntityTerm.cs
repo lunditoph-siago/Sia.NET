@@ -7,6 +7,59 @@ public readonly record struct EntityTerm<TList, TChildren>(TList Components, TCh
     where TList : struct, IHList
     where TChildren : struct, ITerm<TChildren>
 {
+    public bool Equals(EntityTerm<TList, TChildren> other)
+        => ComponentEquality<TList>.Equal(Components, other.Components)
+            && EqualityComparer<TChildren>.Default.Equals(Children, other.Children);
+
+    public override int GetHashCode()
+        => unchecked(EqualityComparer<TList>.Default.GetHashCode(Components) * -1521134295
+            + EqualityComparer<TChildren>.Default.GetHashCode(Children));
+
+    private static bool FieldEquals<T>(in T left, in T right)
+        => left is null ? right is null : left.Equals(right);
+
+    private static class ComponentEquality<T> where T : IHList
+    {
+        private static readonly bool IsList = typeof(T).IsGenericType
+            && typeof(T).GetGenericTypeDefinition() == typeof(HList<,>);
+
+        public static unsafe bool Equal(in T left, in T right, bool nested = false)
+        {
+            if (typeof(T) == typeof(EmptyHList)) {
+                return true;
+            }
+            if (!IsList) {
+                return nested ? FieldEquals(left, right) : EqualityComparer<T>.Default.Equals(left, right);
+            }
+            var equal = false;
+            left.Handle(new LeftHandler(right, &equal));
+            return equal;
+        }
+
+        private readonly unsafe struct LeftHandler(in T right, bool* equal) : IHListHandler
+        {
+            private readonly T _right = right;
+            private readonly bool* _equal = equal;
+
+            public void Handle<THead, TTail>(in THead head, in TTail tail) where TTail : IHList
+                => _right.Handle(new RightHandler<THead, TTail>(head, tail, _equal));
+        }
+
+        private readonly unsafe struct RightHandler<THead, TTail>(in THead head, in TTail tail, bool* equal)
+            : IHListHandler where TTail : IHList
+        {
+            private readonly THead _head = head;
+            private readonly TTail _tail = tail;
+            private readonly bool* _equal = equal;
+
+            public void Handle<TOtherHead, TOtherTail>(in TOtherHead head, in TOtherTail tail)
+                where TOtherTail : IHList
+                => *_equal = FieldEquals(_head, Unsafe.As<TOtherHead, THead>(ref Unsafe.AsRef(in head)))
+                    && ComponentEquality<TTail>.Equal(_tail,
+                        Unsafe.As<TOtherTail, TTail>(ref Unsafe.AsRef(in tail)), nested: true);
+        }
+    }
+
     public static int SlotCount => 1 + TChildren.SlotCount;
 
     public static void Mount(in EntityTerm<TList, TChildren> self, ref GraphContext ctx)
