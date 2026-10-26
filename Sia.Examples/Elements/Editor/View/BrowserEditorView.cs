@@ -20,6 +20,7 @@ public sealed class BrowserEditorView : IEditorView
     private readonly DomElement _cursorPosition;
     private readonly List<DomElement> _touchActions = [];
     private readonly IEditorLinesOwner _lineOwner;
+    private HashSet<int>? _lineIdentityScratch;
 
     private DomElement? _completionAction;
     private DomElement _modeAction = null!;
@@ -267,16 +268,24 @@ public sealed class BrowserEditorView : IEditorView
     void IRenderHost<EditorLinesView>.Upsert(in EditorLinesView view)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        var identities = ValidateLines(view);
-        BeginUpdate();
-        try { ApplyLines(view, identities); }
-        catch { _rebuildLines = true; throw; }
-        finally { EndUpdate(); }
+        var identities = _lineIdentityScratch ?? [];
+        _lineIdentityScratch = null;
+        try {
+            ValidateLines(view, identities);
+            BeginUpdate();
+            try { ApplyLines(view, identities); }
+            catch { _rebuildLines = true; throw; }
+            finally { EndUpdate(); }
+        }
+        finally {
+            identities.Clear();
+            if (!_disposed) _lineIdentityScratch ??= identities;
+        }
     }
 
-    private static HashSet<int> ValidateLines(in EditorLinesView view)
+    private static void ValidateLines(in EditorLinesView view, HashSet<int> identities)
     {
-        var identities = new HashSet<int>(view.Lines.Length);
+        identities.EnsureCapacity(view.Lines.Length);
         var previousIndex = -1;
         foreach (var line in view.Lines.Span) {
             if (line.Index <= previousIndex || !identities.Add(line.Identity)) {
@@ -284,7 +293,6 @@ public sealed class BrowserEditorView : IEditorView
             }
             previousIndex = line.Index;
         }
-        return identities;
     }
 
     private void ApplyLines(in EditorLinesView view, HashSet<int> identities)
@@ -398,6 +406,7 @@ public sealed class BrowserEditorView : IEditorView
     {
         if (_disposed) return;
         _disposed = true;
+        _lineIdentityScratch = null;
         List<Exception>? failures = null;
         void Release(Action action)
         {
