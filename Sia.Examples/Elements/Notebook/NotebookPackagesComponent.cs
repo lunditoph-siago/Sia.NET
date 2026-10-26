@@ -6,28 +6,30 @@ namespace Sia.Examples.Notebook;
 public static partial class NotebookPackagesComponent
 {
     public static ReactiveNode Render(in NotebookPackagesProps props, ref Hooks hooks)
-        => Reactive.Reactive.ForEach(RenderPackage, BuildPackages(props));
+        => new ReactiveNode<ForEachTerm<PackageKey, PackageItem>>(new(BuildPackages(props)));
 
-    private static (PackageKey Key, PackageItem Value)[] BuildPackages(
+    private static Keyed<PackageKey, PackageItem>[] BuildPackages(
         scoped in NotebookPackagesProps props)
     {
-        var items = new (PackageKey Key, PackageItem Value)[props.Packages.Length];
+        var items = new Keyed<PackageKey, PackageItem>[props.Packages.Length];
         for (var index = 0; index < props.Packages.Length; index++) {
             var status = props.Packages[index];
-            items[index] = (
+            items[index] = new(
                 new(status.Package.Id, status.Package.Version),
                 new(props.View, new(index, status)));
         }
         return items;
     }
 
-    private static ReactiveNode<EffectTerm<RenderEffect<PackageView>>> RenderPackage(
-        scoped in PackageItem item)
-        => new(Term.Effect(new RenderEffect<PackageView>(item.View, item.Value)));
-
     private readonly record struct PackageItem(
         INotebookView View,
-        PackageView Value);
+        PackageView Value)
+        : ISpec<PackageItem, Unit, EffectTerm<RenderEffect<PackageView>>>
+    {
+        public static EffectTerm<RenderEffect<PackageView>> Expand(
+            in PackageItem item, in Unit state, in ExpandContext context)
+            => Term.Effect(new RenderEffect<PackageView>(item.View, item.Value));
+    }
 
     private readonly record struct PackageKey(
         string Id,

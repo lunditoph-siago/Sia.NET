@@ -9,20 +9,19 @@ public static partial class ExampleApp
     public static ReactiveNode Render(in ExampleAppProps props, ref Hooks hooks)
     {
         var state = hooks.UseState(ExampleAppState.Initial);
-        return Reactive.Reactive.ForEach(
-            RenderItem,
-            BuildItems(props, state.Value.SelectedIndex));
+        return new ReactiveNode<ForEachTerm<int, ExampleItem>>(
+            new(BuildItems(props, state.Value.SelectedIndex)));
     }
 
-    private static (int Key, ExampleItem Value)[] BuildItems(
+    private static Keyed<int, ExampleItem>[] BuildItems(
         scoped in ExampleAppProps props,
         int selectedIndex)
     {
         var notebooks = props.Library.Notebooks;
-        var items = new (int Key, ExampleItem Value)[notebooks.Count];
+        var items = new Keyed<int, ExampleItem>[notebooks.Count];
         for (var index = 0; index < notebooks.Count; index++) {
             var notebook = notebooks[index];
-            items[index] = (
+            items[index] = new(
                 index,
                 new(
                     props.Host,
@@ -36,11 +35,13 @@ public static partial class ExampleApp
         return items;
     }
 
-    private static ReactiveNode<EffectTerm<RenderEffect<ExampleItemView>>> RenderItem(
-        scoped in ExampleItem item)
-        => new(Term.Effect(new RenderEffect<ExampleItemView>(item.Host, item.View)));
-
     private readonly record struct ExampleItem(
         IRenderHost<ExampleItemView> Host,
-        ExampleItemView View);
+        ExampleItemView View)
+        : ISpec<ExampleItem, Unit, EffectTerm<RenderEffect<ExampleItemView>>>
+    {
+        public static EffectTerm<RenderEffect<ExampleItemView>> Expand(
+            in ExampleItem item, in Unit state, in ExpandContext context)
+            => Term.Effect(new RenderEffect<ExampleItemView>(item.Host, item.View));
+    }
 }
