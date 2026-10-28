@@ -232,8 +232,8 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     private bool CanSkipEmptyDispatch(Entity entity)
     {
         if (!World.Dispatcher.HasNoListeners || !entity.IsValid) return false;
-        var state = entity.GetStateUnchecked();
-        return state.EventSink is null && ReferenceEquals(state.Host?.World, World);
+        // WorldDispatcher only checks the target's world when an event sink is attached.
+        return entity.GetStateUnchecked().EventSink is null;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
