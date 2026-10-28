@@ -54,6 +54,17 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     public unsafe IEntityHost<UEntity> GetSiblingHost<UEntity>()
         where UEntity : struct, IHList
     {
+        // Derived hosts may select sibling types dynamically; keep their virtual dispatch.
+        if (typeof(TInnerHost) == typeof(ArrayEntityHost<TEntity>)
+            && InnerHost.GetType() == typeof(ArrayEntityHost<TEntity>)) {
+            return World.TryGetHost<UEntity, ArrayEntityHost<UEntity>>(out var found)
+                ? found : World.UnsafeAddRawHost(new WorldEntityHost<UEntity, ArrayEntityHost<UEntity>>(World, new()));
+        }
+        if (typeof(TInnerHost) == typeof(UnmanagedArrayEntityHost<TEntity>)
+            && InnerHost.GetType() == typeof(UnmanagedArrayEntityHost<TEntity>)) {
+            return World.TryGetHost<UEntity, UnmanagedArrayEntityHost<UEntity>>(out var found)
+                ? found : World.UnsafeAddRawHost(new WorldEntityHost<UEntity, UnmanagedArrayEntityHost<UEntity>>(World, new()));
+        }
         IEntityHost<UEntity>? host = null;
         InnerHost.GetSiblingHostType<UEntity, SiblingInnerHostGetter<UEntity>>(
             new(World, &host));
