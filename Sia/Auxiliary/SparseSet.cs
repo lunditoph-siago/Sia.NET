@@ -11,8 +11,16 @@ using CommunityToolkit.HighPerformance;
 public sealed class SparseSet<T>(int pageSize = 256)
     : IDictionary<int, T>, IReadOnlyDictionary<int, T>
 {
-    public int PageSize { get; init; } = pageSize;
-    public int Count => _dense.Count;
+    public int PageSize {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get;
+        init;
+    } = pageSize;
+
+    public int Count {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _dense.Count;
+    }
 
     public T this[int index] {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
