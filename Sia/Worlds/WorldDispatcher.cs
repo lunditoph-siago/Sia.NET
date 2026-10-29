@@ -1,5 +1,7 @@
 namespace Sia;
 
+using System.Runtime.CompilerServices;
+
 public sealed class WorldDispatcher : Dispatcher<IEvent>
 {
     public World World { get; }
@@ -9,6 +11,7 @@ public sealed class WorldDispatcher : Dispatcher<IEvent>
         World = world;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public override void Send<UEvent>(Entity target, in UEvent e)
     {
         World.EnsureOwnerThread();
@@ -17,6 +20,7 @@ public sealed class WorldDispatcher : Dispatcher<IEvent>
         if (owner != null && !ReferenceEquals(state!.Host!.World, World)) {
             throw new ArgumentException("The entity belongs to a different world.", nameof(target));
         }
+        if (owner is null && HasNoListeners<UEvent>()) return;
         SendCore(target, e, owner as IEventSink<Entity, UEvent>);
     }
 

@@ -21,9 +21,14 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
     private readonly ArrayBuffer<object> _eventListeners = new();
     private readonly Dictionary<TKey, List<IEventListener<TTarget>>> _targetListeners = [];
 
-    // The backing buffer may still contain listeners after its logical count is cleared.
-    internal bool HasNoListeners => _globalListeners.Count == 0 && _targetListeners.Count == 0
-        && _eventListeners.AsSpan().IsEmpty;
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool HasNoListeners<UEvent>() where UEvent : TEvent
+    {
+        if (_globalListeners.Count != 0 || _targetListeners.Count != 0) return false;
+        ref var listeners = ref _eventListeners.GetRefOrNullRef(EventTypeIndexer<UEvent>.Index);
+        return Unsafe.IsNullRef(ref listeners) || listeners is null
+            || Unsafe.As<List<Listener<UEvent>>>(listeners).Count == 0;
+    }
 
     private readonly Stack<List<IEventListener<TTarget>>> _targetListenersPool = new();
 

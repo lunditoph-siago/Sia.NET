@@ -181,16 +181,6 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     {
         World.EnsureOwnerThread();
         InnerHost.Add(entity, initial);
-        if (CanSkipEmptyDispatch(entity)) {
-            // Empty sends still initialize the event and its public type index, in order.
-            _ = WorldEvents.Add<TComponent>.Instance;
-            World.EnsureOwnerThread();
-            _ = EventTypeIndexer<WorldEvents.Add<TComponent>>.Index;
-            _ = WorldEvents.Set<TComponent>.Instance;
-            World.EnsureOwnerThread();
-            _ = EventTypeIndexer<WorldEvents.Set<TComponent>>.Index;
-            return;
-        }
         World.Dispatcher.Send(entity, WorldEvents.Add<TComponent>.Instance);
         World.Dispatcher.Send(entity, WorldEvents.Set<TComponent>.Instance);
     }
@@ -218,22 +208,8 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
         World.EnsureOwnerThread();
         InnerHost.Remove<TComponent>(entity, out success);
         if (success) {
-            if (CanSkipEmptyDispatch(entity)) {
-                _ = WorldEvents.Remove<TComponent>.Instance;
-                World.EnsureOwnerThread();
-                _ = EventTypeIndexer<WorldEvents.Remove<TComponent>>.Index;
-                return;
-            }
             World.Dispatcher.Send(entity, WorldEvents.Remove<TComponent>.Instance);
         }
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool CanSkipEmptyDispatch(Entity entity)
-    {
-        if (!World.Dispatcher.HasNoListeners || !entity.IsValid) return false;
-        // WorldDispatcher only checks the target's world when an event sink is attached.
-        return entity.GetStateUnchecked().EventSink is null;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
