@@ -114,11 +114,11 @@ public class BufferEntityHostTests
         }
     }
 
-    public struct Present { public int Value; public string? Name; }
-    public struct EarlierMissing { public int Value; }
-    public struct LaterMissing { public int Value; }
+    private struct Present { public int Value; public string? Name; }
+    private readonly record struct EarlierMissing(int Value);
+    private readonly record struct LaterMissing(int Value);
 
-    public sealed class ExceptionalHost<T> : ArrayEntityHost<T>, IEntityHost<T> where T : struct, IHList
+    private sealed class ExceptionalHost : ArrayEntityHost<HList<Present, EmptyHList>>, IEntityHost<HList<Present, EmptyHList>>
     {
         public bool ThrowDescriptor;
         public bool ThrowBytes;
@@ -134,8 +134,8 @@ public class BufferEntityHostTests
     public void Present_returns_live_reference_and_missing_returns_null_reference()
     {
         _ = EntityDescriptor.Get<HList<EarlierMissing, EmptyHList>>();
-        using var world = new World();
-        var e = world.Create(HList.From(new Present { Value = 1, Name = "kept" }));
+        using var host = new ArrayEntityHost<HList<Present, EmptyHList>>();
+        var e = host.Create(HList.From(new Present { Value = 1, Name = "kept" }));
         ref var present = ref e.GetOrNullRef<Present>();
         Assert.False(Unsafe.IsNullRef(ref present));
         present.Value = 8;
@@ -150,15 +150,13 @@ public class BufferEntityHostTests
     [Fact]
     public void Descriptor_error_is_caught_but_byte_access_error_propagates()
     {
-        using var host = new ExceptionalHost<HList<Present, EmptyHList>>();
-        var e = host.Create(HList.From(new Present { Value = 5 }));
+        using var host = new ExceptionalHost();
+        var e = host.Create(HList.From(new Present()));
         host.ThrowDescriptor = true;
         Assert.True(Unsafe.IsNullRef(ref e.GetOrNullRef<Present>()));
         host.ThrowBytes = true;
         var error = Assert.Throws<InvalidOperationException>(() => e.GetOrNullRef<Present>());
         Assert.Equal("bytes", error.Message);
-        host.ThrowBytes = false;
-        host.ThrowDescriptor = false;
     }
 }
 
