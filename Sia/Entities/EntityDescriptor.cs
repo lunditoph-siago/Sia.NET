@@ -122,6 +122,18 @@ public record EntityDescriptor
         => OffsetSlots[InternalComponentIndexer<TComponent>.Index];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryGetOffset<TComponent>(out nint offset)
+    {
+        var index = InternalComponentIndexer<TComponent>.Index;
+        if ((uint)index < (uint)OffsetSlots.Length) {
+            offset = OffsetSlots[index];
+            return offset >= 0;
+        }
+        offset = -1;
+        return false;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Contains<TComponent>()
     {
         var index = InternalComponentIndexer<TComponent>.Index;
