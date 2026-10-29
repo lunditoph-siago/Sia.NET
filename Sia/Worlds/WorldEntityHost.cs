@@ -30,6 +30,8 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     public event EntityMigrationHandler? OnEntityMovedIn;
     public event Action<IEntityHost>? OnDisposed;
 
+    internal bool HasMigrationObservers => OnEntityMovedOut is not null || OnEntityMovedIn is not null;
+
     public World World { get; } = world;
     public TInnerHost InnerHost { get; } = InitializeInnerHost(world, innerHost);
 
