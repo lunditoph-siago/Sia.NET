@@ -42,35 +42,3 @@ The generated view publishes the change; the stage processes it and prints
 The [Playground](https://lunditoph-siago.github.io/Sia.NET/) lets you edit and run
 the C# examples in your browser, from ECS fundamentals to reactive systems.
 Its Editor Lab also supports C# programs and programmable WebGPU rendering.
-
-## Batch component transitions
-
-For a whole host, values can be supplied in its current entity order:
-
-```csharp
-using Sia;
-
-using var world = new World();
-var positions = world.GetArrayHost<HList<Position, EmptyHList>>();
-positions.Create(HList.From(new Position(1)));
-positions.Create(HList.From(new Position(2)));
-var moving = world.GetArrayHost<HList<Velocity, HList<Position, EmptyHList>>>();
-
-positions.AddComponentToAll(new[] { new Velocity(3), new Velocity(4) });
-moving.RemoveHeadComponentFromAll();
-
-public record struct Position(int X);
-public record struct Velocity(int X);
-```
-
-The methods capture the initial entity order; addition also copies the supplied
-values. When observers are present, each entity receives its usual migration and
-component events in that order. An exception stops the operation without rolling
-back earlier entities. Use the world's owner thread, do not access the world
-concurrently, and reacquire borrowed references after a structural change.
-
-The optimized path may apply to built-in array hosts with an existing destination
-when no migration observers, global or target listeners, entity event sinks, or
-listeners for the component events can observe the operation. Listeners for
-unrelated event types can coexist with the optimized path. Other cases use the
-ordinary per-entity path. Individual entity APIs are unchanged.

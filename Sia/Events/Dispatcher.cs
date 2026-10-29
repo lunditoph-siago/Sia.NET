@@ -167,7 +167,6 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
 
     internal bool HasNoTypedListeners<UEvent>() where UEvent : TEvent
     {
-        // Checking an unassigned type must not allocate its event index ahead of dispatch.
         if (!EventTypeIndexState<UEvent>.TryGetIndex(out var index)) return true;
         ref var raw = ref _eventListeners.GetRefOrNullRef(index);
         return Unsafe.IsNullRef(ref raw) || raw == null || Unsafe.As<List<Listener<UEvent>>>(raw).Count == 0;

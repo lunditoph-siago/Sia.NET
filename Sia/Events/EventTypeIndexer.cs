@@ -8,25 +8,19 @@ internal static class EventTypeIndexerShared
 
 internal static class EventTypeIndexState<T> where T : IEvent
 {
-    private static int _index;
-    private static bool _assigned;
+    private static int _index = -1;
 
     internal static int Allocate()
     {
         var index = EventTypeIndexerShared.GetNext();
-        _index = index;
-        Volatile.Write(ref _assigned, true);
+        Volatile.Write(ref _index, index);
         return index;
     }
 
     internal static bool TryGetIndex(out int index)
     {
-        if (Volatile.Read(ref _assigned)) {
-            index = _index;
-            return true;
-        }
-        index = -1;
-        return false;
+        index = Volatile.Read(ref _index);
+        return index >= 0;
     }
 }
 
