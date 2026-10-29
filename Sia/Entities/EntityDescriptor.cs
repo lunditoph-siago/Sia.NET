@@ -79,12 +79,30 @@ public readonly struct EntityIndexer<TEntity, TComponent>
 
 public record EntityDescriptor
 {
+    private abstract class TypeDispatch
+    {
+        public abstract void Handle<THandler>(ref THandler handler)
+            where THandler : IGenericStructTypeHandler<IHList>, allows ref struct;
+    }
+
+    private sealed class TypeDispatch<TEntity> : TypeDispatch where TEntity : struct, IHList
+    {
+        public static readonly TypeDispatch Instance = new TypeDispatch<TEntity>();
+        public override void Handle<THandler>(ref THandler handler) => handler.Handle<TEntity>();
+    }
+
+    private readonly TypeDispatch _typeDispatch;
+
+    internal void HandleType<THandler>(ref THandler handler)
+        where THandler : IGenericStructTypeHandler<IHList>, allows ref struct
+        => _typeDispatch.Handle(ref handler);
+
     public static EntityDescriptor Get<TEntity>()
         where TEntity : struct, IHList
         => new(typeof(TEntity), Unsafe.SizeOf<TEntity>(),
             EntityDescriptor<TEntity>.Components,
             EntityDescriptor<TEntity>.Offsets,
-            EntityDescriptor<TEntity>.OffsetSlots);
+            EntityDescriptor<TEntity>.OffsetSlots, TypeDispatch<TEntity>.Instance);
 
     public Type Type { get; }
     public int MemorySize { get; }
@@ -95,8 +113,9 @@ public record EntityDescriptor
 
     private EntityDescriptor(
         Type type, int memorySize, ImmutableArray<ComponentInfo> components,
-        FrozenDictionary<Type, nint> offsets, ImmutableArray<nint> offsetSlots)
+        FrozenDictionary<Type, nint> offsets, ImmutableArray<nint> offsetSlots, TypeDispatch typeDispatch)
     {
+        _typeDispatch = typeDispatch;
         Type = type;
         MemorySize = memorySize;
         Components = components;

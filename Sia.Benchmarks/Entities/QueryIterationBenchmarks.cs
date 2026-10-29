@@ -16,10 +16,13 @@ public class QueryIterationBenchmarks
     [Params(1, 4)]
     public int ArchetypeCount { get; set; }
 
+    [Params(false, true)]
+    public bool Managed { get; set; }
+
     [GlobalSetup]
     public void Setup()
     {
-        _world = BenchmarkWorld.Create(EntityCount, ArchetypeCount);
+        _world = BenchmarkWorld.Create(EntityCount, ArchetypeCount, Managed);
         _query = _world.Query(Matchers.Of<Position, Velocity>());
         _first = BenchmarkWorld.Snapshot(_world)[0];
         if (_query.Count != EntityCount) {
