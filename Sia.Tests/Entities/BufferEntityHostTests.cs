@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace Sia.Tests.Entities;
 
 public class BufferEntityHostTests
@@ -37,6 +39,7 @@ public class BufferEntityHostTests
         Assert.Throws<ObjectDisposedException>(stale.Destroy);
         Assert.Throws<ObjectDisposedException>(() => stale.Get<int>());
         Assert.Throws<ObjectDisposedException>(() => stale.GetOrNullRef<int>());
+        Assert.Throws<ObjectDisposedException>(() => stale.GetOrNullRef<LaterMissing>());
         Assert.True(current.IsValid);
         Assert.Equal(2, current.Get<int>());
     }
@@ -109,6 +112,51 @@ public class BufferEntityHostTests
             first.Release(firstEntity);
             second.Release(secondEntity);
         }
+    }
+
+    private struct Present { public int Value; public string? Name; }
+    private readonly record struct EarlierMissing(int Value);
+    private readonly record struct LaterMissing(int Value);
+
+    private sealed class ExceptionalHost : ArrayEntityHost<HList<Present, EmptyHList>>, IEntityHost<HList<Present, EmptyHList>>
+    {
+        public bool ThrowDescriptor;
+        public bool ThrowBytes;
+        EntityDescriptor IEntityHost.Descriptor => ThrowDescriptor ? throw new InvalidOperationException("descriptor") : Descriptor;
+        ref byte IEntityHost.GetByteRef(int slot)
+        {
+            if (ThrowBytes) throw new InvalidOperationException("bytes");
+            return ref GetByteRef(slot);
+        }
+    }
+
+    [Fact]
+    public void Present_returns_live_reference_and_missing_returns_null_reference()
+    {
+        _ = EntityDescriptor.Get<HList<EarlierMissing, EmptyHList>>();
+        using var host = new ArrayEntityHost<HList<Present, EmptyHList>>();
+        var e = host.Create(HList.From(new Present { Value = 1, Name = "kept" }));
+        ref var present = ref e.GetOrNullRef<Present>();
+        Assert.False(Unsafe.IsNullRef(ref present));
+        present.Value = 8;
+        present.Name = "changed";
+        Assert.Equal(8, e.Get<Present>().Value);
+        Assert.Equal("changed", e.Get<Present>().Name);
+        Assert.True(Unsafe.IsNullRef(ref e.GetOrNullRef<EarlierMissing>()));
+        Assert.True(Unsafe.IsNullRef(ref e.GetOrNullRef<LaterMissing>()));
+        Assert.Throws<ComponentNotFoundException>(() => e.Get<LaterMissing>());
+    }
+
+    [Fact]
+    public void Descriptor_error_is_caught_but_byte_access_error_propagates()
+    {
+        using var host = new ExceptionalHost();
+        var e = host.Create(HList.From(new Present()));
+        host.ThrowDescriptor = true;
+        Assert.True(Unsafe.IsNullRef(ref e.GetOrNullRef<Present>()));
+        host.ThrowBytes = true;
+        var error = Assert.Throws<InvalidOperationException>(() => e.GetOrNullRef<Present>());
+        Assert.Equal("bytes", error.Message);
     }
 }
 
