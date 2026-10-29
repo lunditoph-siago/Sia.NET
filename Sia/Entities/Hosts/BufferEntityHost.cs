@@ -332,11 +332,12 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
 
     private bool CanMoveAll(WorldEntityHost<TEntity, ArrayEntityHost<TEntity>> source)
     {
-        for (var i = 0; i < _entities.Count; i++) {
-            var entity = _entities[i];
-            if (!entity.IsValid) return false;
+        var entities = _entities.AsSpan();
+        for (var i = 0; i < entities.Length; i++) {
+            var entity = entities[i];
             var state = entity.GetStateUnchecked();
-            if (!ReferenceEquals(state.Host, source) || state.Slot != i || state.Releasing || state.EventSink is not null) return false;
+            if (state is null || !entity.References(state) || !ReferenceEquals(state.Host, source)
+                || state.Slot != i || state.Releasing || state.EventSink is not null) return false;
         }
         return true;
     }
@@ -382,10 +383,10 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         destination.Buffer.Count = end;
         var sourceRows = sourceBuffer.AsSpan();
         var targetRows = destination.Buffer.AsSpan();
+        var entities = _entities.AsSpan();
         for (var i = 0; i < count; i++) {
-            var e = _entities[i];
             targetRows[start + i] = HList.Cons(initialValues[i], sourceRows[i]);
-            var state = e.GetStateUnchecked();
+            var state = entities[i].GetStateUnchecked();
             state.Host = target;
             state.Slot = start + i;
         }
@@ -416,10 +417,10 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         destination.Buffer.Count = end;
         var sourceRows = sourceBuffer.AsSpan();
         var targetRows = destination.Buffer.AsSpan();
+        var entities = _entities.AsSpan();
         for (var i = 0; i < count; i++) {
-            var e = _entities[i];
             targetRows[start + i] = Unsafe.As<TEntity, HList<THead, TTail>>(ref sourceRows[i]).Tail;
-            var state = e.GetStateUnchecked();
+            var state = entities[i].GetStateUnchecked();
             state.Host = target;
             state.Slot = start + i;
         }
