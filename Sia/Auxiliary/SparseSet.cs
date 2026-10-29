@@ -44,6 +44,15 @@ public sealed class SparseSet<T>(int pageSize = 256)
     private readonly List<int> _reverse = [];
     private Page[] _pages = [];
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private (int Page, int Offset) GetPosition(int index)
+    {
+        var size = PageSize;
+        return size == 256 && index >= 0
+            ? (index >> 8, index & 255)
+            : Math.DivRem(index, size);
+    }
+
     private struct Page
     {
         public int[]? Indices;
@@ -167,14 +176,11 @@ public sealed class SparseSet<T>(int pageSize = 256)
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetValueRefOrNullRef(int index)
     {
-        var size = PageSize;
-        var standard = size == 256 && index >= 0;
-        var pageIndex = standard ? index >> 8 : index / size;
+        var (pageIndex, entryIndex) = GetPosition(index);
         var pages = _pages;
         if (pageIndex >= pages.Length) return ref Unsafe.NullRef<T>();
         var indices = pages[pageIndex].Indices;
         if (indices == null) return ref Unsafe.NullRef<T>();
-        var entryIndex = standard ? index & 255 : index - pageIndex * size;
         var denseIndex = indices[entryIndex] - 1;
         var dense = CollectionsMarshal.AsSpan(_dense);
         if ((uint)denseIndex >= (uint)dense.Length) return ref Unsafe.NullRef<T>();
@@ -185,9 +191,7 @@ public sealed class SparseSet<T>(int pageSize = 256)
     public ref T GetOrAddValueRef(int index, out bool exists)
     {
         var size = PageSize;
-        var standard = size == 256 && index >= 0;
-        var pageIndex = standard ? index >> 8 : index / size;
-        var entryIndex = standard ? index & 255 : index - pageIndex * size;
+        var (pageIndex, entryIndex) = GetPosition(index);
         if (pageIndex >= _pages.Length) {
             var capacity = checked((int)Math.Max((long)pageIndex + 1, Math.Max(4L, (long)_pages.Length * 2)));
             Array.Resize(ref _pages, capacity);
@@ -220,9 +224,7 @@ public sealed class SparseSet<T>(int pageSize = 256)
         if (valueIndex != lastValueIndex) {
             _dense[valueIndex] = _dense[lastValueIndex];
             var lastIndex = _reverse[lastValueIndex];
-            var size = PageSize;
-            var pageIndex = size == 256 ? lastIndex >> 8 : lastIndex / size;
-            var entryIndex = size == 256 ? lastIndex & 255 : lastIndex - pageIndex * size;
+            var (pageIndex, entryIndex) = GetPosition(lastIndex);
             _pages[pageIndex].Indices![entryIndex] = slot;
             _reverse[valueIndex] = lastIndex;
         }
@@ -241,9 +243,7 @@ public sealed class SparseSet<T>(int pageSize = 256)
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private ref Page GetPage(int index, out int entryIndex)
     {
-        var size = PageSize;
-        var standard = size == 256 && index >= 0;
-        var pageIndex = standard ? index >> 8 : index / size;
+        var (pageIndex, offset) = GetPosition(index);
         var pages = _pages;
         if (pageIndex >= pages.Length) {
             entryIndex = -1;
@@ -255,7 +255,7 @@ public sealed class SparseSet<T>(int pageSize = 256)
             entryIndex = -1;
             return ref Unsafe.NullRef<Page>();
         }
-        entryIndex = standard ? index & 255 : index - pageIndex * size;
+        entryIndex = offset;
         if ((uint)(indices[entryIndex] - 1) >= (uint)_dense.Count) {
             entryIndex = -1;
             return ref Unsafe.NullRef<Page>();
