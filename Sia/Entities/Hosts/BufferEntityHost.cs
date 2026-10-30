@@ -265,8 +265,16 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
 
     internal void RemoveCore<TComponent>(Entity entity, out bool success)
     {
-        if (!RuntimeFeature.IsDynamicCodeSupported || typeof(TBuffer) != typeof(ArrayBuffer<TEntity>)) {
-            Remove<TComponent>(entity, out success);
+        if (!RuntimeFeature.IsDynamicCodeSupported || typeof(TBuffer) != typeof(ArrayBuffer<TEntity>)
+            || !BulkHListShape.IsStandard) {
+            if (EntityIndexer<TEntity, TComponent>.Offset == -1) {
+                success = false;
+                return;
+            }
+            ref var fallbackData = ref Buffer.GetRef(entity.GetStateUnchecked().Slot);
+            var fallbackMover = new EntityMover(entity);
+            fallbackData.Remove(TypeProxy<TComponent>._, fallbackMover);
+            success = true;
             return;
         }
         if (EntityIndexer<TEntity, TComponent>.Offset == -1) {
