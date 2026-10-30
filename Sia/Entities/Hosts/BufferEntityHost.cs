@@ -199,6 +199,21 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         }
     }
 
+    private readonly struct UnmanagedEntityMover(Entity e) : IGenericStructHandler<IHList>
+    {
+        public void Handle<T>(in T data) where T : struct, IHList
+        {
+            var host = e.GetStateUnchecked().Host!;
+            if (host is WorldEntityHost<TEntity, UnmanagedArrayEntityHost<TEntity>> source
+                && source.InnerHost.GetType() == typeof(UnmanagedArrayEntityHost<TEntity>)
+                && source.World.TryGetHost<T, UnmanagedArrayEntityHost<T>>(out var target)) {
+                source.MoveOut(e, target);
+                target.MoveIn(e, data, source);
+            }
+            else new EntityMover(e).Handle(data);
+        }
+    }
+
     private readonly struct ArrayEntityMover(Entity e) : IGenericStructHandler<IHList>
     {
         public void Handle<T>(in T data) where T : struct, IHList
@@ -272,8 +287,15 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
                 return;
             }
             ref var fallbackData = ref Buffer.GetRef(entity.GetStateUnchecked().Slot);
-            var fallbackMover = new EntityMover(entity);
-            fallbackData.Remove(TypeProxy<TComponent>._, fallbackMover);
+            if (RuntimeFeature.IsDynamicCodeSupported && typeof(TBuffer) == typeof(UnmanagedArrayBuffer<TEntity>)
+                && BulkHListShape.IsStandard) {
+                var unmanagedMover = new UnmanagedEntityMover(entity);
+                fallbackData.Remove(TypeProxy<TComponent>._, unmanagedMover);
+            }
+            else {
+                var fallbackMover = new EntityMover(entity);
+                fallbackData.Remove(TypeProxy<TComponent>._, fallbackMover);
+            }
             success = true;
             return;
         }
