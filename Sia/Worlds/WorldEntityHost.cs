@@ -210,7 +210,13 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     public void Add<TComponent>(Entity entity, in TComponent initial)
     {
         World.EnsureOwnerThread();
-        InnerHost.Add(entity, initial);
+        if (typeof(TInnerHost) == typeof(ArrayEntityHost<TEntity>)
+            && InnerHost is ArrayEntityHost<TEntity> managed && managed.GetType() == typeof(ArrayEntityHost<TEntity>))
+            managed.AddCore(entity, initial);
+        else if (typeof(TInnerHost) == typeof(UnmanagedArrayEntityHost<TEntity>)
+            && InnerHost is UnmanagedArrayEntityHost<TEntity> unmanaged && unmanaged.GetType() == typeof(UnmanagedArrayEntityHost<TEntity>))
+            unmanaged.AddCore(entity, initial);
+        else InnerHost.Add(entity, initial);
         World.Dispatcher.Send(entity, WorldEvents.Add<TComponent>.Instance);
         World.Dispatcher.Send(entity, WorldEvents.Set<TComponent>.Instance);
     }
@@ -274,7 +280,13 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     public void Remove<TComponent>(Entity entity, out bool success)
     {
         World.EnsureOwnerThread();
-        InnerHost.Remove<TComponent>(entity, out success);
+        if (typeof(TInnerHost) == typeof(ArrayEntityHost<TEntity>)
+            && InnerHost is ArrayEntityHost<TEntity> managed && managed.GetType() == typeof(ArrayEntityHost<TEntity>))
+            managed.RemoveCore<TComponent>(entity, out success);
+        else if (typeof(TInnerHost) == typeof(UnmanagedArrayEntityHost<TEntity>)
+            && InnerHost is UnmanagedArrayEntityHost<TEntity> unmanaged && unmanaged.GetType() == typeof(UnmanagedArrayEntityHost<TEntity>))
+            unmanaged.RemoveCore<TComponent>(entity, out success);
+        else InnerHost.Remove<TComponent>(entity, out success);
         if (success) {
             World.Dispatcher.Send(entity, WorldEvents.Remove<TComponent>.Instance);
         }

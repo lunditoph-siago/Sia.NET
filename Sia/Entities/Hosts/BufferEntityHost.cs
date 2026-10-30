@@ -136,6 +136,10 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         => handler.Handle(ref Buffer.GetRef(slot));
 
     public virtual void Add<TComponent>(Entity entity, in TComponent initial)
+        => AddCore(entity, initial);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void AddCore<TComponent>(Entity entity, in TComponent initial)
     {
         if (EntityIndexer<TEntity, TComponent>.Offset != -1) {
             EntityExceptionHelper.ThrowComponentExisted<TComponent>();
@@ -202,6 +206,10 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     }
 
     public virtual void Remove<TComponent>(Entity entity, out bool success)
+        => RemoveCore<TComponent>(entity, out success);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void RemoveCore<TComponent>(Entity entity, out bool success)
     {
         if (EntityIndexer<TEntity, TComponent>.Offset == -1) {
             success = false;
