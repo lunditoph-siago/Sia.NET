@@ -1,6 +1,6 @@
-namespace Sia;
-
 using System.Runtime.CompilerServices;
+
+namespace Sia;
 
 public readonly record struct WorldEntity(World World, Entity Entity) : IWorldEntity
 {

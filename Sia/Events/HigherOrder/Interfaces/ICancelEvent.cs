@@ -1,5 +1,3 @@
 namespace Sia;
 
-public interface ICancelEvent : IHigherOrderEvent
-{
-}
+public interface ICancelEvent : IHigherOrderEvent;

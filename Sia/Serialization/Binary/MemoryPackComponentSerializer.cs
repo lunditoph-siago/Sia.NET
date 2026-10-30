@@ -1,8 +1,8 @@
-namespace Sia.Serialization.Binary;
-
 using System.Buffers;
 using System.Runtime.CompilerServices;
 using MemoryPack;
+
+namespace Sia.Serialization.Binary;
 
 public struct MemoryPackComponentSerializer() : IComponentSerializer
 {

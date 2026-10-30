@@ -1,5 +1,4 @@
 using Sia.Examples.Notebook;
-using Sia;
 
 namespace Sia.Examples.Editor;
 

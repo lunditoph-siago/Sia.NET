@@ -1,8 +1,8 @@
-namespace Sia.Tests.Serialization;
-
 using System.Buffers;
 using MemoryPack;
 using Sia.Serialization.Binary;
+
+namespace Sia.Tests.Serialization;
 
 [MemoryPackable]
 public partial record struct SerializedEntityLink(Entity? Target);

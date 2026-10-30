@@ -1,6 +1,8 @@
-namespace Sia.Tests.Reactive;
+using Sia.Reactive;
 
-using global::Sia.Reactive;
+using static Sia.Reactive.Reactive;
+
+namespace Sia.Tests.Reactive;
 
 public class ReactiveComponentRegressionTests
 {
@@ -19,7 +21,7 @@ public class ReactiveComponentRegressionTests
                         return value;
                     },
                     (in int resource) => calls.Add($"cleanup {resource}"));
-                return Reactive.None;
+                return None;
             },
             0);
 
@@ -57,7 +59,7 @@ public class ReactiveComponentRegressionTests
                 if (shouldUnmount) {
                     mount.Unmount();
                 }
-                return Reactive.None;
+                return None;
             };
         mount = world.Mount(component, false);
 
@@ -75,7 +77,7 @@ public class ReactiveComponentRegressionTests
     {
         using var world = new World();
         ReactiveMount<bool> mount = default;
-        Action noOp = static () => { };
+        Action noOp = static () => {};
 
         ReactiveComponent<bool> component =
             (in bool shouldUnmount, ref Hooks _) =>
@@ -101,9 +103,7 @@ public readonly record struct RegressionThrowTerm(bool ShouldThrow)
 
     public static void Mount(
         in RegressionThrowTerm self,
-        ref GraphContext context)
-    {
-    }
+        ref GraphContext context) {}
 
     public static void Reconcile(
         in RegressionThrowTerm previous,
@@ -127,7 +127,5 @@ public readonly record struct RegressionUnmountEffect(Action Callback)
         in RegressionUnmountEffect next)
         => next.Callback();
 
-    public static void Unmount(in RegressionUnmountEffect self)
-    {
-    }
+    public static void Unmount(in RegressionUnmountEffect self) {}
 }

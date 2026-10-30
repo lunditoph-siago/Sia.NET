@@ -1,8 +1,8 @@
 #pragma warning disable CS8500 // This takes the address of, gets the size of, or declares a pointer to a managed type
 
-namespace Sia;
+using static Sia.EntityExtensionsCommon;
 
-using static EntityExtensionsCommon;
+namespace Sia;
 
 public static partial class EntityQueryExtensions
 {

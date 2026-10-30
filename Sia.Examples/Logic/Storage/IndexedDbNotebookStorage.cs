@@ -26,7 +26,7 @@ public sealed partial class IndexedDbNotebookStorage(BrowserMainThread mainThrea
         foreach (var record in records) {
             entries.Add(Describe(record));
         }
-        return [.. entries.OrderByDescending(static entry => entry.ModifiedAt)];
+        return [..entries.OrderByDescending(static entry => entry.ModifiedAt)];
     }
 
     public async ValueTask<WorkspaceFileContent?> ReadFileAsync(

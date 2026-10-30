@@ -1,8 +1,8 @@
-﻿namespace Sia;
-
 using System.Collections.Frozen;
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
+
+namespace Sia;
 
 public record struct ComponentInfo(Type Type, IntPtr Offset, int TypeIndex);
 
@@ -58,14 +58,14 @@ public static class EntityDescriptor<TEntity>
 
         new OffsetRecorder(components, offsets, entityPtr).Handle(ref defaultEntity);
         Offsets = offsets.ToFrozenDictionary();
-        Components = [.. components];
+        Components = [..components];
 
         var slots = new nint[Components.Select(info => info.TypeIndex).Max() + 1];
         Array.Fill(slots, -1);
         foreach (var info in Components) {
             slots[info.TypeIndex] = info.Offset;
         }
-        OffsetSlots = [.. slots];
+        OffsetSlots = [..slots];
     }
 }
 
@@ -79,12 +79,30 @@ public readonly struct EntityIndexer<TEntity, TComponent>
 
 public record EntityDescriptor
 {
+    private abstract class TypeDispatch
+    {
+        public abstract void Handle<THandler>(ref THandler handler)
+            where THandler : IGenericStructTypeHandler<IHList>, allows ref struct;
+    }
+
+    private sealed class TypeDispatch<TEntity> : TypeDispatch where TEntity : struct, IHList
+    {
+        public static readonly TypeDispatch Instance = new TypeDispatch<TEntity>();
+        public override void Handle<THandler>(ref THandler handler) => handler.Handle<TEntity>();
+    }
+
+    private readonly TypeDispatch _typeDispatch;
+
+    internal void HandleType<THandler>(ref THandler handler)
+        where THandler : IGenericStructTypeHandler<IHList>, allows ref struct
+        => _typeDispatch.Handle(ref handler);
+
     public static EntityDescriptor Get<TEntity>()
         where TEntity : struct, IHList
         => new(typeof(TEntity), Unsafe.SizeOf<TEntity>(),
             EntityDescriptor<TEntity>.Components,
             EntityDescriptor<TEntity>.Offsets,
-            EntityDescriptor<TEntity>.OffsetSlots);
+            EntityDescriptor<TEntity>.OffsetSlots, TypeDispatch<TEntity>.Instance);
 
     public Type Type { get; }
     public int MemorySize { get; }
@@ -95,8 +113,9 @@ public record EntityDescriptor
 
     private EntityDescriptor(
         Type type, int memorySize, ImmutableArray<ComponentInfo> components,
-        FrozenDictionary<Type, nint> offsets, ImmutableArray<nint> offsetSlots)
+        FrozenDictionary<Type, nint> offsets, ImmutableArray<nint> offsetSlots, TypeDispatch typeDispatch)
     {
+        _typeDispatch = typeDispatch;
         Type = type;
         MemorySize = memorySize;
         Components = components;
@@ -120,6 +139,18 @@ public record EntityDescriptor
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ComponentOffset<TComponent> GetOffsetUnchecked<TComponent>()
         => OffsetSlots[InternalComponentIndexer<TComponent>.Index];
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryGetOffset<TComponent>(out nint offset)
+    {
+        var index = InternalComponentIndexer<TComponent>.Index;
+        if ((uint)index < (uint)OffsetSlots.Length) {
+            offset = OffsetSlots[index];
+            return offset >= 0;
+        }
+        offset = -1;
+        return false;
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Contains<TComponent>()

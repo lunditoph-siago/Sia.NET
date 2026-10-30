@@ -42,8 +42,7 @@ internal sealed class ConsoleDomNode(
 
     public bool HasClass(string className) => Classes.Contains(className);
 
-    public string? ActivationPayload
-    {
+    public string? ActivationPayload {
         get {
             if (Listeners.TryGetValue("click", out var click)) return click;
             if (TagName != "button" || Attributes.GetValueOrDefault("type") != "submit") return null;
@@ -77,8 +76,6 @@ internal sealed class ConsoleDomNode(
         return false;
     }
 
-    public void Dispose()
-    {
-    }
+    public void Dispose() {}
 }
 #endif

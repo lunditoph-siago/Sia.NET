@@ -1,5 +1,3 @@
-namespace Sia.CodeGenerators;
-
 using System.Reflection;
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
@@ -9,6 +7,8 @@ using System.Text;
 using System.Globalization;
 using System.CodeDom.Compiler;
 using Microsoft.CodeAnalysis.CSharp;
+
+namespace Sia.CodeGenerators;
 
 internal static class Common
 {
@@ -28,15 +28,13 @@ internal static class Common
         public PropertyInfo(string name, ITypeSymbol symbol, IEnumerable<AttributeData> attributes)
             : this(name, symbol, GetDisplayType(symbol),
                 symbol is INamedTypeSymbol namedSymbol
-                    ? [.. namedSymbol.TypeArguments.Select(a => a.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))]
+                    ? [..namedSymbol.TypeArguments.Select(a => a.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))]
                     : ImmutableArray<string>.Empty,
                 attributes
                     .FirstOrDefault(data =>
                         data!.AttributeClass!.ToDisplayString() == "Sia.SiaAttribute")
                     ?.NamedArguments.ToImmutableDictionary()
-                        ?? ImmutableDictionary<string, TypedConstant>.Empty)
-        {
-        }
+                        ?? ImmutableDictionary<string, TypedConstant>.Empty) {}
 
         public T GetArgument<T>(string name, in T defaultValue)
             => Arguments.TryGetValue(name, out var value)
@@ -101,7 +99,8 @@ internal static class Common
         => model.GetTypeInfo(typeNode, token).Type!;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ITypeSymbol GetVariableType(SemanticModel model, VariableDeclaratorSyntax syntax, CancellationToken token) {
+    public static ITypeSymbol GetVariableType(SemanticModel model, VariableDeclaratorSyntax syntax, CancellationToken token)
+    {
         var parentDecl = (VariableDeclarationSyntax)syntax.Parent!;
         return GetNodeType(model, parentDecl.Type, token);
     }

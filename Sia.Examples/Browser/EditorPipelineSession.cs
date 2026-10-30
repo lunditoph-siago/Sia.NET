@@ -1,6 +1,5 @@
 #if BROWSER
 using System.Reflection;
-using Sia;
 using Sia.Graphics;
 using Sia.Graphics.Reactive;
 using Sia.Input;
@@ -10,7 +9,6 @@ using Sia.WebGPU;
 using Sia.Window;
 using Sia.Examples.Notebook;
 using System.Runtime.InteropServices.JavaScript;
-using System.Runtime.InteropServices;
 
 namespace Sia.Examples.Editor;
 

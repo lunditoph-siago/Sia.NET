@@ -1,6 +1,6 @@
-namespace Sia;
-
 using System.Collections.Concurrent;
+
+namespace Sia;
 
 public readonly record struct CommandRequest(Entity Target, ICommand Command)
 {

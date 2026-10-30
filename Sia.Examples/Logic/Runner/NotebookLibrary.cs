@@ -1,6 +1,5 @@
 using System.Xml;
 using System.Xml.Linq;
-using Sia.Examples.Editor;
 
 namespace Sia.Examples.Notebook;
 
@@ -53,8 +52,8 @@ public sealed class NotebookLibrary(IWorkspaceStorage storage)
                 entry.ModifiedAt ?? DateTimeOffset.MinValue));
         }
         Notebooks = [
-            .. s_BuiltIn,
-            .. user
+            ..s_BuiltIn,
+            ..user
                 .OrderByDescending(static pair => pair.ModifiedAt)
                 .Select(static pair => pair.Info),
         ];

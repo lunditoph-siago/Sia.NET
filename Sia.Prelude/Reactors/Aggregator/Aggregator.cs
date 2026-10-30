@@ -1,8 +1,8 @@
-namespace Sia.Reactors;
-
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+
+namespace Sia.Reactors;
 
 public abstract class AggregatorBase<TId> : ReactorBase<TypeUnion<Sid<TId>>>
     where TId : notnull, IEquatable<TId>
@@ -70,7 +70,7 @@ public abstract class AggregatorBase<TId> : ReactorBase<TypeUnion<Sid<TId>>>
         if (!_aggrs.Remove(aggr.Id, out var removedEntity)) {
             return;
         }
-        if (removedEntity != entity)  {
+        if (removedEntity != entity) {
             _aggrs.Add(aggr.Id, removedEntity);
         }
     }

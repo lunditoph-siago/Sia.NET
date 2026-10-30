@@ -1,5 +1,3 @@
-namespace Sia.CodeGenerators;
-
 using System.Text;
 using System.CodeDom.Compiler;
 using System.Collections.Immutable;
@@ -9,7 +7,9 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
-using static Common;
+using static Sia.CodeGenerators.Common;
+
+namespace Sia.CodeGenerators;
 
 [Generator]
 internal partial class SiaPropertyGenerator : IIncrementalGenerator
@@ -148,139 +148,139 @@ internal partial class SiaPropertyGenerator : IIncrementalGenerator
         string? keyType, valueType;
 
         switch (immutableType) {
-        case "Dictionary":
-            keyType = info.TypeArguments[0];
-            valueType = info.TypeArguments[1];
+            case "Dictionary":
+                keyType = info.TypeArguments[0];
+                valueType = info.TypeArguments[1];
 
-            if (info.GetArgument("GenerateAddItemCommand", true)) {
-                source.WriteLine();
-                var command = "Add" + itemName;
-                generatedCommands?.Add(command);
-                GenerateImmutableContainerCommand(
-                    source, info, componentType, componentTypeParams, command,
-                    $"{keyType} Key, {valueType} Value",
-                    ".Add(Key, Value);");
-                source.WriteLine();
-                GenerateImmutableContainerViewMethods(
-                    source, info, componentType, componentTypeParams, command,
-                    $"{keyType} key, {valueType} value",
-                    "key, value");
-            }
-            if (info.GetArgument("GenerateSetItemCommand", true)) {
-                source.WriteLine();
-                var command = "Set" + itemName;
-                generatedCommands?.Add(command);
-                GenerateImmutableContainerCommand(
-                    source, info, componentType, componentTypeParams, command,
-                    $"{keyType} Key, {valueType} Value",
-                    ".SetItem(Key, Value);");
-                source.WriteLine();
-                GenerateImmutableContainerViewMethods(
-                    source, info, componentType, componentTypeParams, command,
-                    $"{keyType} key, {valueType} value",
-                    "key, value");
-            }
-            if (info.GetArgument("GenerateRemoveItemCommand", true)) {
-                source.WriteLine();
-                var command = "Remove" + itemName;
-                generatedCommands?.Add(command);
-                GenerateImmutableContainerCommand(
-                    source, info, componentType, componentTypeParams, command,
-                    $"{keyType} Key",
-                    ".Remove(Key);");
-                source.WriteLine();
-                GenerateImmutableContainerViewMethods(
-                    source, info, componentType, componentTypeParams, command,
-                    $"{keyType} key",
-                    "key");
-            }
-            break;
+                if (info.GetArgument("GenerateAddItemCommand", true)) {
+                    source.WriteLine();
+                    var command = "Add" + itemName;
+                    generatedCommands?.Add(command);
+                    GenerateImmutableContainerCommand(
+                        source, info, componentType, componentTypeParams, command,
+                        $"{keyType} Key, {valueType} Value",
+                        ".Add(Key, Value);");
+                    source.WriteLine();
+                    GenerateImmutableContainerViewMethods(
+                        source, info, componentType, componentTypeParams, command,
+                        $"{keyType} key, {valueType} value",
+                        "key, value");
+                }
+                if (info.GetArgument("GenerateSetItemCommand", true)) {
+                    source.WriteLine();
+                    var command = "Set" + itemName;
+                    generatedCommands?.Add(command);
+                    GenerateImmutableContainerCommand(
+                        source, info, componentType, componentTypeParams, command,
+                        $"{keyType} Key, {valueType} Value",
+                        ".SetItem(Key, Value);");
+                    source.WriteLine();
+                    GenerateImmutableContainerViewMethods(
+                        source, info, componentType, componentTypeParams, command,
+                        $"{keyType} key, {valueType} value",
+                        "key, value");
+                }
+                if (info.GetArgument("GenerateRemoveItemCommand", true)) {
+                    source.WriteLine();
+                    var command = "Remove" + itemName;
+                    generatedCommands?.Add(command);
+                    GenerateImmutableContainerCommand(
+                        source, info, componentType, componentTypeParams, command,
+                        $"{keyType} Key",
+                        ".Remove(Key);");
+                    source.WriteLine();
+                    GenerateImmutableContainerViewMethods(
+                        source, info, componentType, componentTypeParams, command,
+                        $"{keyType} key",
+                        "key");
+                }
+                break;
 
-        case "Queue":
-            valueType = info.TypeArguments[0];
+            case "Queue":
+                valueType = info.TypeArguments[0];
 
-            if (info.GetArgument("GenerateAddItemCommand", true)) {
-                source.WriteLine();
-                var command = "Enqueue" + itemName;
-                generatedCommands?.Add(command);
-                GenerateImmutableContainerCommand(
-                    source, info, componentType, componentTypeParams, command,
-                    $"{valueType} Value",
-                    ".Enqueue(Value);");
-                source.WriteLine();
-                GenerateImmutableContainerViewMethods(
-                    source, info, componentType, componentTypeParams, command,
-                    $"{valueType} value",
-                    "value");
-            }
-            break;
+                if (info.GetArgument("GenerateAddItemCommand", true)) {
+                    source.WriteLine();
+                    var command = "Enqueue" + itemName;
+                    generatedCommands?.Add(command);
+                    GenerateImmutableContainerCommand(
+                        source, info, componentType, componentTypeParams, command,
+                        $"{valueType} Value",
+                        ".Enqueue(Value);");
+                    source.WriteLine();
+                    GenerateImmutableContainerViewMethods(
+                        source, info, componentType, componentTypeParams, command,
+                        $"{valueType} value",
+                        "value");
+                }
+                break;
 
-        case "Stack":
-            valueType = info.TypeArguments[0];
+            case "Stack":
+                valueType = info.TypeArguments[0];
 
-            if (info.GetArgument("GenerateAddItemCommand", true)) {
-                source.WriteLine();
-                var command = "Push" + itemName;
-                generatedCommands?.Add(command);
-                GenerateImmutableContainerCommand(
-                    source, info, componentType, componentTypeParams, command,
-                    $"{valueType} Value",
-                    ".Push(Value);");
-                source.WriteLine();
-                GenerateImmutableContainerViewMethods(
-                    source, info, componentType, componentTypeParams, command,
-                    $"{valueType} value",
-                    "value");
-            }
-            break;
-        
-        case "HashSet":
-        case "List":
-        case "Array":
-            valueType = info.TypeArguments[0];
-            if (info.GetArgument("GenerateAddItemCommand", true)) {
-                source.WriteLine();
-                var command = "Add" + itemName;
-                generatedCommands?.Add(command);
-                GenerateImmutableContainerCommand(
-                    source, info, componentType, componentTypeParams, command,
-                    $"{valueType} Value",
-                    ".Add(Value);");
-                source.WriteLine();
-                GenerateImmutableContainerViewMethods(
-                    source, info, componentType, componentTypeParams, command,
-                    $"{valueType} value",
-                    "value");
-            }
-            if (immutableType != "HashSet" && info.GetArgument("GenerateSetItemCommand", true)) {
-                source.WriteLine();
-                var command = "Set" + itemName;
-                generatedCommands?.Add(command);
-                GenerateImmutableContainerCommand(
-                    source, info, componentType, componentTypeParams, command,
-                    $"int Index, {valueType} Value",
-                    ".SetItem(Index, Value);");
-                source.WriteLine();
-                GenerateImmutableContainerViewMethods(
-                    source, info, componentType, componentTypeParams, command,
-                    $"int index, {valueType} value",
-                    "index, value");
-            }
-            if (info.GetArgument("GenerateRemoveItemCommand", true)) {
-                source.WriteLine();
-                var command = "Remove" + itemName;
-                generatedCommands?.Add(command);
-                GenerateImmutableContainerCommand(
-                    source, info, componentType, componentTypeParams, command,
-                    $"{valueType} Value",
-                    ".Remove(Value);");
-                source.WriteLine();
-                GenerateImmutableContainerViewMethods(
-                    source, info, componentType, componentTypeParams, command,
-                    $"{valueType} value",
-                    "value");
-            }
-            break;
+                if (info.GetArgument("GenerateAddItemCommand", true)) {
+                    source.WriteLine();
+                    var command = "Push" + itemName;
+                    generatedCommands?.Add(command);
+                    GenerateImmutableContainerCommand(
+                        source, info, componentType, componentTypeParams, command,
+                        $"{valueType} Value",
+                        ".Push(Value);");
+                    source.WriteLine();
+                    GenerateImmutableContainerViewMethods(
+                        source, info, componentType, componentTypeParams, command,
+                        $"{valueType} value",
+                        "value");
+                }
+                break;
+
+            case "HashSet":
+            case "List":
+            case "Array":
+                valueType = info.TypeArguments[0];
+                if (info.GetArgument("GenerateAddItemCommand", true)) {
+                    source.WriteLine();
+                    var command = "Add" + itemName;
+                    generatedCommands?.Add(command);
+                    GenerateImmutableContainerCommand(
+                        source, info, componentType, componentTypeParams, command,
+                        $"{valueType} Value",
+                        ".Add(Value);");
+                    source.WriteLine();
+                    GenerateImmutableContainerViewMethods(
+                        source, info, componentType, componentTypeParams, command,
+                        $"{valueType} value",
+                        "value");
+                }
+                if (immutableType != "HashSet" && info.GetArgument("GenerateSetItemCommand", true)) {
+                    source.WriteLine();
+                    var command = "Set" + itemName;
+                    generatedCommands?.Add(command);
+                    GenerateImmutableContainerCommand(
+                        source, info, componentType, componentTypeParams, command,
+                        $"int Index, {valueType} Value",
+                        ".SetItem(Index, Value);");
+                    source.WriteLine();
+                    GenerateImmutableContainerViewMethods(
+                        source, info, componentType, componentTypeParams, command,
+                        $"int index, {valueType} value",
+                        "index, value");
+                }
+                if (info.GetArgument("GenerateRemoveItemCommand", true)) {
+                    source.WriteLine();
+                    var command = "Remove" + itemName;
+                    generatedCommands?.Add(command);
+                    GenerateImmutableContainerCommand(
+                        source, info, componentType, componentTypeParams, command,
+                        $"{valueType} Value",
+                        ".Remove(Value);");
+                    source.WriteLine();
+                    GenerateImmutableContainerViewMethods(
+                        source, info, componentType, componentTypeParams, command,
+                        $"{valueType} value",
+                        "value");
+                }
+                break;
         }
     }
 

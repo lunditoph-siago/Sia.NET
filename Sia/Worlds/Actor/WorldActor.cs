@@ -1,7 +1,5 @@
 namespace Sia;
 
-using System.Diagnostics;
-
 public sealed class WorldActor : IDisposable
 {
     [ThreadStatic]

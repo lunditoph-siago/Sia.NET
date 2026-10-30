@@ -1,4 +1,3 @@
-using Sia.Examples.Dom;
 using Sia.Reactive;
 
 namespace Sia.Examples.Editor;

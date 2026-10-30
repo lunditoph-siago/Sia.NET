@@ -1,7 +1,34 @@
-﻿namespace Sia.Tests.Auxiliary;
+namespace Sia.Tests.Auxiliary;
 
 public class SparseSetTests
 {
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    [InlineData(256)]
+    [InlineData(257)]
+    public void SparseSet_RemovalPreservesOtherPages(int pageSize)
+    {
+        var set = new SparseSet<string?>(pageSize);
+        var keys = new[] { 0, pageSize - 1, pageSize, 3 * pageSize + 1 }.Distinct().ToArray();
+        foreach (var key in keys) set.Add(key, key == 0 ? null : key.ToString());
+
+        Assert.True(set.Remove(pageSize));
+        Assert.False(set.ContainsKey(pageSize));
+        Assert.True(set.TryGetValue(0, out var nullValue));
+        Assert.Null(nullValue);
+        foreach (var key in keys.Where(key => key != 0 && key != pageSize)) {
+            Assert.True(set.TryGetValue(key, out var value));
+            Assert.Equal(key.ToString(), value);
+        }
+
+        set.Clear();
+        Assert.Empty(set);
+        Assert.True(set.Add(pageSize, "reused"));
+        Assert.Equal("reused", set[pageSize]);
+        set.Clear();
+    }
+
     [Fact]
     public void SparseSet_Indexer_GetSet_Test()
     {

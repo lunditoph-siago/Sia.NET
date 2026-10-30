@@ -1,8 +1,8 @@
-namespace Sia.CodeGenerators;
-
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
+
+namespace Sia.CodeGenerators;
 
 [Generator]
 public sealed class SiaReactiveArityGenerator : IIncrementalGenerator
@@ -15,8 +15,7 @@ public sealed class SiaReactiveArityGenerator : IIncrementalGenerator
         context.RegisterSourceOutput(
             context.CompilationProvider.Select(
                 static (compilation, _) => compilation.AssemblyName),
-            static (production, assemblyName) =>
-            {
+            static (production, assemblyName) => {
                 if (assemblyName == "Sia.Prelude") {
                     production.AddSource(
                         "SiaReactiveArities.g.cs",

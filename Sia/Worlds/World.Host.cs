@@ -1,8 +1,8 @@
-namespace Sia;
-
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+
+namespace Sia;
 
 public partial class World
 {
@@ -99,18 +99,19 @@ public partial class World
     public bool TryGetHost<THost>([MaybeNullWhen(false)] out THost host)
         where THost : IEntityHost
     {
-        if (_hosts.TryGetValue(WorldEntityHostIndexer<THost>.Index, out var rawHost)) {
-            host = (THost)rawHost;
-            return true;
+        ref var rawHost = ref _hosts.GetValueRefOrNullRef(WorldEntityHostIndexer<THost>.Index);
+        if (Unsafe.IsNullRef(ref rawHost)) {
+            host = default;
+            return false;
         }
-        host = default;
-        return false;
+        host = (THost)rawHost;
+        return true;
     }
 
     public bool ContainsHost<THost>()
         where THost : IEntityHost
         => _hosts.ContainsKey(WorldEntityHostIndexer<THost>.Index);
-    
+
     public void ClearHosts()
     {
         Version++;

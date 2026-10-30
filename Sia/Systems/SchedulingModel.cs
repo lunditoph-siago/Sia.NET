@@ -1,8 +1,8 @@
-namespace Sia;
-
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+
+namespace Sia;
 
 public readonly record struct ScheduleLabel(string Name)
 {

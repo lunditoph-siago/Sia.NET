@@ -1,4 +1,3 @@
-using Sia;
 using Sia.Examples.Dom;
 using Sia.Examples.Editor;
 
@@ -113,9 +112,7 @@ public sealed class BrowserNotebookView :
     void IRenderHost<NotebookCellSnapshot>.Upsert(in NotebookCellSnapshot view)
         => _cellsByScript[view.Id].Update(view.Id, view.State);
 
-    void IRenderHost<NotebookCellSnapshot>.Remove(in NotebookCellSnapshot view)
-    {
-    }
+    void IRenderHost<NotebookCellSnapshot>.Remove(in NotebookCellSnapshot view) {}
 
     void IRenderHost<PackageView>.Upsert(in PackageView view)
         => _packages.Upsert(view);
@@ -136,10 +133,7 @@ public sealed class BrowserNotebookView :
         _fileTree.UpdateSelection(view.State);
     }
 
-    void IRenderHost<NotebookCellPresentation>.Remove(
-        in NotebookCellPresentation view)
-    {
-    }
+    void IRenderHost<NotebookCellPresentation>.Remove(in NotebookCellPresentation view) {}
 
     public void ReconcileDocument(
         NotebookDocument previousDocument,

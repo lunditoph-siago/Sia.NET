@@ -149,7 +149,7 @@ public sealed class NotebookSession : IDisposable
                 var script = new CellScript(
                     Guid.NewGuid().ToString("N"), "", NextDefaultScriptName(cell.Scripts));
                 newScriptId = script.Id;
-                return cell with { Scripts = [.. cell.Scripts, script] };
+                return cell with { Scripts = [..cell.Scripts, script] };
             }),
         };
         if (newScriptId is null) {
@@ -175,7 +175,7 @@ public sealed class NotebookSession : IDisposable
         _document = _document with {
             Sections = NotebookDocumentEdits.UpdateBlock(_document.Sections, owner.Id, block =>
                 block is CodeCellBlock cell
-                    ? cell with { Scripts = [.. cell.Scripts.Where(script => script.Id != scriptId)] }
+                    ? cell with { Scripts = [..cell.Scripts.Where(script => script.Id != scriptId)] }
                     : block),
         };
         Rebuild();
@@ -199,7 +199,7 @@ public sealed class NotebookSession : IDisposable
             Sections = NotebookDocumentEdits.UpdateBlock(_document.Sections, owner.Id, block =>
                 block is CodeCellBlock cell
                     ? cell with {
-                        Scripts = [.. cell.Scripts.Select(script =>
+                        Scripts = [..cell.Scripts.Select(script =>
                             script.Id == scriptId ? script with { Name = normalized } : script)],
                     }
                     : block),
@@ -321,7 +321,7 @@ public sealed class NotebookSession : IDisposable
         var sections = _document.Sections.Select(section => section with {
             Blocks = section.Blocks.Select(block => block switch {
                 CodeCellBlock cell => cell with {
-                    Scripts = [.. cell.Scripts.Select(script =>
+                    Scripts = [..cell.Scripts.Select(script =>
                         script with { InitialSource = _states[script.Id].Source })],
                 },
                 var other => other,
@@ -694,7 +694,7 @@ public sealed class NotebookSession : IDisposable
             .Take(targetIndex + 1)
             .Select(cell => new NotebookProgramCell(
                 cell.Id,
-                [.. cell.Scripts.Select(script => new NotebookProgramFile(
+                [..cell.Scripts.Select(script => new NotebookProgramFile(
                     script.Id,
                     script.Name ?? $"{script.Id}.cs",
                     source(script.Id)))]))
@@ -741,7 +741,7 @@ public sealed class NotebookSession : IDisposable
     private NotebookSessionSnapshot CreateSnapshot()
     {
         if (_cellsDirty) {
-            _cellSnapshot = [.. _scripts.Select(script =>
+            _cellSnapshot = [.._scripts.Select(script =>
                 new NotebookCellSnapshot(script.Id, _states[script.Id]))];
             _cellsDirty = false;
         }

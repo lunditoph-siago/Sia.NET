@@ -1,5 +1,3 @@
-namespace Sia.CodeGenerators;
-
 using System.Text;
 using System.Diagnostics;
 using System.CodeDom.Compiler;
@@ -10,7 +8,9 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
-using static Common;
+using static Sia.CodeGenerators.Common;
+
+namespace Sia.CodeGenerators;
 
 [Generator]
 internal partial class SiaTemplateGenerator : IIncrementalGenerator
@@ -53,13 +53,13 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
                             _ => null
                         })
                         .Where(c => c != null)
-                        .Concat(symbol.BaseType != null ? GetProperties(symbol.BaseType) : [])!;;
+                        .Concat(symbol.BaseType != null ? GetProperties(symbol.BaseType) : [])!;
 
                 return new CodeGenerationInfo(
                     Namespace: syntax.TargetSymbol.ContainingNamespace,
                     ParentTypes: parentTypes,
                     TemplateType: targetType,
-                    TypeConstraints: 
+                    TypeConstraints:
                         targetType.TypeParameterList != null
                             ? GetTypeConstraints(targetSymbol) : null,
                     ComponentName: templateAttr.ConstructorArguments[0].Value as string
@@ -69,8 +69,8 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
                         p => p.Key == "Immutable" && (bool)p.Value.Value! == true)
                 );
             });
-        
-        context.RegisterSourceOutput(codeGenInfos , static (context, info) => {
+
+        context.RegisterSourceOutput(codeGenInfos, static (context, info) => {
             using var source = CreateFileSource(out var builder);
 
             using (GenerateInNamespace(source, info.Namespace)) {
@@ -92,12 +92,12 @@ internal partial class SiaTemplateGenerator : IIncrementalGenerator
                             GenerateResetCommand(source,
                                 templateType: templateType,
                                 componentName: compName);
-                            
+
                             if (properties.Length != 0) {
                                 source.WriteLine();
                                 SiaPropertyGenerator.GenerateViewMainDecl(
                                     source, compName, templateType.TypeParameterList);
-                                
+
                                 var commands = new List<string>();
 
                                 foreach (var prop in properties) {

@@ -2,8 +2,7 @@ namespace Sia;
 
 // Events
 
-public interface IEventSender<in TEvent> : IEventSender<Entity, TEvent>
-    where TEvent : IEvent;
+public interface IEventSender<in TEvent> : IEventSender<Entity, TEvent> where TEvent : IEvent;
 
 public interface IEventSender : IEventSender<IEvent>;
 

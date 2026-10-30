@@ -1,7 +1,9 @@
-namespace Sia.Tests.Reactive;
+using Sia.Reactive;
 
-using global::Sia.Reactive;
+using static Sia.Reactive.Reactive;
 using global::Sia.Reactors;
+
+namespace Sia.Tests.Reactive;
 
 public class ReactorHooksInteropTests(QueryTestHelpers helpers) : IClassFixture<QueryTestHelpers>
 {
@@ -55,7 +57,7 @@ public class ReactorHooksInteropTests(QueryTestHelpers helpers) : IClassFixture<
         var removedCalls = 0;
         using var subscription = new QuerySubscription(
             world.Query<TypeUnion<Marker>>(),
-            _ => { },
+            _ => {},
             entity => {
                 removedCalls++;
                 if (removedCalls == 1) {
@@ -84,7 +86,7 @@ public class ReactorHooksInteropTests(QueryTestHelpers helpers) : IClassFixture<
                     new LogCapture(log),
                     static (Entity e, in LogCapture c) => c.Log.Add($"added:{e.Id}"),
                     static (Entity e, in LogCapture c) => c.Log.Add($"removed:{e.Id}"));
-                return Reactive.None;
+                return None;
             },
             default(Unit));
 
@@ -106,7 +108,7 @@ public class ReactorHooksInteropTests(QueryTestHelpers helpers) : IClassFixture<
                     new LogCapture(log),
                     static (Entity e, in LogCapture c) => c.Log.Add($"added:{e.Id}"),
                     static (Entity e, in LogCapture c) => c.Log.Add($"removed:{e.Id}"));
-                return Reactive.None;
+                return None;
             },
             default(Unit));
 
@@ -138,7 +140,7 @@ public class ReactorHooksInteropTests(QueryTestHelpers helpers) : IClassFixture<
                     new LogCapture(hookLog),
                     static (Entity e, in LogCapture c) => c.Log.Add($"added:{e.Id}"),
                     static (Entity e, in LogCapture c) => c.Log.Add($"removed:{e.Id}"));
-                return Reactive.None;
+                return None;
             },
             default(Unit));
 
@@ -166,7 +168,7 @@ public class ReactorHooksInteropTests(QueryTestHelpers helpers) : IClassFixture<
                     new LogCapture(log),
                     static (Entity e, in LogCapture c) => c.Log.Add($"added:{e.Id}"),
                     static (Entity e, in LogCapture c) => c.Log.Add($"removed:{e.Id}"));
-                return Reactive.None;
+                return None;
             },
             default(Unit));
 
@@ -197,7 +199,7 @@ public class ReactorHooksInteropTests(QueryTestHelpers helpers) : IClassFixture<
                     new LogCapture(log),
                     static (Entity e, in LogCapture c) => c.Log.Add($"added:{e.Id}"),
                     static (Entity e, in LogCapture c) => c.Log.Add($"removed:{e.Id}"));
-                return Reactive.None;
+                return None;
             },
             default(Unit));
 
@@ -218,7 +220,7 @@ public class ReactorHooksInteropTests(QueryTestHelpers helpers) : IClassFixture<
                     new LogCapture(log2),
                     static (Entity e, in LogCapture c) => c.Log.Add($"added:{e.Id}"),
                     static (Entity e, in LogCapture c) => c.Log.Add($"removed:{e.Id}"));
-                return Reactive.None;
+                return None;
             },
             default(Unit));
 
@@ -241,13 +243,13 @@ public class ReactorHooksInteropTests(QueryTestHelpers helpers) : IClassFixture<
                     static (Entity e, in LogCapture c) => c.Log.Add($"query-added:{e.Id}"),
                     static (Entity e, in LogCapture c) => c.Log.Add($"query-removed:{e.Id}"));
 
-                return Reactive.Entity(
+                return Entity(
                     HList.From(new Marker(), new Sid<string>("output")),
-                    Reactive.Group(
-                        Reactive.On<WorldEvents.Set<Marker>, LogCapture>(
+                    Group(
+                        On<WorldEvents.Set<Marker>, LogCapture>(
                             new LogCapture(log),
                             static (in WorldEvents.Set<Marker> _, in LogCapture c) => c.Log.Add("set-event")),
-                        Reactive.On<Sid<string>.SetValue, LogCapture>(
+                        On<Sid<string>.SetValue, LogCapture>(
                             new LogCapture(log),
                             static (in Sid<string>.SetValue e, in LogCapture c) => c.Log.Add($"sid-command:{e.Value}"))));
             },
@@ -279,7 +281,7 @@ public class ReactorHooksInteropTests(QueryTestHelpers helpers) : IClassFixture<
                     new LogCapture(hookLog),
                     static (Entity e, in LogCapture c) => c.Log.Add($"added:{e.Id}"),
                     static (Entity e, in LogCapture c) => c.Log.Add($"removed:{e.Id}"));
-                return Reactive.None;
+                return None;
             },
             default(Unit));
 
@@ -319,7 +321,7 @@ public class ReactorHooksInteropTests(QueryTestHelpers helpers) : IClassFixture<
                     static (Entity target, in Node<SceneTag>.OnIsEnabledChanged e, in EnableLogCapture c) =>
                         c.Log.Add((target, e.Enabled)));
 
-                return Reactive.None;
+                return None;
             },
             default(Unit));
 

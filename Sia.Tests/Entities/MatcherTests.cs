@@ -1,4 +1,4 @@
-﻿namespace Sia.Tests.Entities;
+namespace Sia.Tests.Entities;
 
 public class MatcherTests
 {

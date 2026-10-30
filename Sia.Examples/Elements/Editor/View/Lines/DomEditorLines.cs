@@ -153,7 +153,7 @@ internal sealed class DomEditorLines(
             return;
         }
 
-        line.TextRuns([.. styledRuns.Select(static run => new DomTextRun(
+        line.TextRuns([..styledRuns.Select(static run => new DomTextRun(
             run.Text, run.Class is { } classification ? CSharpHighlighter.CssClass(classification) : null))]);
     }
 

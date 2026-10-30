@@ -1,4 +1,3 @@
-using System.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Emit;
@@ -72,7 +71,7 @@ internal sealed class CSharpCompilationEngine(ICompilationReferenceResolver refe
     {
         var compilation = CSharpCompilation.Create(
             request.AssemblyName,
-            [.. trees.Select(static source => source.Tree)],
+            [..trees.Select(static source => source.Tree)],
             references,
             request.OutputKind == OutputKind.DynamicallyLinkedLibrary
                 ? CSharpLanguageOptions.Library

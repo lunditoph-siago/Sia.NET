@@ -1,4 +1,3 @@
-using Sia;
 using Sia.Examples.Dom;
 using Sia.Examples.Notebook;
 

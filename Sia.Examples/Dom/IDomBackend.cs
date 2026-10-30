@@ -24,7 +24,7 @@ internal interface IDomBackend : IDisposable
 
     public string GetValue(IDomNode node);
 
-    public void Focus(IDomNode node) { }
+    public void Focus(IDomNode node) {}
 
     public string? ReadKeymap() => null;
 
@@ -32,7 +32,7 @@ internal interface IDomBackend : IDisposable
 
     public bool ReadEditorLineWrapping() => true;
 
-    public void WriteEditorLineWrapping(bool enabled) { }
+    public void WriteEditorLineWrapping(bool enabled) {}
 
     public void SetId(IDomNode node, string id);
 
@@ -95,7 +95,7 @@ internal interface IDomBackend : IDisposable
 
     public void EnsureVisible(IDomNode container, IDomNode element);
 
-    public void NotifyAppReady() { }
+    public void NotifyAppReady() {}
 
     public void ReportError(string message);
 

@@ -1,6 +1,5 @@
 #if BROWSER
 using Sia.Examples.Browser;
-using Sia.Examples.Editor;
 using Sia.Examples.Notebook;
 
 namespace Sia.Examples;

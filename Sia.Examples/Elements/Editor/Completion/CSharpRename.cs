@@ -108,7 +108,7 @@ internal static class CSharpRename
                 var existing = documents.FindIndex(item => item.DocumentId == location.DocumentId);
                 var change = new ChangeSpec(location.Start, location.Start + location.Length, edit.NewText!);
                 if (existing < 0) documents.Add(new(location.DocumentId, location.Path, location.Source, [change]));
-                else documents[existing] = documents[existing] with { Changes = [.. documents[existing].Changes, change] };
+                else documents[existing] = documents[existing] with { Changes = [..documents[existing].Changes, change] };
             }
         }
         for (var index = 0; index < documents.Count; index++) documents[index] = documents[index] with {

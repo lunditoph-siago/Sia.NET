@@ -1,13 +1,11 @@
 #pragma warning disable CS8500 // This takes the address of, gets the size of, or declares a pointer to a managed type
 
-namespace Sia;
-
-using System;
 using System.Collections;
-using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
-using static WorldHostUtils;
+using static Sia.WorldHostUtils;
+
+namespace Sia;
 
 public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost innerHost)
     : IEntityHost<TEntity>, IReactiveEntityHost
@@ -56,6 +54,16 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     public unsafe IEntityHost<UEntity> GetSiblingHost<UEntity>()
         where UEntity : struct, IHList
     {
+        if (typeof(TInnerHost) == typeof(ArrayEntityHost<TEntity>)
+            && InnerHost.GetType() == typeof(ArrayEntityHost<TEntity>)) {
+            return World.TryGetHost<UEntity, ArrayEntityHost<UEntity>>(out var found)
+                ? found : World.UnsafeAddRawHost(new WorldEntityHost<UEntity, ArrayEntityHost<UEntity>>(World, new()));
+        }
+        if (typeof(TInnerHost) == typeof(UnmanagedArrayEntityHost<TEntity>)
+            && InnerHost.GetType() == typeof(UnmanagedArrayEntityHost<TEntity>)) {
+            return World.TryGetHost<UEntity, UnmanagedArrayEntityHost<UEntity>>(out var found)
+                ? found : World.UnsafeAddRawHost(new WorldEntityHost<UEntity, UnmanagedArrayEntityHost<UEntity>>(World, new()));
+        }
         IEntityHost<UEntity>? host = null;
         InnerHost.GetSiblingHostType<UEntity, SiblingInnerHostGetter<UEntity>>(
             new(World, &host));

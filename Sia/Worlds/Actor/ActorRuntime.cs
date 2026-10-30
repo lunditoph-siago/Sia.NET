@@ -1,7 +1,5 @@
 namespace Sia;
 
-using System.Collections.Concurrent;
-
 public sealed class ActorRuntime : IDisposable
 {
     public static TimeSpan DefaultDisposeTimeout { get; } = TimeSpan.FromSeconds(5);

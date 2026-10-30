@@ -1,6 +1,6 @@
-namespace Sia.Reactors;
-
 using System.Diagnostics.CodeAnalysis;
+
+namespace Sia.Reactors;
 
 public abstract class ReactorBase : IAddon
 {

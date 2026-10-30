@@ -37,6 +37,7 @@ public class BufferEntityHostTests
         Assert.Throws<ObjectDisposedException>(stale.Destroy);
         Assert.Throws<ObjectDisposedException>(() => stale.Get<int>());
         Assert.Throws<ObjectDisposedException>(() => stale.GetOrNullRef<int>());
+        Assert.Throws<ObjectDisposedException>(() => stale.GetOrNullRef<LaterMissing>());
         Assert.True(current.IsValid);
         Assert.Equal(2, current.Get<int>());
     }
@@ -110,6 +111,8 @@ public class BufferEntityHostTests
             second.Release(secondEntity);
         }
     }
+
+    private readonly record struct LaterMissing(int Value);
 }
 
 internal sealed class ReleaseOrderBuffer<T> : IBuffer<T>
@@ -140,5 +143,5 @@ internal sealed class ReleaseOrderBuffer<T> : IBuffer<T>
             : ref System.Runtime.CompilerServices.Unsafe.NullRef<T>();
 
     public Span<T> AsSpan() => _items;
-    public void Dispose() { }
+    public void Dispose() {}
 }

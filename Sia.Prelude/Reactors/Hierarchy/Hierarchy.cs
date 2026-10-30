@@ -1,6 +1,6 @@
-namespace Sia.Reactors;
-
 using System.Runtime.CompilerServices;
+
+namespace Sia.Reactors;
 
 public class Hierarchy<TTag> : ReactorBase<TypeUnion<Node<TTag>>>
 {

@@ -1,6 +1,6 @@
-namespace Sia;
-
 using System.Runtime.CompilerServices;
+
+namespace Sia;
 
 public sealed class SubWorldContext(World parent) : IAddon, IWorldSource
 {

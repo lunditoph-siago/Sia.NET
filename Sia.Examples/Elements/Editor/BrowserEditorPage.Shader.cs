@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
-using Sia;
 using Sia.Examples.Dom;
 using Sia.Examples.Notebook;
 

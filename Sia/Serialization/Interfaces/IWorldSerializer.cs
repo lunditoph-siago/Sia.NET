@@ -1,7 +1,7 @@
-namespace Sia.Serialization;
-
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
+
+namespace Sia.Serialization;
 
 public interface IWorldSerializer
 {

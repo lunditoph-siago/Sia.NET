@@ -1,5 +1,3 @@
 namespace Sia.Examples.Dom;
 
-internal interface IDomNode : IDisposable
-{
-}
+internal interface IDomNode : IDisposable;

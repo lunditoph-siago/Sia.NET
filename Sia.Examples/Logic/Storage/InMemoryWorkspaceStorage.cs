@@ -7,7 +7,7 @@ public sealed class InMemoryWorkspaceStorage : IWorkspaceStorage
     public ValueTask<IReadOnlyList<WorkspaceStorageEntry>> ListTreeAsync(
         CancellationToken cancellationToken = default)
         => ValueTask.FromResult<IReadOnlyList<WorkspaceStorageEntry>>(
-            [.. _entries
+            [.._entries
                 .OrderBy(static pair => pair.Key, StringComparer.Ordinal)
                 .Select(static pair => new WorkspaceStorageEntry(
                     pair.Key, pair.Value.Kind, pair.Value.Version, pair.Value.ModifiedAt))]);

@@ -1,5 +1,3 @@
-namespace Sia.CodeGenerators;
-
 using System.CodeDom.Compiler;
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
@@ -7,7 +5,9 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Operations;
 
-using static Common;
+using static Sia.CodeGenerators.Common;
+
+namespace Sia.CodeGenerators;
 
 [Generator]
 public sealed class SiaReactiveGenerator : IIncrementalGenerator
@@ -124,11 +124,11 @@ public sealed class SiaReactiveGenerator : IIncrementalGenerator
             ? renderer.Parameters[0].Type
             : null;
         var rendererValid = renderer is {
-                DeclaredAccessibility: Accessibility.Public,
-                IsStatic: true,
-                IsGenericMethod: false,
-                Parameters.Length: 2
-            }
+            DeclaredAccessibility: Accessibility.Public,
+            IsStatic: true,
+            IsGenericMethod: false,
+            Parameters.Length: 2
+        }
             && renderer.Parameters[0].RefKind == RefKind.In
             && renderer.Parameters[1].RefKind == RefKind.Ref
             && renderer.Parameters[1].Type.ToDisplayString() == "Sia.Reactive.Hooks"
@@ -143,7 +143,7 @@ public sealed class SiaReactiveGenerator : IIncrementalGenerator
                 ? null
                 : symbol.ContainingNamespace.ToDisplayString(),
             CreatePartialTypeShape(declaration),
-            [.. GetParentTypes(declaration).Select(CreatePartialTypeShape)],
+            [..GetParentTypes(declaration).Select(CreatePartialTypeShape)],
             symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
             symbol.ToDisplayString(),
             props?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),

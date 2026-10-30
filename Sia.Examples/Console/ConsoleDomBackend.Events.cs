@@ -157,7 +157,7 @@ internal sealed partial class ConsoleDomBackend
     {
         CancellationTokenSource[] scheduled;
         lock (_scheduleLock) {
-            scheduled = [.. _scheduled.Values];
+            scheduled = [.._scheduled.Values];
             _scheduled.Clear();
         }
         foreach (var cancellation in scheduled) {

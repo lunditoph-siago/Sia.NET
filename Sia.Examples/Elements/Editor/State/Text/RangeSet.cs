@@ -55,6 +55,6 @@ public sealed class RangeSet<T>
             }
             mapped.Add(new(from.Value, to.Value, range.Value));
         }
-        return mapped.Count == 0 ? Empty : new([.. mapped]);
+        return mapped.Count == 0 ? Empty : new([..mapped]);
     }
 }

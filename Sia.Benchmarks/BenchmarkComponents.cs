@@ -24,6 +24,8 @@ public enum DispatchRoute
     Target
 }
 
+internal readonly record struct ManagedPayload(string Value);
+
 internal readonly record struct Padding1(long Value);
 internal readonly record struct Padding2(long Value);
 internal readonly record struct Padding3(long Value);
@@ -31,7 +33,7 @@ internal readonly record struct Padding4(long Value);
 
 internal static class BenchmarkWorld
 {
-    public static World Create(int entityCount, int archetypeCount = 1)
+    public static World Create(int entityCount, int archetypeCount = 1, bool managed = false)
     {
         if (archetypeCount is not (1 or 4)) {
             throw new ArgumentOutOfRangeException(nameof(archetypeCount));
@@ -41,16 +43,28 @@ internal static class BenchmarkWorld
         for (var i = 0; i < entityCount; i++) {
             var position = new Position(i, i + 1, i + 2);
             var velocity = new Velocity(1, 2, 3);
-            switch (archetypeCount == 1 ? 0 : i & 3) {
-                case 0: world.Create(HList.From(position, velocity, new Padding1())); break;
-                case 1: world.Create(HList.From(position, velocity, new Padding2())); break;
-                case 2: world.Create(HList.From(position, velocity, new Padding3())); break;
-                default: world.Create(HList.From(position, velocity, new Padding4())); break;
+            var archetype = archetypeCount == 1 ? 0 : i & 3;
+            if (managed) {
+                var payload = new ManagedPayload("kept");
+                switch (archetype) {
+                    case 0: world.Create(HList.From(position, velocity, new Padding1(), payload)); break;
+                    case 1: world.Create(HList.From(position, velocity, new Padding2(), payload)); break;
+                    case 2: world.Create(HList.From(position, velocity, new Padding3(), payload)); break;
+                    default: world.Create(HList.From(position, velocity, new Padding4(), payload)); break;
+                }
+            }
+            else {
+                switch (archetype) {
+                    case 0: world.Create(HList.From(position, velocity, new Padding1())); break;
+                    case 1: world.Create(HList.From(position, velocity, new Padding2())); break;
+                    case 2: world.Create(HList.From(position, velocity, new Padding3())); break;
+                    default: world.Create(HList.From(position, velocity, new Padding4())); break;
+                }
             }
         }
         return world;
     }
 
     public static Entity[] Snapshot(World world)
-        => [.. world.Query(Matchers.Of<Position>())];
+        => [..world.Query(Matchers.Of<Position>())];
 }

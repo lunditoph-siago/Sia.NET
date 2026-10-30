@@ -54,7 +54,7 @@ public readonly record struct NotebookCellState(
         => block switch {
             CodeCellBlock cell => new(
                 cell.Id,
-                [.. cell.Scripts.Select((script, index) => (script.Id, script.Name ?? DefaultScriptName(index)))]),
+                [..cell.Scripts.Select((script, index) => (script.Id, script.Name ?? DefaultScriptName(index)))]),
             _ => null,
         };
 
@@ -82,7 +82,7 @@ public readonly record struct NotebookCellState(
 
         var scriptGroup = new CellTabGroup(
             $"group-{groupNodeId}",
-            [.. scriptTabs.Select(static tab => tab.Id)],
+            [..scriptTabs.Select(static tab => tab.Id)],
             scriptTabs[0].Id);
         var surfaceGroup = new CellTabGroup($"group-{groupNodeId}-surface", [output.Id], output.Id);
         var split = new CellSplit(

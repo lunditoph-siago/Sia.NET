@@ -75,7 +75,7 @@ internal sealed class CSharpSourceProjection(string activeId, IReadOnlyList<CSha
         if (caret is null) return null;
 
         return new(
-            [.. changes.Select(static change => change.Source).OrderBy(static change => change.From)],
+            [..changes.Select(static change => change.Source).OrderBy(static change => change.From)],
             caret.Value);
     }
 

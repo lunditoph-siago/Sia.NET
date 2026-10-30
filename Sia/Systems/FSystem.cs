@@ -1,5 +1,3 @@
-using CommunityToolkit.HighPerformance;
-
 namespace Sia;
 
 public delegate void QueryHandler(WorldContext context, IEntityQuery query, IRunner runner, RunnerBarrier? barrier);

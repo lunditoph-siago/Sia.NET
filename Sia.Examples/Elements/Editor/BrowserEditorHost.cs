@@ -1,6 +1,5 @@
 using Sia.Examples.Dom;
 using Sia.Examples.Notebook;
-using Sia;
 using Sia.Reactive;
 
 namespace Sia.Examples.Editor;

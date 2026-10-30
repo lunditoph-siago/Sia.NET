@@ -1,5 +1,3 @@
-using System.Threading;
-
 namespace Sia.Examples.Notebook;
 
 public sealed class NotebookCompiler

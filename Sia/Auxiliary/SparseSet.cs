@@ -1,12 +1,12 @@
-namespace Sia;
-
+using System.Buffers;
 using System.Collections;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Diagnostics.CodeAnalysis;
 
-using CommunityToolkit.HighPerformance.Buffers;
 using CommunityToolkit.HighPerformance;
+
+namespace Sia;
 
 public sealed class SparseSet<T>(int pageSize = 256)
     : IDictionary<int, T>, IReadOnlyDictionary<int, T>
@@ -17,11 +17,11 @@ public sealed class SparseSet<T>(int pageSize = 256)
     public T this[int index] {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get {
-            ref var page = ref GetPage(index, out var entryIndex);
-            if (entryIndex == -1) {
+            ref var value = ref GetValueRefOrNullRef(index);
+            if (Unsafe.IsNullRef(ref value)) {
                 throw new KeyNotFoundException("Index not found");
             }
-            return _dense[page[entryIndex]];
+            return value;
         }
         set => GetOrAddValueRef(index, out var _) = value;
     }
@@ -42,31 +42,21 @@ public sealed class SparseSet<T>(int pageSize = 256)
 
     private readonly List<T> _dense = [];
     private readonly List<int> _reverse = [];
-    private readonly List<Page> _pages = [];
+    private Page[] _pages = [];
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private (int Page, int Offset) GetPosition(int index)
+    {
+        var size = PageSize;
+        return size == 256 && index >= 0
+            ? (index >> 8, index & 255)
+            : Math.DivRem(index, size);
+    }
 
     private struct Page
     {
-        public MemoryOwner<int>? Memory;
+        public int[]? Indices;
         public int Count;
-
-        public readonly ref int this[int index] {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => ref Memory!.Span[index];
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void DecreaseRef()
-        {
-            Count--;
-            if (Count == 0) {
-                Memory!.Dispose();
-                this = default;
-            }
-            else if (Count < 0) {
-                Count = 0;
-                throw new InvalidOperationException("Page ref count should be less than 0");
-            }
-        }
     }
 
     public IEnumerator<KeyValuePair<int, T>> GetEnumerator()
@@ -118,27 +108,23 @@ public sealed class SparseSet<T>(int pageSize = 256)
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool ContainsKey(int index)
-        => !Unsafe.IsNullRef(ref GetPage(index, out var _));
+        => !Unsafe.IsNullRef(ref GetPage(index, out _));
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Contains(KeyValuePair<int, T> item)
     {
-        ref var page = ref GetPage(item.Key, out var entryIndex);
-        if (entryIndex == -1) {
-            return false;
-        }
-        return _dense[page[entryIndex]]!.Equals(item.Value);
+        ref var value = ref GetValueRefOrNullRef(item.Key);
+        return !Unsafe.IsNullRef(ref value) && EqualityComparer<T>.Default.Equals(value, item.Value);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool TryGetValue(int index, [MaybeNullWhen(false)] out T value)
     {
-        ref var page = ref GetPage(index, out var entryIndex);
-        if (entryIndex == -1) {
+        ref var found = ref GetValueRefOrNullRef(index);
+        if (Unsafe.IsNullRef(ref found)) {
             value = default;
             return false;
         }
-        value = _dense[page[entryIndex]];
+        value = found;
         return true;
     }
 
@@ -149,172 +135,131 @@ public sealed class SparseSet<T>(int pageSize = 256)
             value = default;
             return false;
         }
-
-        ref var valueIndexRef = ref page[entryIndex];
-        value = _dense[valueIndexRef];
-        RemoveValue(ref valueIndexRef);
-
-        page.DecreaseRef();
+        ref var slot = ref page.Indices![entryIndex];
+        value = _dense[slot - 1];
+        RemoveValue(ref slot);
+        if (--page.Count == 0) ReleasePage(ref page);
         return true;
     }
 
     public bool Remove(int index)
     {
         ref var page = ref GetPage(index, out var entryIndex);
-        if (entryIndex == -1) {
-            return false;
-        }
-
-        ref var valueIndexRef = ref page.Memory!.Span[entryIndex];
-        RemoveValue(ref valueIndexRef);
-
-        page.DecreaseRef();
+        if (entryIndex == -1) return false;
+        ref var slot = ref page.Indices![entryIndex];
+        RemoveValue(ref slot);
+        if (--page.Count == 0) ReleasePage(ref page);
         return true;
     }
 
     public bool Remove(KeyValuePair<int, T> item)
     {
         ref var page = ref GetPage(item.Key, out var entryIndex);
-        if (entryIndex == -1) {
-            return false;
-        }
-
-        ref var valueIndexRef = ref page.Memory!.Span[entryIndex];
-        if (!_dense[valueIndexRef]!.Equals(item.Value)) {
-            return false;
-        }
-
-        RemoveValue(ref valueIndexRef);
-        page.DecreaseRef();
+        if (entryIndex == -1) return false;
+        ref var slot = ref page.Indices![entryIndex];
+        if (!EqualityComparer<T>.Default.Equals(_dense[slot - 1], item.Value)) return false;
+        RemoveValue(ref slot);
+        if (--page.Count == 0) ReleasePage(ref page);
         return true;
     }
 
     public void Clear()
     {
-        if (_dense.Count == 0) {
-            return;
-        }
-
+        if (_dense.Count == 0) return;
         _dense.Clear();
         _reverse.Clear();
-
         foreach (ref var page in _pages.AsSpan()) {
-            var memory = page.Memory;
-            if (memory != null) {
-                memory.Dispose();
-                page = default;
-            }
+            if (page.Indices != null) ReleasePage(ref page);
         }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetValueRefOrNullRef(int index)
     {
-        ref var page = ref GetPage(index, out var entryIndex);
-        if (entryIndex == -1) {
-            return ref Unsafe.NullRef<T>();
-        }
-        var span = CollectionsMarshal.AsSpan(_dense);
-        return ref span[page[entryIndex]];
+        var (pageIndex, entryIndex) = GetPosition(index);
+        var pages = _pages;
+        if (pageIndex >= pages.Length) return ref Unsafe.NullRef<T>();
+        var indices = pages[pageIndex].Indices;
+        if (indices == null) return ref Unsafe.NullRef<T>();
+        var denseIndex = indices[entryIndex] - 1;
+        var dense = CollectionsMarshal.AsSpan(_dense);
+        if ((uint)denseIndex >= (uint)dense.Length) return ref Unsafe.NullRef<T>();
+        return ref dense[denseIndex];
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetOrAddValueRef(int index, out bool exists)
     {
-        var pageIndex = index / PageSize;
-        var entryIndex = index - pageIndex * PageSize;
-
-        if (pageIndex >= _pages.Count) {
-            CollectionsMarshal.SetCount(_pages, pageIndex + 1);
+        var size = PageSize;
+        var (pageIndex, entryIndex) = GetPosition(index);
+        if (pageIndex >= _pages.Length) {
+            var capacity = checked((int)Math.Max((long)pageIndex + 1, Math.Max(4L, (long)_pages.Length * 2)));
+            Array.Resize(ref _pages, capacity);
         }
-        ref var page = ref _pages.AsSpan()[pageIndex];
-        ref var memory = ref page.Memory;
-
-        if (memory == null) {
-            memory = MemoryOwner<int>.Allocate(PageSize);
-            page.Count = 1;
-
-            var span = memory.Span;
-            span.Fill(int.MaxValue);
-
-            exists = false;
-            return ref AddDefaultValue(ref span[entryIndex], index);
+        ref var page = ref _pages[pageIndex];
+        if (entryIndex < 0) throw new IndexOutOfRangeException();
+        var indices = page.Indices;
+        if (indices == null) {
+            indices = ArrayPool<int>.Shared.Rent(size);
+            indices.AsSpan(0, size).Clear();
+            page.Indices = indices;
         }
-
-        ref var valueIndexRef = ref memory.Span[entryIndex];
-        if (valueIndexRef == int.MaxValue) {
-            page.Count++;
-            exists = false;
-            return ref AddDefaultValue(ref valueIndexRef, index);
-        }
-        else {
+        ref var slot = ref indices[entryIndex];
+        if (slot != 0) {
             exists = true;
-            var span = CollectionsMarshal.AsSpan(_dense);
-            return ref span[valueIndexRef];
+            return ref CollectionsMarshal.AsSpan(_dense)[slot - 1];
         }
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private ref T AddDefaultValue(ref int valueIndexRef, int index)
-    {
-        valueIndexRef = _dense.Count;
-
+        exists = false;
+        page.Count++;
+        slot = _dense.Count + 1;
         _dense.Add(default!);
         _reverse.Add(index);
-
-        var span = CollectionsMarshal.AsSpan(_dense);
-        return ref span[valueIndexRef];
+        return ref CollectionsMarshal.AsSpan(_dense)[slot - 1];
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void RemoveValue(ref int valueIndexRef)
+    private void RemoveValue(ref int slot)
     {
+        var valueIndex = slot - 1;
         var lastValueIndex = _dense.Count - 1;
-        if (valueIndexRef != lastValueIndex) {
-            _dense[valueIndexRef] = _dense[lastValueIndex];
+        if (valueIndex != lastValueIndex) {
+            _dense[valueIndex] = _dense[lastValueIndex];
             var lastIndex = _reverse[lastValueIndex];
-            var page = UnsafeGetPage(lastIndex, out var entryIndex);
-            page[entryIndex] = valueIndexRef;
-            _reverse[valueIndexRef] = _reverse[lastValueIndex];
+            var (pageIndex, entryIndex) = GetPosition(lastIndex);
+            _pages[pageIndex].Indices![entryIndex] = slot;
+            _reverse[valueIndex] = lastIndex;
         }
-        valueIndexRef = int.MaxValue;
+        slot = 0;
         _dense.RemoveAt(lastValueIndex);
         _reverse.RemoveAt(lastValueIndex);
+    }
+
+    private static void ReleasePage(ref Page page)
+    {
+        var indices = page.Indices!;
+        page = default;
+        ArrayPool<int>.Shared.Return(indices);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private ref Page GetPage(int index, out int entryIndex)
     {
-        var pageIndex = index / PageSize;
-        if (pageIndex >= _pages.Count) {
+        var (pageIndex, offset) = GetPosition(index);
+        var pages = _pages;
+        if (pageIndex >= pages.Length) {
             entryIndex = -1;
             return ref Unsafe.NullRef<Page>();
         }
-
-        ref var page = ref _pages.AsSpan()[pageIndex];
-        var memory = page.Memory;
-
-        if (memory == null) {
+        ref var page = ref pages[pageIndex];
+        var indices = page.Indices;
+        if (indices == null) {
             entryIndex = -1;
             return ref Unsafe.NullRef<Page>();
         }
-
-        entryIndex = index - pageIndex * PageSize;
-        ref var valueIndex = ref memory.Span[entryIndex];
-
-        if (valueIndex >= Count) {
+        entryIndex = offset;
+        if ((uint)(indices[entryIndex] - 1) >= (uint)_dense.Count) {
             entryIndex = -1;
             return ref Unsafe.NullRef<Page>();
         }
-
         return ref page;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private ref Page UnsafeGetPage(int index, out int pageEntryIndex)
-    {
-        var pageIndex = index / PageSize;
-        pageEntryIndex = index - pageIndex * PageSize;
-        return ref _pages.AsSpan()[pageIndex];
     }
 }
