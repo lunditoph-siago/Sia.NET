@@ -1,6 +1,6 @@
-namespace Sia.Reactive;
-
 using System.Runtime.CompilerServices;
+
+namespace Sia.Reactive;
 
 public ref struct GraphContext(
     Reconciler reconciler,

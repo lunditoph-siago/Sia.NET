@@ -1,8 +1,8 @@
-namespace Sia;
-
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.ExceptionServices;
+
+namespace Sia;
 
 internal readonly record struct Outcome<TError>
     where TError : class
@@ -39,7 +39,7 @@ internal readonly record struct Outcome<TError>
         return new(
             PrimaryError,
             SecondaryErrors.IsDefaultOrEmpty
-                ? [other.PrimaryError, .. other.SecondaryErrors]
+                ? [other.PrimaryError, ..other.SecondaryErrors]
                 : SecondaryErrors.Add(other.PrimaryError)
                     .AddRange(other.SecondaryErrors));
     }
@@ -97,7 +97,7 @@ internal static class Outcome
                 ExceptionDispatchInfo.Capture(primaryError).Throw();
             }
             throw new AggregateException(
-                [primaryError, .. outcome.SecondaryErrors]);
+                [primaryError, ..outcome.SecondaryErrors]);
         }
     }
 }

@@ -1,8 +1,8 @@
-namespace Sia;
-
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using CommunityToolkit.HighPerformance;
+
+namespace Sia;
 
 public abstract class EventSystemBase(SystemChain? children = null)
     : SystemBase(Matchers.Any, children: children)

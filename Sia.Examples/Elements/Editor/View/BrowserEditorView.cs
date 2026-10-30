@@ -1,5 +1,4 @@
 using Sia.Examples.Dom;
-using Sia.Examples.Notebook;
 
 namespace Sia.Examples.Editor;
 
@@ -383,7 +382,7 @@ public sealed class BrowserEditorView : IEditorView
         _cursorPosition.Text(view.CursorPosition);
     }
 
-    void IRenderHost<EditorStatusView>.Remove(in EditorStatusView view) { }
+    void IRenderHost<EditorStatusView>.Remove(in EditorStatusView view) {}
 
     void IRenderHost<EditorDocumentView>.Upsert(in EditorDocumentView view)
     {
@@ -392,7 +391,7 @@ public sealed class BrowserEditorView : IEditorView
         DomRuntime.SetDocumentLines(_lines, view.TotalLines);
     }
 
-    void IRenderHost<EditorDocumentView>.Remove(in EditorDocumentView view) { }
+    void IRenderHost<EditorDocumentView>.Remove(in EditorDocumentView view) {}
 
     public void Dispose()
     {

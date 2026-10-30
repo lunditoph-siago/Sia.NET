@@ -13,7 +13,7 @@ public sealed partial class BrowserEditorHost
 
     private HistorySnapshot? CaptureHistory()
         => _undoHistory.Count == 0 && _redoHistory.Count == 0 ? null
-            : new(Source, [.. _undoHistory], [.. _redoHistory]);
+            : new(Source, [.._undoHistory], [.._redoHistory]);
 
     private void RestoreHistory(HistorySnapshot? snapshot)
     {

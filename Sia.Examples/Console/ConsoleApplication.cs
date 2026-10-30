@@ -1,5 +1,4 @@
 #if !BROWSER
-using Sia.Examples.Editor;
 using Sia.Examples.Notebook;
 
 namespace Sia.Examples.Console;

@@ -1,5 +1,3 @@
-using Sia;
-
 namespace Sia.Examples.Editor;
 
 internal sealed partial class BrowserEditorPage
@@ -7,7 +5,7 @@ internal sealed partial class BrowserEditorPage
     private EditorNavigationPicker _navigationPicker = null!;
 
     private IReadOnlyList<EditorNavigationChoice> CaptureFileChoices()
-        => [.. _workspace.RootEntries.SelectMany(EnumerateFilesUnder).Concat(_workspace.OpenFiles())
+        => [.._workspace.RootEntries.SelectMany(EnumerateFilesUnder).Concat(_workspace.OpenFiles())
             .Where(static entity => entity.IsValid && !EditorWorkspace.IsFolder(entity)).Distinct()
             .Select(entity => new EditorNavigationChoice(KeyFor(entity), entity.Get<WorkspaceEntry>().Name, EditorWorkspace.PathOf(entity)))];
 

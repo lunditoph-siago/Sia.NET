@@ -3,7 +3,7 @@ namespace Sia.Tests.Reactive;
 public sealed class QueryTestHelpers
 {
     public Entity[] FindAll<T>(World world)
-        => [.. world.Query(Matchers.Of<T>()).Hosts.SelectMany(static host => host)];
+        => [..world.Query(Matchers.Of<T>()).Hosts.SelectMany(static host => host)];
 
     public Entity FindSingle<T>(World world)
         => Assert.Single(world.Query(Matchers.Of<T>()).Hosts.SelectMany(static host => host));

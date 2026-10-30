@@ -1,7 +1,7 @@
-namespace Sia;
-
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
+
+namespace Sia;
 
 public class BlockingQueue<T>
 {

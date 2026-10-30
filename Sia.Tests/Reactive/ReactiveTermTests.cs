@@ -1,5 +1,4 @@
-
-using global::Sia.Reactive;
+using Sia.Reactive;
 
 using BranchList = Sia.HList<Sia.Tests.Reactive.BranchValue, Sia.EmptyHList>;
 using ItemList = Sia.HList<Sia.Tests.Reactive.KeyedValue, Sia.EmptyHList>;

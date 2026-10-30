@@ -17,7 +17,7 @@ public static class Context<T>
 
         try {
             action();
-        } 
+        }
         finally {
             s_current = prev;
         }

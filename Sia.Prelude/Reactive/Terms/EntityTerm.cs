@@ -1,6 +1,6 @@
-namespace Sia.Reactive;
-
 using System.Runtime.CompilerServices;
+
+namespace Sia.Reactive;
 
 public readonly record struct EntityTerm<TList, TChildren>(TList Components, TChildren Children)
     : ITerm<EntityTerm<TList, TChildren>>

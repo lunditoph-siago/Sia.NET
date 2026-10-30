@@ -1,6 +1,6 @@
-namespace Sia;
-
 using Microsoft.Extensions.ObjectPool;
+
+namespace Sia;
 
 public sealed class RunnerBarrier
 {
@@ -52,7 +52,8 @@ public sealed class RunnerBarrier
         _callbackCount++;
     }
 
-    public void AddParticipants(int count) {
+    public void AddParticipants(int count)
+    {
 #if BROWSER
         Interlocked.Add(ref _remaining, count);
 #else
@@ -60,7 +61,8 @@ public sealed class RunnerBarrier
 #endif
     }
 
-    public void RemoveParticipants(int count) {
+    public void RemoveParticipants(int count)
+    {
 #if BROWSER
         Interlocked.Add(ref _remaining, -count);
 #else
@@ -68,7 +70,8 @@ public sealed class RunnerBarrier
 #endif
     }
 
-    public void Signal() {
+    public void Signal()
+    {
 #if BROWSER
         Interlocked.Decrement(ref _remaining);
 #else

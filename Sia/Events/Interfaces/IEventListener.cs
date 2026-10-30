@@ -6,7 +6,7 @@ public interface IEventListener<in TTarget>
         where TEvent : IEvent;
 }
 
-public interface IEventSink<in TTarget> {}
+public interface IEventSink<in TTarget>;
 
 public interface IEventSink<in TTarget, TEvent> : IEventSink<TTarget> where TEvent : IEvent
 {

@@ -1,6 +1,8 @@
-namespace Sia.Tests.Reactive;
+using Sia.Reactive;
 
-using global::Sia.Reactive;
+using static Sia.Reactive.Reactive;
+
+namespace Sia.Tests.Reactive;
 
 public class ReactiveFlushFixpointTests
 {
@@ -20,7 +22,7 @@ public class ReactiveFlushFixpointTests
                         return default(Unit);
                     },
                     static (in Unit _) => {});
-                return Reactive.None;
+                return None;
             },
             default(Unit));
 
@@ -51,7 +53,7 @@ public class ReactiveFlushFixpointTests
                     return value;
                 },
                 static (in int _) => {});
-            return Reactive.None;
+            return None;
         };
 
         var error = Assert.Throws<InvalidOperationException>(
@@ -60,7 +62,7 @@ public class ReactiveFlushFixpointTests
 
         Assert.Equal(0, world.Count);
         var recovery = world.Mount(
-            static (in Unit _, ref Hooks _) => Reactive.None,
+            static (in Unit _, ref Hooks _) => None,
             default(Unit));
         Assert.True(recovery.IsMounted);
         recovery.Unmount();

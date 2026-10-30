@@ -1,21 +1,23 @@
-namespace Sia.Tests.Reactive;
+using Sia.Reactive;
 
-using global::Sia.Reactive;
+using static Sia.Reactive.Reactive;
+
+namespace Sia.Tests.Reactive;
 
 public class ReactiveErasureTests
 {
     [Fact]
     public void ErasedUnit_HasTheSameValueAndHashAsDefault()
     {
-        ReactiveNode implicitNode = Reactive.None;
-        var explicitNode = ReactiveNode.Erase(Reactive.None);
+        ReactiveNode implicitNode = None;
+        var explicitNode = ReactiveNode.Erase(None);
         ReactiveNode empty = default;
 
         Assert.Equal(empty, implicitNode);
         Assert.Equal(empty, explicitNode);
         Assert.Equal(empty.GetHashCode(), implicitNode.GetHashCode());
         Assert.Equal(empty.GetHashCode(), explicitNode.GetHashCode());
-        Assert.NotEqual(empty, (ReactiveNode)Reactive.Entity(HList.From(1)));
+        Assert.NotEqual(empty, (ReactiveNode)Entity(HList.From(1)));
     }
 
     [Fact]
@@ -69,8 +71,8 @@ public class ReactiveErasureTests
             return default;
         }
         if (props.Mode == 1) {
-            return Reactive.None;
+            return None;
         }
-        return Reactive.Entity(HList.From(new Value(state.Value)));
+        return Entity(HList.From(new Value(state.Value)));
     }
 }

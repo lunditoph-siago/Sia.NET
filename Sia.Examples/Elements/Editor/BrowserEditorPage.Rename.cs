@@ -1,4 +1,3 @@
-using Sia;
 using Sia.Examples.Notebook;
 
 namespace Sia.Examples.Editor;

@@ -21,7 +21,7 @@ internal static class CellLayoutDom
         => group.ActiveTabId + "|" + string.Join(',', group.TabIds);
 
     public static string[] OwnedIds(Dictionary<string, string> containers, string containerId)
-        => [.. containers
+        => [..containers
             .Where(pair => pair.Value == containerId)
             .Select(pair => pair.Key)];
 

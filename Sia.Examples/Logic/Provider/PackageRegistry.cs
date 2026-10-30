@@ -33,13 +33,13 @@ internal sealed class PackageRegistry
         if (declared.Select(static package => package.Id).Distinct(StringComparer.OrdinalIgnoreCase).Count() != declared.Length)
             throw new InvalidDataException("Declare each package ID only once.");
         if (_snapshot.Select(static status => status.Package).SequenceEqual(declared)) return;
-        _snapshot = [.. declared.Select(static package => new PackageStatus(package, PackageLoadState.Loading, null))];
+        _snapshot = [..declared.Select(static package => new PackageStatus(package, PackageLoadState.Loading, null))];
         Invalidate();
     }
 
     public void Retry()
     {
-        _snapshot = [.. _snapshot.Select(static status => status with { State = PackageLoadState.Loading, Error = null })];
+        _snapshot = [.._snapshot.Select(static status => status with { State = PackageLoadState.Loading, Error = null })];
         Invalidate();
     }
 
@@ -60,7 +60,7 @@ internal sealed class PackageRegistry
                 finally { _revisionCancellation = null; }
                 cancellationToken.ThrowIfCancellationRequested();
                 if (revision != _revision) continue;
-                _snapshot = [.. statuses];
+                _snapshot = [..statuses];
                 _resolvedRevision = revision;
                 Changed?.Invoke();
             }

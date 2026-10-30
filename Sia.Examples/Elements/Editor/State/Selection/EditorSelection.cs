@@ -17,7 +17,7 @@ public sealed class EditorSelection : IEquatable<EditorSelection>
     public EditorSelection Map(ChangeDesc change, int assoc = -1)
         => change.IsEmpty
             ? this
-            : Create([.. Ranges.Select(range => range.Map(change, assoc))], MainIndex);
+            : Create([..Ranges.Select(range => range.Map(change, assoc))], MainIndex);
 
     internal EditorSelection Normalize(Text document)
     {
@@ -25,7 +25,7 @@ public sealed class EditorSelection : IEquatable<EditorSelection>
         for (var index = 0; index < Ranges.Count; index++) {
             var range = Ranges[index].Normalize(document);
             if (ReferenceEquals(range, Ranges[index])) continue;
-            normalized ??= [.. Ranges];
+            normalized ??= [..Ranges];
             normalized[index] = range;
         }
         return normalized is null ? this : Create(normalized, MainIndex);

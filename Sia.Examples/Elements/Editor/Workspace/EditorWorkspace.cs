@@ -1,4 +1,3 @@
-using System.Linq;
 using Sia;
 using Sia.Reactors;
 using Sia.Examples.Notebook;
@@ -435,7 +434,7 @@ public sealed class EditorWorkspace(World world, IWorkspaceStorage storage) : ID
     }
 
     private static Entity[] Sort(IEnumerable<Entity> entities)
-        => [.. entities
+        => [..entities
             .OrderBy(static e => IsFolder(e) ? 0 : 1)
             .ThenBy(static e => NameOf(e), StringComparer.OrdinalIgnoreCase)];
 

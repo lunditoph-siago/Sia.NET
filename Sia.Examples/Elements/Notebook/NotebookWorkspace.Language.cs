@@ -96,7 +96,7 @@ public sealed partial class NotebookWorkspace
     internal bool RouteNavigationPicker(string argument) => !_disposed && _navigationPicker.Route(argument);
 
     private IReadOnlyList<EditorNavigationChoice> CaptureFileChoices()
-        => [.. _session.GetScriptFiles().Select(static file => new EditorNavigationChoice(file.Id, file.Name, file.Path))];
+        => [.._session.GetScriptFiles().Select(static file => new EditorNavigationChoice(file.Id, file.Name, file.Path))];
 
     private string ReadScriptSource(string id)
     {

@@ -1,6 +1,8 @@
-namespace Sia.Tests.Reactive;
+using Sia.Reactive;
 
-using global::Sia.Reactive;
+using static Sia.Reactive.Reactive;
+
+namespace Sia.Tests.Reactive;
 
 public class StateEqualityTests
 {
@@ -9,7 +11,7 @@ public class StateEqualityTests
     private static ReactiveNode Render(in int initial, ref Hooks hooks)
     {
         hooks.UseState(initial);
-        return Reactive.None;
+        return None;
     }
 
     [Fact]

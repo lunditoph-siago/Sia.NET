@@ -179,7 +179,7 @@ public sealed partial class BrowserEditorHost
             var state = State.Value;
             var selection = memento.Selection.Ranges.All(range => range.To <= state.Doc.Length)
                 ? memento.Selection
-                : EditorSelection.Create([.. memento.Selection.Ranges.Select(range => range.Clamp(state.Doc.Length))],
+                : EditorSelection.Create([..memento.Selection.Ranges.Select(range => range.Clamp(state.Doc.Length))],
                     memento.Selection.MainIndex);
             ++_scrollGeneration;
             _pendingRestore = memento with { Selection = selection, History = null };

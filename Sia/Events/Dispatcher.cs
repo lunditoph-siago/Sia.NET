@@ -1,6 +1,6 @@
-namespace Sia;
-
 using System.Runtime.CompilerServices;
+
+namespace Sia;
 
 public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, TEvent>
     where TKey : notnull

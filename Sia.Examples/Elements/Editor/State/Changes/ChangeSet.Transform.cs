@@ -6,7 +6,7 @@ public partial class ChangeSet
     {
         List<ChangeSpec> changes = [];
         IterateChanges(this, (from, to, _, _, text) => changes.Add(new(from, to, text.SliceDoc())));
-        return [.. changes];
+        return [..changes];
     }
 
     internal ChangeSet Invert(Text document)
@@ -17,7 +17,7 @@ public partial class ChangeSet
             changes.Add(new(newFrom, newTo, document.SliceDoc(from, to)));
             length += newTo - newFrom - (to - from);
         });
-        return Of([.. changes], length);
+        return Of([..changes], length);
     }
 
     internal static (ChangeSet Left, ChangeSet Right) Transform(ChangeSet left, ChangeSet right)
@@ -71,7 +71,7 @@ public partial class ChangeSet
                 rightOffset = 0;
             }
         }
-        return (new([.. leftSections], [.. leftInserted]), new([.. rightSections], [.. rightInserted]));
+        return (new([..leftSections], [..leftInserted]), new([..rightSections], [..rightInserted]));
     }
 
     private static List<Operation> Operations(ChangeSet changes)

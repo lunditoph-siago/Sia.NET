@@ -1,5 +1,3 @@
 namespace Sia;
 
-public interface IPausableEvent : IEvent
-{
-}
+public interface IPausableEvent : IEvent;

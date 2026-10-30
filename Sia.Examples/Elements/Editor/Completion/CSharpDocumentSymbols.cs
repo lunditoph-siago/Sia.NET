@@ -52,7 +52,7 @@ internal static class CSharpDocumentSymbols
                     point.Line + 1, point.Character + 1, document.Source, false)));
             }
         }
-        return [.. symbols];
+        return [..symbols];
     }
 
     private static string TypeName(BaseTypeDeclarationSyntax type)

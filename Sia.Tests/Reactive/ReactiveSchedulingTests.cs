@@ -1,6 +1,8 @@
-namespace Sia.Tests.Reactive;
+using Sia.Reactive;
 
-using global::Sia.Reactive;
+using static Sia.Reactive.Reactive;
+
+namespace Sia.Tests.Reactive;
 
 public class ReactiveSchedulingTests(QueryTestHelpers helpers) : IClassFixture<QueryTestHelpers>
 {
@@ -87,13 +89,13 @@ public class ReactiveSchedulingTests(QueryTestHelpers helpers) : IClassFixture<Q
         CyclicFirstSystem.InitializeCount = 0;
         CyclicSecondSystem.InitializeCount = 0;
         var mount = world.Mount(
-            (in bool includeCycle, ref Hooks _) => Reactive.Schedule(
+            (in bool includeCycle, ref Hooks _) => Schedule(
                 default(TestSchedule),
-                Reactive.Group(
-                    Reactive.System<CyclicFirstSystem>(),
-                    Reactive.When(
+                Group(
+                    System<CyclicFirstSystem>(),
+                    When(
                         includeCycle,
-                        Reactive.System<CyclicSecondSystem>()))),
+                        System<CyclicSecondSystem>()))),
             false);
 
         Assert.Equal(1, CyclicFirstSystem.InitializeCount);

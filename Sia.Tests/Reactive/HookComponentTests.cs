@@ -1,6 +1,8 @@
-namespace Sia.Tests.Reactive;
+using Sia.Reactive;
 
-using global::Sia.Reactive;
+using static Sia.Reactive.Reactive;
+
+namespace Sia.Tests.Reactive;
 
 public class HookComponentTests(QueryTestHelpers helpers) : IClassFixture<QueryTestHelpers>
 {
@@ -9,8 +11,8 @@ public class HookComponentTests(QueryTestHelpers helpers) : IClassFixture<QueryT
     {
         using var world = new World();
         var reconciler = world.AcquireAddon<Reconciler>();
-        var node = Reactive.Component(
-            static (in Unit _, ref Hooks _) => Reactive.None,
+        var node = Component(
+            static (in Unit _, ref Hooks _) => None,
             default(Unit));
         var mount = reconciler.Mount(
             new ReactiveNodeSpec<ComponentTerm<Unit>>(node.Term));
@@ -27,13 +29,11 @@ public class HookComponentTests(QueryTestHelpers helpers) : IClassFixture<QueryT
         using var world = new World();
         var probe = new HookProbe();
         ReactiveComponent<HookCounterProps> component =
-            static (in HookCounterProps props, ref Hooks hooks) =>
-            {
+            static (in HookCounterProps props, ref Hooks hooks) => {
                 var count = hooks.UseState(props.Initial);
                 hooks.UseEffect(
                     new HookEffectDependencies(props.Probe, count.Value),
-                    static (in HookEffectDependencies dependencies) =>
-                    {
+                    static (in HookEffectDependencies dependencies) => {
                         dependencies.Probe.Events.Add(
                             $"setup:{dependencies.Value}");
                         return new HookEffectResource(
@@ -43,9 +43,9 @@ public class HookComponentTests(QueryTestHelpers helpers) : IClassFixture<QueryT
                     static (in HookEffectResource resource) =>
                         resource.Probe.Events.Add($"cleanup:{resource.Value}"));
 
-                return Reactive.Entity(
+                return Entity(
                     HList.From(new HookCounterValue(count.Value)),
-                    Reactive.On(
+                    On(
                         count,
                         static (in HookClick _, in State<int> state) =>
                             state.Set(state.Value + 1)));
@@ -84,12 +84,11 @@ public class HookComponentTests(QueryTestHelpers helpers) : IClassFixture<QueryT
     {
         using var world = new World();
         ReactiveComponent<bool> component =
-            static (in bool enabled, ref Hooks hooks) =>
-            {
+            static (in bool enabled, ref Hooks hooks) => {
                 if (enabled) {
                     _ = hooks.UseState(0);
                 }
-                return Reactive.None;
+                return None;
             };
         var mount = world.Mount(component, false);
 
@@ -128,7 +127,7 @@ public static partial class GeneratedHookCounter
         ref Hooks hooks)
     {
         var count = hooks.UseState(props.Initial);
-        return Reactive.Entity(
+        return Entity(
             HList.From(new GeneratedHookCounterValue(count.Value)));
     }
 }

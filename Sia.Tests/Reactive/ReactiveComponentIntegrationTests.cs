@@ -1,8 +1,10 @@
+using Sia.Reactive;
+
+using static Sia.Reactive.Reactive;
+
+using ScopedList = Sia.HList<Sia.Tests.Reactive.ScopedChildValue, Sia.EmptyHList>;
+
 namespace Sia.Tests.Reactive;
-
-using global::Sia.Reactive;
-
-using ScopedList = HList<ScopedChildValue, EmptyHList>;
 
 public class ReactiveComponentIntegrationTests(QueryTestHelpers helpers) : IClassFixture<QueryTestHelpers>
 {
@@ -13,19 +15,19 @@ public class ReactiveComponentIntegrationTests(QueryTestHelpers helpers) : IClas
         var mount = world.Mount(
             static (in ParentProps props, ref Hooks hooks) => {
                 var multiplier = hooks.UseState(1);
-                return Reactive.Entity(
+                return Entity(
                     HList.From(new ParentMarker()),
-                    Reactive.Group(
-                        Reactive.On(
+                    Group(
+                        On(
                             multiplier,
                             static (in SetMultiplier message, in State<int> state) =>
                                 state.Set(message.Value)),
-                        Reactive.Component<ChildProps>(
+                        Component<ChildProps>(
                             static (in ChildProps child, ref Hooks childHooks) => {
                                 var bumps = childHooks.UseState(0);
-                                return Reactive.Entity(
+                                return Entity(
                                     HList.From(new ChildValue(child.Base + bumps.Value)),
-                                    Reactive.On(
+                                    On(
                                         bumps,
                                         static (in BumpEvent _, in State<int> state) =>
                                             state.Set(state.Value + 1)));
@@ -65,7 +67,7 @@ public class ReactiveComponentIntegrationTests(QueryTestHelpers helpers) : IClas
         using var world = new World();
         var mount = world.Mount(
             static (in ListProps props, ref Hooks _) =>
-                Reactive.ForEach(BuildItems(props.Keys)),
+                ForEach(BuildItems(props.Keys)),
             new ListProps([0, 1, 2, 3, 4]));
 
         mount.Update(new ListProps(next));
@@ -87,13 +89,13 @@ public class ReactiveComponentIntegrationTests(QueryTestHelpers helpers) : IClas
     {
         using var world = new World();
         var mount = world.Mount(
-            static (in int baseValue, ref Hooks _) => Reactive.ForEach(
-                (1, Reactive.Component<ChildProps>(
+            static (in int baseValue, ref Hooks _) => ForEach(
+                (1, Component<ChildProps>(
                     static (in ChildProps child, ref Hooks hooks) => {
                         var bumps = hooks.UseState(0);
-                        return Reactive.Entity(
+                        return Entity(
                             HList.From(new ChildValue(child.Base + bumps.Value)),
-                            Reactive.On(
+                            On(
                                 bumps,
                                 static (in BumpEvent _, in State<int> state) =>
                                     state.Set(state.Value + 1)));
@@ -123,22 +125,22 @@ public class ReactiveComponentIntegrationTests(QueryTestHelpers helpers) : IClas
         var mount = world.Mount(
             static (in Unit _, ref Hooks hooks) => {
                 var theme = hooks.UseState(1);
-                return Reactive.Entity(
+                return Entity(
                     HList.From(new ParentMarker()),
-                    Reactive.Group(
-                        Reactive.On(
+                    Group(
+                        On(
                             theme,
                             static (in SetTheme message, in State<int> state) =>
                                 state.Set(message.Value)),
-                        Reactive.Provide(
+                        Provide(
                             new ThemeContext(theme.Value),
-                            Reactive.Component<Unit>(
+                            Component<Unit>(
                                 static (in Unit _, ref Hooks _) =>
-                                    Reactive.Use<
+                                    Use<
                                         ThemeContext,
                                         EntityTerm<ScopedList, UnitTerm>>(
                                         static (in ThemeContext value) =>
-                                            Reactive.Entity(HList.From(
+                                            Entity(HList.From(
                                                 new ScopedChildValue(value.Value)))),
                                 default))));
             },
@@ -178,9 +180,9 @@ public class ReactiveComponentIntegrationTests(QueryTestHelpers helpers) : IClas
                         return dependency;
                     },
                     (in int resource) => calls.Add($"cleanup {resource}"));
-                return Reactive.Entity(
+                return Entity(
                     HList.From(new EffectControl()),
-                    Reactive.On(
+                    On(
                         value,
                         static (in EffectDepsMsg message, in State<int> state) =>
                             state.Set(message.Value)));
@@ -211,29 +213,29 @@ public class ReactiveComponentIntegrationTests(QueryTestHelpers helpers) : IClas
         var mount = world.Mount(
             (in Unit _, ref Hooks hooks) => {
                 var visible = hooks.UseState(true);
-                return Reactive.Schedule(
+                return Schedule(
                     default(ToggleSchedule),
-                    Reactive.Group(
-                        Reactive.System<ToggleTickSystem>(),
-                        Reactive.Entity(
+                    Group(
+                        System<ToggleTickSystem>(),
+                        Entity(
                             HList.From(new ToggleControl()),
-                            Reactive.On(
+                            On(
                                 visible,
                                 static (in ToggleEvent _, in State<bool> state) =>
                                     state.Set(!state.Value))),
-                        Reactive.When(
+                        When(
                             visible.Value,
-                            Reactive.Entity(
+                            Entity(
                                 HList.From(new ToggleMarker()),
-                                Reactive.Group(
-                                    Reactive.Effect(
+                                Group(
+                                    Effect(
                                         default(Unit),
                                         (in Unit _) => {
                                             effectCalls.Add("setup");
                                             return default(Unit);
                                         },
                                         (in Unit _) => effectCalls.Add("cleanup")),
-                                    Reactive.On(
+                                    On(
                                         visible,
                                         static (in BumpEvent _, in State<bool> state) =>
                                             state.Set(false)))))));
@@ -267,9 +269,9 @@ public class ReactiveComponentIntegrationTests(QueryTestHelpers helpers) : IClas
         var mount = world.Mount(
             static (in Unit _, ref Hooks hooks) => {
                 var value = hooks.UseState(1);
-                return Reactive.Entity(
+                return Entity(
                     HList.From(new ChildValue(value.Value)),
-                    Reactive.On(
+                    On(
                         value,
                         static (in ThrowingMsg message, in State<int> state) => {
                             if (message.ShouldThrow) {
@@ -296,9 +298,9 @@ public class ReactiveComponentIntegrationTests(QueryTestHelpers helpers) : IClas
         using var world = new World();
         for (var cycle = 0; cycle < 4; cycle++) {
             var mount = world.Mount(
-                static (in Unit _, ref Hooks _) => Reactive.Entity(
+                static (in Unit _, ref Hooks _) => Entity(
                     HList.From(new ParentMarker()),
-                    Reactive.ForEach(BuildItems([0, 1, 2, 3]))),
+                    ForEach(BuildItems([0, 1, 2, 3]))),
                 default(Unit));
 
             Assert.Equal(5, world.Count);
@@ -309,11 +311,11 @@ public class ReactiveComponentIntegrationTests(QueryTestHelpers helpers) : IClas
 
     private static (int Key, ReactiveNode<ComponentTerm<ChildProps>> Value)[]
         BuildItems(int[] keys)
-        => [.. keys.Select(key => (
+        => [..keys.Select(key => (
             key,
-            Reactive.Component<ChildProps>(
+            Component<ChildProps>(
                 static (in ChildProps props, ref Hooks _) =>
-                    Reactive.Entity(HList.From(new ChildValue(props.Base))),
+                    Entity(HList.From(new ChildValue(props.Base))),
                 new(key * 100))))];
 }
 

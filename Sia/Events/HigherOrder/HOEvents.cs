@@ -1,7 +1,5 @@
 namespace Sia;
 
-using System;
-
 public static class HOEvents
 {
     public sealed class Cancel<TEvent> : SingletonEvent<Cancel<TEvent>>, ICancelEvent

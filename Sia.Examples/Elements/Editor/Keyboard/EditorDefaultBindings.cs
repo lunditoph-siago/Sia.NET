@@ -111,7 +111,7 @@ internal static class EditorDefaultBindings
     {
         var standard = s_Standard.TryGetValue(command, out var bindings) ? bindings : [];
         if (profile != KeyboardProfile.Vim || !s_Vim.TryGetValue(command, out var modal)) return standard.ToArray();
-        return [.. standard, .. modal];
+        return [..standard, ..modal];
     }
 
     private static KeyBinding[] CommandModes(string key)

@@ -11,8 +11,8 @@ internal sealed record EditorNavigationChoice(string Id, string Name, string Pat
     internal static EditorNavigationChoice[] Match(IEnumerable<EditorNavigationChoice> files, string query)
     {
         var terms = query.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (terms.Length == 0) return [.. files];
-        return [.. files.Select(file => (File: file, Ranks: terms.Select(term =>
+        if (terms.Length == 0) return [..files];
+        return [..files.Select(file => (File: file, Ranks: terms.Select(term =>
                 System.Math.Max(CompletionMatch.Rank(file.Name, term), CompletionMatch.Rank(file.Path, term))).ToArray()))
             .Where(static item => item.Ranks.All(static rank => rank >= 0))
             .OrderByDescending(static item => item.Ranks.Sum()).ThenBy(static item => item.File.Path, StringComparer.OrdinalIgnoreCase)
@@ -32,7 +32,7 @@ internal sealed class EditorNavigationPicker(string eventName, Func<IReadOnlyLis
     private DomElement? _dialog;
     private DomElement _input = null!, _list = null!, _message = null!;
     private DomElement _pages = null!;
-    private Action _returnFocus = static () => { };
+    private Action _returnFocus = static () => {};
     private EditorNavigationChoice[] _matches = [];
     private string _query = "";
     private string _emptyMessage = "No matching files.";
@@ -65,7 +65,7 @@ internal sealed class EditorNavigationPicker(string eventName, Func<IReadOnlyLis
         try {
             var symbols = await load(token);
             if (_disposed || token.IsCancellationRequested || generation != _generation || _dialog is null) return;
-            _symbols = [.. symbols.Select(EditorNavigationChoice.FromSymbol)];
+            _symbols = [..symbols.Select(EditorNavigationChoice.FromSymbol)];
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested || generation != _generation || _disposed) { return; }
         catch (Exception error) {

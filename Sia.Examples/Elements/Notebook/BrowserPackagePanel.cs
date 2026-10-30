@@ -14,7 +14,7 @@ public sealed class BrowserPackagePanel : IDisposable
     private readonly Dictionary<PackageIdentity, PackageNode> _nodes = [];
     internal DomElement Element => _container;
 
-    public BrowserPackagePanel() : this(DomElement.Find("packages-popover"), "add-package:NuGet", DomElement.Find("packages-badge")) { }
+    public BrowserPackagePanel() : this(DomElement.Find("packages-popover"), "add-package:NuGet", DomElement.Find("packages-badge")) {}
 
     public BrowserPackagePanel(DomElement container, string addAction, DomElement? badge = null)
     {

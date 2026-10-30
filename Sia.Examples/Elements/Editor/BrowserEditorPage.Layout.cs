@@ -2,7 +2,6 @@ using System.Collections.Immutable;
 using System.Globalization;
 using Sia.Examples.Dom;
 using Sia.Examples.Notebook;
-using Sia;
 
 namespace Sia.Examples.Editor;
 

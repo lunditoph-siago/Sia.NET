@@ -52,7 +52,7 @@ internal sealed partial class EditorUniformSession : IDisposable
     private readonly JSObject _binding;
     public EditorUniformSession(EditorUniformInspector inspector) => _binding = Create(inspector.Handle);
 #else
-    public EditorUniformSession(EditorUniformInspector inspector) { }
+    public EditorUniformSession(EditorUniformInspector inspector) {}
 #endif
 
     public IDisposable Register<T>(string name, State<T> state) where T : unmanaged
@@ -204,7 +204,7 @@ internal sealed class UniformField(string name, string type, FieldInfo[] path, i
         var result = new List<UniformField>();
         Visit(type, [], "");
         if (result.Count == 0) throw new ArgumentException("Uniforms require public mutable numeric or boolean fields.");
-        return [.. result];
+        return [..result];
 
         void Visit(Type current, FieldInfo[] prefix, string name)
         {

@@ -95,7 +95,7 @@ public sealed partial class CSharpCompletionProvider
 
     private async Task RunGeneratorsAsync(CancellationToken cancellation)
     {
-        var input = _project!.RemoveDocuments([.. _documents.Values.Where(static entry => entry.Generated).Select(static entry => entry.Id)]);
+        var input = _project!.RemoveDocuments([.._documents.Values.Where(static entry => entry.Generated).Select(static entry => entry.Id)]);
         var compilation = await input.GetCompilationAsync(cancellation)
             ?? throw new InvalidOperationException("The C# project could not be compiled.");
         _generatorDriver = _generatorDriver!.RunGenerators(compilation, cancellation);

@@ -1,9 +1,9 @@
-namespace Sia;
-
 using System.Collections;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using CommunityToolkit.HighPerformance;
+
+namespace Sia;
 
 public static class BufferEntityHost<TEntity>
     where TEntity : struct, IHList

@@ -1,7 +1,7 @@
-namespace Sia;
-
 using System.Runtime.CompilerServices;
-using static EntityExtensionsCommon;
+using static Sia.EntityExtensionsCommon;
+
+namespace Sia;
 
 public static partial class EntityQueryExtensions
 {
@@ -133,7 +133,7 @@ public static partial class EntityQueryExtensions
                 version = host.Version;
                 slotCount = host.Count;
             }
-        };
+        }
 
         var data = new HandleData<TData>(query, userData, handler);
         runner.Run(count, data, Action, barrier);

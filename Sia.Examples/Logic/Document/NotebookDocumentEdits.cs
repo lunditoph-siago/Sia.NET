@@ -10,7 +10,7 @@ internal static class NotebookDocumentEdits
                 throw new InvalidOperationException("Cannot insert a cell into a notebook with no sections.");
             }
             var lastIndex = sections.Count - 1;
-            return ReplaceBlocks(sections, lastIndex, [.. sections[lastIndex].Blocks, newBlock]);
+            return ReplaceBlocks(sections, lastIndex, [..sections[lastIndex].Blocks, newBlock]);
         }
         if (!TryFindBlock(sections, afterCellId, out var sectionIndex, out var blockIndex)) {
             throw new ArgumentException($"No block with id '{afterCellId}' found.", nameof(afterCellId));

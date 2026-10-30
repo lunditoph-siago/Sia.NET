@@ -132,7 +132,7 @@ internal sealed class EditorCommandPanel : IDisposable
                         var parts = value.Split(':', 3);
                         if (parts.Length == 3 && parts[2] == _profileVersion.ToString() && EditorCommand.Find(parts[0]) is { } command && int.TryParse(parts[1], out var index)) {
                             var bindings = Keymap.Bindings(command);
-                            if (index >= 0 && index < bindings.Length) Save(Keymap.Set(command, [.. bindings.Where((_, i) => i != index)]));
+                            if (index >= 0 && index < bindings.Length) Save(Keymap.Set(command, [..bindings.Where((_, i) => i != index)]));
                         }
                         break;
                     }
@@ -170,7 +170,7 @@ internal sealed class EditorCommandPanel : IDisposable
                         else throw new ArgumentException("Select an editing mode.");
                     }
                     var replacement = new KeyBinding(_shortcut.Value(), context, mode);
-                    var updated = edit.Index == existing.Length ? [.. existing, replacement] : existing.ToArray();
+                    var updated = edit.Index == existing.Length ? [..existing, replacement] : existing.ToArray();
                     if (edit.Index < 0 || edit.Index > existing.Length) break;
                     updated[edit.Index] = replacement;
                     Save(Keymap.Set(edit.Command, updated));
@@ -199,7 +199,7 @@ internal sealed class EditorCommandPanel : IDisposable
         try {
             foreach (var row in _rows) { row.Remove(); row.Dispose(); }
             _rows.Clear();
-            _matches = [.. EditorCommand.All.Where(command => (!command.Modal || Keymap.Profile == KeyboardProfile.Vim) && terms.All(term =>
+            _matches = [..EditorCommand.All.Where(command => (!command.Modal || Keymap.Profile == KeyboardProfile.Vim) && terms.All(term =>
             command.Title.Contains(term, StringComparison.OrdinalIgnoreCase)
             || command.Id.ToString().Contains(term, StringComparison.OrdinalIgnoreCase)
             || Keymap.Bindings(command).Any(binding => binding.Key.Contains(term, StringComparison.OrdinalIgnoreCase))))

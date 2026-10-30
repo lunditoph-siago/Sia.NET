@@ -1,5 +1,6 @@
-using global::Sia.Reactive;
-using R = global::Sia.Reactive.Reactive;
+using Sia.Reactive;
+
+using static Sia.Reactive.Reactive;
 
 namespace Sia.Tests.Reactive;
 
@@ -11,10 +12,10 @@ public class ReactiveTeardownTests
         using var world = new World();
         var runtime = world.AcquireAddon<Reconciler>();
         var probe = new RetryProbe();
-        var child = new ReactiveNodeSpec<ComponentTerm<RetryProps>>(R.Component(RenderRetryChild, new RetryProps(false, probe)).Term);
+        var child = new ReactiveNodeSpec<ComponentTerm<RetryProps>>(Component(RenderRetryChild, new RetryProps(false, probe)).Term);
         var root = runtime.Mount(new RetryRoot<ReactiveNodeSpec<ComponentTerm<RetryProps>>>(false, child));
 
-        root.Update(new(true, new(R.Component(RenderRetryChild, new RetryProps(true, probe)).Term)));
+        root.Update(new(true, new(Component(RenderRetryChild, new RetryProps(true, probe)).Term)));
         Assert.Throws<InvalidOperationException>(runtime.Flush);
         var retained = probe.State;
         retained.Set(8);

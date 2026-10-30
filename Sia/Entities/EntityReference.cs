@@ -1,6 +1,6 @@
-namespace Sia;
-
 using System.Runtime.CompilerServices;
+
+namespace Sia;
 
 internal readonly struct EntityReference(Entity entity) : IEquatable<EntityReference>
 {
@@ -57,5 +57,5 @@ internal readonly struct EntityReference(Entity entity) : IEquatable<EntityRefer
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Matches(Entity entity)
-        => _state is {} state && entity.References(state);
+        => _state is { } state && entity.References(state);
 }

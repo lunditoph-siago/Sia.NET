@@ -10,7 +10,7 @@ public class QueryIterationBenchmarks
     private IReactiveEntityQuery _query = null!;
     private Entity _first;
 
-    [Params(1_024, 65_536)]
+    [Params(32, 64, 1_024, 65_536)]
     public int EntityCount { get; set; }
 
     [Params(1, 4)]
@@ -33,17 +33,15 @@ public class QueryIterationBenchmarks
     [GlobalCleanup]
     public void Cleanup() => _world.Dispose();
 
-    [Benchmark]
+    [Benchmark(Baseline = true)]
     public float EntityEnumeration()
     {
-        var sum = 0f;
         foreach (var entity in _query) {
             ref var position = ref entity.Get<Position>();
             ref var velocity = ref entity.Get<Velocity>();
             position.X += velocity.X;
-            sum += position.X;
         }
-        return sum;
+        return _first.Get<Position>().X;
     }
 
     [Benchmark]

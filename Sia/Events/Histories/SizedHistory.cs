@@ -1,7 +1,7 @@
-namespace Sia;
-
 using System.Collections;
 using CommunityToolkit.HighPerformance.Buffers;
+
+namespace Sia;
 
 public class SizedHistory<TTarget, TEvent> : IHistory<TTarget, TEvent>
     where TTarget : notnull

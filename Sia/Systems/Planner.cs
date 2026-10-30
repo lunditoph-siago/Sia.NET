@@ -1,6 +1,6 @@
-namespace Sia;
-
 using System.Collections.Immutable;
+
+namespace Sia;
 
 public static class Planner
 {

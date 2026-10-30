@@ -1,6 +1,6 @@
-namespace Sia;
-
 using System.Runtime.CompilerServices;
+
+namespace Sia;
 
 public sealed class ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
 {

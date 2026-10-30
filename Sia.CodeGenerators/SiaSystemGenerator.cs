@@ -1,10 +1,10 @@
-namespace Sia.CodeGenerators;
-
 using System.Collections.Immutable;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
+
+namespace Sia.CodeGenerators;
 
 [Generator]
 internal partial class SiaSystemGenerator : IIncrementalGenerator

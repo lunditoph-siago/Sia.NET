@@ -1,11 +1,11 @@
-namespace Sia.Serialization;
-
 using System.Buffers;
 using System.Collections.Frozen;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
+
+namespace Sia.Serialization;
 
 [RequiresUnreferencedCode(
     "Serialized host and component types are resolved by name. Their members must be preserved by the caller.")]

@@ -54,7 +54,7 @@ public class RunnerTests
         var barrier = RunnerBarrier.Get();
         barrier.AddParticipants(1);
 
-        runner.Run(() => { }, null);
+        runner.Run(() => {}, null);
 
         barrier.Signal();
         barrier.WaitAndReturn();
@@ -126,11 +126,9 @@ public class RunnerTests
     {
         var barrier = RunnerBarrier.Get();
 
-        var ex = Assert.Throws<InvalidOperationException>(() =>
-        {
-            for (var i = 0; i <= 32; i++)
-            {
-                barrier.AddCallback(_ => { });
+        var ex = Assert.Throws<InvalidOperationException>(() => {
+            for (var i = 0; i <= 32; i++) {
+                barrier.AddCallback(_ => {});
             }
         });
 
@@ -175,10 +173,8 @@ public class RunnerTests
         var counter = new int[total];
         var barrier = RunnerBarrier.Get();
 
-        runner.Run(total, range =>
-        {
-            for (var i = range.Item1; i < range.Item2; i++)
-            {
+        runner.Run(total, range => {
+            for (var i = range.Item1; i < range.Item2; i++) {
                 Interlocked.Increment(ref counter[i]);
             }
         }, barrier);
@@ -196,10 +192,8 @@ public class RunnerTests
         var counter = new int[total];
         var barrier = RunnerBarrier.Get();
 
-        runner.Run(total, counter, (in arr, range) =>
-        {
-            for (var i = range.Item1; i < range.Item2; i++)
-            {
+        runner.Run(total, counter, (in arr, range) => {
+            for (var i = range.Item1; i < range.Item2; i++) {
                 Interlocked.Increment(ref arr[i]);
             }
         }, barrier);
@@ -247,8 +241,7 @@ public class RunnerTests
         var count = 0;
         var barrier = RunnerBarrier.Get();
 
-        for (var i = 0; i < jobCount; i++)
-        {
+        for (var i = 0; i < jobCount; i++) {
             runner.Run(() => Interlocked.Increment(ref count), barrier);
         }
 

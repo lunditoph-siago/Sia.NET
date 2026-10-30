@@ -1,6 +1,6 @@
-namespace Sia.Reactors;
-
 using System.Collections.Immutable;
+
+namespace Sia.Reactors;
 
 public partial record struct Node<TTag>
 {
@@ -31,7 +31,7 @@ public partial record struct Node<TTag>
     internal Entity? _prevParent;
     internal HashSet<Entity>? _children;
 
-    public Node() { }
+    public Node() {}
 
     public Node(Entity? parent)
     {

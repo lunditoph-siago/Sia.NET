@@ -5,8 +5,6 @@ internal sealed class ConsoleThread : IUiThread
 {
     public static ConsoleThread Shared { get; } = new();
 
-    public void VerifyAccess()
-    {
-    }
+    public void VerifyAccess() {}
 }
 #endif

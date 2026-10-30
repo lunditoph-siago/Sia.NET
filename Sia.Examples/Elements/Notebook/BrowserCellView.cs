@@ -47,7 +47,7 @@ public sealed class BrowserCellView : IDisposable
         Render = new(renderWindow, _render);
     }
 
-    public IReadOnlyList<BrowserCellWindowView> Scripts => [.. _scripts.Select(static pane => pane.Window)];
+    public IReadOnlyList<BrowserCellWindowView> Scripts => [.._scripts.Select(static pane => pane.Window)];
 
     public BrowserCellWindowView Output { get; }
 

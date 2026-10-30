@@ -1,7 +1,7 @@
-namespace Sia;
-
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+
+namespace Sia;
 
 public partial class World
 {
@@ -124,7 +124,7 @@ public partial class World
             }
         }
     }
-    
+
     public bool TryGetAddon<TAddon>([MaybeNullWhen(false)] out TAddon addon)
         where TAddon : class, IAddon
     {
