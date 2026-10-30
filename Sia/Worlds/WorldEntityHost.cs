@@ -8,7 +8,7 @@ using static Sia.WorldHostUtils;
 namespace Sia;
 
 public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost innerHost)
-    : IEntityHost<TEntity>, IReactiveEntityHost
+    : IEntityHost<TEntity>, IReactiveEntityHost, IArrayBatchHost
     where TEntity : struct, IHList
     where TInnerHost : IEntityHost<TEntity>, new()
 {
@@ -29,6 +29,9 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     public event Action<IEntityHost>? OnDisposed;
 
     internal bool HasMigrationObservers => OnEntityMovedOut is not null || OnEntityMovedIn is not null;
+
+    bool IArrayBatchHost.IsExactArrayHost => typeof(TInnerHost) == typeof(ArrayEntityHost<TEntity>)
+        && InnerHost.GetType() == typeof(ArrayEntityHost<TEntity>);
 
     public World World { get; } = world;
     public TInnerHost InnerHost { get; } = InitializeInnerHost(world, innerHost);
