@@ -69,7 +69,7 @@ public static partial class EntityQueryExtensions
                 }
                 GuardSequentialBytes(host, bytes);
             }
-            else if (count < MinimumManagedSliceLength || !TryManagedSlice(host, 0, count, c1Offset, ref handler)) {
+            else if (count < MinimumManagedSliceLength || !TryManagedSlice(host, desc, 0, count, c1Offset, ref handler)) {
                 for (var i = 0; i < count; i++) {
                     ref var byteRef = ref host.GetByteRef(i);
                     handler.Handle(ref c1Offset.Get(ref byteRef));
@@ -107,7 +107,7 @@ public static partial class EntityQueryExtensions
                 }
                 GuardSequentialBytes(host, bytes);
             }
-            else if (count < MinimumManagedSliceLength || !TryManagedSlice(host, 0, count, c1Offset, c2Offset, ref handler)) {
+            else if (count < MinimumManagedSliceLength || !TryManagedSlice(host, desc, 0, count, c1Offset, c2Offset, ref handler)) {
                 for (var i = 0; i < count; i++) {
                     ref var byteRef = ref host.GetByteRef(i);
                     handler.Handle(
@@ -149,7 +149,7 @@ public static partial class EntityQueryExtensions
                 }
                 GuardSequentialBytes(host, bytes);
             }
-            else if (count < MinimumManagedSliceLength || !TryManagedSlice(host, 0, count, c1Offset, c2Offset, c3Offset, ref handler)) {
+            else if (count < MinimumManagedSliceLength || !TryManagedSlice(host, desc, 0, count, c1Offset, c2Offset, c3Offset, ref handler)) {
                 for (var i = 0; i < count; i++) {
                     ref var byteRef = ref host.GetByteRef(i);
                     handler.Handle(
@@ -194,7 +194,7 @@ public static partial class EntityQueryExtensions
                 }
                 GuardSequentialBytes(host, bytes);
             }
-            else if (count < MinimumManagedSliceLength || !TryManagedSlice(host, 0, count, c1Offset, c2Offset, c3Offset, c4Offset, ref handler)) {
+            else if (count < MinimumManagedSliceLength || !TryManagedSlice(host, desc, 0, count, c1Offset, c2Offset, c3Offset, c4Offset, ref handler)) {
                 for (var i = 0; i < count; i++) {
                     ref var byteRef = ref host.GetByteRef(i);
                     handler.Handle(
@@ -238,7 +238,7 @@ public static partial class EntityQueryExtensions
                 }
                 GuardSequentialBytes(host, bytes);
             }
-            else if (count < MinimumManagedSliceLength || !TryManagedSlice(host, 0, count, c1Offset, c2Offset, c3Offset, c4Offset, c5Offset, ref handler)) {
+            else if (count < MinimumManagedSliceLength || !TryManagedSlice(host, desc, 0, count, c1Offset, c2Offset, c3Offset, c4Offset, c5Offset, ref handler)) {
                 for (var i = 0; i < count; i++) {
                     ref var byteRef = ref host.GetByteRef(i);
                     handler.Handle(
@@ -285,7 +285,7 @@ public static partial class EntityQueryExtensions
                 }
                 GuardSequentialBytes(host, bytes);
             }
-            else if (count < MinimumManagedSliceLength || !TryManagedSlice(host, 0, count, c1Offset, c2Offset, c3Offset, c4Offset, c5Offset, c6Offset, ref handler)) {
+            else if (count < MinimumManagedSliceLength || !TryManagedSlice(host, desc, 0, count, c1Offset, c2Offset, c3Offset, c4Offset, c5Offset, c6Offset, ref handler)) {
                 for (var i = 0; i < count; i++) {
                     ref var byteRef = ref host.GetByteRef(i);
                     handler.Handle(
@@ -336,11 +336,11 @@ public static partial class EntityQueryExtensions
         }
     }
 
-    private static bool TryManagedSlice<C1, THandler>(IEntityHost host, int from, int to, ComponentOffset<C1> c1, ref THandler handler)
+    private static bool TryManagedSlice<C1, THandler>(IEntityHost host, EntityDescriptor desc, int from, int to, ComponentOffset<C1> c1, ref THandler handler)
         where THandler : ISliceHandler<C1>
     {
         var visitor = new ManagedVisitor<C1, THandler>(host, from, to, c1, ref handler);
-        host.Descriptor.HandleType(ref visitor);
+        desc.HandleType(ref visitor);
         return visitor.Used;
     }
 
@@ -364,11 +364,11 @@ public static partial class EntityQueryExtensions
         }
     }
 
-    private static bool TryManagedSlice<C1, C2, THandler>(IEntityHost host, int from, int to, ComponentOffset<C1> c1, ComponentOffset<C2> c2, ref THandler handler)
+    private static bool TryManagedSlice<C1, C2, THandler>(IEntityHost host, EntityDescriptor desc, int from, int to, ComponentOffset<C1> c1, ComponentOffset<C2> c2, ref THandler handler)
         where THandler : ISliceHandler<C1, C2>
     {
         var visitor = new ManagedVisitor<C1, C2, THandler>(host, from, to, c1, c2, ref handler);
-        host.Descriptor.HandleType(ref visitor);
+        desc.HandleType(ref visitor);
         return visitor.Used;
     }
 
@@ -393,11 +393,11 @@ public static partial class EntityQueryExtensions
         }
     }
 
-    private static bool TryManagedSlice<C1, C2, C3, THandler>(IEntityHost host, int from, int to, ComponentOffset<C1> c1, ComponentOffset<C2> c2, ComponentOffset<C3> c3, ref THandler handler)
+    private static bool TryManagedSlice<C1, C2, C3, THandler>(IEntityHost host, EntityDescriptor desc, int from, int to, ComponentOffset<C1> c1, ComponentOffset<C2> c2, ComponentOffset<C3> c3, ref THandler handler)
         where THandler : ISliceHandler<C1, C2, C3>
     {
         var visitor = new ManagedVisitor<C1, C2, C3, THandler>(host, from, to, c1, c2, c3, ref handler);
-        host.Descriptor.HandleType(ref visitor);
+        desc.HandleType(ref visitor);
         return visitor.Used;
     }
 
@@ -423,11 +423,11 @@ public static partial class EntityQueryExtensions
         }
     }
 
-    private static bool TryManagedSlice<C1, C2, C3, C4, THandler>(IEntityHost host, int from, int to, ComponentOffset<C1> c1, ComponentOffset<C2> c2, ComponentOffset<C3> c3, ComponentOffset<C4> c4, ref THandler handler)
+    private static bool TryManagedSlice<C1, C2, C3, C4, THandler>(IEntityHost host, EntityDescriptor desc, int from, int to, ComponentOffset<C1> c1, ComponentOffset<C2> c2, ComponentOffset<C3> c3, ComponentOffset<C4> c4, ref THandler handler)
         where THandler : ISliceHandler<C1, C2, C3, C4>
     {
         var visitor = new ManagedVisitor<C1, C2, C3, C4, THandler>(host, from, to, c1, c2, c3, c4, ref handler);
-        host.Descriptor.HandleType(ref visitor);
+        desc.HandleType(ref visitor);
         return visitor.Used;
     }
 
@@ -454,11 +454,11 @@ public static partial class EntityQueryExtensions
         }
     }
 
-    private static bool TryManagedSlice<C1, C2, C3, C4, C5, THandler>(IEntityHost host, int from, int to, ComponentOffset<C1> c1, ComponentOffset<C2> c2, ComponentOffset<C3> c3, ComponentOffset<C4> c4, ComponentOffset<C5> c5, ref THandler handler)
+    private static bool TryManagedSlice<C1, C2, C3, C4, C5, THandler>(IEntityHost host, EntityDescriptor desc, int from, int to, ComponentOffset<C1> c1, ComponentOffset<C2> c2, ComponentOffset<C3> c3, ComponentOffset<C4> c4, ComponentOffset<C5> c5, ref THandler handler)
         where THandler : ISliceHandler<C1, C2, C3, C4, C5>
     {
         var visitor = new ManagedVisitor<C1, C2, C3, C4, C5, THandler>(host, from, to, c1, c2, c3, c4, c5, ref handler);
-        host.Descriptor.HandleType(ref visitor);
+        desc.HandleType(ref visitor);
         return visitor.Used;
     }
 
@@ -486,11 +486,11 @@ public static partial class EntityQueryExtensions
         }
     }
 
-    private static bool TryManagedSlice<C1, C2, C3, C4, C5, C6, THandler>(IEntityHost host, int from, int to, ComponentOffset<C1> c1, ComponentOffset<C2> c2, ComponentOffset<C3> c3, ComponentOffset<C4> c4, ComponentOffset<C5> c5, ComponentOffset<C6> c6, ref THandler handler)
+    private static bool TryManagedSlice<C1, C2, C3, C4, C5, C6, THandler>(IEntityHost host, EntityDescriptor desc, int from, int to, ComponentOffset<C1> c1, ComponentOffset<C2> c2, ComponentOffset<C3> c3, ComponentOffset<C4> c4, ComponentOffset<C5> c5, ComponentOffset<C6> c6, ref THandler handler)
         where THandler : ISliceHandler<C1, C2, C3, C4, C5, C6>
     {
         var visitor = new ManagedVisitor<C1, C2, C3, C4, C5, C6, THandler>(host, from, to, c1, c2, c3, c4, c5, c6, ref handler);
-        host.Descriptor.HandleType(ref visitor);
+        desc.HandleType(ref visitor);
         return visitor.Used;
     }
 
