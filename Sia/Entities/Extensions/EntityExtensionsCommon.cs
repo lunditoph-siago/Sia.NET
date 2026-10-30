@@ -1,10 +1,10 @@
 #pragma warning disable CS8500 // This takes the address of, gets the size of, or declares a pointer to a managed type
 
-namespace Sia;
-
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+
+namespace Sia;
 
 internal static class EntityExtensionsCommon
 {

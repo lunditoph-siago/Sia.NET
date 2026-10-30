@@ -1,8 +1,10 @@
+using Sia.Reactive;
+
+using static Sia.Reactive.Reactive;
+
+using MarkerList = Sia.HList<Sia.Tests.Reactive.BoundaryMarker, Sia.EmptyHList>;
+
 namespace Sia.Tests.Reactive;
-
-using global::Sia.Reactive;
-
-using MarkerList = HList<BoundaryMarker, EmptyHList>;
 
 public class ReactiveBoundaryTests(QueryTestHelpers helpers) : IClassFixture<QueryTestHelpers>
 {
@@ -23,14 +25,14 @@ public class ReactiveBoundaryTests(QueryTestHelpers helpers) : IClassFixture<Que
 
         world.AcquireAddon<Reconciler>();
         var mountA = world.Mount(
-            (in Unit _, ref Hooks _) => Reactive.Schedule(
+            (in Unit _, ref Hooks _) => Schedule(
                 default(SharedSchedule),
-                Reactive.System<RootASystem>()),
+                System<RootASystem>()),
             default(Unit));
         var mountB = world.Mount(
-            (in Unit _, ref Hooks _) => Reactive.Schedule(
+            (in Unit _, ref Hooks _) => Schedule(
                 default(SharedSchedule),
-                Reactive.System<RootBSystem>()),
+                System<RootBSystem>()),
             default(Unit));
 
         RootASystem.Log = logA;
@@ -170,9 +172,9 @@ public class ReactiveBoundaryTests(QueryTestHelpers helpers) : IClassFixture<Que
         var component = BuildNestedComponent(itemDepth);
 
         var mount = world.Mount(
-            (in Unit _, ref Hooks _) => Reactive.ForEach<int, ComponentTerm<DeepNestProps>>(
-                [.. Enumerable.Range(0, itemCount)
-                    .Select(i => (i, Reactive.Component(component, new DeepNestProps(0, itemDepth))))]),
+            (in Unit _, ref Hooks _) => ForEach<int, ComponentTerm<DeepNestProps>>(
+                [..Enumerable.Range(0, itemCount)
+                    .Select(i => (i, Component(component, new DeepNestProps(0, itemDepth))))]),
             default(Unit));
 
         Assert.Equal(itemCount, helpers.FindAll<DeepNestValue>(world).Length);
@@ -188,9 +190,9 @@ public class ReactiveBoundaryTests(QueryTestHelpers helpers) : IClassFixture<Que
         using var world = new World();
 
         var mount = world.Mount(
-            (in Unit _, ref Hooks _) => Reactive.ForEach<int, DeepNestValue, EntityTerm<HList<DeepNestValue, EmptyHList>, UnitTerm>>(
-                static (in DeepNestValue item) => Reactive.Entity(HList.From(item)),
-                [.. Enumerable.Range(0, itemCount).Select(i => (i, new DeepNestValue(i)))]),
+            (in Unit _, ref Hooks _) => ForEach<int, DeepNestValue, EntityTerm<HList<DeepNestValue, EmptyHList>, UnitTerm>>(
+                static (in DeepNestValue item) => Entity(HList.From(item)),
+                [..Enumerable.Range(0, itemCount).Select(i => (i, new DeepNestValue(i)))]),
             default(Unit));
 
         Assert.Equal(itemCount, helpers.FindAll<DeepNestValue>(world).Length);
@@ -209,13 +211,13 @@ public class ReactiveBoundaryTests(QueryTestHelpers helpers) : IClassFixture<Que
                 Term.Effect(new OrderLogEffect(calls, name.Value)));
 
         var mount = world.Mount(
-            (in Unit _, ref Hooks _) => Reactive.Group(
-                Reactive.Component(
-                    (in Unit _, ref Hooks _) => Reactive.Group(
-                        Reactive.Component(leaf, new LeafName("X1")),
-                        Reactive.Component(leaf, new LeafName("X2"))),
+            (in Unit _, ref Hooks _) => Group(
+                Component(
+                    (in Unit _, ref Hooks _) => Group(
+                        Component(leaf, new LeafName("X1")),
+                        Component(leaf, new LeafName("X2"))),
                     default(Unit)),
-                Reactive.Component(leaf, new LeafName("Y"))),
+                Component(leaf, new LeafName("Y"))),
             default(Unit));
 
         Assert.Equal(["X1", "X2", "Y"], calls);
@@ -230,13 +232,13 @@ public class ReactiveBoundaryTests(QueryTestHelpers helpers) : IClassFixture<Que
         var mount = world.Mount(
             (in Unit _, ref Hooks hooks) => {
                 var reveal = hooks.UseState(false);
-                return Reactive.Entity(
+                return Entity(
                     HList.From(new BoundaryMarker()),
-                    Reactive.Group(
-                        Reactive.On(
+                    Group(
+                        On(
                             reveal,
                             static (in RevealEvent _, in State<bool> state) => state.Set(true)),
-                        Reactive.When(
+                        When(
                             reveal.Value,
                             new ReactiveNode<LiftTerm<AlwaysThrowsSpec>>(
                                 Term.Lift(default(AlwaysThrowsSpec))))));
@@ -264,17 +266,17 @@ public class ReactiveBoundaryTests(QueryTestHelpers helpers) : IClassFixture<Que
             (in Unit _, ref Hooks hooks) => {
                 var reveal = hooks.UseState(false);
                 var unrelated = hooks.UseState(0);
-                return Reactive.Entity(
+                return Entity(
                     HList.From(new BoundaryMarker(), new UnrelatedCounter(unrelated.Value)),
-                    Reactive.Group(
-                        Reactive.On(
+                    Group(
+                        On(
                             reveal,
                             static (in RevealEvent _, in State<bool> state) => state.Set(true)),
-                        Reactive.On(
+                        On(
                             unrelated,
                             static (in BumpUnrelatedEvent _, in State<int> state) =>
                                 state.Set(state.Value + 1)),
-                        Reactive.When(
+                        When(
                             reveal.Value,
                             new ReactiveNode<LiftTerm<FlakyChildSpec>>(
                                 Term.Lift(new FlakyChildSpec(probe))))));
@@ -309,7 +311,7 @@ public class ReactiveBoundaryTests(QueryTestHelpers helpers) : IClassFixture<Que
         var reconciler = world.AcquireAddon<Reconciler>();
         var calls = new List<string>();
 
-        var mountB = world.Mount(static (in Unit _, ref Hooks _) => Reactive.None, default(Unit));
+        var mountB = world.Mount(static (in Unit _, ref Hooks _) => None, default(Unit));
         var specA = new ReentrantTeardownSpec(calls, mountB);
         var mountA = reconciler.Mount(specA);
 
@@ -347,8 +349,8 @@ public class ReactiveBoundaryTests(QueryTestHelpers helpers) : IClassFixture<Que
         ReactiveComponent<DeepNestProps> component = null!;
         component = (in DeepNestProps props, ref Hooks _) =>
             props.Level >= props.Depth
-                ? Reactive.Entity(HList.From(new DeepNestValue(props.Level)))
-                : Reactive.Component(component, new DeepNestProps(props.Level + 1, props.Depth));
+                ? Entity(HList.From(new DeepNestValue(props.Level)))
+                : Component(component, new DeepNestProps(props.Level + 1, props.Depth));
         return component;
     }
 
@@ -360,26 +362,26 @@ public class ReactiveBoundaryTests(QueryTestHelpers helpers) : IClassFixture<Que
             static (in Unit _, ref Hooks hooks) => {
                 var outer = hooks.UseState(1);
                 var inner = hooks.UseState(2);
-                return Reactive.Entity(
+                return Entity(
                     HList.From(new OuterMarker()),
-                    Reactive.Group(
-                        Reactive.On(
+                    Group(
+                        On(
                             outer,
                             static (in SetOuter message, in State<int> state) =>
                                 state.Set(message.Value)),
-                        Reactive.On(
+                        On(
                             inner,
                             static (in SetInner message, in State<int> state) =>
                                 state.Set(message.Value)),
-                        Reactive.Provide(
+                        Provide(
                             new ShadowContext(outer.Value),
-                            Reactive.Provide(
+                            Provide(
                                 new ShadowContext(inner.Value),
-                                Reactive.Use<
+                                Use<
                                     ShadowContext,
                                     EntityTerm<HList<ShadowValue, EmptyHList>, UnitTerm>>(
                                     static (in ShadowContext value) =>
-                                        Reactive.Entity(HList.From(
+                                        Entity(HList.From(
                                             new ShadowValue(value.Value))))))));
             },
             default(Unit));
@@ -452,7 +454,7 @@ public class ReactiveBoundaryTests(QueryTestHelpers helpers) : IClassFixture<Que
                 else {
                     hooks.UseState(0);
                 }
-                return Reactive.None;
+                return None;
             },
             default(Unit));
 
@@ -613,8 +615,7 @@ public readonly record struct FailingMountEffect(List<string> Calls)
 
     public static void Reconcile(
         in FailingMountEffect previous,
-        in FailingMountEffect next)
-    { }
+        in FailingMountEffect next) {}
 
     public static void Unmount(in FailingMountEffect self)
         => self.Calls.Add("unmount");

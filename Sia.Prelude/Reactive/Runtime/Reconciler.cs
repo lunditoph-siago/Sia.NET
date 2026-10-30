@@ -1,8 +1,8 @@
-namespace Sia.Reactive;
-
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using Sia.Reactors;
+
+namespace Sia.Reactive;
 
 public sealed class Reconciler : ReactorBase, IScheduleSource
 {
@@ -493,7 +493,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         ScheduleRegistry? parent)
     {
         var label = ScheduleLabel.ForType(labelType);
-        if (parent is {} inherited && inherited.Label == label) {
+        if (parent is { } inherited && inherited.Label == label) {
             inherited.ScopeCount++;
             try {
                 return (inherited, CreateNode(new ScheduleNode(inherited)));
@@ -629,7 +629,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         data.IsDestroying = true;
         data.InDirty = false;
         _roots.Remove(identity.Value);
-        if (data.ContextDependencies is {} dependencies) {
+        if (data.ContextDependencies is { } dependencies) {
             foreach (var scope in dependencies) {
                 scope.RemoveConsumer(identity.Value);
             }
@@ -693,7 +693,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
     private Outcome<Exception> FinalizeCellFrame(
         in DestroyFrame frame, Outcome<Exception> result)
     {
-        if (frame.Owner.GetUnchecked<Cell>().States is {} states) {
+        if (frame.Owner.GetUnchecked<Cell>().States is { } states) {
             result = result.Attempt(states,
                 static (in StateCells cells) => cells.Unmount());
         }

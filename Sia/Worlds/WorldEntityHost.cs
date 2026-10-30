@@ -1,13 +1,11 @@
 #pragma warning disable CS8500 // This takes the address of, gets the size of, or declares a pointer to a managed type
 
-namespace Sia;
-
-using System;
 using System.Collections;
-using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
-using static WorldHostUtils;
+using static Sia.WorldHostUtils;
+
+namespace Sia;
 
 public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost innerHost)
     : IEntityHost<TEntity>, IReactiveEntityHost

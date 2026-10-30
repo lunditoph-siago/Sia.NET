@@ -1,4 +1,3 @@
-using Sia;
 using Sia.Reactors;
 
 namespace Sia.Examples.Editor;
@@ -9,7 +8,7 @@ public partial record struct WorkspaceEntry([Sia] string Name);
 
 public partial record struct WorkspaceFile
 {
-    public WorkspaceFile() { }
+    public WorkspaceFile() {}
 
     [Sia]
     public string Content { get; set; } = string.Empty;

@@ -1,10 +1,10 @@
-namespace Sia;
-
 using System.Collections;
 using System.Collections.Frozen;
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using CommunityToolkit.HighPerformance;
+
+namespace Sia;
 
 public sealed class SystemStage : ISystemScheduleEntry, IDisposable
 {
@@ -433,8 +433,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
     private readonly ExecutionPlan? _plan;
 
     internal SystemStage(World world, IEnumerable<ISystem> systems)
-        : this(world, systems, null)
-    { }
+        : this(world, systems, null) {}
 
     private SystemStage(
         World world,
@@ -479,8 +478,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
             world,
             (plan ?? throw new ArgumentNullException(nameof(plan)))
                 .Entries.Select(static entry => entry.Creator()),
-            plan)
-    { }
+            plan) {}
 
     int ISystemScheduleEntry.Version => 0;
     ExecutionPlan? ISystemScheduleEntry.Plan => _plan;
@@ -542,7 +540,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
             .ToArray();
 
         return actions.Length switch {
-            0 => static _ => { },
+            0 => static _ => {},
             1 => actions[0],
             _ => context => {
                 foreach (var action in actions) {

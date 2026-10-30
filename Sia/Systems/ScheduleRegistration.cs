@@ -4,7 +4,7 @@ public abstract class ScheduleRegistration : IDisposable
 {
     public abstract bool IsAttached { get; }
 
-    internal ScheduleRegistration() { }
+    internal ScheduleRegistration() {}
 
     public abstract void Dispose();
 }

@@ -40,7 +40,7 @@ public partial class ChangeSet : ChangeDesc
             if (position < length) {
                 ChangeSectionBuilder.Add(sections, length - position, -1);
             }
-            var set = new ChangeSet([.. sections], [.. inserted]);
+            var set = new ChangeSet([..sections], [..inserted]);
             total = total is null ? set : Compose(total, set);
             sections.Clear();
             inserted.Clear();
@@ -137,7 +137,7 @@ public partial class ChangeSet : ChangeDesc
 
         while (true) {
             if (firstIterator.Done && secondIterator.Done) {
-                return new([.. sections], [.. inserted]);
+                return new([..sections], [..inserted]);
             }
             if (firstIterator.InsertedLength == 0) {
                 ChangeSectionBuilder.Add(

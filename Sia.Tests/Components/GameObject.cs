@@ -1,6 +1,6 @@
-﻿namespace Sia.Tests.Components;
-
 using Sia.Reactors;
+
+namespace Sia.Tests.Components;
 
 public readonly record struct ObjectId(int Value)
 {

@@ -1,6 +1,6 @@
-namespace Sia;
-
 using System.Collections;
+
+namespace Sia;
 
 public class InfiniteHistory<TTarget, TEvent> : IHistory<TTarget, TEvent>
     where TTarget : notnull

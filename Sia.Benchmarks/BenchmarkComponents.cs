@@ -66,5 +66,5 @@ internal static class BenchmarkWorld
     }
 
     public static Entity[] Snapshot(World world)
-        => [.. world.Query(Matchers.Of<Position>())];
+        => [..world.Query(Matchers.Of<Position>())];
 }

@@ -1,7 +1,7 @@
-namespace Sia;
-
 using System.Runtime.CompilerServices;
 using CommunityToolkit.HighPerformance.Buffers;
+
+namespace Sia;
 
 public static class BufferUtils
 {

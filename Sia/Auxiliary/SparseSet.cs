@@ -1,5 +1,3 @@
-namespace Sia;
-
 using System.Buffers;
 using System.Collections;
 using System.Runtime.CompilerServices;
@@ -7,6 +5,8 @@ using System.Runtime.InteropServices;
 using System.Diagnostics.CodeAnalysis;
 
 using CommunityToolkit.HighPerformance;
+
+namespace Sia;
 
 public sealed class SparseSet<T>(int pageSize = 256)
     : IDictionary<int, T>, IReadOnlyDictionary<int, T>

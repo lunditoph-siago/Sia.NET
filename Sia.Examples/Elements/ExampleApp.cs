@@ -1,5 +1,4 @@
 using Sia.Reactive;
-using Sia.Examples.Notebook;
 
 namespace Sia.Examples;
 

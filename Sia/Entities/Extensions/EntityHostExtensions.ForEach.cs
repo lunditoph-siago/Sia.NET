@@ -1,8 +1,8 @@
-namespace Sia;
-
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using static EntityExtensionsCommon;
+using static Sia.EntityExtensionsCommon;
+
+namespace Sia;
 
 public static partial class EntityHostExtensions
 {

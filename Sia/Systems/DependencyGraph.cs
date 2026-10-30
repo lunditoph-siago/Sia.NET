@@ -1,6 +1,6 @@
-namespace Sia;
-
 using System.Collections.Immutable;
+
+namespace Sia;
 
 internal readonly record struct DependencyEdge(int From, int To);
 

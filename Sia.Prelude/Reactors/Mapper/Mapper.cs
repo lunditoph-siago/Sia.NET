@@ -1,8 +1,8 @@
-namespace Sia.Reactors;
-
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+
+namespace Sia.Reactors;
 
 public class Mapper<TId> : ReactorBase<TypeUnion<Sid<TId>>>, IReadOnlyDictionary<TId, Entity>
     where TId : notnull, IEquatable<TId>

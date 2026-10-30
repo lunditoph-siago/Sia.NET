@@ -1,7 +1,7 @@
-namespace Sia;
-
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+
+namespace Sia;
 
 public class EventChannel<TTarget, TEvent> : IEventSender<TTarget, TEvent>
     where TEvent : IEvent

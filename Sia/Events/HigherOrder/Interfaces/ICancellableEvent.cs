@@ -1,5 +1,3 @@
 namespace Sia;
 
-public interface ICancellableEvent : IEvent
-{
-}
+public interface ICancellableEvent : IEvent;

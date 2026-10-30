@@ -1,8 +1,8 @@
-﻿namespace Sia;
-
 using System.Collections.Frozen;
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
+
+namespace Sia;
 
 public record struct ComponentInfo(Type Type, IntPtr Offset, int TypeIndex);
 
@@ -58,14 +58,14 @@ public static class EntityDescriptor<TEntity>
 
         new OffsetRecorder(components, offsets, entityPtr).Handle(ref defaultEntity);
         Offsets = offsets.ToFrozenDictionary();
-        Components = [.. components];
+        Components = [..components];
 
         var slots = new nint[Components.Select(info => info.TypeIndex).Max() + 1];
         Array.Fill(slots, -1);
         foreach (var info in Components) {
             slots[info.TypeIndex] = info.Offset;
         }
-        OffsetSlots = [.. slots];
+        OffsetSlots = [..slots];
     }
 }
 

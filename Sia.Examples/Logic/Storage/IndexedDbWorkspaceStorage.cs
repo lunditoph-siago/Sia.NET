@@ -24,7 +24,7 @@ public sealed partial class IndexedDbWorkspaceStorage(BrowserMainThread mainThre
         foreach (var record in records) {
             entries.Add(Describe(record));
         }
-        return [.. entries.OrderBy(static entry => entry.Path, StringComparer.Ordinal)];
+        return [..entries.OrderBy(static entry => entry.Path, StringComparer.Ordinal)];
     }
 
     public async ValueTask<WorkspaceFileContent?> ReadFileAsync(

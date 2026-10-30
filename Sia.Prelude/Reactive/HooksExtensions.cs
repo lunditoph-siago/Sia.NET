@@ -1,6 +1,6 @@
-namespace Sia.Reactive;
-
 using Sia.Reactors;
+
+namespace Sia.Reactive;
 
 public delegate void ReactiveQueryAction<TCapture>(
     Entity entity,

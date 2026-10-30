@@ -1,8 +1,8 @@
-namespace Sia;
-
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.ObjectPool;
+
+namespace Sia;
 
 public class ParallelRunner : IRunner
 {
@@ -283,7 +283,7 @@ public class ParallelRunner : IRunner
             static object CreateJobArrayPool(ParallelRunner runner)
                 => new DefaultObjectPool<GroupActionJob<TData>[]>(
                     new JobArrayPolicy<GroupActionJob<TData>>(runner));
-            
+
             if (!_genericGroupActionJobArrPools.TryGetValue(typeof(TData), out var poolRaw)) {
                 poolRaw = _genericGroupActionJobArrPools.GetOrAdd(typeof(TData),
                     _ => CreateJobArrayPool(this));

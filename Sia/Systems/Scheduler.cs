@@ -1,7 +1,7 @@
-namespace Sia;
-
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
+
+namespace Sia;
 
 public sealed class Scheduler : IAddon, IDisposable
 {
@@ -618,7 +618,7 @@ public sealed class Scheduler : IAddon, IDisposable
     private SourceRegistration[] GetSourceSnapshot()
     {
         if (_sourcesChanged) {
-            _sourceSnapshot = [.. _sourceRegistrations.Where(
+            _sourceSnapshot = [.._sourceRegistrations.Where(
                 static registration => registration.Active)];
             _sourcesChanged = false;
         }

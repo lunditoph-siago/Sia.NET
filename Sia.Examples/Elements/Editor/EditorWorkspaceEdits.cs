@@ -33,7 +33,7 @@ internal sealed class EditorWorkspaceEdits(
                 var forward = ChangeSet.Of(document.Changes, text.Length);
                 var source = forward.Apply(text).SliceDoc();
                 var beforeSelection = buffer.Position.Selection.Ranges.All(range => range.To <= text.Length) ? buffer.Position.Selection
-                    : EditorSelection.Create([.. buffer.Position.Selection.Ranges.Select(range => range.Clamp(text.Length))], buffer.Position.Selection.MainIndex);
+                    : EditorSelection.Create([..buffer.Position.Selection.Ranges.Select(range => range.Clamp(text.Length))], buffer.Position.Selection.MainIndex);
                 var afterSelection = beforeSelection.Map(forward);
                 long size = 0;
                 forward.IterateChangedRanges((a, b, c, d) => size += (long)b - a + d - c);

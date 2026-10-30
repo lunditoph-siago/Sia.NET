@@ -1,8 +1,8 @@
-namespace Sia;
-
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using MemoryPack;
+
+namespace Sia;
 
 [MemoryPackable(GenerateType.NoGenerate)]
 public readonly partial struct Entity : IEquatable<Entity>

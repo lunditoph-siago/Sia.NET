@@ -1,5 +1,3 @@
-﻿namespace Sia.CodeGenerators;
-
 using System.CodeDom.Compiler;
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
@@ -9,7 +7,9 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
-using static Common;
+using static Sia.CodeGenerators.Common;
+
+namespace Sia.CodeGenerators;
 
 [Generator]
 internal partial class SiaBundleGenerator : IIncrementalGenerator

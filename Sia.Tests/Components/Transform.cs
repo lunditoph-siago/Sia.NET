@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 
 namespace Sia.Tests.Components;
@@ -42,8 +42,7 @@ public partial record struct Transform([Sia] Position Position, [Sia] Rotation R
             var s = Sin(a * 0.5f);
             var c = Cos(a * 0.5f);
 
-            quaternion.Value = new Quaternion
-            {
+            quaternion.Value = new Quaternion {
                 X = s.X * c.Y * c.Z - s.Y * s.Z * c.X,
                 Y = s.Y * c.X * c.Z + s.X * s.Z * c.Y,
                 Z = s.Z * c.X * c.Y - s.X * s.Y * c.Z,

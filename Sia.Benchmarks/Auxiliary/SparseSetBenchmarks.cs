@@ -14,10 +14,13 @@ public class SparseSetBenchmarks
     [Params(1_024, 65_536)]
     public int Count { get; set; }
 
+    [Params(256, 257)]
+    public int PageSize { get; set; }
+
     [GlobalSetup]
     public void Setup()
     {
-        _set = new SparseSet<int>();
+        _set = new SparseSet<int>(PageSize);
         for (var i = 0; i < Count; i++) _set[i * 4] = i;
         _hitKeys = Enumerable.Range(0, LookupOperations)
             .Select(i => (i * 104729 % Count) * 4).ToArray();
@@ -43,6 +46,19 @@ public class SparseSetBenchmarks
         var found = 0;
         foreach (var key in _missKeys) found += _set.ContainsKey(key) ? 1 : 0;
         return found;
+    }
+
+    [Benchmark(OperationsPerInvoke = LookupOperations)]
+    public int RemoveThenAdd()
+    {
+        var removed = 0;
+        foreach (var key in _hitKeys) {
+            if (_set.Remove(key, out var value)) {
+                _set.Add(key, value);
+                removed++;
+            }
+        }
+        return removed;
     }
 
     [Benchmark]

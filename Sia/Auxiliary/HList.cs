@@ -1,6 +1,6 @@
-namespace Sia;
-
 using System.Runtime.CompilerServices;
+
+namespace Sia;
 
 public struct TypeProxy<T>
 {
@@ -54,20 +54,15 @@ public struct EmptyHList : IHList
 {
     public static EmptyHList Default => default;
 
-    public readonly void Handle<THandler>(in THandler handler)
-        where THandler : IHListHandler {}
+    public readonly void Handle<THandler>(in THandler handler) where THandler : IHListHandler {}
 
-    public readonly void HandleHead<THandler>(in THandler handler)
-        where THandler : IGenericHandler {}
+    public readonly void HandleHead<THandler>(in THandler handler) where THandler : IGenericHandler {}
 
-    public readonly void HandleHeadRef<THandler>(ref THandler handler)
-        where THandler : IRefGenericHandler {}
+    public readonly void HandleHeadRef<THandler>(ref THandler handler) where THandler : IRefGenericHandler {}
 
-    public readonly void HandleTail<THandler>(in THandler handler)
-        where THandler : IGenericHandler<IHList> {}
+    public readonly void HandleTail<THandler>(in THandler handler) where THandler : IGenericHandler<IHList> {}
 
-    public readonly void HandleTailRef<THandler>(ref THandler handler)
-        where THandler : IRefGenericHandler<IHList> {}
+    public readonly void HandleTailRef<THandler>(ref THandler handler) where THandler : IRefGenericHandler<IHList> {}
 
     public readonly void Filter<TPredicate, THandler>(in TPredicate predicate, in THandler handler)
         where TPredicate : IGenericPredicate
@@ -91,9 +86,7 @@ public struct EmptyHList : IHList
 
     public readonly override string ToString() => "Empty";
 
-    public static void HandleTypes<THandler>(in THandler handler)
-        where THandler : IGenericTypeHandler
-    {}
+    public static void HandleTypes<THandler>(in THandler handler) where THandler : IGenericTypeHandler {}
 }
 
 public struct HList<THead, TTail>(in THead head, in TTail tail) : IHList

@@ -1,6 +1,6 @@
-namespace Sia.Reactors;
-
 using System.Collections.Immutable;
+
+namespace Sia.Reactors;
 
 public struct Aggregation<TId>
     where TId : notnull, IEquatable<TId>

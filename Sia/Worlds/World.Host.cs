@@ -1,8 +1,8 @@
-namespace Sia;
-
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+
+namespace Sia;
 
 public partial class World
 {
@@ -111,7 +111,7 @@ public partial class World
     public bool ContainsHost<THost>()
         where THost : IEntityHost
         => _hosts.ContainsKey(WorldEntityHostIndexer<THost>.Index);
-    
+
     public void ClearHosts()
     {
         Version++;

@@ -1,6 +1,6 @@
-namespace Sia;
-
 using System.Diagnostics.CodeAnalysis;
+
+namespace Sia;
 
 public static class EntityExceptionHelper
 {

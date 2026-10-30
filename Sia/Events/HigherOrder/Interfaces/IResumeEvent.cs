@@ -1,5 +1,3 @@
 namespace Sia;
 
-public interface IResumeEvent : IHigherOrderEvent
-{
-}
+public interface IResumeEvent : IHigherOrderEvent;

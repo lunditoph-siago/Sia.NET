@@ -1,4 +1,4 @@
-﻿namespace Sia.Tests;
+namespace Sia.Tests;
 
 public partial record struct Padding1;
 

@@ -1,4 +1,4 @@
-﻿namespace Sia.CodeGenerators;
+namespace Sia.CodeGenerators;
 
 internal partial class SiaBundleGenerator
 {

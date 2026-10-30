@@ -1,11 +1,11 @@
 #pragma warning disable CS8500 // This takes the address of, gets the size of, or declares a pointer to a managed type
 
-namespace Sia.Serialization.Binary;
-
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Diagnostics.CodeAnalysis;
 using CommunityToolkit.HighPerformance;
+
+namespace Sia.Serialization.Binary;
 
 public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> : IWorldSerializer
     where THostHeaderSerializer : IHostHeaderSerializer

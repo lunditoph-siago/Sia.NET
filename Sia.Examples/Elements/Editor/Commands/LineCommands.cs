@@ -207,7 +207,7 @@ public static class LineCommands
         if (changes.Count == 0) {
             return false;
         }
-        target.Apply(target.State.Apply(new() { Changes = [.. changes] }));
+        target.Apply(target.State.Apply(new() { Changes = [..changes] }));
         return true;
     }
 }

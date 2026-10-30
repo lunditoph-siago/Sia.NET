@@ -222,7 +222,7 @@ public sealed partial class BrowserEditorHost
                         : pendingChanges.MapPos(position, association)!.Value;
                 mappedSelection = mutation.SelectionSource == NativeSelectionSource.Model && selection.Main.Empty
                     ? EditorSelection.Single(from + insertedLength)
-                    : EditorSelection.Create([.. selection.Ranges.Select(range =>
+                    : EditorSelection.Create([..selection.Ranges.Select(range =>
                         EditorSelection.Range(MapPoint(range.Anchor, 1), MapPoint(range.Head, range.Empty ? 1 : -1)))],
                         selection.MainIndex);
             }

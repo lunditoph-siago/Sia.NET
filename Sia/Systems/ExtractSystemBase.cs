@@ -37,7 +37,8 @@ public abstract class ExtractSystemBase(
 
         if (_ownsParentQuery) {
             _parentQuery = _parentWorld.Query(extractMatcher!);
-        } else {
+        }
+        else {
             _parentQuery = _parentWorld;
         }
 

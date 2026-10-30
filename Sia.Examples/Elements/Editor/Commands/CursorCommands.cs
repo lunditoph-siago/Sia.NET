@@ -105,7 +105,7 @@ public static class CursorCommands
         Func<SelectionRange, SelectionRange> transform)
     {
         var selection = EditorSelection.Create(
-            [.. target.State.Selection.Ranges.Select(transform)],
+            [..target.State.Selection.Ranges.Select(transform)],
             target.State.Selection.MainIndex);
         return selection.Eq(target.State.Selection, true)
             ? false

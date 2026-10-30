@@ -1,6 +1,6 @@
-namespace Sia.Serialization;
-
 using System.Buffers;
+
+namespace Sia.Serialization;
 
 public interface IComponentSerializer : IDisposable
 {

@@ -1,4 +1,4 @@
-﻿namespace Sia;
+namespace Sia;
 
 public interface IBundle
 {

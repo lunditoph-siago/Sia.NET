@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 
 namespace Sia.Tests.Auxiliary;
 
@@ -75,7 +75,7 @@ public class TypeUnionTests
                 };
 
                 // Assert
-                Assert.Equal(1, dict[new TypeUnion<string, int>()]); 
+                Assert.Equal(1, dict[new TypeUnion<string, int>()]);
             },
             () => {
                 // Arrange

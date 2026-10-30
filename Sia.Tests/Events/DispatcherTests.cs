@@ -1,4 +1,4 @@
-﻿namespace Sia.Tests.Events;
+namespace Sia.Tests.Events;
 
 public class DispatcherTests
 {
@@ -28,7 +28,7 @@ public class DispatcherTests
 
     public readonly record struct AssertCommand(int Expected) : ICommand
     {
-        public void Execute(World world, Entity target) { }
+        public void Execute(World world, Entity target) {}
     }
 
     [Fact]

@@ -2,11 +2,11 @@ namespace Sia;
 
 public interface IScheduleEntry
 {
-    void OnAttached(Scheduler scheduler, ScheduleLabel label) { }
+    void OnAttached(Scheduler scheduler, ScheduleLabel label) {}
 
     void Tick(WorldContext context);
 
-    void OnDetached(Scheduler scheduler, ScheduleLabel label) { }
+    void OnDetached(Scheduler scheduler, ScheduleLabel label) {}
 }
 
 public interface ISystemScheduleEntry : IScheduleEntry

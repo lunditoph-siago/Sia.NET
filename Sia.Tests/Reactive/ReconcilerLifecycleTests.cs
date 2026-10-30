@@ -1,12 +1,12 @@
-namespace Sia.Tests.Reactive;
+using Sia.Reactive;
 
-using global::Sia.Reactive;
-
-using ValueList = HList<ReactiveValue, EmptyHList>;
+using ValueList = Sia.HList<Sia.Tests.Reactive.ReactiveValue, Sia.EmptyHList>;
 using FailingTree = global::Sia.Reactive.Group<
-    global::Sia.Reactive.EntityTerm<HList<ReactiveValue, EmptyHList>,
+    global::Sia.Reactive.EntityTerm<Sia.HList<Sia.Tests.Reactive.ReactiveValue, Sia.EmptyHList>,
         global::Sia.Reactive.UnitTerm>,
-    FailingTerm>;
+    Sia.Tests.Reactive.FailingTerm>;
+
+namespace Sia.Tests.Reactive;
 
 public class ReconcilerLifecycleTests(QueryTestHelpers helpers) : IClassFixture<QueryTestHelpers>
 {

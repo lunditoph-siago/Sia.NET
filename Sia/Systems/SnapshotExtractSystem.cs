@@ -14,10 +14,10 @@ public abstract class SnapshotExtractSystem<TExtract> : SystemBase
 
     protected abstract IEntityMatcher ExtractMatcher { get; }
     protected abstract TExtract Extract(Entity entity);
-    protected virtual void Render(ReadOnlySpan<TExtract> data) { }
+    protected virtual void Render(ReadOnlySpan<TExtract> data) {}
 
     protected SnapshotExtractSystem(SystemChain? children = null)
-        : base(Matchers.Any, children: children) { }
+        : base(Matchers.Any, children: children) {}
 
     public override void Initialize(World world)
     {

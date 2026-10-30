@@ -1,6 +1,6 @@
-namespace Sia.Reactive;
-
 using System.Collections.Immutable;
+
+namespace Sia.Reactive;
 
 public sealed class ScheduleRegistry(ScheduleLabel label) : ISystemScheduleEntry
 {

@@ -1,6 +1,6 @@
-namespace Sia.Tests.Reactors;
-
 using Sia.Reactors;
+
+namespace Sia.Tests.Reactors;
 
 public class MapperTests
 {

@@ -21,7 +21,7 @@ public sealed partial class CSharpCompletionProvider
         var (changes, caret) = NormalizeImportNewlines(edit.TextChanges, position, newline, cancellationToken);
         var result = query.Projection is { } projection ? projection.ToSource(query.Document.FilePath!, changes, caret, cancellationToken,
             (CompilationUnitSyntax?)await document.GetSyntaxRootAsync(cancellationToken))
-            : new CompletionEdit([.. changes
+            : new CompletionEdit([..changes
             .Select(static change => new ChangeSpec(change.Span.Start, change.Span.End, change.NewText ?? ""))],
             caret);
         return result is { } change && character is { } commit

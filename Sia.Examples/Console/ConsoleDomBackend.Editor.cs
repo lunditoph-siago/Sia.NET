@@ -32,13 +32,9 @@ internal sealed partial class ConsoleDomBackend
         MarkChanged();
     }
 
-    public void AcknowledgeEditorCommand(string cellId, int sequence)
-    {
-    }
+    public void AcknowledgeEditorCommand(string cellId, int sequence) {}
 
-    public void ResolveEditorClipboard(string cellId, int requestId, string? text)
-    {
-    }
+    public void ResolveEditorClipboard(string cellId, int requestId, string? text) {}
 
     public void PrepareEditorReconciliation(IDomNode node, int sequence)
     {

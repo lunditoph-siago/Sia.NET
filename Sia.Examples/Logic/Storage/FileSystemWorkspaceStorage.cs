@@ -20,7 +20,7 @@ public sealed class FileSystemWorkspaceStorage(string rootPath) : IWorkspaceStor
 
     public ValueTask<WorkspaceFileContent?> ReadFileAsync(
         string path, CancellationToken cancellationToken = default)
-        => RunAsync(() => ResilientFile.TryReadText(AbsoluteOf(path)) is { } content
+        => RunAsync(() => ResilientFile.TryReadText(AbsoluteOf(WorkspacePath.Normalize(path))) is { } content
             ? new WorkspaceFileContent(content, WorkspaceVersioning.ComputeVersion(content))
             : null, cancellationToken);
 
@@ -99,11 +99,17 @@ public sealed class FileSystemWorkspaceStorage(string rootPath) : IWorkspaceStor
         string absoluteDirectory, string relativeDirectory, List<WorkspaceStorageEntry> entries)
     {
         foreach (var directory in Directory.EnumerateDirectories(absoluteDirectory)) {
+            if (IsLink(directory)) {
+                continue;
+            }
             var relative = WorkspacePath.Combine(relativeDirectory, Path.GetFileName(directory));
             entries.Add(new(relative, WorkspaceEntryKind.Folder, null));
             AppendEntries(directory, relative, entries);
         }
         foreach (var file in Directory.EnumerateFiles(absoluteDirectory)) {
+            if (IsLink(file)) {
+                continue;
+            }
             var content = ResilientFile.TryReadText(file);
             if (content is null) {
                 continue;
@@ -124,7 +130,32 @@ public sealed class FileSystemWorkspaceStorage(string rootPath) : IWorkspaceStor
     }
 
     private string AbsoluteOf(string normalized)
-        => Path.Combine([RootPath, .. normalized.Split('/')]);
+    {
+        var absolute = RootPath;
+        foreach (var segment in normalized.Split('/')) {
+            if (Path.IsPathRooted(segment)) {
+                throw new ArgumentException("A workspace path must be relative.", nameof(normalized));
+            }
+            absolute = Path.Combine(absolute, segment);
+            if (IsLink(absolute)) {
+                throw new ArgumentException("A workspace path must not contain symbolic links.", nameof(normalized));
+            }
+        }
+        return absolute;
+    }
+
+    private static bool IsLink(string path)
+    {
+        try {
+            return (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0;
+        }
+        catch (FileNotFoundException) {
+            return false;
+        }
+        catch (DirectoryNotFoundException) {
+            return false;
+        }
+    }
 
     private static void CreateParentDirectory(string absolute)
     {

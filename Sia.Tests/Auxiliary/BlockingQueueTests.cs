@@ -1,4 +1,4 @@
-﻿namespace Sia.Tests.Auxiliary;
+namespace Sia.Tests.Auxiliary;
 
 public class BlockingQueueTests
 {

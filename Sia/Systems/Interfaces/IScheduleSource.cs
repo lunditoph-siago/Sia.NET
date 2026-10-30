@@ -2,11 +2,11 @@ namespace Sia;
 
 public interface IScheduleSource
 {
-    void OnAttached(Scheduler scheduler) { }
+    void OnAttached(Scheduler scheduler) {}
 
     void OnBeginTick();
 
-    void OnBeforeSchedule(ScheduleLabel label) { }
+    void OnBeforeSchedule(ScheduleLabel label) {}
 
-    void OnDetached(Scheduler scheduler) { }
+    void OnDetached(Scheduler scheduler) {}
 }
