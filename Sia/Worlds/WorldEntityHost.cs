@@ -8,7 +8,7 @@ using static Sia.WorldHostUtils;
 namespace Sia;
 
 public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost innerHost)
-    : IEntityHost<TEntity>, IReactiveEntityHost, IArrayBatchHost
+    : IEntityHost<TEntity>, IReactiveEntityHost, IWorldBatchHost
     where TEntity : struct, IHList
     where TInnerHost : IEntityHost<TEntity>, new()
 {
@@ -30,8 +30,9 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
 
     internal bool HasMigrationObservers => OnEntityMovedOut is not null || OnEntityMovedIn is not null;
 
-    bool IArrayBatchHost.IsExactArrayHost => typeof(TInnerHost) == typeof(ArrayEntityHost<TEntity>)
+    bool IWorldBatchHost.IsExactArrayHost => typeof(TInnerHost) == typeof(ArrayEntityHost<TEntity>)
         && InnerHost.GetType() == typeof(ArrayEntityHost<TEntity>);
+    bool IWorldBatchHost.HasMigrationObservers => HasMigrationObservers;
 
     public World World { get; } = world;
     public TInnerHost InnerHost { get; } = InitializeInnerHost(world, innerHost);
@@ -196,6 +197,41 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
         InnerHost.Add(entity, initial);
         World.Dispatcher.Send(entity, WorldEvents.Add<TComponent>.Instance);
         World.Dispatcher.Send(entity, WorldEvents.Set<TComponent>.Instance);
+    }
+
+    public bool TryAddAll<TComponent>(ReadOnlySpan<Entity> entities, in TComponent initial)
+    {
+        if (!World.Dispatcher.HasNoTypedListeners<WorldEvents.Add<TComponent>>()
+            || !World.Dispatcher.HasNoTypedListeners<WorldEvents.Set<TComponent>>()
+            || !CanTryBatch(entities)) return false;
+        if (InnerHost is BufferEntityHost<TEntity, ArrayBuffer<TEntity>> buffer
+            && buffer.TryAutoBatchAdd(this, entities, initial)) return true;
+        return ((IEntityHost)InnerHost).TryAddAll(entities, initial);
+    }
+
+    public bool TryRemoveAll<TComponent>(ReadOnlySpan<Entity> entities)
+    {
+        if (!World.Dispatcher.HasNoTypedListeners<WorldEvents.Remove<TComponent>>() || !CanTryBatch(entities)) return false;
+        if (InnerHost is BufferEntityHost<TEntity, ArrayBuffer<TEntity>> buffer
+            && buffer.TryAutoBatchRemove<TComponent, TInnerHost>(this, entities)) return true;
+        return ((IEntityHost)InnerHost).TryRemoveAll<TComponent>(entities);
+    }
+
+    private bool CanTryBatch(ReadOnlySpan<Entity> entities)
+    {
+        if (typeof(TInnerHost) == typeof(ArrayEntityHost<TEntity>) && InnerHost.GetType() == typeof(ArrayEntityHost<TEntity>)) return false;
+        if (entities.IsEmpty) return false;
+        World.EnsureOwnerThread();
+        if (!World.Dispatcher.HasNoUntypedListeners) return false;
+        foreach (var host in World.Hosts) {
+            if (host is not IWorldBatchHost batch || batch.HasMigrationObservers) return false;
+        }
+        foreach (var entity in entities) {
+            var state = entity.GetStateUnchecked();
+            if (state is null || !entity.References(state) || !ReferenceEquals(state.Host, this)
+                || state.Releasing || state.EventSink is not null) return false;
+        }
+        return true;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

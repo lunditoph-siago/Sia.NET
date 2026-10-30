@@ -3,9 +3,10 @@ using System.Runtime.CompilerServices;
 
 namespace Sia;
 
-internal interface IArrayBatchHost
+internal interface IWorldBatchHost
 {
     bool IsExactArrayHost { get; }
+    bool HasMigrationObservers { get; }
 }
 
 public static partial class EntityQueryExtensions
@@ -91,7 +92,9 @@ public static partial class EntityQueryExtensions
                 host.Descriptor.HandleType(ref batch);
                 return batch.Applied;
             },
-            static (entities, value) => { foreach (var entity in entities) entity.Add(value); });
+            static (host, entities, value) => {
+                if (!host.TryAddAll(entities, value)) foreach (var entity in entities) entity.Add(value);
+            });
 
     public static void Remove<TComponent>(this IEntityQuery query)
         => Change(query, default(TComponent),
@@ -101,14 +104,16 @@ public static partial class EntityQueryExtensions
                 host.Descriptor.HandleType(ref batch);
                 return batch.Applied;
             },
-            static (entities, _) => { foreach (var entity in entities) entity.Remove<TComponent>(); });
+            static (host, entities, _) => {
+                if (!host.TryRemoveAll<TComponent>(entities)) foreach (var entity in entities) entity.Remove<TComponent>();
+            });
 
     private delegate bool TryHostChange<T>(IEntityHost host, ReadOnlySpan<Entity> entities, T value);
-    private delegate void EntityChange<T>(ReadOnlySpan<Entity> entities, T value);
+    private delegate void EntityChange<T>(IEntityHost host, ReadOnlySpan<Entity> entities, T value);
 
     private static bool MayBatch(IEntityHost host)
     {
-        if (host is IArrayBatchHost { IsExactArrayHost: true }) return true;
+        if (host is IWorldBatchHost { IsExactArrayHost: true }) return true;
         var type = host.GetType();
         if (!type.IsGenericType || type.GetGenericTypeDefinition() != typeof(WorldEntityHost<,>)) return false;
         var inner = type.GenericTypeArguments[1];
@@ -139,7 +144,7 @@ public static partial class EntityQueryExtensions
                 var length = host.Count;
                 snapshots[i] = new(host, count, length);
                 count = checked(count + length);
-                if (host is not IArrayBatchHost { IsExactArrayHost: true }) direct = false;
+                if (host is not IWorldBatchHost { IsExactArrayHost: true }) direct = false;
                 if (length != 0) {
                     if (onlyHost != -1) direct = false;
                     onlyHost = i;
@@ -165,7 +170,7 @@ public static partial class EntityQueryExtensions
                 foreach (var snapshot in snapshots.AsSpan(0, hostCount)) {
                     if (snapshot.Count != 0) {
                         var span = entities.AsSpan(snapshot.Start, snapshot.Count);
-                        if (attempted || !tryChange(snapshot.Host, span, value)) change(span, value);
+                        if (attempted || !tryChange(snapshot.Host, span, value)) change(snapshot.Host, span, value);
                     }
                 }
             }
