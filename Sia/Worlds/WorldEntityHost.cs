@@ -217,8 +217,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
             && InnerHost is UnmanagedArrayEntityHost<TEntity> unmanaged && unmanaged.GetType() == typeof(UnmanagedArrayEntityHost<TEntity>))
             unmanaged.AddDefault(entity, initial);
         else InnerHost.Add(entity, initial);
-        World.Dispatcher.Send(entity, WorldEvents.Add<TComponent>.Instance);
-        World.Dispatcher.Send(entity, WorldEvents.Set<TComponent>.Instance);
+        World.Dispatcher.SendAddAndSet<TComponent>(entity);
     }
 
     public bool TryAddAll<TComponent>(ReadOnlySpan<Entity> entities, in TComponent initial)
