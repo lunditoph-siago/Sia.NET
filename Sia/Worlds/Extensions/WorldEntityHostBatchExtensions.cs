@@ -1,7 +1,7 @@
-namespace Sia;
-
 using System.Buffers;
 using System.Runtime.CompilerServices;
+
+namespace Sia;
 
 public static class WorldEntityHostBatchExtensions
 {
