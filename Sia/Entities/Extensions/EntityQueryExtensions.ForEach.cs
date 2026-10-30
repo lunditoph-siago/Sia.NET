@@ -132,7 +132,7 @@ public static partial class EntityQueryExtensions
                 }
                 else {
                     var sliceHandler = new DelegateSliceHandler<C1>(handler);
-                    if (to - from < MinimumManagedSliceLength || !TryManagedSlice(host, from, to, c1Offset, ref sliceHandler)) {
+                    if (to - from < MinimumManagedSliceLength || !TryManagedSlice(host, desc, from, to, c1Offset, ref sliceHandler)) {
                         for (var i = from; i != to; ++i) {
                             ref var byteRef = ref host.GetByteRef(i);
                             handler(ref c1Offset.Get(ref byteRef));
@@ -164,7 +164,7 @@ public static partial class EntityQueryExtensions
                 }
                 else {
                     var sliceHandler = new DelegateSliceHandler<C1, C2>(handler);
-                    if (to - from < MinimumManagedSliceLength || !TryManagedSlice(host, from, to, c1Offset, c2Offset, ref sliceHandler)) {
+                    if (to - from < MinimumManagedSliceLength || !TryManagedSlice(host, desc, from, to, c1Offset, c2Offset, ref sliceHandler)) {
                         for (var i = from; i != to; ++i) {
                             ref var byteRef = ref host.GetByteRef(i);
                             handler(
@@ -200,7 +200,7 @@ public static partial class EntityQueryExtensions
                 }
                 else {
                     var sliceHandler = new DelegateSliceHandler<C1, C2, C3>(handler);
-                    if (to - from < MinimumManagedSliceLength || !TryManagedSlice(host, from, to, c1Offset, c2Offset, c3Offset, ref sliceHandler)) {
+                    if (to - from < MinimumManagedSliceLength || !TryManagedSlice(host, desc, from, to, c1Offset, c2Offset, c3Offset, ref sliceHandler)) {
                         for (var i = from; i != to; ++i) {
                             ref var byteRef = ref host.GetByteRef(i);
                             handler(
@@ -239,7 +239,7 @@ public static partial class EntityQueryExtensions
                 }
                 else {
                     var sliceHandler = new DelegateSliceHandler<C1, C2, C3, C4>(handler);
-                    if (to - from < MinimumManagedSliceLength || !TryManagedSlice(host, from, to, c1Offset, c2Offset, c3Offset, c4Offset, ref sliceHandler)) {
+                    if (to - from < MinimumManagedSliceLength || !TryManagedSlice(host, desc, from, to, c1Offset, c2Offset, c3Offset, c4Offset, ref sliceHandler)) {
                         for (var i = from; i != to; ++i) {
                             ref var byteRef = ref host.GetByteRef(i);
                             handler(
@@ -281,7 +281,7 @@ public static partial class EntityQueryExtensions
                 }
                 else {
                     var sliceHandler = new DelegateSliceHandler<C1, C2, C3, C4, C5>(handler);
-                    if (to - from < MinimumManagedSliceLength || !TryManagedSlice(host, from, to, c1Offset, c2Offset, c3Offset, c4Offset, c5Offset, ref sliceHandler)) {
+                    if (to - from < MinimumManagedSliceLength || !TryManagedSlice(host, desc, from, to, c1Offset, c2Offset, c3Offset, c4Offset, c5Offset, ref sliceHandler)) {
                         for (var i = from; i != to; ++i) {
                             ref var byteRef = ref host.GetByteRef(i);
                             handler(
@@ -326,7 +326,7 @@ public static partial class EntityQueryExtensions
                 }
                 else {
                     var sliceHandler = new DelegateSliceHandler<C1, C2, C3, C4, C5, C6>(handler);
-                    if (to - from < MinimumManagedSliceLength || !TryManagedSlice(host, from, to, c1Offset, c2Offset, c3Offset, c4Offset, c5Offset, c6Offset, ref sliceHandler)) {
+                    if (to - from < MinimumManagedSliceLength || !TryManagedSlice(host, desc, from, to, c1Offset, c2Offset, c3Offset, c4Offset, c5Offset, c6Offset, ref sliceHandler)) {
                         for (var i = from; i != to; ++i) {
                             ref var byteRef = ref host.GetByteRef(i);
                             handler(
