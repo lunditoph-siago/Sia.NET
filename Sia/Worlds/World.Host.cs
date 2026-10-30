@@ -13,6 +13,39 @@ public partial class World
     IReadOnlyList<IEntityHost> IEntityQuery.Hosts => _hosts.UnsafeRawValues;
 
     private readonly SparseSet<IReactiveEntityHost> _hosts = [];
+    private readonly object _batchObserverLock = new();
+    private bool? _hasNoBatchObservers;
+
+    internal void InvalidateBatchObservers()
+    {
+        lock (_batchObserverLock) _hasNoBatchObservers = null;
+    }
+
+    internal void UpdateBatchObservers(ref EntityMigrationHandler? handlers, EntityMigrationHandler? value, bool add)
+    {
+        lock (_batchObserverLock) {
+            var updated = add
+                ? (EntityMigrationHandler?)Delegate.Combine(handlers, value)
+                : (EntityMigrationHandler?)Delegate.Remove(handlers, value);
+            Volatile.Write(ref handlers, updated);
+            _hasNoBatchObservers = null;
+        }
+    }
+
+    internal bool HasNoBatchObservers()
+    {
+        lock (_batchObserverLock) {
+            if (_hasNoBatchObservers is { } cached) return cached;
+            foreach (var host in Hosts) {
+                if (host is not IWorldBatchHost batch || batch.HasMigrationObservers) {
+                    _hasNoBatchObservers = false;
+                    return false;
+                }
+            }
+            _hasNoBatchObservers = true;
+            return true;
+        }
+    }
 
     public bool TryGetHost<TEntity, THost>([MaybeNullWhen(false)] out WorldEntityHost<TEntity, THost> host)
         where TEntity : struct, IHList
@@ -38,8 +71,10 @@ public partial class World
             throw new ArgumentException("Host with the same type already exists");
         }
         Version++;
+        InvalidateBatchObservers();
         var host = new WorldEntityHost<TEntity, THost>(this);
         rawHost = host;
+        InvalidateBatchObservers();
         OnEntityHostAdded?.Invoke(host);
         return host;
     }
@@ -54,8 +89,10 @@ public partial class World
             return Unsafe.As<WorldEntityHost<TEntity, THost>>(rawHost);
         }
         Version++;
+        InvalidateBatchObservers();
         var host = new WorldEntityHost<TEntity, THost>(this);
         rawHost = host;
+        InvalidateBatchObservers();
         OnEntityHostAdded?.Invoke(host);
         return host;
     }
@@ -69,7 +106,9 @@ public partial class World
             throw new ArgumentException("Host with the same type already exists: " + typeof(THost));
         }
         Version++;
+        InvalidateBatchObservers();
         rawHost = host;
+        InvalidateBatchObservers();
         OnEntityHostAdded?.Invoke(host);
         return host;
     }
@@ -91,6 +130,7 @@ public partial class World
 
         _hosts.Remove(hostIndex, out var removedHost);
         Version++;
+        InvalidateBatchObservers();
         OnEntityHostRemoved?.Invoke(removedHost!);
         host.Dispose();
         return true;
@@ -115,6 +155,7 @@ public partial class World
     public void ClearHosts()
     {
         Version++;
+        InvalidateBatchObservers();
         var hosts = _hosts.UnsafeRawValues;
         for (var i = 0; i < hosts.Count; ++i) {
             var host = hosts[i];
@@ -122,6 +163,7 @@ public partial class World
             host.Dispose();
         }
         _hosts.Clear();
+        InvalidateBatchObservers();
     }
 
     public int ClearEmptyHosts()
@@ -139,9 +181,11 @@ public partial class World
 
         if (hostsToRemove != null) {
             Version++;
+            InvalidateBatchObservers();
             try {
                 for (var i = 0; i != count; ++i) {
                     _hosts.Remove(hostsToRemove[i], out var host);
+                    InvalidateBatchObservers();
                     OnEntityHostRemoved?.Invoke(host!);
                     host!.Dispose();
                 }

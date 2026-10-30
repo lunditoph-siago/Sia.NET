@@ -172,6 +172,15 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
         _targetListenersPool.Clear();
     }
 
+    internal bool HasNoUntypedListeners => _globalListeners.Count == 0 && _targetListeners.Count == 0;
+
+    internal bool HasNoTypedListeners<UEvent>() where UEvent : TEvent
+    {
+        if (!EventTypeIndexState<UEvent>.TryGetIndex(out var index)) return true;
+        ref var raw = ref _eventListeners.GetRefOrNullRef(index);
+        return Unsafe.IsNullRef(ref raw) || raw == null || Unsafe.As<List<Listener<UEvent>>>(raw).Count == 0;
+    }
+
     public void RunAfterSend(Action action)
     {
         if (_sendDepth == 0 && !_flushingAfterSendActions) {

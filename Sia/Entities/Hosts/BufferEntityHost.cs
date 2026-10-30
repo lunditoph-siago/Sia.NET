@@ -13,7 +13,7 @@ public static class BufferEntityHost<TEntity>
         => new(buffer);
 }
 
-public class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
+public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     : IEntityHost<TEntity>
     where TEntity : struct, IHList
     where TBuffer : IBuffer<TEntity>
@@ -148,6 +148,10 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         host.MoveOut(entity, siblingHost);
         siblingHost.MoveIn(entity, moved, host);
     }
+
+    public virtual bool TryAddAll<TComponent>(ReadOnlySpan<Entity> entities, in TComponent initial) => false;
+
+    public virtual bool TryRemoveAll<TComponent>(ReadOnlySpan<Entity> entities) => false;
 
     private struct EntityMover(Entity e)
         : IGenericStructHandler<IHList>
@@ -295,4 +299,5 @@ public class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         OnDisposed?.Invoke(this);
         GC.SuppressFinalize(this);
     }
+
 }
