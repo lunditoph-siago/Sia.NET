@@ -25,6 +25,11 @@ internal static class EntityBatch
                 || !dispatcher.HasNoTypedListeners<WorldEvents.Add<TComponent>>()
                 || !dispatcher.HasNoTypedListeners<WorldEvents.Set<TComponent>>()) return;
             if (!CanBatch(source, _entities)) return;
+            if (RuntimeFeature.IsDynamicCodeSupported
+                && source.InnerHost.TryBulkAddUniform(source, _entities, initial)) {
+                Applied = true;
+                return;
+            }
             var values = ArrayPool<TComponent>.Shared.Rent(_entities.Length);
             try {
                 var span = values.AsSpan(0, _entities.Length);

@@ -89,6 +89,13 @@ public partial class BufferEntityHost<TEntity, TBuffer>
             && entities.Length != 0 && entities.SequenceEqual(_entities.AsSpan())
             && _entities.Count == Buffer.Count && CanMoveAll(source);
 
+    internal bool TryBulkAddUniform<TComponent>(
+        WorldEntityHost<TEntity, ArrayEntityHost<TEntity>> source, ReadOnlySpan<Entity> entities, in TComponent value)
+    {
+        source.World.EnsureOwnerThread();
+        return TryBatchAddCore(source, entities, value);
+    }
+
     internal bool TryAutoBatchAdd<TComponent, THost>(
         WorldEntityHost<TEntity, THost> source, ReadOnlySpan<Entity> entities, in TComponent initial)
         where THost : IEntityHost<TEntity>, new()
@@ -110,7 +117,15 @@ public partial class BufferEntityHost<TEntity, TBuffer>
         where THost : IEntityHost<TEntity>, new()
     {
         source.World.EnsureOwnerThread();
-        if (!RuntimeFeature.IsDynamicCodeSupported || !BatchHost<THost>.CanAdd || !CanBatch(source, entities)
+        return RuntimeFeature.IsDynamicCodeSupported && BatchHost<THost>.CanAdd
+            && TryBatchAddCore(source, entities, initial);
+    }
+
+    private bool TryBatchAddCore<TComponent, THost>(
+        WorldEntityHost<TEntity, THost> source, ReadOnlySpan<Entity> entities, in TComponent initial)
+        where THost : IEntityHost<TEntity>, new()
+    {
+        if (!CanBatch(source, entities)
             || !BulkHListShape.IsStandard || EntityIndexer<TEntity, TComponent>.Offset != -1
             || !source.World.TryGetHost<HList<TComponent, TEntity>, ArrayEntityHost<HList<TComponent, TEntity>>>(out var target)
             || target.InnerHost.GetType() != typeof(ArrayEntityHost<HList<TComponent, TEntity>>)

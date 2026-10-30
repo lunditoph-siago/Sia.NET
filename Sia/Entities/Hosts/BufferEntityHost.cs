@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using CommunityToolkit.HighPerformance;
@@ -136,10 +137,6 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         => handler.Handle(ref Buffer.GetRef(slot));
 
     public virtual void Add<TComponent>(Entity entity, in TComponent initial)
-        => AddCore(entity, initial);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void AddCore<TComponent>(Entity entity, in TComponent initial)
     {
         if (EntityIndexer<TEntity, TComponent>.Offset != -1) {
             EntityExceptionHelper.ThrowComponentExisted<TComponent>();
@@ -153,9 +150,41 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         siblingHost.MoveIn(entity, moved, host);
     }
 
+    internal void AddCore<TComponent>(Entity entity, in TComponent initial)
+    {
+        if (EntityIndexer<TEntity, TComponent>.Offset != -1) {
+            EntityExceptionHelper.ThrowComponentExisted<TComponent>();
+        }
+        var state = entity.GetStateUnchecked();
+        ref var data = ref Buffer.GetRef(state.Slot);
+        var host = state.Host!;
+        if (RuntimeFeature.IsDynamicCodeSupported && typeof(TBuffer) == typeof(ArrayBuffer<TEntity>)
+            && TryGetArrayTarget<HList<TComponent, TEntity>>(host, out var source, out var target)) {
+            var value = HList.Cons(initial, data);
+            source.MoveOut(entity, target);
+            target.MoveIn(entity, value, source);
+            return;
+        }
+        var siblingHost = host.GetSiblingHost<HList<TComponent, TEntity>>();
+        var moved = HList.Cons(initial, data);
+        host.MoveOut(entity, siblingHost);
+        siblingHost.MoveIn(entity, moved, host);
+    }
+
     public virtual bool TryAddAll<TComponent>(ReadOnlySpan<Entity> entities, in TComponent initial) => false;
 
     public virtual bool TryRemoveAll<TComponent>(ReadOnlySpan<Entity> entities) => false;
+
+    private static bool TryGetArrayTarget<TDestination>(IEntityHost host,
+        [NotNullWhen(true)] out WorldEntityHost<TEntity, ArrayEntityHost<TEntity>>? source,
+        [NotNullWhen(true)] out WorldEntityHost<TDestination, ArrayEntityHost<TDestination>>? target)
+        where TDestination : struct, IHList
+    {
+        source = host as WorldEntityHost<TEntity, ArrayEntityHost<TEntity>>;
+        target = null;
+        return source is not null && source.InnerHost.GetType() == typeof(ArrayEntityHost<TEntity>)
+            && source.World.TryGetHost<TDestination, ArrayEntityHost<TDestination>>(out target);
+    }
 
     private struct EntityMover(Entity e)
         : IGenericStructHandler<IHList>
@@ -167,6 +196,23 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
             var siblingHost = host.GetSiblingHost<T>();
             host.MoveOut(e, siblingHost);
             siblingHost.MoveIn(e, data, host);
+        }
+    }
+
+    private readonly struct ArrayEntityMover(Entity e) : IGenericStructHandler<IHList>
+    {
+        public void Handle<T>(in T data) where T : struct, IHList
+        {
+            var host = e.GetStateUnchecked().Host!;
+            if (TryGetArrayTarget<T>(host, out var source, out var target)) {
+                source.MoveOut(e, target);
+                target.MoveIn(e, data, source);
+            }
+            else {
+                var siblingHost = host.GetSiblingHost<T>();
+                host.MoveOut(e, siblingHost);
+                siblingHost.MoveIn(e, data, host);
+            }
         }
     }
 
@@ -206,10 +252,6 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     }
 
     public virtual void Remove<TComponent>(Entity entity, out bool success)
-        => RemoveCore<TComponent>(entity, out success);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void RemoveCore<TComponent>(Entity entity, out bool success)
     {
         if (EntityIndexer<TEntity, TComponent>.Offset == -1) {
             success = false;
@@ -217,6 +259,22 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         }
         ref var data = ref Buffer.GetRef(entity.GetStateUnchecked().Slot);
         var mover = new EntityMover(entity);
+        data.Remove(TypeProxy<TComponent>._, mover);
+        success = true;
+    }
+
+    internal void RemoveCore<TComponent>(Entity entity, out bool success)
+    {
+        if (!RuntimeFeature.IsDynamicCodeSupported || typeof(TBuffer) != typeof(ArrayBuffer<TEntity>)) {
+            Remove<TComponent>(entity, out success);
+            return;
+        }
+        if (EntityIndexer<TEntity, TComponent>.Offset == -1) {
+            success = false;
+            return;
+        }
+        ref var data = ref Buffer.GetRef(entity.GetStateUnchecked().Slot);
+        var mover = new ArrayEntityMover(entity);
         data.Remove(TypeProxy<TComponent>._, mover);
         success = true;
     }
