@@ -150,7 +150,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         siblingHost.MoveIn(entity, moved, host);
     }
 
-    internal void AddCore<TComponent>(Entity entity, in TComponent initial)
+    internal void AddDirect<TComponent>(Entity entity, in TComponent initial)
     {
         if (EntityIndexer<TEntity, TComponent>.Offset != -1) {
             EntityExceptionHelper.ThrowComponentExisted<TComponent>();
@@ -278,7 +278,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         success = true;
     }
 
-    internal void RemoveCore<TComponent>(Entity entity, out bool success)
+    internal void RemoveDirect<TComponent>(Entity entity, out bool success)
     {
         if (!RuntimeFeature.IsDynamicCodeSupported || typeof(TBuffer) != typeof(ArrayBuffer<TEntity>)
             || !BulkHListShape.IsStandard) {
