@@ -25,13 +25,17 @@ public interface IEntityHost : IEnumerable<Entity>, IDisposable
         where THandler : IRefGenericHandler<IHList>;
 
     void Add<TComponent>(Entity entity, in TComponent initial);
+
     bool TryAddAll<TComponent>(ReadOnlySpan<Entity> entities, in TComponent initial) => false;
+
     void AddMany<TList>(Entity entity, in TList list)
         where TList : struct, IHList;
     void Set<TComponent>(Entity entity, in TComponent value);
 
     void Remove<TComponent>(Entity entity, out bool success);
+
     bool TryRemoveAll<TComponent>(ReadOnlySpan<Entity> entities) => false;
+
     void RemoveMany<TList>(Entity entity)
         where TList : struct, IHList;
 
