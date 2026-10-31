@@ -86,7 +86,13 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         => _entities[slot];
 
     public void MoveOut(Entity entity, IEntityHost destination)
-        => MoveOut(entity.GetState());
+    {
+        var state = entity.GetState();
+        if (state.Releasing) {
+            throw new InvalidOperationException("Cannot migrate an entity while it is being released.");
+        }
+        MoveOut(state);
+    }
 
     private void MoveOut(EntityState state)
     {
@@ -108,7 +114,9 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
 
     public void MoveIn(Entity entity, in TEntity data, IEntityHost source)
     {
-        _ = entity.GetCurrentState();
+        if (entity.GetCurrentState().Releasing) {
+            throw new InvalidOperationException("Cannot migrate an entity while it is being released.");
+        }
         MoveInTrusted(entity, data);
     }
 

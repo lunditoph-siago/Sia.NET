@@ -109,6 +109,8 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Entity Create(in TEntity initial) => Create(initial, out _);
 
+    /// <summary>Creates an entity and exposes its identity before notifying observers.</summary>
+    /// <remarks>If an observer throws and the acquired entity is still valid, the caller can release it to roll back creation.</remarks>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Entity Create(in TEntity initial, out Entity acquired)
     {
@@ -122,29 +124,43 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
         return acquired;
     }
 
+    /// <summary>Releases an entity, stopping if a notification fails.</summary>
+    /// <remarks>Callbacks cannot migrate the entity while its release is in progress.</remarks>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Release(Entity entity)
     {
         World.EnsureOwnerThread();
         var state = entity.GetState();
-        if (!ReferenceEquals(state.Host, this)) { throw new InvalidOperationException("Entity belongs to another host."); }
-        if (state.Releasing) { return; }
+        if (!ReferenceEquals(state.Host, this)) {
+            throw new InvalidOperationException("Entity belongs to another host.");
+        }
+        if (state.Releasing) {
+            return;
+        }
         state.Releasing = true;
         try {
             var dispatcher = World.Dispatcher;
-
             TEntity.HandleTypes(new EntityRemoveEventSender(entity, dispatcher));
             dispatcher.Send(entity, WorldEvents.Remove.Instance);
             dispatcher.UnlistenAll(entity);
 
             World.Count--;
-            OnEntityReleased?.Invoke(entity);
-
+            try {
+                OnEntityReleased?.Invoke(entity);
+            }
+            catch {
+                World.Count++;
+                throw;
+            }
             InnerHost.Release(entity);
         }
-        finally { state.Releasing = false; }
+        finally {
+            state.Releasing = false;
+        }
     }
 
+    /// <summary>Gets the current storage of an entity owned by this host.</summary>
+    /// <remarks>Reacquire the reference after storage growth or structural changes. Writes do not send notifications.</remarks>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref TEntity GetOwnedRef(Entity entity)
     {
@@ -156,6 +172,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
         return ref InnerHost.GetRef(state.Slot);
     }
 
+    /// <summary>Sends a component set notification after an owned storage write.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void NotifyOwnedSet<T>(Entity entity)
     {
@@ -166,6 +183,11 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
         World.Dispatcher.Send(entity, WorldEvents.Set<T>.Instance);
     }
 
+    /// <summary>Attempts every component removal notification and release step, then reports failures.</summary>
+    /// <remarks>
+    /// Callbacks cannot migrate the entity. A failure stops the current event's listeners;
+    /// later component types and release steps are still attempted, and multiple failures are aggregated.
+    /// </remarks>
     public void ReleaseOwned(Entity entity)
     {
         World.EnsureOwnerThread();
@@ -179,37 +201,43 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
         state.Releasing = true;
         try {
             var dispatcher = World.Dispatcher;
-            var result = Outcome<Exception>.Success;
-            try {
-                TEntity.HandleTypes(new EntityRemoveEventSender(entity, dispatcher));
-            }
-            catch (Exception error) { result = result.Combine(Outcome<Exception>.Failure(error)); }
-            try {
-                dispatcher.Send(entity, WorldEvents.Remove.Instance);
-            }
-            catch (Exception error) { result = result.Combine(Outcome<Exception>.Failure(error)); }
-            try {
-                dispatcher.UnlistenAll(entity);
-            }
-            catch (Exception error) { result = result.Combine(Outcome<Exception>.Failure(error)); }
+            var result = NotifyOwnedRemoval(entity)
+                .Attempt(() => dispatcher.Send(entity, WorldEvents.Remove.Instance))
+                .Attempt(() => dispatcher.UnlistenAll(entity));
+
             World.Count--;
-            try {
-                OnEntityReleased?.Invoke(entity);
-            }
-            catch (Exception error) { result = result.Combine(Outcome<Exception>.Failure(error)); }
-            try {
-                InnerHost.Release(entity);
-            }
-            catch (Exception error) { result = result.Combine(Outcome<Exception>.Failure(error)); }
-            result.ThrowIfFailed();
+            result
+                .Attempt(() => OnEntityReleased?.Invoke(entity))
+                .Attempt(() => InnerHost.Release(entity))
+                .ThrowIfFailed();
         }
-        finally { state.Releasing = false; }
+        finally {
+            state.Releasing = false;
+        }
+    }
+
+    private Outcome<Exception> NotifyOwnedRemoval(Entity entity)
+    {
+        var sender = new OwnedEntityRemoveEventSender(entity, World.Dispatcher);
+        var traversal = Outcome<Exception>.Success.Attempt(() => TEntity.HandleTypes(sender));
+        return sender.Result.Combine(traversal);
+    }
+
+    private sealed class OwnedEntityRemoveEventSender(Entity entity, WorldDispatcher dispatcher) : IGenericTypeHandler
+    {
+        public Outcome<Exception> Result { get; private set; }
+
+        public void Handle<T>()
+            => Result = Result.Attempt(() => dispatcher.Send(entity, WorldEvents.Remove<T>.Instance));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Add<TComponent>(Entity entity, in TComponent initial)
     {
         World.EnsureOwnerThread();
+        if (entity.GetState().Releasing) {
+            throw new InvalidOperationException("Cannot migrate an entity while it is being released.");
+        }
         if (typeof(TInnerHost) == typeof(ArrayEntityHost<TEntity>)
             && InnerHost is ArrayEntityHost<TEntity> managed && managed.GetType() == typeof(ArrayEntityHost<TEntity>))
             managed.AddDefault(entity, initial);
@@ -263,6 +291,9 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
         where TList : struct, IHList
     {
         World.EnsureOwnerThread();
+        if (entity.GetState().Releasing) {
+            throw new InvalidOperationException("Cannot migrate an entity while it is being released.");
+        }
         InnerHost.AddMany(entity, list);
         TList.HandleTypes(new EntityAddEventSender(entity, World.Dispatcher));
     }
@@ -271,6 +302,10 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     public void Set<TComponent>(Entity entity, in TComponent value)
     {
         World.EnsureOwnerThread();
+        var state = entity.GetState();
+        if (state.Releasing && !Descriptor.Contains<TComponent>()) {
+            throw new InvalidOperationException("Cannot migrate an entity while it is being released.");
+        }
         InnerHost.Set(entity, value);
         World.Dispatcher.Send(entity, WorldEvents.Set<TComponent>.Instance);
     }
@@ -279,6 +314,9 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     public void Remove<TComponent>(Entity entity, out bool success)
     {
         World.EnsureOwnerThread();
+        if (entity.GetState().Releasing) {
+            throw new InvalidOperationException("Cannot migrate an entity while it is being released.");
+        }
         if (typeof(TInnerHost) == typeof(ArrayEntityHost<TEntity>)
             && InnerHost is ArrayEntityHost<TEntity> managed && managed.GetType() == typeof(ArrayEntityHost<TEntity>))
             managed.RemoveDefault<TComponent>(entity, out success);
@@ -296,12 +334,18 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
         where TList : struct, IHList
     {
         World.EnsureOwnerThread();
+        if (entity.GetState().Releasing) {
+            throw new InvalidOperationException("Cannot migrate an entity while it is being released.");
+        }
         InnerHost.RemoveMany<TList>(entity);
         TList.HandleTypes(new ExEntityRemoveEventSender(entity, Descriptor, World.Dispatcher));
     }
 
     public void MoveIn(Entity entity, in TEntity data, IEntityHost source)
     {
+        if (entity.GetCurrentState().Releasing) {
+            throw new InvalidOperationException("Cannot migrate an entity while it is being released.");
+        }
         InnerHost.MoveIn(entity, data, source);
         entity.GetStateUnchecked().Host = this;
         if (source is IReactiveEntityHost reactiveSource) {
@@ -311,6 +355,9 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
 
     public void MoveOut(Entity entity, IEntityHost destination)
     {
+        if (entity.GetState().Releasing) {
+            throw new InvalidOperationException("Cannot migrate an entity while it is being released.");
+        }
         if (destination is IReactiveEntityHost reactiveDestination) {
             Volatile.Read(ref _onEntityMovedOut)?.Invoke(entity, reactiveDestination);
         }
