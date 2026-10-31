@@ -10,11 +10,13 @@ public readonly partial struct Entity : IEquatable<Entity>
     private readonly EntityState? _state;
     private readonly ulong _token;
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal Entity(EntityState state, uint generation, EntityId id)
     {
         _state = state;
         _token = ((ulong)generation << 32) | (uint)id.Value;
         state.Token = _token;
+        state.Releasing = false;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

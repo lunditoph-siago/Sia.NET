@@ -302,7 +302,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     public void Remove<TComponent>(Entity entity, out bool success)
     {
         World.EnsureOwnerThread();
-        if (entity.GetState().Releasing) {
+        if (entity.GetState().Releasing && Descriptor.Contains<TComponent>()) {
             throw new InvalidOperationException("Cannot migrate an entity while it is being released.");
         }
         if (typeof(TInnerHost) == typeof(ArrayEntityHost<TEntity>)
@@ -323,7 +323,12 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     {
         World.EnsureOwnerThread();
         if (entity.GetState().Releasing) {
-            throw new InvalidOperationException("Cannot migrate an entity while it is being released.");
+            foreach (var component in EntityDescriptor<TList>.Components) {
+                if (Descriptor.Offsets.ContainsKey(component.Type)) {
+                    throw new InvalidOperationException("Cannot migrate an entity while it is being released.");
+                }
+            }
+            return;
         }
         InnerHost.RemoveMany<TList>(entity);
         TList.HandleTypes(new ExEntityRemoveEventSender(entity, Descriptor, World.Dispatcher));
