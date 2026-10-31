@@ -118,8 +118,11 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
         entity.GetStateUnchecked().Host = this;
         World.Count++;
         OnEntityCreated?.Invoke(entity);
+        if (!entity.IsValid) return entity;
         World.Dispatcher.Send(entity, WorldEvents.Add.Instance);
-        TEntity.HandleTypes(new EntityAddEventSender(entity, World.Dispatcher));
+        if (entity.IsValid) {
+            TEntity.HandleTypes(new EntityAddEventSender(entity, World.Dispatcher));
+        }
         return entity;
     }
 
@@ -182,7 +185,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
             InnerHost.Release(entity);
         }
         finally {
-            state.Releasing = false;
+            if (entity.References(state)) state.Releasing = false;
         }
     }
 
@@ -222,7 +225,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
                 .ThrowIfFailed();
         }
         finally {
-            state.Releasing = false;
+            if (entity.References(state)) state.Releasing = false;
         }
     }
 

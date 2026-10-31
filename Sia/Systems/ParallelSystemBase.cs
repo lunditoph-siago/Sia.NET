@@ -10,7 +10,7 @@ public abstract class ParallelSystemBase<C1>(
     public override void Execute(WorldContext context, IEntityQuery query)
     {
         var barrier = RunnerBarrier.Get();
-        query.ForSlice<IRunner, WorldContext, C1>(context, (in WorldContext ctx, ref C1 c1) => HandleSlice(ctx, ref c1), Runner, barrier);
+        query.ForSlice<IRunner, WorldContext, C1>(context, HandleSlice, Runner, barrier);
         barrier.WaitAndReturn();
     }
 
@@ -28,8 +28,7 @@ public abstract class ParallelSystemBase<C1, C2>(
     {
         var barrier = RunnerBarrier.Get();
         query.ForSlice<IRunner, WorldContext, C1, C2>(
-            context, (in WorldContext ctx, ref C1 c1, ref C2 c2) => HandleSlice(ctx, ref c1, ref c2),
-            Runner, barrier);
+            context, HandleSlice, Runner, barrier);
         barrier.WaitAndReturn();
     }
 
@@ -47,8 +46,7 @@ public abstract class ParallelSystemBase<C1, C2, C3>(
     {
         var barrier = RunnerBarrier.Get();
         query.ForSlice<IRunner, WorldContext, C1, C2, C3>(
-            context, (in WorldContext ctx, ref C1 c1, ref C2 c2, ref C3 c3) => HandleSlice(ctx, ref c1, ref c2, ref c3),
-            Runner, barrier);
+            context, HandleSlice, Runner, barrier);
         barrier.WaitAndReturn();
     }
 
@@ -66,8 +64,7 @@ public abstract class ParallelSystemBase<C1, C2, C3, C4>(
     {
         var barrier = RunnerBarrier.Get();
         query.ForSlice<IRunner, WorldContext, C1, C2, C3, C4>(
-            context, (in WorldContext ctx, ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4) => HandleSlice(ctx, ref c1, ref c2, ref c3, ref c4),
-            Runner, barrier);
+            context, HandleSlice, Runner, barrier);
         barrier.WaitAndReturn();
     }
 
@@ -85,8 +82,7 @@ public abstract class ParallelSystemBase<C1, C2, C3, C4, C5>(
     {
         var barrier = RunnerBarrier.Get();
         query.ForSlice<IRunner, WorldContext, C1, C2, C3, C4, C5>(
-            context, (in WorldContext ctx, ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4, ref C5 c5) => HandleSlice(ctx, ref c1, ref c2, ref c3, ref c4, ref c5),
-            Runner, barrier);
+            context, HandleSlice, Runner, barrier);
         barrier.WaitAndReturn();
     }
 
@@ -104,8 +100,7 @@ public abstract class ParallelSystemBase<C1, C2, C3, C4, C5, C6>(
     {
         var barrier = RunnerBarrier.Get();
         query.ForSlice<IRunner, WorldContext, C1, C2, C3, C4, C5, C6>(
-            context, (in WorldContext ctx, ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4, ref C5 c5, ref C6 c6) => HandleSlice(ctx, ref c1, ref c2, ref c3, ref c4, ref c5, ref c6),
-            Runner, barrier);
+            context, HandleSlice, Runner, barrier);
         barrier.WaitAndReturn();
     }
 
