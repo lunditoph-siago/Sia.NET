@@ -109,8 +109,6 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Entity Create(in TEntity initial) => Create(initial, out _);
 
-    /// <summary>Creates an entity and exposes its identity before notifying observers.</summary>
-    /// <remarks>If an observer throws and the acquired entity is still valid, the caller can release it to roll back creation.</remarks>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Entity Create(in TEntity initial, out Entity acquired)
     {
@@ -124,8 +122,6 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
         return acquired;
     }
 
-    /// <summary>Releases an entity, stopping if a notification fails.</summary>
-    /// <remarks>Callbacks cannot migrate the entity while its release is in progress.</remarks>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Release(Entity entity)
     {
@@ -159,8 +155,6 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
         }
     }
 
-    /// <summary>Gets the current storage of an entity owned by this host.</summary>
-    /// <remarks>Reacquire the reference after storage growth or structural changes. Writes do not send notifications.</remarks>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref TEntity GetOwnedRef(Entity entity)
     {
@@ -172,7 +166,6 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
         return ref InnerHost.GetRef(state.Slot);
     }
 
-    /// <summary>Sends a component set notification after an owned storage write.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void NotifyOwnedSet<T>(Entity entity)
     {
@@ -183,11 +176,6 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
         World.Dispatcher.Send(entity, WorldEvents.Set<T>.Instance);
     }
 
-    /// <summary>Attempts every component removal notification and release step, then reports failures.</summary>
-    /// <remarks>
-    /// Callbacks cannot migrate the entity. A failure stops the current event's listeners;
-    /// later component types and release steps are still attempted, and multiple failures are aggregated.
-    /// </remarks>
     public void ReleaseOwned(Entity entity)
     {
         World.EnsureOwnerThread();
