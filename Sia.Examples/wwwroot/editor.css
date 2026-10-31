@@ -447,7 +447,7 @@
             }
         }
 
-        @media (any-pointer: coarse), (max-width: 720px) {
+        @media (hover: none) and (pointer: coarse) {
             &:has(.editor-lines:focus, .editor-touch-actions:focus-within) > .editor-status {
                 align-items: center;
                 gap: 0.25rem;
@@ -469,7 +469,7 @@
             }
         }
 
-        @media (max-width: 380px) {
+        @media (hover: none) and (pointer: coarse) and (max-width: 380px) {
             &:has(.editor-lines:focus, .editor-touch-actions:focus-within) > .editor-status {
                 flex-wrap: wrap;
 
