@@ -6,6 +6,64 @@ public class EntityAddRemoveTests
     private record struct Velocity(float X, float Y);
     private record struct Tag;
 
+    private sealed class TrackingHost<T> : ArrayEntityHost<T> where T : struct, IHList
+    {
+        public int AddCalls;
+        public int RemoveCalls;
+
+        public override void Add<TComponent>(Entity entity, in TComponent value)
+        {
+            AddCalls++;
+            base.Add(entity, value);
+        }
+
+        public override void Remove<TComponent>(Entity entity, out bool success)
+        {
+            RemoveCalls++;
+            base.Remove<TComponent>(entity, out success);
+        }
+    }
+
+    [Fact]
+    public void AddRemove_PreserveDerivedHostOverrides()
+    {
+        using var world = new World();
+        var source = new TrackingHost<HList<Position, EmptyHList>>();
+        var target = new TrackingHost<HList<Velocity, HList<Position, EmptyHList>>>();
+        var host = world.UnsafeAddRawHost(
+            new WorldEntityHost<HList<Position, EmptyHList>, ArrayEntityHost<HList<Position, EmptyHList>>>(world, source));
+        world.UnsafeAddRawHost(
+            new WorldEntityHost<HList<Velocity, HList<Position, EmptyHList>>, ArrayEntityHost<HList<Velocity, HList<Position, EmptyHList>>>>(world, target));
+        var entity = host.Create(HList.From(new Position(1, 2)));
+
+        entity.Add(new Velocity(3, 4));
+        Assert.Equal(1, source.AddCalls);
+        Assert.Equal(new Velocity(3, 4), entity.Get<Velocity>());
+
+        entity.Remove<Velocity>();
+        Assert.Equal(1, target.RemoveCalls);
+        Assert.False(entity.Contains<Velocity>());
+        Assert.Equal(new Position(1, 2), entity.Get<Position>());
+    }
+
+    [Fact]
+    public void Add_DispatchesSetAfterDeferredListenerRegistration()
+    {
+        using var world = new World();
+        var entity = world.Create(HList.From(new Position(1, 2)));
+        var events = new List<string>();
+        world.Dispatcher.Listen<WorldEvents.Add<Velocity>>((Entity _, in WorldEvents.Add<Velocity> _) => {
+            events.Add("add");
+            world.Dispatcher.RunAfterSend(() => world.Dispatcher.Listen<WorldEvents.Set<Velocity>>(
+                (Entity _, in WorldEvents.Set<Velocity> _) => { events.Add("set"); return false; }));
+            return false;
+        });
+
+        entity.Add(new Velocity(3, 4));
+
+        Assert.Equal(["add", "set"], events);
+    }
+
     [Fact]
     public void Remove_NonHeadComponent_Test()
     {

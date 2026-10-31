@@ -210,9 +210,14 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     public void Add<TComponent>(Entity entity, in TComponent initial)
     {
         World.EnsureOwnerThread();
-        InnerHost.Add(entity, initial);
-        World.Dispatcher.Send(entity, WorldEvents.Add<TComponent>.Instance);
-        World.Dispatcher.Send(entity, WorldEvents.Set<TComponent>.Instance);
+        if (typeof(TInnerHost) == typeof(ArrayEntityHost<TEntity>)
+            && InnerHost is ArrayEntityHost<TEntity> managed && managed.GetType() == typeof(ArrayEntityHost<TEntity>))
+            managed.AddDefault(entity, initial);
+        else if (typeof(TInnerHost) == typeof(UnmanagedArrayEntityHost<TEntity>)
+            && InnerHost is UnmanagedArrayEntityHost<TEntity> unmanaged && unmanaged.GetType() == typeof(UnmanagedArrayEntityHost<TEntity>))
+            unmanaged.AddDefault(entity, initial);
+        else InnerHost.Add(entity, initial);
+        World.Dispatcher.SendAddAndSet<TComponent>(entity);
     }
 
     public bool TryAddAll<TComponent>(ReadOnlySpan<Entity> entities, in TComponent initial)
@@ -274,7 +279,13 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     public void Remove<TComponent>(Entity entity, out bool success)
     {
         World.EnsureOwnerThread();
-        InnerHost.Remove<TComponent>(entity, out success);
+        if (typeof(TInnerHost) == typeof(ArrayEntityHost<TEntity>)
+            && InnerHost is ArrayEntityHost<TEntity> managed && managed.GetType() == typeof(ArrayEntityHost<TEntity>))
+            managed.RemoveDefault<TComponent>(entity, out success);
+        else if (typeof(TInnerHost) == typeof(UnmanagedArrayEntityHost<TEntity>)
+            && InnerHost is UnmanagedArrayEntityHost<TEntity> unmanaged && unmanaged.GetType() == typeof(UnmanagedArrayEntityHost<TEntity>))
+            unmanaged.RemoveDefault<TComponent>(entity, out success);
+        else InnerHost.Remove<TComponent>(entity, out success);
         if (success) {
             World.Dispatcher.Send(entity, WorldEvents.Remove<TComponent>.Instance);
         }
