@@ -11,11 +11,12 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
 
     private int _sendDepth;
     private List<Action>? _afterSendActions;
+    private int _afterSendActionIndex;
     private bool _flushingAfterSendActions;
 
     public bool IsSending => _sendDepth != 0;
 
-    public int PendingAfterSendActionCount => _afterSendActions?.Count ?? 0;
+    public int PendingAfterSendActionCount => (_afterSendActions?.Count ?? 0) - _afterSendActionIndex;
 
     private readonly List<IEventListener<TTarget>> _globalListeners = [];
     private readonly ArrayBuffer<object> _eventListeners = new();
@@ -183,6 +184,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
 
     public void RunAfterSend(Action action)
     {
+        ArgumentNullException.ThrowIfNull(action);
         if (_sendDepth == 0 && !_flushingAfterSendActions) {
             action();
             return;
@@ -195,16 +197,42 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
         if (_flushingAfterSendActions || _afterSendActions is not { Count: > 0 } actions) {
             return;
         }
+        FlushAfterSendActions(actions);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void FlushAfterSendActions(Exception error)
+        => Outcome<Exception>.Failure(error)
+            .Attempt(this, static (in Dispatcher<TTarget, TKey, TEvent> dispatcher) => dispatcher.FlushAfterSendActions())
+            .ThrowIfFailed();
+
+    private void FlushAfterSendActions(List<Action> actions)
+    {
         _flushingAfterSendActions = true;
         try {
-            for (var i = 0; i < actions.Count; i++) {
-                actions[i]();
+            while (_afterSendActionIndex < actions.Count) {
+                var action = actions[_afterSendActionIndex++];
+                action();
             }
-            actions.Clear();
+        }
+        catch (Exception error) {
+            FlushAfterSendActions(actions, error);
         }
         finally {
+            actions.Clear();
+            _afterSendActionIndex = 0;
             _flushingAfterSendActions = false;
         }
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void FlushAfterSendActions(List<Action> actions, Exception error)
+    {
+        var result = Outcome<Exception>.Failure(error);
+        while (_afterSendActionIndex < actions.Count) {
+            result = result.Attempt(actions[_afterSendActionIndex++]);
+        }
+        result.ThrowIfFailed();
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -227,11 +255,13 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
 
         List<Listener<UEvent>>? eventListeners = null;
         var eventListenerCount = 0;
-        ref var rawEventListeners = ref _eventListeners.GetRefOrNullRef(
-            EventTypeIndexer<UEvent>.Index);
-        if (!Unsafe.IsNullRef(ref rawEventListeners) && rawEventListeners != null) {
-            eventListeners = Unsafe.As<List<Listener<UEvent>>>(rawEventListeners);
-            eventListenerCount = eventListeners.Count;
+        if (_eventListeners.Count != 0) {
+            ref var rawEventListeners = ref _eventListeners.GetRefOrNullRef(
+                EventTypeIndexer<UEvent>.Index);
+            if (!Unsafe.IsNullRef(ref rawEventListeners) && rawEventListeners != null) {
+                eventListeners = Unsafe.As<List<Listener<UEvent>>>(rawEventListeners);
+                eventListenerCount = eventListeners.Count;
+            }
         }
 
         List<IEventListener<TTarget>>? targetListeners = null;
@@ -258,11 +288,16 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
                 ExecuteListeners(target, targetListeners!, e, targetListenerCount);
             }
         }
-        finally {
+        catch (Exception error) {
             _sendDepth--;
             if (_sendDepth == 0) {
-                FlushAfterSendActions();
+                FlushAfterSendActions(error);
             }
+            throw;
+        }
+        _sendDepth--;
+        if (_sendDepth == 0) {
+            FlushAfterSendActions();
         }
     }
 
@@ -316,7 +351,9 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
             }
         }
         finally {
-            listeners.RemoveRange(length, initialLength - length);
+            if (initialLength != length) {
+                listeners.RemoveRange(length, initialLength - length);
+            }
         }
     }
 }

@@ -27,6 +27,7 @@ public sealed class WorldDispatcher : Dispatcher<IEvent>
     [MethodImpl(MethodImplOptions.NoInlining)]
     internal void SendAddAndSet<TComponent>(Entity target)
     {
+        if (!target.IsValid) return;
         var add = WorldEvents.Add<TComponent>.Instance;
         World.EnsureOwnerThread();
         var state = target.IsValid ? target.GetStateUnchecked() : null;
@@ -43,7 +44,9 @@ public sealed class WorldDispatcher : Dispatcher<IEvent>
             return;
         }
         SendCore(target, add, owner as IEventSink<Entity, WorldEvents.Add<TComponent>>);
-        Send(target, WorldEvents.Set<TComponent>.Instance);
+        if (target.IsValid) {
+            Send(target, WorldEvents.Set<TComponent>.Instance);
+        }
     }
 
     public void AttachEventSink(Entity target, IEventSink<Entity> owner)

@@ -10,7 +10,6 @@ public sealed class ActorRuntime : IDisposable
     private readonly BlockingQueue<WorldActor> _ready = new();
     private readonly BlockingExecutor _blocking;
     private int _disposed;
-    private int _drainerIds;
 
 #if !BROWSER
     private readonly Task[] _workers;
@@ -54,8 +53,7 @@ public sealed class ActorRuntime : IDisposable
         _ready.Enqueue(actor);
 
 #if BROWSER
-        var workerId = Interlocked.Increment(ref _drainerIds);
-        _ = Task.Run(() => RunWorker(workerId));
+        _ = Task.Run(RunWorker);
 #endif
     }
 
@@ -92,13 +90,6 @@ public sealed class ActorRuntime : IDisposable
         });
 
     private void RunWorker()
-    {
-        while (_ready.Dequeue(out var actor)) {
-            actor.ProcessBatch();
-        }
-    }
-
-    private void RunWorker(int workerId)
     {
         while (_ready.Dequeue(out var actor)) {
             actor.ProcessBatch();

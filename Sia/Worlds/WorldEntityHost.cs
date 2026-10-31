@@ -113,27 +113,61 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     public Entity Create(in TEntity initial, out Entity acquired)
     {
         World.EnsureOwnerThread();
-        acquired = InnerHost.Create(initial);
-        acquired.GetStateUnchecked().Host = this;
+        var entity = InnerHost.Create(initial);
+        acquired = entity;
+        entity.GetStateUnchecked().Host = this;
         World.Count++;
-        OnEntityCreated?.Invoke(acquired);
-        World.Dispatcher.Send(acquired, WorldEvents.Add.Instance);
-        TEntity.HandleTypes(new EntityAddEventSender(acquired, World.Dispatcher));
-        return acquired;
+        OnEntityCreated?.Invoke(entity);
+        if (!entity.IsValid) return entity;
+        World.Dispatcher.Send(entity, WorldEvents.Add.Instance);
+        if (entity.IsValid) {
+            TEntity.HandleTypes(new EntityAddEventSender(entity, World.Dispatcher));
+        }
+        return entity;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Release(Entity entity)
+    public void Release(Entity entity) => Release(entity, owned: false);
+
+    public void ReleaseOwned(Entity entity) => Release(entity, owned: true);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void Release(Entity entity, bool owned)
     {
         World.EnsureOwnerThread();
         var state = entity.GetState();
         if (!ReferenceEquals(state.Host, this)) {
-            throw new InvalidOperationException("Entity belongs to another host.");
+            throw new InvalidOperationException(owned ? "Owned output changed its host." : "Entity belongs to another host.");
         }
         if (state.Releasing) {
             return;
         }
+        if (World.Dispatcher.IsSending) {
+            DeferRelease(entity, owned);
+            state.Releasing = true;
+            return;
+        }
         state.Releasing = true;
+        if (owned) ReleaseOwned(entity, state);
+        else Release(entity, state);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void DeferRelease(Entity entity, bool owned)
+        => World.Dispatcher.RunAfterSend(() => {
+            if (!entity.IsValid) return;
+            var state = entity.GetStateUnchecked();
+            if (!ReferenceEquals(state.Host, this)) {
+                state.Releasing = false;
+                throw new InvalidOperationException("Entity changed its host while release was pending.");
+            }
+            if (owned) ReleaseOwned(entity, state);
+            else Release(entity, state);
+        });
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void Release(Entity entity, EntityState state)
+    {
         try {
             var dispatcher = World.Dispatcher;
             TEntity.HandleTypes(new EntityRemoveEventSender(entity, dispatcher));
@@ -151,7 +185,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
             InnerHost.Release(entity);
         }
         finally {
-            state.Releasing = false;
+            if (entity.References(state)) state.Releasing = false;
         }
     }
 
@@ -176,17 +210,8 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
         World.Dispatcher.Send(entity, WorldEvents.Set<T>.Instance);
     }
 
-    public void ReleaseOwned(Entity entity)
+    private void ReleaseOwned(Entity entity, EntityState state)
     {
-        World.EnsureOwnerThread();
-        var state = entity.GetState();
-        if (!ReferenceEquals(state.Host, this)) {
-            throw new InvalidOperationException("Owned output changed its host.");
-        }
-        if (state.Releasing) {
-            return;
-        }
-        state.Releasing = true;
         try {
             var dispatcher = World.Dispatcher;
             var result = NotifyOwnedRemoval(entity)
@@ -200,7 +225,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
                 .ThrowIfFailed();
         }
         finally {
-            state.Releasing = false;
+            if (entity.References(state)) state.Releasing = false;
         }
     }
 

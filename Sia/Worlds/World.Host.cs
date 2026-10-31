@@ -116,16 +116,29 @@ public partial class World
     public bool ReleaseHost<THost>()
         where THost : IEntityHost
     {
+        EnsureOwnerThread();
         var hostIndex = WorldEntityHostIndexer<THost>.Index;
         if (!_hosts.TryGetValue(hostIndex, out var rawHost)) {
             return false;
         }
+        if (Dispatcher.IsSending) {
+            throw new InvalidOperationException("Cannot release a host while sending an event.");
+        }
 
         var host = (THost)rawHost;
-        foreach (var entity in host.UnsafeGetEntitySpan().ToArray()) {
+        var entities = host.UnsafeGetEntitySpan().ToArray();
+        foreach (var entity in entities) {
+            if (entity.IsValid && entity.GetStateUnchecked().Releasing) {
+                throw new InvalidOperationException("Cannot release a host while an entity is being released.");
+            }
+        }
+        foreach (var entity in entities) {
             if (entity.IsValid) {
                 host.Release(entity);
             }
+        }
+        if (host.Count != 0) {
+            throw new InvalidOperationException("Cannot release a host that still contains entities.");
         }
 
         _hosts.Remove(hostIndex, out var removedHost);
