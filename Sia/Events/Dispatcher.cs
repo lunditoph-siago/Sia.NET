@@ -52,9 +52,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
             return false;
         }
 
-        ref var listeners = ref _typedListeners.GetRefOrNullRef(EventTypeIndexer<UEvent>.Index);
-        return Unsafe.IsNullRef(ref listeners) || listeners is null
-            || Unsafe.As<ListenerList<Listener<UEvent>>>(listeners).Count == 0;
+        return GetTypedListeners<UEvent>(EventTypeIndexer<UEvent>.Index) is not { Count: > 0 };
     }
 
     protected abstract TKey GetKey(TTarget target);
@@ -71,19 +69,13 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
         ArgumentNullException.ThrowIfNull(listener);
         var typeIndex = EventTypeIndexer<UEvent>.Index;
 
-        ListenerList<Listener<UEvent>> listeners;
-        ref var rawListeners = ref _typedListeners.GetRefOrNullRef(typeIndex);
-
-        if (Unsafe.IsNullRef(ref rawListeners) || rawListeners is null) {
+        var listeners = GetTypedListeners<UEvent>(typeIndex);
+        if (listeners is null) {
             listeners = [];
-            var count = _typedListeners.Count;
-            if (count <= typeIndex) {
+            if (_typedListeners.Count <= typeIndex) {
                 _typedListeners.Count = typeIndex + 1;
             }
             _typedListeners.GetRef(typeIndex) = listeners;
-        }
-        else {
-            listeners = (ListenerList<Listener<UEvent>>)rawListeners;
         }
 
         listeners.Add(listener);
@@ -138,14 +130,9 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
     internal bool RetireListener<UEvent>(Listener<UEvent> listener)
         where UEvent : TEvent
     {
-        var typeIndex = EventTypeIndexer<UEvent>.Index;
-        ref var rawListeners = ref _typedListeners.GetRefOrNullRef(typeIndex);
-
-        if (Unsafe.IsNullRef(ref rawListeners) || rawListeners is null) {
+        if (GetTypedListeners<UEvent>(EventTypeIndexer<UEvent>.Index) is not { } listeners) {
             return false;
         }
-
-        var listeners = (ListenerList<Listener<UEvent>>)rawListeners;
         var index = listeners.IndexOf(listener);
         if (index < 0) {
             return false;
@@ -194,13 +181,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
     {
         GuardNotSending();
 
-        var typeIndex = EventTypeIndexer<UEvent>.Index;
-        ref var rawListeners = ref _typedListeners.GetRefOrNullRef(typeIndex);
-        if (Unsafe.IsNullRef(ref rawListeners) || rawListeners is null) {
-            return;
-        }
-        var listeners = (ListenerList<Listener<UEvent>>)rawListeners;
-        listeners.Clear();
+        GetTypedListeners<UEvent>(EventTypeIndexer<UEvent>.Index)?.Clear();
     }
 
     public virtual void UnlistenAll(TTarget target)
@@ -238,8 +219,17 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
             return true;
         }
 
-        ref var raw = ref _typedListeners.GetRefOrNullRef(index);
-        return Unsafe.IsNullRef(ref raw) || raw is null || Unsafe.As<ListenerList<Listener<UEvent>>>(raw).Count == 0;
+        return GetTypedListeners<UEvent>(index) is not { Count: > 0 };
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private ListenerList<Listener<UEvent>>? GetTypedListeners<UEvent>(int index)
+        where UEvent : TEvent
+    {
+        ref var listeners = ref _typedListeners.GetRefOrNullRef(index);
+        return Unsafe.IsNullRef(ref listeners)
+            ? null
+            : Unsafe.As<ListenerList<Listener<UEvent>>>(listeners);
     }
 
     public void RunAfterSend(Action action)
@@ -254,43 +244,24 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
 
     private void FlushAfterSendActions()
     {
-        if (_flushingAfterSendActions || _afterSendActions is not { Count: > 0 } actions) {
-            return;
+        if (!_flushingAfterSendActions && _afterSendActions is { Count: > 0 } actions) {
+            DrainAfterSendActions(actions);
         }
-        FlushAfterSendActions(actions);
     }
 
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private void FlushAfterSendActions(Exception error)
-        => Outcome<Exception>.Failure(error)
-            .Attempt(this, static (in Dispatcher<TTarget, TKey, TEvent> dispatcher) => dispatcher.FlushAfterSendActions())
-            .ThrowIfFailed();
-
-    private void FlushAfterSendActions(List<Action> actions)
+    private void DrainAfterSendActions(List<Action> actions)
     {
+        var result = Outcome<Exception>.Success;
         _flushingAfterSendActions = true;
         try {
             while (_afterSendActionIndex < actions.Count) {
-                var action = actions[_afterSendActionIndex++];
-                action();
+                result = result.Attempt(actions[_afterSendActionIndex++]);
             }
-        }
-        catch (Exception error) {
-            FlushAfterSendActions(actions, error);
         }
         finally {
             actions.Clear();
             _afterSendActionIndex = 0;
             _flushingAfterSendActions = false;
-        }
-    }
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private void FlushAfterSendActions(List<Action> actions, Exception error)
-    {
-        var result = Outcome<Exception>.Failure(error);
-        while (_afterSendActionIndex < actions.Count) {
-            result = result.Attempt(actions[_afterSendActionIndex++]);
         }
         result.ThrowIfFailed();
     }
@@ -353,7 +324,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
             _sendDepth--;
             if (_sendDepth == 0) {
                 CompactListenerLists();
-                FlushAfterSendActions(error);
+                FlushFailedSendActions(error);
             }
             throw;
         }
@@ -363,6 +334,14 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
             FlushAfterSendActions();
         }
     }
+
+    // Keep the listener failure first and report the deferred work as one cleanup.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void FlushFailedSendActions(Exception dispatchError)
+        => Outcome<Exception>.Failure(dispatchError)
+            .Attempt(this, static (in Dispatcher<TTarget, TKey, TEvent> dispatcher) =>
+                dispatcher.FlushAfterSendActions())
+            .ThrowIfFailed();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void ExecuteListeners<UEvent>(

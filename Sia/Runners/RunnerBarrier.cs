@@ -104,13 +104,8 @@ public sealed class RunnerBarrier
             : Outcome<Exception>.Success;
         try {
             for (var i = 0; i != _callbackCount; ++i) {
-                ref var entry = ref _callbacks[i];
-                try {
-                    entry.Callback(entry.UserData);
-                }
-                catch (Exception callbackError) {
-                    result = result.Combine(Outcome<Exception>.Failure(callbackError));
-                }
+                result = result.Attempt(_callbacks[i],
+                    static (in CallbackEntry entry) => entry.Callback(entry.UserData));
             }
         }
         finally {

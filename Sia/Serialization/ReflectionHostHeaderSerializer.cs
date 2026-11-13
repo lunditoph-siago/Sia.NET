@@ -26,6 +26,10 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
         ["$U"] = typeof(UnmanagedArrayEntityHost<>)
     }.ToFrozenDictionary();
 
+    private static readonly MethodInfo s_AcquireHostMethod =
+        typeof(ReflectionHostHeaderSerializer)
+            .GetMethod(nameof(AcquireHost), BindingFlags.Static | BindingFlags.Public)!;
+
     public static void Serialize<TBufferWriter>(ref TBufferWriter writer, IEntityHost host)
         where TBufferWriter : IBufferWriter<byte>
     {
@@ -35,27 +39,26 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
         writer.Write(Encoding.Unicode.GetBytes(components));
         writer.Write(s_HeaderSeparator);
 
-        var type = host.GetType();
-        if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(WorldEntityHost<,>)) {
-            var innerHostType = type.GetGenericArguments()[1];
-            if (innerHostType.IsGenericType
-                    && s_HostAliases.TryGetValue(innerHostType.GetGenericTypeDefinition(), out var alias)) {
+        WriteHostType(ref writer, host);
+        writer.Write(s_HeaderSeparator);
+    }
+
+    private static void WriteHostType<TBufferWriter>(ref TBufferWriter writer, IEntityHost host)
+        where TBufferWriter : IBufferWriter<byte>
+    {
+        var hostType = host.GetType();
+        if (hostType.IsGenericType && hostType.GetGenericTypeDefinition() == typeof(WorldEntityHost<,>)) {
+            hostType = hostType.GetGenericArguments()[1];
+            if (hostType.IsGenericType
+                && s_HostAliases.TryGetValue(hostType.GetGenericTypeDefinition(), out var alias)) {
                 writer.Write(alias);
+                return;
             }
-            else {
-                writer.Write(s_WrappedHostPrefix);
-                writer.Write(Encoding.Unicode.GetBytes(
-                    innerHostType.AssemblyQualifiedName!.Replace(
-                        host.EntityType.AssemblyQualifiedName!, "%1")));
-            }
-            writer.Write(s_HeaderSeparator);
-            return;
+            writer.Write(s_WrappedHostPrefix);
         }
 
-        var entityType = host.EntityType.AssemblyQualifiedName!;
         writer.Write(Encoding.Unicode.GetBytes(
-            type.AssemblyQualifiedName!.Replace(entityType, "%1")));
-        writer.Write(s_HeaderSeparator);
+            hostType.AssemblyQualifiedName!.Replace(host.EntityType.AssemblyQualifiedName!, "%1")));
     }
 
     public static IEntityHost? Deserialize(ref ReadOnlySequence<byte> buffer, World world)
@@ -75,49 +78,41 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
         var components = componentNames.IsEmpty ? [] : Encoding.Unicode.GetString(componentNames).Split('|');
         var entityTypeName = GenerateHListType(components);
 
-        var hostTypeName = Encoding.Unicode.GetString(hostName);
-        IReactiveEntityHost host;
-        if (hostTypeName[0] == '$') {
-            if (!s_HostTypesByAlias.TryGetValue(hostTypeName, out var innerHostType)) {
-                innerHostType = ResolveType(hostTypeName[1..].Replace("%1", entityTypeName));
-            }
-            host = AcquireWrappedHost(world, innerHostType, ResolveType(entityTypeName));
-        }
-        else {
-            host = AcquireNamedHost(world, hostTypeName.Replace("%1", entityTypeName));
-        }
+        var hostType = ResolveHostType(Encoding.Unicode.GetString(hostName), entityTypeName);
+        var host = AcquireHostByType(world, hostType);
 
         buffer = reader.UnreadSequence;
         return host;
     }
 
-    private static readonly MethodInfo s_AcquireHostMethod =
-        typeof(ReflectionHostHeaderSerializer)
-            .GetMethod(nameof(AcquireHost), BindingFlags.Static | BindingFlags.Public)!;
-
     public static IReactiveEntityHost AcquireHost<THost>(World world)
         where THost : class, IReactiveEntityHost
         => world.AcquireRawHost(static owner => (THost)Activator.CreateInstance(typeof(THost), owner)!);
 
-    private static IReactiveEntityHost AcquireNamedHost(World world, string hostTypeName)
+    private static IReactiveEntityHost AcquireHostByType(World world, Type hostType)
     {
-        var hostType = ResolveType(hostTypeName);
         var acquireHostMethod = s_AcquireHostMethod.MakeGenericMethod(hostType);
         return Unsafe.As<IReactiveEntityHost>(acquireHostMethod.Invoke(null, [world]))!;
+    }
+
+    private static Type ResolveHostType(string hostTypeName, string entityTypeName)
+    {
+        if (hostTypeName[0] != '$') {
+            return ResolveType(hostTypeName.Replace("%1", entityTypeName));
+        }
+
+        var innerHostType = s_HostTypesByAlias.TryGetValue(hostTypeName, out var aliasedType)
+            ? aliasedType
+            : ResolveType(hostTypeName[1..].Replace("%1", entityTypeName));
+        var entityType = ResolveType(entityTypeName);
+        if (innerHostType.IsGenericTypeDefinition) {
+            innerHostType = innerHostType.MakeGenericType(entityType);
+        }
+        return typeof(WorldEntityHost<,>).MakeGenericType(entityType, innerHostType);
     }
 
     private static Type ResolveType(string typeName)
         => Type.GetType(typeName) ?? throw new InvalidDataException("Invalid world data type: " + typeName);
-
-    private static IReactiveEntityHost AcquireWrappedHost(World world, Type innerHostType, Type entityType)
-    {
-        if (innerHostType.IsGenericTypeDefinition) {
-            innerHostType = innerHostType.MakeGenericType(entityType);
-        }
-        var hostType = typeof(WorldEntityHost<,>).MakeGenericType(entityType, innerHostType);
-        var acquireHostMethod = s_AcquireHostMethod.MakeGenericMethod(hostType);
-        return Unsafe.As<IReactiveEntityHost>(acquireHostMethod.Invoke(null, [world]))!;
-    }
 
     private static string GenerateHListType(string[] components)
     {

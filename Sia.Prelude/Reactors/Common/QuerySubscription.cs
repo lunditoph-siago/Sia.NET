@@ -13,14 +13,26 @@ public sealed class QuerySubscription : IDisposable
     private HashSet<Entity>? _pendingEntities;
     private bool _disposed;
 
-    private readonly record struct HostSnapshot(Entity[]? Buffer, int Count)
+    private readonly struct HostSnapshot(Entity[]? buffer, int count) : IDisposable
     {
-        public ReadOnlySpan<Entity> Entities => Buffer.AsSpan(0, Count);
+        public bool IsEmpty => count == 0;
+        public ReadOnlySpan<Entity> Entities => buffer.AsSpan(0, count);
 
-        public void Return()
+        public static HostSnapshot Capture(ReadOnlySpan<Entity> entities)
         {
-            if (Buffer is not null) {
-                ArrayPool<Entity>.Shared.Return(Buffer, clearArray: true);
+            if (entities.IsEmpty) {
+                return default;
+            }
+
+            var buffer = ArrayPool<Entity>.Shared.Rent(entities.Length);
+            entities.CopyTo(buffer);
+            return new(buffer, entities.Length);
+        }
+
+        public void Dispose()
+        {
+            if (buffer is not null) {
+                ArrayPool<Entity>.Shared.Return(buffer, clearArray: true);
             }
         }
     }
@@ -54,21 +66,7 @@ public sealed class QuerySubscription : IDisposable
         try {
             Query.OnEntityHostAdded += OnHostAdded;
             Query.OnEntityHostRemoved += OnHostRemoved;
-            var hosts = Query.Hosts.ToArray();
-            var snapshots = new HostSnapshot[hosts.Length];
-            try {
-                for (var i = 0; i < hosts.Length; i++) {
-                    snapshots[i] = AttachHost(hosts[i]);
-                }
-
-                // Capture every host before notifying callbacks that may move entities.
-                ReplayAdded(snapshots);
-            }
-            finally {
-                foreach (var snapshot in snapshots) {
-                    snapshot.Return();
-                }
-            }
+            ReplayExistingHosts();
         }
         catch (Exception error) {
             Outcome<Exception>.Failure(error)
@@ -77,11 +75,29 @@ public sealed class QuerySubscription : IDisposable
         }
     }
 
+    private void ReplayExistingHosts()
+    {
+        var hosts = Query.Hosts.ToArray();
+        var snapshots = new HostSnapshot[hosts.Length];
+        try {
+            // Capture every host before notifying callbacks that may move entities.
+            for (var i = 0; i < hosts.Length; i++) {
+                snapshots[i] = AttachHost(hosts[i]);
+            }
+            ReplayAdded(snapshots);
+        }
+        finally {
+            foreach (var snapshot in snapshots) {
+                snapshot.Dispose();
+            }
+        }
+    }
+
     private void OnHostAdded(IReactiveEntityHost host)
     {
-        var snapshot = AttachHost(host);
+        using var snapshot = AttachHost(host);
         try {
-            if (snapshot.Count != 0) {
+            if (!snapshot.IsEmpty) {
                 ReplayAdded([snapshot]);
             }
         }
@@ -90,9 +106,6 @@ public sealed class QuerySubscription : IDisposable
                 DetachHost(host, Outcome<Exception>.Failure(error)).ThrowFailure();
             }
             throw;
-        }
-        finally {
-            snapshot.Return();
         }
     }
 
@@ -110,13 +123,7 @@ public sealed class QuerySubscription : IDisposable
             host.OnEntityMovedOut += HandleMovedOut;
             host.OnEntityMovedIn += HandleMovedIn;
 
-            var entities = host.UnsafeGetEntitySpan();
-            if (entities.IsEmpty) {
-                return default;
-            }
-            var snapshot = ArrayPool<Entity>.Shared.Rent(entities.Length);
-            entities.CopyTo(snapshot);
-            return new(snapshot, entities.Length);
+            return HostSnapshot.Capture(host.UnsafeGetEntitySpan());
         }
         catch (Exception error) {
             _memberHosts.Remove(host);

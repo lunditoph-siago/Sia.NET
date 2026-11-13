@@ -36,9 +36,7 @@ public abstract class ReactorBase : IAddon
             return false;
         }
 
-        var dispatcher = World.Dispatcher;
-        dispatcher.Listen<UEvent>(Listener);
-        ListenerCleanup += () => dispatcher.RetireListener<UEvent>(Listener);
+        Listen<UEvent>(Listener);
     }
 
     protected void Listen(Entity target, IEventListener<Entity> listener)
