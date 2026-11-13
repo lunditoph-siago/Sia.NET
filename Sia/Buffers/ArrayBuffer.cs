@@ -5,11 +5,12 @@ namespace Sia;
 public sealed class ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
 {
     public bool IsManaged => true;
-    public int Capacity => int.MaxValue;
+    public int Capacity => Array.MaxLength;
 
     public int Count {
         get;
         set {
+            ArgumentOutOfRangeException.ThrowIfNegative(value);
             if (value == field) return;
             if (value > _array.Length) Array.Resize(ref _array, CalculateArraySize(value));
             field = value;
@@ -23,9 +24,10 @@ public sealed class ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static int CalculateArraySize(int requiredCapacity)
     {
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(requiredCapacity, Array.MaxLength);
         var size = 8;
-        while (size < requiredCapacity) { size *= 2; }
-        return size;
+        while (size < requiredCapacity && size <= Array.MaxLength / 2) { size *= 2; }
+        return Math.Max(size, requiredCapacity);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

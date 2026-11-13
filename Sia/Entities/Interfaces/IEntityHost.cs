@@ -16,8 +16,11 @@ public interface IEntityHost : IEnumerable<Entity>, IDisposable
     void OnInitialize(World world) {}
 
     Entity Create();
+    internal void CreateForLoad(out Entity acquired) => acquired = Create();
+    internal void ReleaseOwned(Entity entity) => Release(entity);
     void Release(Entity entity);
     void MoveOut(Entity entity, IEntityHost destination);
+    internal void EnsureCanMoveIn() {}
 
     Entity GetEntity(int slot);
     ref byte GetByteRef(int slot);

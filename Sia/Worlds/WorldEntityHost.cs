@@ -45,6 +45,11 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     private bool _closedForCreation;
 
     void IWorldBatchHost.CloseForCreation() => _closedForCreation = true;
+    void IEntityHost.EnsureCanMoveIn()
+    {
+        ObjectDisposedException.ThrowIf(_closedForCreation, this);
+        InnerHost.EnsureCanMoveIn();
+    }
 
     internal bool HasMigrationObservers
         => Volatile.Read(ref _onEntityMovedOut) is not null || Volatile.Read(ref _onEntityMovedIn) is not null;
@@ -113,6 +118,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     }
 
     public Entity Create() => Create(default!);
+    void IEntityHost.CreateForLoad(out Entity acquired) => Create(default, out acquired);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Entity Create(in TEntity initial) => Create(initial, out _);
@@ -459,6 +465,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
         if (state.Releasing) {
             throw new InvalidOperationException("Cannot migrate an entity while it is being released.");
         }
+        destination.EnsureCanMoveIn();
         if (destination is IReactiveEntityHost reactiveDestination && Volatile.Read(ref _onEntityMovedOut) is { } movedOut) {
             NotifyMigration(entity, state, reactiveDestination, movedOut);
             if (!entity.References(state) || !ReferenceEquals(state.Host, this)) {

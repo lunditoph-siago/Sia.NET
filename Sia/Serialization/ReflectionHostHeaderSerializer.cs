@@ -60,32 +60,32 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
 
     public static IEntityHost? Deserialize(ref ReadOnlySequence<byte> buffer, World world)
     {
+        if (buffer.IsEmpty) return null;
         var reader = new SequenceReader<byte>(buffer);
 
-        if (!reader.TryReadTo(out ReadOnlySpan<byte> componentsRaw, Dividor, advancePastDelimiter: true)) {
-            return null;
-        }
-        if (!reader.TryReadTo(out ReadOnlySpan<byte> hostTypeRaw, Dividor, advancePastDelimiter: true)) {
-            buffer = reader.UnreadSequence;
-            return null;
+        if (!reader.TryReadTo(out ReadOnlySpan<byte> componentsRaw, Dividor, advancePastDelimiter: true)
+            || !reader.TryReadTo(out ReadOnlySpan<byte> hostTypeRaw, Dividor, advancePastDelimiter: true)
+            || hostTypeRaw.IsEmpty) {
+            throw new InvalidDataException("Incomplete world host header.");
         }
 
-        buffer = reader.UnreadSequence;
-
-        var components = Encoding.Unicode.GetString(componentsRaw).Split('|');
+        var components = componentsRaw.IsEmpty ? [] : Encoding.Unicode.GetString(componentsRaw).Split('|');
         var entityTypeName = GenerateHListType(components);
 
         var hostTypeName = Encoding.Unicode.GetString(hostTypeRaw);
-        if (s_aliasHostTypes.TryGetValue(hostTypeName, out var innerHostType)) {
-            return GetWorldHost(world, innerHostType, Type.GetType(entityTypeName)!);
+        IReactiveEntityHost host;
+        if (hostTypeName[0] == '$') {
+            if (!s_aliasHostTypes.TryGetValue(hostTypeName, out var innerHostType)) {
+                innerHostType = ResolveType(hostTypeName[1..].Replace("%1", entityTypeName));
+            }
+            host = GetWorldHost(world, innerHostType, ResolveType(entityTypeName));
         }
-        else if (hostTypeName[0] == '$') {
-            innerHostType = Type.GetType(hostTypeName[1..].Replace("%1", entityTypeName))!;
-            return GetWorldHost(world, innerHostType, Type.GetType(entityTypeName)!);
+        else {
+            host = GetHost(world, hostTypeName.Replace("%1", entityTypeName));
         }
 
-        hostTypeName = hostTypeName.Replace("%1", entityTypeName);
-        return GetHost(world, hostTypeName);
+        buffer = reader.UnreadSequence;
+        return host;
     }
 
     private static readonly MethodInfo s_acquireHostMethod =
@@ -98,15 +98,19 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
 
     private static IReactiveEntityHost GetHost(World world, string hostTypeName)
     {
-        var hostType = Type.GetType(hostTypeName)
-            ?? throw new InvalidDataException("Invalid host type: " + hostTypeName);
+        var hostType = ResolveType(hostTypeName);
         var acquireHostMethod = s_acquireHostMethod.MakeGenericMethod(hostType);
         return Unsafe.As<IReactiveEntityHost>(acquireHostMethod.Invoke(null, [world]))!;
     }
 
-    private static IReactiveEntityHost GetWorldHost(World world, Type hostGenericType, Type entityType)
+    private static Type ResolveType(string typeName)
+        => Type.GetType(typeName) ?? throw new InvalidDataException("Invalid world data type: " + typeName);
+
+    private static IReactiveEntityHost GetWorldHost(World world, Type innerHostType, Type entityType)
     {
-        var innerHostType = hostGenericType.MakeGenericType(entityType);
+        if (innerHostType.IsGenericTypeDefinition) {
+            innerHostType = innerHostType.MakeGenericType(entityType);
+        }
         var hostType = typeof(WorldEntityHost<,>).MakeGenericType(entityType, innerHostType);
         var acquireHostMethod = s_acquireHostMethod.MakeGenericMethod(hostType);
         return Unsafe.As<IReactiveEntityHost>(acquireHostMethod.Invoke(null, [world]))!;
