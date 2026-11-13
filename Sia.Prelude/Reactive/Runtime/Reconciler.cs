@@ -305,7 +305,20 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
 
     internal Entity CreateOutput<TList>(in TList components)
         where TList : struct, IHList
-        => World.Create(components);
+    {
+        var host = World.GetArrayHost<TList>();
+        Entity output = default;
+        try {
+            return host.Create(components, out output);
+        }
+        catch (Exception error) {
+            var result = Outcome<Exception>.Failure(error);
+            if (output.Host is { } currentHost) {
+                result = result.Attempt(() => currentHost.ReleaseOwned(output));
+            }
+            return result.ThrowFailure<Entity>();
+        }
+    }
 
     internal Entity CreateNode<T>(in T component)
         => CreateGraphEntity(HList.From(component));
@@ -686,8 +699,13 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             result = result.Attempt(entity.GetUnchecked<EffectNode>().Cleanup,
                 static (in IEffectCleanup cleanup) => cleanup.Unmount());
         }
-        result = result.Attempt(entity, static (in Entity e) => e.Destroy());
+        result = result.Attempt(entity, ReleaseOwned);
         return result;
+    }
+
+    private static void ReleaseOwned(in Entity entity)
+    {
+        if (entity.Host is { } host) host.ReleaseOwned(entity);
     }
 
     private Outcome<Exception> FinalizeCellFrame(
@@ -697,7 +715,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             result = result.Attempt(states,
                 static (in StateCells cells) => cells.Unmount());
         }
-        result = result.Attempt(frame.Owner, static (in Entity entity) => entity.Destroy());
+        result = result.Attempt(frame.Owner, ReleaseOwned);
         if (result.IsSuccess) {
             ReturnCellSlots(frame.Slots);
         }
@@ -707,7 +725,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
     private Outcome<Exception> FinalizeEachNodeFrame(
         in DestroyFrame frame, Outcome<Exception> result)
     {
-        result = result.Attempt(frame.Owner, static (in Entity entity) => entity.Destroy());
+        result = result.Attempt(frame.Owner, ReleaseOwned);
         ReturnDestroyChildren(frame.Children!);
         if (result.IsSuccess && frame.Recyclable != null) {
             ReturnEachIndex(frame.Recyclable);

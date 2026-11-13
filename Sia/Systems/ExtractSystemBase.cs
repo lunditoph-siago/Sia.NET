@@ -26,31 +26,21 @@ public abstract class ExtractSystemBase(
     private World _parentWorld = null!;
     private IEntityQuery _parentQuery = null!;
     private ExtractQuery _extract = null!;
-    private bool _ownsParentQuery;
 
     public override void Initialize(World world)
     {
         _parentWorld = world.TryGetAddon<IWorldSource>(out var source)
             ? source.Source
             : world;
-        _ownsParentQuery = extractMatcher is not null && extractMatcher != Matchers.Any;
-
-        if (_ownsParentQuery) {
-            _parentQuery = _parentWorld.Query(extractMatcher!);
-        }
-        else {
-            _parentQuery = _parentWorld;
-        }
+        _parentQuery = extractMatcher is null || extractMatcher == Matchers.Any
+            ? _parentWorld
+            : _parentWorld.Query(extractMatcher);
 
         _extract = new ExtractQuery(_parentQuery);
     }
 
     public override void Uninitialize(World world)
     {
-        if (_ownsParentQuery) {
-            _parentQuery.Dispose();
-            _ownsParentQuery = false;
-        }
         _parentQuery = null!;
         _extract = null!;
         _parentWorld = null!;

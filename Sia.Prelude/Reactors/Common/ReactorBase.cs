@@ -14,15 +14,17 @@ public abstract class ReactorBase : IAddon
 
     protected void Listen(IEventListener<Entity> listener)
     {
-        World.Dispatcher.Listen(listener);
-        OnUnlisten += () => World.Dispatcher.Unlisten(listener);
+        var dispatcher = World.Dispatcher;
+        dispatcher.Listen(listener);
+        OnUnlisten += () => dispatcher.RetireListener(listener);
     }
 
     protected void Listen<UEvent>(WorldDispatcher.Listener<UEvent> listener)
         where UEvent : IEvent
     {
-        World.Dispatcher.Listen(listener);
-        OnUnlisten += () => World.Dispatcher.Unlisten(listener);
+        var dispatcher = World.Dispatcher;
+        dispatcher.Listen(listener);
+        OnUnlisten += () => dispatcher.RetireListener(listener);
     }
 
     protected void Listen<UEvent>(ForeverListener<UEvent> listener)
@@ -33,14 +35,16 @@ public abstract class ReactorBase : IAddon
             listener(entity, command);
             return false;
         }
-        World.Dispatcher.Listen<UEvent>(Listener);
-        OnUnlisten += () => World.Dispatcher.Unlisten<UEvent>(Listener);
+        var dispatcher = World.Dispatcher;
+        dispatcher.Listen<UEvent>(Listener);
+        OnUnlisten += () => dispatcher.RetireListener<UEvent>(Listener);
     }
 
     protected void Listen(Entity target, IEventListener<Entity> listener)
     {
-        World.Dispatcher.Listen(target, listener);
-        OnUnlisten += () => World.Dispatcher.Unlisten(target, listener);
+        var dispatcher = World.Dispatcher;
+        dispatcher.Listen(target, listener);
+        OnUnlisten += () => dispatcher.RetireListener(target, listener);
     }
 
     public virtual void OnInitialize(World world)
@@ -50,8 +54,16 @@ public abstract class ReactorBase : IAddon
 
     public virtual void OnUninitialize(World world)
     {
-        OnUnlisten?.Invoke();
+        var cleanup = OnUnlisten;
         OnUnlisten = null;
+        if (cleanup is null) {
+            return;
+        }
+        var result = Outcome<Exception>.Success;
+        foreach (Action unlisten in cleanup.GetInvocationList()) {
+            result = result.Attempt(unlisten);
+        }
+        result.ThrowIfFailed();
     }
 }
 
@@ -74,9 +86,13 @@ public abstract class ReactorBase<TTypeUnion> : ReactorBase
 
     public override void OnUninitialize(World world)
     {
-        base.OnUninitialize(world);
-        _subscription.Dispose();
+        var subscription = _subscription;
         _subscription = null;
+        var result = Outcome<Exception>.Success.Attempt(() => base.OnUninitialize(world));
+        if (subscription is not null) {
+            result = result.Attempt(subscription.Dispose);
+        }
+        result.ThrowIfFailed();
     }
 
     protected abstract void OnEntityAdded(Entity entity);

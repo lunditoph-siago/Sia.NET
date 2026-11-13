@@ -239,7 +239,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
             }
             WorldDispatcher.Listener<TEvent> listener = OnTrigger;
             _dispatcher.Listen(listener);
-            _unlisteners.Add(() => _dispatcher.Unlisten(listener));
+            _unlisteners.Add(() => _dispatcher.RetireListener(listener));
         }
 
         private void ListenFilter<TEvent>()
@@ -247,7 +247,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
         {
             WorldDispatcher.Listener<TEvent> listener = OnFilter;
             _dispatcher.Listen(listener);
-            _unlisteners.Add(() => _dispatcher.Unlisten(listener));
+            _unlisteners.Add(() => _dispatcher.RetireListener(listener));
         }
 
         private bool OnTrigger<TEvent>(Entity target, in TEvent e)
@@ -431,6 +431,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
 
     private readonly Action<WorldContext> _combinedAction;
     private readonly ExecutionPlan? _plan;
+    private bool _executing;
 
     internal SystemStage(World world, IEnumerable<ISystem> systems)
         : this(world, systems, null) {}
@@ -485,8 +486,13 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
 
     void ISystemScheduleEntry.TickSystem(int index, WorldContext context)
     {
-        ObjectDisposedException.ThrowIf(IsDisposed, this);
-        Entries[index].Action?.Invoke(context);
+        BeginExecution();
+        try {
+            Entries[index].Action?.Invoke(context);
+        }
+        finally {
+            _executing = false;
+        }
     }
 
     public void Dispose()
@@ -494,17 +500,36 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
         if (IsDisposed) {
             return;
         }
+        if (_executing)
+            throw new InvalidOperationException("Cannot dispose a system stage while it is executing.");
         IsDisposed = true;
         CleanupInitialized(World, Entries, Entries.Length, Outcome<Exception>.Success)
             .ThrowIfFailed();
     }
 
     public void Tick(CancellationToken cancellation = default)
+        => Execute(new WorldContext(World, cancellation), applyCommands: true);
+
+    private void Execute(WorldContext context, bool applyCommands)
     {
+        BeginExecution();
+        try {
+            _combinedAction(context);
+            if (applyCommands) World.Commands.Apply(World);
+        }
+        finally {
+            _executing = false;
+        }
+    }
+
+    private void BeginExecution()
+    {
+        World.EnsureOwnerThread();
         ObjectDisposedException.ThrowIf(IsDisposed, this);
-        var context = new WorldContext(World, cancellation);
-        _combinedAction(context);
-        World.Commands.Apply(World);
+        ObjectDisposedException.ThrowIf(World.IsDisposed, World);
+        if (_executing)
+            throw new InvalidOperationException("The system stage is already executing.");
+        _executing = true;
     }
 
     private static Outcome<Exception> CleanupInitialized(
@@ -616,15 +641,13 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
                 }
                 childrenStage = result.ThrowFailure<SystemStage>();
             }
-            var childrenStageAction = childrenStage._combinedAction;
-
             disposable = selfDisposable != null
                 ? new CompositeDisposable(selfDisposable, childrenStage)
                 : childrenStage;
 
             return context => {
                 selfAction(context);
-                childrenStageAction(context);
+                childrenStage.Execute(context, applyCommands: false);
             };
         }
         else {

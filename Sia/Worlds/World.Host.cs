@@ -90,7 +90,7 @@ public partial class World
         try {
             host = create(this);
             RegisterHost(index, host);
-            NotifyHostObservers(OnEntityHostAdded, host, Outcome<Exception>.Success).ThrowIfFailed();
+            NotifyObservers(OnEntityHostAdded, host, Outcome<Exception>.Success).ThrowIfFailed();
         }
         finally {
             _hostOperations.Remove(index);
@@ -107,7 +107,7 @@ public partial class World
         BeginHostOperation(index);
         try {
             RegisterHost(index, host);
-            NotifyHostObservers(OnEntityHostAdded, host, Outcome<Exception>.Success).ThrowIfFailed();
+            NotifyObservers(OnEntityHostAdded, host, Outcome<Exception>.Success).ThrowIfFailed();
         }
         finally {
             _hostOperations.Remove(index);
@@ -240,7 +240,7 @@ public partial class World
     {
         var owned = host as IWorldBatchHost;
         owned?.CloseForCreation();
-        result = NotifyHostObservers(OnEntityHostRemoved, host, result);
+        result = NotifyObservers(OnEntityHostRemoved, host, result);
         // Removal observers may release entities. The remaining entries are
         // released by host disposal without the ordinary per-entity notifications.
         result = result.Attempt(() => {
@@ -249,16 +249,6 @@ public partial class World
         });
         if (owned is not null) result = result.Attempt(() => Count -= host.Count);
         return result.Attempt(host.Dispose);
-    }
-
-    private static Outcome<Exception> NotifyHostObservers(Action<IReactiveEntityHost>? observers,
-        IReactiveEntityHost host, Outcome<Exception> result)
-    {
-        if (observers is not null) {
-            foreach (Action<IReactiveEntityHost> observer in observers.GetInvocationList())
-                result = result.Attempt(() => observer(host));
-        }
-        return result;
     }
 
     public int ClearEmptyHosts()

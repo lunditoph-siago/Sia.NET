@@ -134,7 +134,8 @@ public sealed class Scheduler : IAddon, IDisposable
         var current = _slots.TryGetValue(label, out var existing)
             ? existing.Schedule
             : null;
-        var schedule = configure(current ?? new Schedule(label));
+        Schedule schedule = null!;
+        InvokeLifecycle(() => schedule = configure(current ?? new Schedule(label)));
         if (schedule.Label != label) {
             throw new ArgumentException(
                 "A schedule configuration cannot change its label.",
@@ -223,14 +224,8 @@ public sealed class Scheduler : IAddon, IDisposable
                 EnsureSlotPlan(slot);
             }
         }
-        catch {
-            foreach (var slot in _registrationOrder) {
-                slot.Stage?.Dispose();
-                slot.Stage = null;
-                slot.RuntimeOrder = [];
-                slot.VersionSnapshot = [];
-                slot.RuntimePlanDirty = true;
-            }
+        catch (Exception error) {
+            InvalidateStages(Outcome<Exception>.Failure(error));
             throw;
         }
 
@@ -405,6 +400,7 @@ public sealed class Scheduler : IAddon, IDisposable
 
     private void BeginTick()
     {
+        _world.EnsureOwnerThread();
         if (_phase != SchedulerPhase.Idle || _lifecycleCallbackDepth != 0) {
             throw new InvalidOperationException(
                 "Scheduler ticks cannot be nested or started from a lifecycle callback.");
@@ -532,7 +528,7 @@ public sealed class Scheduler : IAddon, IDisposable
     {
         if (slot.Stage is null && slot.Schedule is { } schedule
             && !schedule.Chain.Entries.IsEmpty) {
-            slot.Stage = schedule.Build(_world);
+            InvokeLifecycle(() => slot.Stage = schedule.Build(_world));
         }
     }
 
@@ -547,12 +543,12 @@ public sealed class Scheduler : IAddon, IDisposable
         return slot;
     }
 
-    private void InvalidateStages()
+    private void InvalidateStages(Outcome<Exception> result = default)
     {
-        var result = Outcome<Exception>.Success;
+        List<SystemStage>? stages = null;
         foreach (var slot in _registrationOrder) {
             if (slot.Stage is { } stage) {
-                result = result.Attempt(stage.Dispose);
+                (stages ??= []).Add(stage);
                 slot.Stage = null;
             }
             slot.RuntimeOrder = [];
@@ -560,6 +556,10 @@ public sealed class Scheduler : IAddon, IDisposable
             slot.RuntimePlanDirty = true;
         }
         _planValid = false;
+        if (stages is not null) {
+            foreach (var stage in stages)
+                result = result.Attempt(() => InvokeLifecycle(stage.Dispose));
+        }
         result.ThrowIfFailed();
     }
 
@@ -609,7 +609,8 @@ public sealed class Scheduler : IAddon, IDisposable
 
     private void EnsureScheduleMutable()
     {
-        if (_phase is SchedulerPhase.BeforeSchedule or SchedulerPhase.Executing) {
+        if (_lifecycleCallbackDepth != 0
+            || _phase is SchedulerPhase.BeforeSchedule or SchedulerPhase.Executing) {
             throw new InvalidOperationException(
                 "Schedules can only be changed while idle or from OnBeginTick.");
         }

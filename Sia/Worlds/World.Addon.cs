@@ -20,7 +20,8 @@ public partial class World
     }
 
     private readonly IAddon?[] _addons = new IAddon?[2048];
-    private readonly HashSet<int> _initializingAddons = [];
+    private readonly HashSet<int> _addonOperations = [];
+    private bool _clearingAddons;
     private int _addonCount = 0;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -57,8 +58,8 @@ public partial class World
         if (_addons[index] != null) {
             throw new Exception("Addon already exists: " + typeof(TAddon));
         }
-        if (!_initializingAddons.Add(index))
-            throw new InvalidOperationException("An addon of the same type is already being initialized: " + typeof(TAddon));
+        if (!_addonOperations.Add(index))
+            throw new InvalidOperationException("An addon of the same type is already being initialized or removed: " + typeof(TAddon));
     }
 
     private TAddon InitializeAddon<TAddon>(int index, Func<TAddon> create)
@@ -68,7 +69,7 @@ public partial class World
         TAddon addon;
         try { addon = create(); }
         catch {
-            _initializingAddons.Remove(index);
+            _addonOperations.Remove(index);
             throw;
         }
         return InitializeAddon(index, addon);
@@ -83,9 +84,9 @@ public partial class World
             _addonCount++;
         }
         finally {
-            _initializingAddons.Remove(index);
+            _addonOperations.Remove(index);
         }
-        OnAddonCreated?.Invoke(addon);
+        NotifyObservers(OnAddonCreated, addon, Outcome<Exception>.Success).ThrowIfFailed();
         return addon;
     }
 
@@ -93,6 +94,8 @@ public partial class World
     {
         EnsureOwnerThread();
         ObjectDisposedException.ThrowIf(IsDisposed, this);
+        if (_clearingAddons)
+            throw new InvalidOperationException("Cannot register an addon while the world is clearing addons.");
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -100,18 +103,23 @@ public partial class World
         where TAddon : class, IAddon
     {
         EnsureOwnerThread();
-        ref var addon = ref _addons[WorldAddonIndexer<TAddon>.Index];
+        var index = WorldAddonIndexer<TAddon>.Index;
+        ref var addon = ref _addons[index];
         if (addon == null) {
             return false;
         }
         var removedAddon = addon;
+        _addonOperations.Add(index);
         addon = null;
         _addonCount--;
-        Outcome<Exception>.Success
-            .Attempt(() => removedAddon.OnUninitialize(this))
-            .Attempt(() => OnAddonRemoved?.Invoke(removedAddon))
-            .ThrowIfFailed();
-        return true;
+        try {
+            var result = Outcome<Exception>.Success.Attempt(() => removedAddon.OnUninitialize(this));
+            NotifyObservers(OnAddonRemoved, removedAddon, result).ThrowIfFailed();
+            return true;
+        }
+        finally {
+            _addonOperations.Remove(index);
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -183,8 +191,8 @@ public partial class World
 
     private void EnsureCanClearAddons()
     {
-        if (_initializingAddons.Count != 0)
-            throw new InvalidOperationException("Cannot clear addons while an addon is being initialized.");
+        if (_clearingAddons || _addonOperations.Count != 0)
+            throw new InvalidOperationException("Cannot clear addons during addon initialization or cleanup.");
     }
 
     private void ClearAddonsCore()
@@ -198,12 +206,17 @@ public partial class World
         }
         _addonCount = 0;
 
-        var result = Outcome<Exception>.Success;
-        foreach (var addon in addons) {
-            result = result
-                .Attempt(() => addon.OnUninitialize(this))
-                .Attempt(() => OnAddonRemoved?.Invoke(addon));
+        _clearingAddons = true;
+        try {
+            var result = Outcome<Exception>.Success;
+            foreach (var addon in addons) {
+                result = result.Attempt(() => addon.OnUninitialize(this));
+                result = NotifyObservers(OnAddonRemoved, addon, result);
+            }
+            result.ThrowIfFailed();
         }
-        result.ThrowIfFailed();
+        finally {
+            _clearingAddons = false;
+        }
     }
 }

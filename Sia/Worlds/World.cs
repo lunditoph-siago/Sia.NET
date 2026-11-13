@@ -15,6 +15,7 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
 
     internal EntityStatePool EntityStates { get; } = new();
 
+    private readonly object _actorLifecycle = new();
     private WorldActor? _actor;
 
     public World()
@@ -29,18 +30,23 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
 
     private void Dispose(bool disposing)
     {
-        if (IsDisposed) { return; }
-
+        if (IsDisposed) return;
         if (disposing) {
             ThrowIfActorIncomplete();
             EnsureCanClearHosts();
             EnsureCanClearAddons();
         }
-        else if (_actor is { IsCompleted: false }) {
-            return;
-        }
 
-        IsDisposed = true;
+        lock (_actorLifecycle) {
+            if (IsDisposed) return;
+            if (disposing) {
+                ThrowIfActorIncomplete();
+            }
+            else if (_actor is { IsCompleted: false }) {
+                return;
+            }
+            IsDisposed = true;
+        }
 
         Outcome<Exception>.Success
             .Attempt(ClearHostsCore)
@@ -54,6 +60,15 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
     {
         Dispose(true);
         GC.SuppressFinalize(this);
+    }
+
+    private static Outcome<Exception> NotifyObservers<T>(Action<T>? observers, T value, Outcome<Exception> result)
+    {
+        if (observers is not null) {
+            foreach (Action<T> observer in observers.GetInvocationList())
+                result = result.Attempt(() => observer(value));
+        }
+        return result;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -98,7 +113,7 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
 
     private void ThrowIfActorIncomplete()
     {
-        if (_actor is { IsCompleted: false }) {
+        if (Actor is { IsCompleted: false }) {
             throw new InvalidOperationException(
                 "The world is bound to a WorldActor that has not completed. " +
                 "Call WorldActor.CompleteAndDispose(...) instead of World.Dispose() directly.");
@@ -107,14 +122,17 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
 
     internal void BindActor(WorldActor actor)
     {
-        if (Interlocked.CompareExchange(ref _actor, actor, null) is { } existing
-            && !ReferenceEquals(existing, actor)) {
-            throw new InvalidOperationException(
-                "The world is already bound to a different actor.");
+        lock (_actorLifecycle) {
+            ObjectDisposedException.ThrowIf(IsDisposed, this);
+            if (_actor is not null && !ReferenceEquals(_actor, actor)) {
+                throw new InvalidOperationException(
+                    "The world is already bound to a different actor.");
+            }
+            Volatile.Write(ref _actor, actor);
         }
     }
 
-    public WorldActor? Actor => _actor;
+    public WorldActor? Actor => Volatile.Read(ref _actor);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Post(IWorldMessage message)
@@ -138,7 +156,7 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void EnsureOwnerThread()
     {
-        var actor = _actor;
+        var actor = Actor;
         if (actor != null && !actor.IsOwnerThread) {
             throw new InvalidOperationException(
                 "World operations must run on the actor owner thread. " +
