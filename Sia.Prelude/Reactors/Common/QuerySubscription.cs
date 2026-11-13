@@ -1,3 +1,5 @@
+using System.Buffers;
+
 namespace Sia.Reactors;
 
 public sealed class QuerySubscription : IDisposable
@@ -7,8 +9,36 @@ public sealed class QuerySubscription : IDisposable
     private readonly EntityHandler _onAdded;
     private readonly EntityHandler _onRemoved;
     private readonly List<IReactiveEntityHost> _memberHosts = [];
+    private ReplayBatch? _replaying;
     private HashSet<Entity>? _pendingReplay;
     private bool _disposed;
+
+    private readonly record struct ReplayGroup(Entity[]? Buffer, int Count)
+    {
+        public ReadOnlySpan<Entity> Entities => Buffer.AsSpan(0, Count);
+
+        public void Return()
+        {
+            if (Buffer is not null) ArrayPool<Entity>.Shared.Return(Buffer, clearArray: true);
+        }
+    }
+
+    private sealed class ReplayBatch(ReplayGroup[] groups, ReplayBatch? previous)
+    {
+        public ReplayGroup[] Groups { get; } = groups;
+        public ReplayBatch? Previous { get; } = previous;
+        public int Group;
+        public int Index;
+
+        public void AddRemainingTo(HashSet<Entity> pending)
+        {
+            for (var group = Group; group < Groups.Length; group++) {
+                var entities = Groups[group].Entities;
+                for (var i = group == Group ? Index : 0; i < entities.Length; i++)
+                    pending.Add(entities[i]);
+            }
+        }
+    }
 
     public QuerySubscription(
         IReactiveEntityQuery query, EntityHandler onAdded, EntityHandler onRemoved)
@@ -21,12 +51,15 @@ public sealed class QuerySubscription : IDisposable
             Query.OnEntityHostAdded += OnHostAdded;
             Query.OnEntityHostRemoved += OnHostRemoved;
             var hosts = Query.Hosts.ToArray();
-            var replay = new Entity[hosts.Length][];
-            for (var i = 0; i < hosts.Length; i++) {
-                replay[i] = AttachHost(hosts[i]);
+            var replay = new ReplayGroup[hosts.Length];
+            try {
+                for (var i = 0; i < hosts.Length; i++) {
+                    replay[i] = AttachHost(hosts[i]);
+                }
+                ReplayAdded(replay);
             }
-            foreach (var entities in replay) {
-                ReplayAdded(entities);
+            finally {
+                foreach (var group in replay) group.Return();
             }
         }
         catch (Exception error) {
@@ -40,7 +73,7 @@ public sealed class QuerySubscription : IDisposable
     {
         var entities = AttachHost(host);
         try {
-            ReplayAdded(entities);
+            if (entities.Count != 0) ReplayAdded([entities]);
         }
         catch (Exception error) {
             if (_memberHosts.Remove(host)) {
@@ -48,12 +81,15 @@ public sealed class QuerySubscription : IDisposable
             }
             throw;
         }
+        finally {
+            entities.Return();
+        }
     }
 
-    private Entity[] AttachHost(IReactiveEntityHost host)
+    private ReplayGroup AttachHost(IReactiveEntityHost host)
     {
         if (_disposed || _memberHosts.Contains(host)) {
-            return [];
+            return default;
         }
 
         _memberHosts.Add(host);
@@ -64,42 +100,65 @@ public sealed class QuerySubscription : IDisposable
             host.OnEntityMovedOut += HandleMovedOut;
             host.OnEntityMovedIn += HandleMovedIn;
 
-            var entities = host.UnsafeGetEntitySpan().ToArray();
-            if (entities.Length != 0) {
-                (_pendingReplay ??= []).UnionWith(entities);
-            }
-            return entities;
+            var entities = host.UnsafeGetEntitySpan();
+            if (entities.IsEmpty) return default;
+            var snapshot = ArrayPool<Entity>.Shared.Rent(entities.Length);
+            entities.CopyTo(snapshot);
+            return new(snapshot, entities.Length);
         }
         catch (Exception error) {
             _memberHosts.Remove(host);
-            return DetachHost(host, Outcome<Exception>.Failure(error)).ThrowFailure<Entity[]>();
+            return DetachHost(host, Outcome<Exception>.Failure(error)).ThrowFailure<ReplayGroup>();
         }
     }
 
-    private void ReplayAdded(Entity[] entities)
+    private void ReplayAdded(ReplayGroup[] groups)
     {
-        if (entities.Length == 0 || _pendingReplay is not { } pending) {
-            return;
-        }
+        var batch = new ReplayBatch(groups, _replaying);
+        _replaying = batch;
+        if (_pendingReplay is { } existing) batch.AddRemainingTo(existing);
 
         try {
-            foreach (var entity in entities) {
-                if (pending.Remove(entity)
-                    && entity.Host is IReactiveEntityHost host
-                    && _memberHosts.Contains(host)) {
-                    _onAdded(entity);
+            while (batch.Group < groups.Length && !_disposed) {
+                var entities = groups[batch.Group].Entities;
+                while (batch.Index < entities.Length && !_disposed) {
+                    var entity = entities[batch.Index++];
+                    if ((_pendingReplay?.Remove(entity) ?? true)
+                        && entity.Host is IReactiveEntityHost host
+                        && _memberHosts.Contains(host)) {
+                        _onAdded(entity);
+                    }
                 }
+                batch.Group++;
+                batch.Index = 0;
             }
         }
         catch {
-            pending.ExceptWith(entities);
+            if (_pendingReplay is { } pending) {
+                foreach (var group in groups)
+                    foreach (var entity in group.Entities)
+                        pending.Remove(entity);
+            }
             throw;
         }
         finally {
-            if (pending.Count == 0 && ReferenceEquals(_pendingReplay, pending)) {
-                _pendingReplay = null;
-            }
+            _replaying = batch.Previous;
+            if (_replaying is null) _pendingReplay = null;
         }
+    }
+
+    private bool ForgetPending(Entity entity)
+    {
+        if (_replaying is null) return false;
+        if (_pendingReplay is null) {
+            // Callbacks usually leave membership alone. Build the lookup only
+            // when a nested notification needs to cancel a pending replay.
+            var pending = new HashSet<Entity>();
+            for (var batch = _replaying; batch is not null; batch = batch.Previous)
+                batch.AddRemainingTo(pending);
+            _pendingReplay = pending;
+        }
+        return _pendingReplay.Remove(entity);
     }
 
     private void OnHostRemoved(IReactiveEntityHost host)
@@ -122,14 +181,14 @@ public sealed class QuerySubscription : IDisposable
     private void HandleAdded(Entity entity)
     {
         if (!_disposed) {
-            _pendingReplay?.Remove(entity);
+            ForgetPending(entity);
             _onAdded(entity);
         }
     }
 
     private void HandleRemoved(Entity entity)
     {
-        if (!_disposed && _pendingReplay?.Remove(entity) != true) {
+        if (!_disposed && !ForgetPending(entity)) {
             _onRemoved(entity);
         }
     }

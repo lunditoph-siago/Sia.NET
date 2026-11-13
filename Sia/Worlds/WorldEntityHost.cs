@@ -43,6 +43,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     }
     public event Action<IEntityHost>? OnDisposed;
     private bool _closedForCreation;
+    internal bool IsClosedForCreation => _closedForCreation;
 
     void IWorldBatchHost.CloseForCreation() => _closedForCreation = true;
     void IEntityHost.EnsureCanMoveIn()

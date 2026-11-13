@@ -126,26 +126,25 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
                 block = reader.UnreadSequence;
                 for (var i = 0; i < entityCount; ++i) {
                     EntityId id = default;
-                    if (!serializer.Deserialize(ref block, ref id, entityMap)
-                        || id.Value == 0 || !entityMap.TryAdd(id, default)) {
-                        throw new InvalidDataException("Invalid or duplicate entity ID in world data.");
-                    }
+                    if (!serializer.Deserialize(ref block, ref id, entityMap) || id.Value == 0)
+                        throw new InvalidDataException("Invalid entity ID in world data.");
+                    if (!entityMap.TryAdd(id, default))
+                        throw new InvalidDataException("Duplicate entity ID in world data.");
                     ids.Add(id);
                 }
 
                 var entityDeserializer = new EntityDeserializationHandler(&serializer, &block, entityMap);
+                Entity acquired = default;
                 try {
                     entities.EnsureCapacity(entityCount);
                     foreach (var id in ids.AsSpan()) {
-                        Entity entity = default;
-                        try { host.CreateForLoad(out entity); }
-                        finally {
-                            if (entity.IsValid) entities.Add(entity);
-                        }
-                        if (!entity.IsValid || !ReferenceEquals(entity.Host, host)) {
+                        host.CreateForLoad(out acquired);
+                        if (!ReferenceEquals(acquired.Host, host)) {
                             throw new InvalidOperationException("The entity was released or moved during deserialization.");
                         }
-                        entityMap[id] = entity;
+                        entities.Add(acquired);
+                        entityMap[id] = acquired;
+                        acquired = default;
                     }
                     foreach (var entity in entities.AsSpan()) {
                         entity.GetHList(entityDeserializer);
@@ -153,6 +152,10 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
                 }
                 catch (Exception error) {
                     var result = Outcome<Exception>.Failure(error);
+                    if (acquired.Host is { } owner
+                        && (entities.Count == 0 || entities[^1] != acquired)) {
+                        result = result.Attempt(() => owner.ReleaseOwned(acquired));
+                    }
                     for (var i = entities.Count - 1; i >= 0; i--) {
                         var entity = entities[i];
                         if (entity.IsValid) result = result.Attempt(() => entity.Host.ReleaseOwned(entity));

@@ -74,6 +74,19 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     public virtual Entity Create(in TEntity initial)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        if (typeof(TBuffer) == typeof(ArrayBuffer<TEntity>)) {
+            var buffer = (ArrayBuffer<TEntity>)(object)Buffer;
+            ReserveArraySlot(buffer);
+            var entity = EntityStates.Rent();
+            AppendArraySlot(buffer, entity, entity.GetStateUnchecked(), this, initial);
+            return entity;
+        }
+        return CreateWithRollback(initial);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private Entity CreateWithRollback(in TEntity initial)
+    {
         var states = EntityStates;
         var entity = states.Rent();
         try {
@@ -127,6 +140,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void MoveOut(EntityState state)
     {
         Version++;
@@ -166,6 +180,38 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     private void MoveInTrusted(Entity entity, in TEntity data)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        if (typeof(TBuffer) == typeof(ArrayBuffer<TEntity>)) {
+            var buffer = (ArrayBuffer<TEntity>)(object)Buffer;
+            ReserveArraySlot(buffer);
+            AppendArraySlot(buffer, entity, entity.GetStateUnchecked(), this, data);
+            return;
+        }
+        MoveInWithRollback(entity, data);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void ReserveArraySlot(ArrayBuffer<TEntity> buffer)
+    {
+        // Reserve both backing stores before publishing a row or acquiring its identity.
+        var count = buffer.Count + 1;
+        if (count > _entities.Capacity) _entities.EnsureCapacity(count);
+        buffer.EnsureCapacity(count);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void AppendArraySlot(ArrayBuffer<TEntity> buffer, Entity entity, EntityState state, IEntityHost owner, in TEntity data)
+    {
+        var slot = buffer.Count;
+        buffer.AppendReserved(data);
+        _entities.Add(entity);
+        state.Host = owner;
+        state.Slot = slot;
+        Version++;
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void MoveInWithRollback(Entity entity, in TEntity data)
+    {
         var value = data;
         var slot = Buffer.Count;
         var count = checked(slot + 1);
@@ -223,8 +269,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         var value = HList.Cons(initial, Buffer.GetRef(state.Slot));
         if (RuntimeFeature.IsDynamicCodeSupported && typeof(TBuffer) == typeof(ArrayBuffer<TEntity>)
             && TryGetArrayTarget<HList<TComponent, TEntity>>(host, out var source, out var target)) {
-            source.MoveOut(entity, target);
-            target.MoveIn(entity, value, source);
+            MoveBetweenArrayHosts(source, target, entity, state, value);
             return;
         }
         var siblingHost = ResolveSibling<HList<TComponent, TEntity>>(entity, state, host);
@@ -259,6 +304,30 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         target = null;
         return source is not null && source.InnerHost.GetType() == typeof(ArrayEntityHost<TEntity>)
             && source.World.TryGetHost<TDestination, ArrayEntityHost<TDestination>>(out target);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void MoveBetweenArrayHosts<TDestination>(
+        WorldEntityHost<TEntity, ArrayEntityHost<TEntity>> source,
+        WorldEntityHost<TDestination, ArrayEntityHost<TDestination>> target,
+        Entity entity, EntityState state, in TDestination data)
+        where TDestination : struct, IHList
+    {
+        BufferEntityHost<TDestination, ArrayBuffer<TDestination>> destination = target.InnerHost;
+        if (target.InnerHost.GetType() != typeof(ArrayEntityHost<TDestination>)
+            || !ReferenceEquals(source.World, target.World)
+            || source.HasMigrationObservers || target.HasMigrationObservers) {
+            source.MoveOut(entity, target);
+            target.MoveIn(entity, data, source);
+            return;
+        }
+
+        ObjectDisposedException.ThrowIf(target.IsClosedForCreation || destination._disposed, target);
+        source.InnerHost.EnsureOwnSlot(entity, state);
+        var buffer = destination.Buffer;
+        destination.ReserveArraySlot(buffer);
+        source.InnerHost.MoveOut(state);
+        destination.AppendArraySlot(buffer, entity, state, target, data);
     }
 
     private struct EntityMover(Entity e)
@@ -300,8 +369,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
             var host = state.Host!;
             var moved = data;
             if (TryGetArrayTarget<T>(host, out var source, out var target)) {
-                source.MoveOut(e, target);
-                target.MoveIn(e, moved, source);
+                MoveBetweenArrayHosts(source, target, e, state, moved);
             }
             else {
                 var siblingHost = ResolveSibling<T>(e, state, host);

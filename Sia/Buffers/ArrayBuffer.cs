@@ -8,18 +8,34 @@ public sealed class ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
     public int Capacity => Array.MaxLength;
 
     public int Count {
-        get;
+        get => _count;
         set {
             ArgumentOutOfRangeException.ThrowIfNegative(value);
-            if (value == field) return;
-            if (value > _array.Length) Array.Resize(ref _array, CalculateArraySize(value));
-            field = value;
+            EnsureCapacity(value);
+            _count = value;
         }
     }
 
+    private int _count;
     private T[] _array = new T[initialCapacity];
 
     public ArrayBuffer() : this(0) {}
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void EnsureCapacity(int count)
+    {
+        if (count > _array.Length) Grow(count);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void Grow(int count)
+        => Array.Resize(ref _array, CalculateArraySize(count));
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void AppendReserved(in T value)
+    {
+        _array[_count] = value;
+        _count++;
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static int CalculateArraySize(int requiredCapacity)
