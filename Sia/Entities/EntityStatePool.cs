@@ -23,7 +23,7 @@ internal sealed class EntityState
 
 internal sealed class EntityStatePool
 {
-    private const int EntityIdBlockSize = 256;
+    private const int k_EntityIdBlockSize = 256;
 
     private EntityState[] _states = [];
     private int _count;
@@ -51,8 +51,8 @@ internal sealed class EntityStatePool
     private EntityId NextId()
     {
         if (_remainingIds == 0) {
-            _nextId = EntityId.Reserve(EntityIdBlockSize);
-            _remainingIds = EntityIdBlockSize;
+            _nextId = EntityId.Reserve(k_EntityIdBlockSize);
+            _remainingIds = k_EntityIdBlockSize;
         }
         _remainingIds--;
         return new(_nextId++);

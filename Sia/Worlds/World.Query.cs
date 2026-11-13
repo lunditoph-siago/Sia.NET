@@ -34,37 +34,43 @@ public partial class World
             World = world;
             Matcher = matcher;
 
-            var version = world.Version;
+            var hostVersion = world.Version;
             foreach (var host in world.Hosts) {
                 if (matcher.Match(host)) {
                     _hosts.Add(host);
                 }
-                if (world.Version != version || world.IsDisposed)
+                if (world.Version != hostVersion || world.IsDisposed) {
                     throw new InvalidOperationException("The world's hosts changed while creating a query.");
+                }
             }
         }
 
-        internal void Subscribe()
+        internal void SubscribeToHostChanges()
         {
-            World.OnEntityHostAdded += OnEntityHostCreated;
-            World.OnEntityHostRemoved += OnEntityHostReleased;
+            World.OnEntityHostAdded += HandleHostAdded;
+            World.OnEntityHostRemoved += HandleHostRemoved;
         }
 
-        private void OnEntityHostCreated(IReactiveEntityHost host)
+        private void HandleHostAdded(IReactiveEntityHost host)
         {
-            if (Matcher?.Match(host) == true && World != null) {
-                _hosts.Add(host);
-                Version++;
-                NotifyObservers(OnEntityHostAdded, host, Outcome<Exception>.Success).ThrowIfFailed();
+            // A matcher may dispose this query before it returns.
+            if (Matcher?.Match(host) != true || World is null) {
+                return;
             }
+
+            _hosts.Add(host);
+            Version++;
+            NotifyObservers(OnEntityHostAdded, host, Outcome<Exception>.Success).ThrowIfFailed();
         }
 
-        private void OnEntityHostReleased(IReactiveEntityHost host)
+        private void HandleHostRemoved(IReactiveEntityHost host)
         {
-            if (_hosts.Remove(host)) {
-                Version++;
-                NotifyObservers(OnEntityHostRemoved, host, Outcome<Exception>.Success).ThrowIfFailed();
+            if (!_hosts.Remove(host)) {
+                return;
             }
+
+            Version++;
+            NotifyObservers(OnEntityHostRemoved, host, Outcome<Exception>.Success).ThrowIfFailed();
         }
 
         public void Dispose()
@@ -75,8 +81,8 @@ public partial class World
             Version++;
 
             World._queries.Remove(Matcher);
-            World.OnEntityHostAdded -= OnEntityHostCreated;
-            World.OnEntityHostRemoved -= OnEntityHostReleased;
+            World.OnEntityHostAdded -= HandleHostAdded;
+            World.OnEntityHostRemoved -= HandleHostRemoved;
 
             _hosts.Clear();
             OnEntityHostAdded = null;
@@ -113,7 +119,7 @@ public partial class World
         public IReadOnlyList<IReactiveEntityHost> Hosts => world.Hosts;
         IReadOnlyList<IEntityHost> IEntityQuery.Hosts => world.Hosts;
 
-        public void Dispose() {}
+        public void Dispose() { }
     }
 
     public IReadOnlyDictionary<IEntityMatcher, EntityQuery> Queries => _queries;
@@ -170,12 +176,14 @@ public partial class World
         if (_queries.TryGetValue(matcher, out var query)) {
             return query;
         }
-        if (!_initializingQueries.Add(matcher))
+        if (!_initializingQueries.Add(matcher)) {
             throw new InvalidOperationException("The same matcher is already creating a query.");
+        }
+
         try {
             query = new(this, matcher);
             _queries.Add(matcher, query);
-            query.Subscribe();
+            query.SubscribeToHostChanges();
             return query;
         }
         finally {

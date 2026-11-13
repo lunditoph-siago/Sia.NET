@@ -12,7 +12,7 @@ internal sealed class ExtractQuery : IEntityQuery
     internal ExtractQuery(IEntityQuery inner)
         => _inner = inner;
 
-    public void Dispose() {}
+    public void Dispose() { }
 }
 
 public abstract class ExtractSystemBase(
@@ -25,7 +25,7 @@ public abstract class ExtractSystemBase(
 {
     private World _parentWorld = null!;
     private IEntityQuery _parentQuery = null!;
-    private ExtractQuery _extract = null!;
+    private ExtractQuery _extractView = null!;
 
     public override void Initialize(World world)
     {
@@ -36,18 +36,19 @@ public abstract class ExtractSystemBase(
             ? _parentWorld
             : _parentWorld.Query(extractMatcher);
 
-        _extract = new ExtractQuery(_parentQuery);
+        // The parent world owns its cached query. The view exposes only borrowed access.
+        _extractView = new ExtractQuery(_parentQuery);
     }
 
     public override void Uninitialize(World world)
     {
         _parentQuery = null!;
-        _extract = null!;
+        _extractView = null!;
         _parentWorld = null!;
     }
 
     public sealed override void Execute(WorldContext context, IEntityQuery query)
-        => Execute(context, query, _extract);
+        => Execute(context, query, _extractView);
 
     public abstract void Execute(WorldContext context, IEntityQuery query, IEntityQuery extract);
 }
@@ -82,7 +83,10 @@ public sealed class ExtractChannel<T> : IDisposable where T : unmanaged
 
     public void Dispose()
     {
-        if (_disposed) return;
+        if (_disposed) {
+            return;
+        }
+
         _disposed = true;
         _channel.Writer.TryComplete();
     }

@@ -13,14 +13,14 @@ public interface IEntityHost : IEnumerable<Entity>, IDisposable
     int Count { get; }
     int Version { get; }
 
-    void OnInitialize(World world) {}
+    void OnInitialize(World world) { }
 
     Entity Create();
     internal void CreateForLoad(out Entity acquired) => acquired = Create();
     internal void ReleaseOwned(Entity entity) => Release(entity);
     void Release(Entity entity);
     void MoveOut(Entity entity, IEntityHost destination);
-    internal void EnsureCanMoveIn() {}
+    internal void EnsureCanMoveIn() { }
 
     Entity GetEntity(int slot);
     ref byte GetByteRef(int slot);

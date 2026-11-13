@@ -171,7 +171,10 @@ public readonly partial struct Entity : IEquatable<Entity>
         var host = state.Host!;
         ref var byteRef = ref host.GetByteRef(state.Slot);
         try {
-            if (!host.Descriptor.TryGetOffset<TComponent>(out var offset)) return ref Unsafe.NullRef<TComponent>();
+            if (!host.Descriptor.TryGetOffset<TComponent>(out var offset)) {
+                return ref Unsafe.NullRef<TComponent>();
+            }
+
             return ref Unsafe.As<byte, TComponent>(
                 ref Unsafe.AddByteOffset(ref byteRef, offset));
         }

@@ -30,11 +30,12 @@ public sealed class WorldCommandQueue : IWorldCommandQueue
         ArgumentNullException.ThrowIfNull(world);
         world.EnsureOwnerThread();
         ObjectDisposedException.ThrowIf(world.IsDisposed, world);
-        var count = 0;
+
+        var appliedCount = 0;
         while (_requests.TryDequeue(out var request)) {
             request.Apply(world);
-            count++;
+            appliedCount++;
         }
-        return count;
+        return appliedCount;
     }
 }

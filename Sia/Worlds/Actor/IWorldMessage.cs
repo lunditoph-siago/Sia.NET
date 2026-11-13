@@ -36,6 +36,7 @@ public sealed class TickMessage(SystemStage stage) : IWorldMessage
 
     public SystemStage Stage { get; } = stage;
     public Task Completion => _completion.Task;
+
     internal void Reject(Exception error) => _completion.TrySetException(error);
 
     public void Execute(in WorldContext context)
@@ -60,6 +61,7 @@ public sealed class SchedulerTickMessage(Scheduler scheduler, ScheduleLabel? lab
     public Scheduler Scheduler { get; } = scheduler;
     public ScheduleLabel? Label { get; } = label;
     public Task Completion => _completion.Task;
+
     internal void Reject(Exception error) => _completion.TrySetException(error);
 
     public void Execute(in WorldContext context)
@@ -84,7 +86,7 @@ public sealed class CompleteMessage : IWorldMessage
 {
     public static CompleteMessage Instance { get; } = new();
 
-    private CompleteMessage() {}
+    private CompleteMessage() { }
 
-    public void Execute(in WorldContext context) {}
+    public void Execute(in WorldContext context) { }
 }

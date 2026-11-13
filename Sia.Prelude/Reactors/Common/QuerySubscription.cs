@@ -9,33 +9,37 @@ public sealed class QuerySubscription : IDisposable
     private readonly EntityHandler _onAdded;
     private readonly EntityHandler _onRemoved;
     private readonly List<IReactiveEntityHost> _memberHosts = [];
-    private ReplayBatch? _replaying;
-    private HashSet<Entity>? _pendingReplay;
+    private ReplayCursor? _activeReplay;
+    private HashSet<Entity>? _pendingEntities;
     private bool _disposed;
 
-    private readonly record struct ReplayGroup(Entity[]? Buffer, int Count)
+    private readonly record struct HostSnapshot(Entity[]? Buffer, int Count)
     {
         public ReadOnlySpan<Entity> Entities => Buffer.AsSpan(0, Count);
 
         public void Return()
         {
-            if (Buffer is not null) ArrayPool<Entity>.Shared.Return(Buffer, clearArray: true);
+            if (Buffer is not null) {
+                ArrayPool<Entity>.Shared.Return(Buffer, clearArray: true);
+            }
         }
     }
 
-    private sealed class ReplayBatch(ReplayGroup[] groups, ReplayBatch? previous)
+    private sealed class ReplayCursor(HostSnapshot[] snapshots, ReplayCursor? previous)
     {
-        public ReplayGroup[] Groups { get; } = groups;
-        public ReplayBatch? Previous { get; } = previous;
-        public int Group;
-        public int Index;
+        public HostSnapshot[] Snapshots { get; } = snapshots;
+        public ReplayCursor? Previous { get; } = previous;
+        public int SnapshotIndex;
+        public int EntityIndex;
 
-        public void AddRemainingTo(HashSet<Entity> pending)
+        public void AddRemainingEntities(HashSet<Entity> pendingEntities)
         {
-            for (var group = Group; group < Groups.Length; group++) {
-                var entities = Groups[group].Entities;
-                for (var i = group == Group ? Index : 0; i < entities.Length; i++)
-                    pending.Add(entities[i]);
+            for (var index = SnapshotIndex; index < Snapshots.Length; index++) {
+                var entities = Snapshots[index].Entities;
+                var startIndex = index == SnapshotIndex ? EntityIndex : 0;
+                for (var entityIndex = startIndex; entityIndex < entities.Length; entityIndex++) {
+                    pendingEntities.Add(entities[entityIndex]);
+                }
             }
         }
     }
@@ -51,15 +55,19 @@ public sealed class QuerySubscription : IDisposable
             Query.OnEntityHostAdded += OnHostAdded;
             Query.OnEntityHostRemoved += OnHostRemoved;
             var hosts = Query.Hosts.ToArray();
-            var replay = new ReplayGroup[hosts.Length];
+            var snapshots = new HostSnapshot[hosts.Length];
             try {
                 for (var i = 0; i < hosts.Length; i++) {
-                    replay[i] = AttachHost(hosts[i]);
+                    snapshots[i] = AttachHost(hosts[i]);
                 }
-                ReplayAdded(replay);
+
+                // Capture every host before notifying callbacks that may move entities.
+                ReplayAdded(snapshots);
             }
             finally {
-                foreach (var group in replay) group.Return();
+                foreach (var snapshot in snapshots) {
+                    snapshot.Return();
+                }
             }
         }
         catch (Exception error) {
@@ -71,9 +79,11 @@ public sealed class QuerySubscription : IDisposable
 
     private void OnHostAdded(IReactiveEntityHost host)
     {
-        var entities = AttachHost(host);
+        var snapshot = AttachHost(host);
         try {
-            if (entities.Count != 0) ReplayAdded([entities]);
+            if (snapshot.Count != 0) {
+                ReplayAdded([snapshot]);
+            }
         }
         catch (Exception error) {
             if (_memberHosts.Remove(host)) {
@@ -82,11 +92,11 @@ public sealed class QuerySubscription : IDisposable
             throw;
         }
         finally {
-            entities.Return();
+            snapshot.Return();
         }
     }
 
-    private ReplayGroup AttachHost(IReactiveEntityHost host)
+    private HostSnapshot AttachHost(IReactiveEntityHost host)
     {
         if (_disposed || _memberHosts.Contains(host)) {
             return default;
@@ -101,64 +111,75 @@ public sealed class QuerySubscription : IDisposable
             host.OnEntityMovedIn += HandleMovedIn;
 
             var entities = host.UnsafeGetEntitySpan();
-            if (entities.IsEmpty) return default;
+            if (entities.IsEmpty) {
+                return default;
+            }
             var snapshot = ArrayPool<Entity>.Shared.Rent(entities.Length);
             entities.CopyTo(snapshot);
             return new(snapshot, entities.Length);
         }
         catch (Exception error) {
             _memberHosts.Remove(host);
-            return DetachHost(host, Outcome<Exception>.Failure(error)).ThrowFailure<ReplayGroup>();
+            return DetachHost(host, Outcome<Exception>.Failure(error)).ThrowFailure<HostSnapshot>();
         }
     }
 
-    private void ReplayAdded(ReplayGroup[] groups)
+    private void ReplayAdded(HostSnapshot[] snapshots)
     {
-        var batch = new ReplayBatch(groups, _replaying);
-        _replaying = batch;
-        if (_pendingReplay is { } existing) batch.AddRemainingTo(existing);
+        var cursor = new ReplayCursor(snapshots, _activeReplay);
+        _activeReplay = cursor;
+        if (_pendingEntities is { } pendingEntities) {
+            cursor.AddRemainingEntities(pendingEntities);
+        }
 
         try {
-            while (batch.Group < groups.Length && !_disposed) {
-                var entities = groups[batch.Group].Entities;
-                while (batch.Index < entities.Length && !_disposed) {
-                    var entity = entities[batch.Index++];
-                    if ((_pendingReplay?.Remove(entity) ?? true)
+            while (cursor.SnapshotIndex < snapshots.Length && !_disposed) {
+                var entities = snapshots[cursor.SnapshotIndex].Entities;
+                while (cursor.EntityIndex < entities.Length && !_disposed) {
+                    // Advance before the callback so nested notifications see only unread entities.
+                    var entity = entities[cursor.EntityIndex++];
+                    if ((_pendingEntities?.Remove(entity) ?? true)
                         && entity.Host is IReactiveEntityHost host
                         && _memberHosts.Contains(host)) {
                         _onAdded(entity);
                     }
                 }
-                batch.Group++;
-                batch.Index = 0;
+                cursor.SnapshotIndex++;
+                cursor.EntityIndex = 0;
             }
         }
         catch {
-            if (_pendingReplay is { } pending) {
-                foreach (var group in groups)
-                    foreach (var entity in group.Entities)
+            if (_pendingEntities is { } pending) {
+                foreach (var snapshot in snapshots) {
+                    foreach (var entity in snapshot.Entities) {
                         pending.Remove(entity);
+                    }
+                }
             }
             throw;
         }
         finally {
-            _replaying = batch.Previous;
-            if (_replaying is null) _pendingReplay = null;
+            _activeReplay = cursor.Previous;
+            if (_activeReplay is null) {
+                _pendingEntities = null;
+            }
         }
     }
 
-    private bool ForgetPending(Entity entity)
+    private bool CancelPendingReplay(Entity entity)
     {
-        if (_replaying is null) return false;
-        if (_pendingReplay is null) {
-            // Callbacks usually leave membership alone. Build the lookup only
-            // when a nested notification needs to cancel a pending replay.
-            var pending = new HashSet<Entity>();
-            for (var batch = _replaying; batch is not null; batch = batch.Previous)
-                batch.AddRemainingTo(pending);
-            _pendingReplay = pending;
+        if (_activeReplay is null) {
+            return false;
         }
-        return _pendingReplay.Remove(entity);
+        if (_pendingEntities is null) {
+            // Build the lookup only when a nested notification needs it.
+            var pendingEntities = new HashSet<Entity>();
+            for (var cursor = _activeReplay; cursor is not null; cursor = cursor.Previous) {
+                cursor.AddRemainingEntities(pendingEntities);
+            }
+            _pendingEntities = pendingEntities;
+        }
+        return _pendingEntities.Remove(entity);
     }
 
     private void OnHostRemoved(IReactiveEntityHost host)
@@ -181,14 +202,14 @@ public sealed class QuerySubscription : IDisposable
     private void HandleAdded(Entity entity)
     {
         if (!_disposed) {
-            ForgetPending(entity);
+            CancelPendingReplay(entity);
             _onAdded(entity);
         }
     }
 
     private void HandleRemoved(Entity entity)
     {
-        if (!_disposed && !ForgetPending(entity)) {
+        if (!_disposed && !CancelPendingReplay(entity)) {
             _onRemoved(entity);
         }
     }
@@ -221,8 +242,8 @@ public sealed class QuerySubscription : IDisposable
             result = DetachHost(host, result);
         }
         _memberHosts.Clear();
-        _pendingReplay?.Clear();
-        _pendingReplay = null;
+        _pendingEntities?.Clear();
+        _pendingEntities = null;
         result.ThrowIfFailed();
     }
 

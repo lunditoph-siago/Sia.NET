@@ -3,6 +3,7 @@
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Diagnostics.CodeAnalysis;
+
 using CommunityToolkit.HighPerformance;
 
 namespace Sia.Serialization.Binary;
@@ -73,18 +74,21 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
         where TBufferWriter : IBufferWriter<byte>
     {
         var serializer = new TComponentSerializer();
-        Span<byte> intSpan = stackalloc byte[4];
+        Span<byte> countBytes = stackalloc byte[4];
 
         try {
             fixed (TBufferWriter* writerPtr = &writer) {
                 var entitySerializer = new EntitySerializationHandler<TBufferWriter>(&serializer, writerPtr);
 
                 foreach (var host in world.Hosts) {
-                    if (host.Count == 0) continue;
+                    if (host.Count == 0) {
+                        continue;
+                    }
+
                     THostHeaderSerializer.Serialize(ref writer, host);
 
-                    BinaryPrimitives.WriteInt32BigEndian(intSpan, host.Count);
-                    writer.Write(intSpan);
+                    BinaryPrimitives.WriteInt32BigEndian(countBytes, host.Count);
+                    writer.Write(countBytes);
 
                     foreach (var entity in host) {
                         if (!serializer.Serialize(ref writer, entity.Id)) {
@@ -107,64 +111,72 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
     public static unsafe void Deserialize(ref ReadOnlySequence<byte> buffer, World world)
     {
         var serializer = new TComponentSerializer();
-        var ids = new List<EntityId>();
-        var entities = new List<Entity>();
+        var serializedIds = new List<EntityId>();
+        var loadedEntities = new List<Entity>();
         var entityMap = new Dictionary<EntityId, Entity>();
 
         try {
             while (true) {
-                var block = buffer;
-                var host = THostHeaderSerializer.Deserialize(ref block, world);
+                // Commit the input cursor only after a complete host block.
+                var hostBlock = buffer;
+                var host = THostHeaderSerializer.Deserialize(ref hostBlock, world);
                 if (host is null) {
-                    buffer = block;
+                    buffer = hostBlock;
                     break;
                 }
-                var reader = new SequenceReader<byte>(block);
+                var reader = new SequenceReader<byte>(hostBlock);
                 if (!reader.TryReadBigEndian(out int entityCount) || entityCount < 0) {
                     throw new InvalidDataException("Invalid entity count in world data.");
                 }
-                block = reader.UnreadSequence;
+                hostBlock = reader.UnreadSequence;
                 for (var i = 0; i < entityCount; ++i) {
                     EntityId id = default;
-                    if (!serializer.Deserialize(ref block, ref id, entityMap) || id.Value == 0)
+                    if (!serializer.Deserialize(ref hostBlock, ref id, entityMap) || id.Value == 0) {
                         throw new InvalidDataException("Invalid entity ID in world data.");
-                    if (!entityMap.TryAdd(id, default))
+                    }
+
+                    if (!entityMap.TryAdd(id, default)) {
                         throw new InvalidDataException("Duplicate entity ID in world data.");
-                    ids.Add(id);
+                    }
+
+                    serializedIds.Add(id);
                 }
 
-                var entityDeserializer = new EntityDeserializationHandler(&serializer, &block, entityMap);
-                Entity acquired = default;
+                var entityDeserializer = new EntityDeserializationHandler(&serializer, &hostBlock, entityMap);
+                // A creation callback can throw after the handle has been published.
+                Entity pendingEntity = default;
                 try {
-                    entities.EnsureCapacity(entityCount);
-                    foreach (var id in ids.AsSpan()) {
-                        host.CreateForLoad(out acquired);
-                        if (!ReferenceEquals(acquired.Host, host)) {
+                    loadedEntities.EnsureCapacity(entityCount);
+                    foreach (var id in serializedIds.AsSpan()) {
+                        host.CreateForLoad(out pendingEntity);
+                        if (!ReferenceEquals(pendingEntity.Host, host)) {
                             throw new InvalidOperationException("The entity was released or moved during deserialization.");
                         }
-                        entities.Add(acquired);
-                        entityMap[id] = acquired;
-                        acquired = default;
+                        loadedEntities.Add(pendingEntity);
+                        entityMap[id] = pendingEntity;
+                        pendingEntity = default;
                     }
-                    foreach (var entity in entities.AsSpan()) {
+                    foreach (var entity in loadedEntities.AsSpan()) {
                         entity.GetHList(entityDeserializer);
                     }
                 }
                 catch (Exception error) {
                     var result = Outcome<Exception>.Failure(error);
-                    if (acquired.Host is { } owner
-                        && (entities.Count == 0 || entities[^1] != acquired)) {
-                        result = result.Attempt(() => owner.ReleaseOwned(acquired));
+                    if (pendingEntity.Host is { } owner
+                        && (loadedEntities.Count == 0 || loadedEntities[^1] != pendingEntity)) {
+                        result = result.Attempt(() => owner.ReleaseOwned(pendingEntity));
                     }
-                    for (var i = entities.Count - 1; i >= 0; i--) {
-                        var entity = entities[i];
-                        if (entity.IsValid) result = result.Attempt(() => entity.Host.ReleaseOwned(entity));
+                    for (var i = loadedEntities.Count - 1; i >= 0; i--) {
+                        var entity = loadedEntities[i];
+                        if (entity.IsValid) {
+                            result = result.Attempt(() => entity.Host.ReleaseOwned(entity));
+                        }
                     }
                     result.ThrowFailure();
                 }
-                buffer = block;
-                ids.Clear();
-                entities.Clear();
+                buffer = hostBlock;
+                serializedIds.Clear();
+                loadedEntities.Clear();
             }
         }
         finally { serializer.Dispose(); }

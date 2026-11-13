@@ -13,21 +13,21 @@ public sealed class UnmanagedArrayBuffer<T> : IBuffer<T>
         set {
             ObjectDisposedException.ThrowIf(_disposed, this);
             ArgumentOutOfRangeException.ThrowIfNegative(value);
-            if (value > _length) {
-                var length = CalculateArraySize(value);
-                var bytes = checked((nint)length * Unsafe.SizeOf<T>());
-                _mem = _mem == IntPtr.Zero
+            if (value > _allocatedLength) {
+                var allocatedLength = CalculateArraySize(value);
+                var bytes = checked((nint)allocatedLength * Unsafe.SizeOf<T>());
+                _memory = _memory == IntPtr.Zero
                     ? Marshal.AllocHGlobal(bytes)
-                    : Marshal.ReAllocHGlobal(_mem, bytes);
-                _length = length;
+                    : Marshal.ReAllocHGlobal(_memory, bytes);
+                _allocatedLength = allocatedLength;
             }
             _count = value;
         }
     }
 
     private int _count;
-    private int _length;
-    private IntPtr _mem;
+    private int _allocatedLength;
+    private IntPtr _memory;
     private bool _disposed;
 
     public UnmanagedArrayBuffer(int initialCapacity)
@@ -38,12 +38,14 @@ public sealed class UnmanagedArrayBuffer<T> : IBuffer<T>
         ArgumentOutOfRangeException.ThrowIfNegative(initialCapacity);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(initialCapacity, Capacity);
         if (initialCapacity != 0) {
-            _mem = Marshal.AllocHGlobal(checked((nint)initialCapacity * Unsafe.SizeOf<T>()));
+            _memory = Marshal.AllocHGlobal(checked((nint)initialCapacity * Unsafe.SizeOf<T>()));
         }
-        _length = initialCapacity;
+        _allocatedLength = initialCapacity;
     }
 
-    public UnmanagedArrayBuffer() : this(0) {}
+    public UnmanagedArrayBuffer() : this(0)
+    {
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private int CalculateArraySize(int requiredCapacity)
@@ -63,16 +65,19 @@ public sealed class UnmanagedArrayBuffer<T> : IBuffer<T>
     public ref T GetRefOrNullRef(int index)
         => ref (uint)index >= (uint)_count ? ref Unsafe.NullRef<T>() : ref AsSpan()[index];
 
-    public unsafe Span<T> AsSpan() => new((void*)_mem, Count);
+    public unsafe Span<T> AsSpan() => new((void*)_memory, Count);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Dispose()
     {
-        if (_disposed) return;
+        if (_disposed) {
+            return;
+        }
+
         _disposed = true;
-        Marshal.FreeHGlobal(_mem);
-        _mem = IntPtr.Zero;
+        Marshal.FreeHGlobal(_memory);
+        _memory = IntPtr.Zero;
         _count = 0;
-        _length = 0;
+        _allocatedLength = 0;
     }
 }

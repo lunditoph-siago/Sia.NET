@@ -9,14 +9,14 @@ public sealed class ActorRuntime : IDisposable
     public int WorkerCount { get; }
     public int BatchSize { get; }
 
-    private readonly BlockingQueue<WorldActor> _ready = new();
-    private readonly BlockingExecutor _blocking;
-    private readonly object _gate = new();
-    private readonly HashSet<WorldActor> _actors = [];
-    private bool _closing;
+    private readonly BlockingQueue<WorldActor> _readyActors = new();
+    private readonly BlockingExecutor _blockingExecutor;
+    private readonly object _lifecycleGate = new();
+    private readonly HashSet<WorldActor> _activeActors = [];
+    private bool _shutdownRequested;
 
 #if !BROWSER
-    private readonly ManualResetEventSlim _drained = new(false);
+    private readonly ManualResetEventSlim _actorsDrained = new(false);
     private readonly Task[] _workers;
 #endif
 
@@ -29,7 +29,7 @@ public sealed class ActorRuntime : IDisposable
             ? workerCount
             : Math.Max(1, Environment.ProcessorCount - 1);
         BatchSize = Math.Max(1, batchSize);
-        _blocking = new BlockingExecutor(
+        _blockingExecutor = new BlockingExecutor(
             Math.Max(1, blockingWorkerCount));
 
 #if BROWSER
@@ -48,50 +48,54 @@ public sealed class ActorRuntime : IDisposable
 
     public WorldActor CreateActor(World world)
     {
-        lock (_gate) {
-            ObjectDisposedException.ThrowIf(_closing, this);
+        lock (_lifecycleGate) {
+            ObjectDisposedException.ThrowIf(_shutdownRequested, this);
             var actor = new WorldActor(world, this);
-            _actors.Add(actor);
+            _activeActors.Add(actor);
             return actor;
         }
     }
 
     internal void Schedule(WorldActor actor)
     {
-        _ready.Enqueue(actor);
+        _readyActors.Enqueue(actor);
 
 #if BROWSER
         _ = Task.Run(() => {
-            if (_ready.TryDequeue(out var ready)) ready.ProcessBatch();
+            if (_readyActors.TryDequeue(out var readyActor)) {
+                readyActor.ProcessBatch();
+            }
         });
 #endif
     }
 
-    internal void ActorCompleted(WorldActor actor)
+    internal void OnActorCompleted(WorldActor actor)
     {
-        lock (_gate) {
-            _actors.Remove(actor);
-            CompleteWorkersIfDrained();
+        lock (_lifecycleGate) {
+            _activeActors.Remove(actor);
+            StopWorkersWhenDrainedUnderLock();
         }
     }
 
-    private void CompleteWorkersIfDrained()
+    private void StopWorkersWhenDrainedUnderLock()
     {
-        if (!_closing || _actors.Count != 0) return;
-        _ready.Complete();
+        if (!_shutdownRequested || _activeActors.Count != 0) {
+            return;
+        }
+
+        _readyActors.Complete();
 #if !BROWSER
-        _blocking.Complete();
-        _drained.Set();
+        _blockingExecutor.Complete();
+        _actorsDrained.Set();
 #endif
     }
 
-    internal void ContinueAsync(WorldActor actor, Task task)
+    internal void ResumeAfterAsync(WorldActor actor, Task task)
     {
         _ = task.ContinueWith(
             static (completed, state) => {
-                var (owner, runtime) =
-                    ((WorldActor, ActorRuntime))state!;
-                runtime.OnAsyncCompleted(owner, completed);
+                var (suspendedActor, runtime) = ((WorldActor, ActorRuntime))state!;
+                runtime.ResumeAfterAsyncCompletion(suspendedActor, completed);
             },
             (actor, this),
             CancellationToken.None,
@@ -99,34 +103,44 @@ public sealed class ActorRuntime : IDisposable
             TaskScheduler.Default);
     }
 
-    private void OnAsyncCompleted(WorldActor actor, Task task)
+    private void ResumeAfterAsyncCompletion(WorldActor actor, Task task)
     {
         Exception? failure = null;
-        try { task.GetAwaiter().GetResult(); }
-        catch (Exception error) { failure = error; }
+        try {
+            task.GetAwaiter().GetResult();
+        }
+        catch (Exception error) {
+            failure = error;
+        }
+
         actor.ResumeFromSuspension(failure);
     }
 
-    internal void ExecuteBlocking(
+    internal void ScheduleBlocking(
         WorldActor actor,
         IBlockingWorldMessage message,
         WorldContext context)
-        => _blocking.Post(() => {
+        => _blockingExecutor.Post(() => {
             Exception? failure = null;
-            var previous = WorldActor.Current;
+            var previousActor = WorldActor.Current;
             WorldActor.Current = actor;
             try {
                 message.ExecuteBlocking(context);
             }
-            catch (Exception error) { failure = error; }
-            finally { WorldActor.Current = previous; }
+            catch (Exception error) {
+                failure = error;
+            }
+            finally {
+                WorldActor.Current = previousActor;
+            }
+
             actor.ResumeFromSuspension(failure);
         });
 
 #if !BROWSER
     private void RunWorker()
     {
-        while (_ready.Dequeue(out var actor)) {
+        while (_readyActors.Dequeue(out var actor)) {
             actor.ProcessBatch();
         }
     }
@@ -137,39 +151,53 @@ public sealed class ActorRuntime : IDisposable
 
     public void Dispose(TimeSpan timeout)
     {
-        if (WorldActor.Current?.Runtime == this)
-            throw new InvalidOperationException("Cannot dispose the runtime from one of its actors.");
-        if (timeout != Timeout.InfiniteTimeSpan && (timeout < TimeSpan.Zero || timeout.TotalMilliseconds > int.MaxValue))
+        if (WorldActor.Current?.Runtime == this) {
+            throw new InvalidOperationException(
+                "Cannot dispose the runtime from one of its actors.");
+        }
+
+        if (timeout != Timeout.InfiniteTimeSpan
+            && (timeout < TimeSpan.Zero || timeout.TotalMilliseconds > int.MaxValue)) {
             throw new ArgumentOutOfRangeException(nameof(timeout));
+        }
 
 #if !BROWSER
-        var started = Stopwatch.GetTimestamp();
+        var shutdownStarted = Stopwatch.GetTimestamp();
 #endif
-        WorldActor[]? actors = null;
-        lock (_gate) {
-            if (!_closing) {
-                _closing = true;
-                actors = [.. _actors];
-                CompleteWorkersIfDrained();
+        WorldActor[]? actorsToComplete = null;
+        lock (_lifecycleGate) {
+            if (!_shutdownRequested) {
+                _shutdownRequested = true;
+                actorsToComplete = [.. _activeActors];
+                StopWorkersWhenDrainedUnderLock();
             }
         }
 
-        // Actor completion enters the runtime after taking the actor lock.
-        // Request mailbox completion outside the runtime lock.
-        if (actors is not null)
-            foreach (var actor in actors) actor.Complete();
+        // Completion takes the actor lock before entering the runtime.
+        // Request it only after releasing the lifecycle lock.
+        if (actorsToComplete is not null) {
+            foreach (var actor in actorsToComplete) {
+                actor.Complete();
+            }
+        }
 
 #if !BROWSER
-        if (!_drained.Wait(Remaining()))
+        if (!_actorsDrained.Wait(GetRemainingTimeout())) {
             throw new TimeoutException($"ActorRuntime actors did not drain within {timeout}.");
-        _blocking.WaitForCompletion(Remaining());
-        if (!Task.WaitAll(_workers, Remaining()))
-            throw new TimeoutException($"ActorRuntime workers did not stop within {timeout}.");
+        }
 
-        TimeSpan Remaining()
+        _blockingExecutor.WaitForCompletion(GetRemainingTimeout());
+        if (!Task.WaitAll(_workers, GetRemainingTimeout())) {
+            throw new TimeoutException($"ActorRuntime workers did not stop within {timeout}.");
+        }
+
+        TimeSpan GetRemainingTimeout()
         {
-            if (timeout == Timeout.InfiniteTimeSpan) return timeout;
-            var remaining = timeout - Stopwatch.GetElapsedTime(started);
+            if (timeout == Timeout.InfiniteTimeSpan) {
+                return timeout;
+            }
+
+            var remaining = timeout - Stopwatch.GetElapsedTime(shutdownStarted);
             return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
         }
 #endif

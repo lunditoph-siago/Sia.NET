@@ -19,16 +19,21 @@ public sealed class ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
     private int _count;
     private T[] _array = new T[initialCapacity];
 
-    public ArrayBuffer() : this(0) {}
+    public ArrayBuffer() : this(0)
+    {
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void EnsureCapacity(int count)
     {
-        if (count > _array.Length) Grow(count);
+        if (count > _array.Length) {
+            Grow(count);
+        }
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
     private void Grow(int count)
-        => Array.Resize(ref _array, CalculateArraySize(count));
+        => Array.Resize(ref _array, GetAllocationSize(count));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void AppendReserved(in T value)
@@ -38,7 +43,7 @@ public sealed class ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static int CalculateArraySize(int requiredCapacity)
+    private static int GetAllocationSize(int requiredCapacity)
     {
         ArgumentOutOfRangeException.ThrowIfGreaterThan(requiredCapacity, Array.MaxLength);
         var size = 8;
@@ -57,5 +62,5 @@ public sealed class ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
     public Span<T> AsSpan() => _array;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Dispose() {}
+    public void Dispose() { }
 }

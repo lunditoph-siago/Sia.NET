@@ -543,12 +543,14 @@ public sealed class Scheduler : IAddon, IDisposable
         return slot;
     }
 
-    private void InvalidateStages(Outcome<Exception> result = default)
+    private void InvalidateStages(Outcome<Exception> outcome = default)
     {
-        List<SystemStage>? stages = null;
+        List<SystemStage>? stagesToDispose = null;
+
+        // Detach every stage before invoking cleanup callbacks.
         foreach (var slot in _registrationOrder) {
             if (slot.Stage is { } stage) {
-                (stages ??= []).Add(stage);
+                (stagesToDispose ??= []).Add(stage);
                 slot.Stage = null;
             }
             slot.RuntimeOrder = [];
@@ -556,11 +558,13 @@ public sealed class Scheduler : IAddon, IDisposable
             slot.RuntimePlanDirty = true;
         }
         _planValid = false;
-        if (stages is not null) {
-            foreach (var stage in stages)
-                result = result.Attempt(() => InvokeLifecycle(stage.Dispose));
+
+        if (stagesToDispose is not null) {
+            foreach (var stage in stagesToDispose) {
+                outcome = outcome.Attempt(() => InvokeLifecycle(stage.Dispose));
+            }
         }
-        result.ThrowIfFailed();
+        outcome.ThrowIfFailed();
     }
 
     private void MarkEntriesForCompaction(ScheduleSlot slot)

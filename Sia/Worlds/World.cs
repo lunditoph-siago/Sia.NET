@@ -15,7 +15,7 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
 
     internal EntityStatePool EntityStates { get; } = new();
 
-    private readonly object _actorLifecycle = new();
+    private readonly object _actorLifecycleLock = new();
     private WorldActor? _actor;
 
     public World()
@@ -30,15 +30,23 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
 
     private void Dispose(bool disposing)
     {
-        if (IsDisposed) return;
+        if (IsDisposed) {
+            return;
+        }
+
         if (disposing) {
             ThrowIfActorIncomplete();
             EnsureCanClearHosts();
             EnsureCanClearAddons();
         }
 
-        lock (_actorLifecycle) {
-            if (IsDisposed) return;
+        // Recheck actor completion under the same lock used to bind the actor.
+        lock (_actorLifecycleLock) {
+            if (IsDisposed) {
+                return;
+            }
+
+
             if (disposing) {
                 ThrowIfActorIncomplete();
             }
@@ -62,11 +70,17 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
         GC.SuppressFinalize(this);
     }
 
-    private static Outcome<Exception> NotifyObservers<T>(Action<T>? observers, T value, Outcome<Exception> result)
+    private static Outcome<Exception> NotifyObservers<T>(
+        Action<T>? observers,
+        T value,
+        Outcome<Exception> result)
     {
-        if (observers is not null) {
-            foreach (Action<T> observer in observers.GetInvocationList())
-                result = result.Attempt(() => observer(value));
+        if (observers is null) {
+            return result;
+        }
+
+        foreach (Action<T> observer in observers.GetInvocationList()) {
+            result = result.Attempt(() => observer(value));
         }
         return result;
     }
@@ -122,7 +136,7 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
 
     internal void BindActor(WorldActor actor)
     {
-        lock (_actorLifecycle) {
+        lock (_actorLifecycleLock) {
             ObjectDisposedException.ThrowIf(IsDisposed, this);
             if (_actor is not null && !ReferenceEquals(_actor, actor)) {
                 throw new InvalidOperationException(

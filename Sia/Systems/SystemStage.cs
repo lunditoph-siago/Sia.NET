@@ -431,11 +431,11 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
 
     private readonly Action<WorldContext> _combinedAction;
     private readonly ExecutionPlan? _plan;
-    private bool _executing;
-    private bool _disposeAfterExecution;
+    private bool _executionInProgress;
+    private bool _disposalRequested;
 
     internal SystemStage(World world, IEnumerable<ISystem> systems)
-        : this(world, systems, null) {}
+        : this(world, systems, null) { }
 
     private SystemStage(
         World world,
@@ -480,7 +480,8 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
             world,
             (plan ?? throw new ArgumentNullException(nameof(plan)))
                 .Entries.Select(static entry => entry.Creator()),
-            plan) {}
+            plan)
+    { }
 
     int ISystemScheduleEntry.Version => 0;
     ExecutionPlan? ISystemScheduleEntry.Plan => _plan;
@@ -506,19 +507,20 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
         if (IsDisposed) {
             return;
         }
-        if (_executing)
+        if (_executionInProgress) {
             throw new InvalidOperationException("Cannot dispose a system stage while it is executing.");
+        }
         DisposeCore(Outcome<Exception>.Success);
     }
 
-    internal void DisposeAfterExecution()
+    internal void RequestDisposal()
     {
-        if (_executing) {
-            _disposeAfterExecution = true;
+        if (_executionInProgress) {
+            // The owner can detach the stage now. Uninitialize once its tick returns.
+            _disposalRequested = true;
+            return;
         }
-        else {
-            Dispose();
-        }
+        Dispose();
     }
 
     private void DisposeCore(Outcome<Exception> result)
@@ -536,7 +538,9 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
         Exception? executionError = null;
         try {
             _combinedAction(context);
-            if (applyCommands) World.Commands.Apply(World);
+            if (applyCommands) {
+                World.Commands.Apply(World);
+            }
         }
         catch (Exception error) {
             executionError = error;
@@ -552,20 +556,24 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
         World.EnsureOwnerThread();
         ObjectDisposedException.ThrowIf(IsDisposed, this);
         ObjectDisposedException.ThrowIf(World.IsDisposed, World);
-        if (_executing)
+        if (_executionInProgress) {
             throw new InvalidOperationException("The system stage is already executing.");
-        _executing = true;
+        }
+        _executionInProgress = true;
     }
 
     private void EndExecution(Exception? executionError)
     {
-        _executing = false;
-        if (_disposeAfterExecution) {
-            _disposeAfterExecution = false;
-            DisposeCore(executionError is null
-                ? Outcome<Exception>.Success
-                : Outcome<Exception>.Failure(executionError));
+        _executionInProgress = false;
+        if (!_disposalRequested) {
+            return;
         }
+
+        _disposalRequested = false;
+        var outcome = executionError is null
+            ? Outcome<Exception>.Success
+            : Outcome<Exception>.Failure(executionError);
+        DisposeCore(outcome);
     }
 
     private static Outcome<Exception> CleanupInitialized(
@@ -601,7 +609,8 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
             .ToArray();
 
         return actions.Length switch {
-            0 => static _ => {},
+            0 => static _ => { }
+            ,
             1 => actions[0],
             _ => context => {
                 foreach (var action in actions) {

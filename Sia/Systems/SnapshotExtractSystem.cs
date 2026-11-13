@@ -13,10 +13,10 @@ public abstract class SnapshotExtractSystem<TExtract> : SystemBase
 
     protected abstract IEntityMatcher ExtractMatcher { get; }
     protected abstract TExtract Extract(Entity entity);
-    protected virtual void Render(ReadOnlySpan<TExtract> data) {}
+    protected virtual void Render(ReadOnlySpan<TExtract> data) { }
 
     protected SnapshotExtractSystem(SystemChain? children = null)
-        : base(Matchers.Any, children: children) {}
+        : base(Matchers.Any, children: children) { }
 
     public override void Initialize(World world)
     {
@@ -47,14 +47,14 @@ public abstract class SnapshotExtractSystem<TExtract> : SystemBase
         }
 
         var count = _extractQuery.Count;
-        var data = new TExtract[count];
-        var i = 0;
+        var snapshotData = new TExtract[count];
+        var index = 0;
         _extractQuery.ForEach((EntityHandler)(entity => {
-            data[i++] = Extract(entity);
+            snapshotData[index++] = Extract(entity);
         }));
 
         Volatile.Write(
             ref _snapshot,
-            new WorldSnapshot<TExtract>(++_version, data, count));
+            new WorldSnapshot<TExtract>(++_version, snapshotData, count));
     }
 }

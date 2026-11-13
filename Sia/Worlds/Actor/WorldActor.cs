@@ -1,3 +1,5 @@
+using System.Runtime.ExceptionServices;
+
 namespace Sia;
 
 public sealed class WorldActor : IDisposable
@@ -13,9 +15,9 @@ public sealed class WorldActor : IDisposable
     private readonly ActorRuntime? _runtime;
 
     private int _ownerThreadId;
-    private int _completePosted;
+    private int _completionRequested;
     private int _completed;
-    private int _completionSeen;
+    private int _completionMessageRead;
     private bool _scheduled;
     private bool _suspended;
     private Exception? _failure;
@@ -31,7 +33,7 @@ public sealed class WorldActor : IDisposable
         || Environment.CurrentManagedThreadId == Volatile.Read(ref _ownerThreadId);
 
     public WorldActor(World world)
-        : this(world, null) {}
+        : this(world, null) { }
 
     internal WorldActor(World world, ActorRuntime? runtime)
     {
@@ -72,11 +74,11 @@ public sealed class WorldActor : IDisposable
     public void Complete()
     {
         lock (_gate) {
-            if (Volatile.Read(ref _completePosted) != 0
+            if (Volatile.Read(ref _completionRequested) != 0
                 || Volatile.Read(ref _completed) != 0) {
                 return;
             }
-            _completePosted = 1;
+            _completionRequested = 1;
             _mailbox.Enqueue(CompleteMessage.Instance);
             TryScheduleUnderLock();
         }
@@ -89,22 +91,23 @@ public sealed class WorldActor : IDisposable
         }
         lock (_gate) {
             ObjectDisposedException.ThrowIf(IsCompleted, this);
-            if (_ownerThreadId != 0)
+            if (_ownerThreadId != 0) {
                 throw new InvalidOperationException("The world actor is already running.");
+            }
             Volatile.Write(ref _ownerThreadId, Environment.CurrentManagedThreadId);
         }
 
         _running.Set();
-        var previous = Current;
+        var previousActor = Current;
         Current = this;
 
-        var completionSeen = false;
+        var completionMessageRead = false;
         Exception? failure = null;
 
         try {
             while (true) {
                 if (!_mailbox.TryDequeue(out var message)) {
-                    if (completionSeen) {
+                    if (completionMessageRead) {
                         break;
                     }
                     if (!_mailbox.Dequeue(out message)) {
@@ -113,7 +116,7 @@ public sealed class WorldActor : IDisposable
                 }
 
                 if (ReferenceEquals(message, CompleteMessage.Instance)) {
-                    completionSeen = true;
+                    completionMessageRead = true;
                     continue;
                 }
 
@@ -130,13 +133,19 @@ public sealed class WorldActor : IDisposable
                 }
             }
         }
-        catch (Exception error) { failure = error; }
+        catch (Exception error) {
+            failure = error;
+        }
         finally {
-            Current = previous;
+            Current = previousActor;
             lock (_gate) {
                 Volatile.Write(ref _ownerThreadId, 0);
-                if (failure is null) CompleteUnderLock();
-                else FailUnderLock(failure);
+                if (failure is null) {
+                    CompleteUnderLock();
+                }
+                else {
+                    FailUnderLock(failure);
+                }
             }
         }
     }
@@ -145,9 +154,11 @@ public sealed class WorldActor : IDisposable
     {
         var runtime = _runtime!;
         var context = new WorldContext(World);
-        var previous = Current;
+        var previousActor = Current;
         Current = this;
-        if (!_running.IsSet) _running.Set();
+        if (!_running.IsSet) {
+            _running.Set();
+        }
 
         try {
             for (var i = 0; i < runtime.BatchSize; i++) {
@@ -156,15 +167,15 @@ public sealed class WorldActor : IDisposable
                 }
 
                 if (ReferenceEquals(message, CompleteMessage.Instance)) {
-                    Volatile.Write(ref _completionSeen, 1);
+                    Volatile.Write(ref _completionMessageRead, 1);
                     continue;
                 }
 
                 if (message is IAsyncWorldMessage asyncMessage) {
-                    SuspendForAsync();
+                    SuspendMailbox();
                     try {
                         var task = asyncMessage.ExecuteAsync(context);
-                        runtime.ContinueAsync(this, task);
+                        runtime.ResumeAfterAsync(this, task);
                     }
                     catch (Exception error) {
                         ResumeFromSuspension(error);
@@ -173,9 +184,9 @@ public sealed class WorldActor : IDisposable
                 }
 
                 if (message is IBlockingWorldMessage blockingMessage) {
-                    SuspendForAsync();
+                    SuspendMailbox();
                     try {
-                        runtime.ExecuteBlocking(this, blockingMessage, context);
+                        runtime.ScheduleBlocking(this, blockingMessage, context);
                     }
                     catch (Exception error) {
                         ResumeFromSuspension(error);
@@ -192,14 +203,14 @@ public sealed class WorldActor : IDisposable
                 }
             }
 
-            CompleteBatch();
+            FinishBatch();
         }
         finally {
-            Current = previous;
+            Current = previousActor;
         }
     }
 
-    private void SuspendForAsync()
+    private void SuspendMailbox()
     {
         lock (_gate) {
             _suspended = true;
@@ -217,46 +228,42 @@ public sealed class WorldActor : IDisposable
                 return;
             }
 
-            if (Volatile.Read(ref _completionSeen) != 0
-                && !_mailbox.TryPeek(out _)) {
-                CompleteUnderLock();
-                return;
-            }
-
-            if (_mailbox.TryPeek(out _)) {
-                ScheduleUnderLock();
-            }
-            else {
-                _scheduled = false;
-            }
+            ContinueOrCompleteUnderLock();
         }
     }
 
-    private void CompleteBatch()
+    private void FinishBatch()
     {
         lock (_gate) {
             if (_suspended) {
                 return;
             }
 
-            if (Volatile.Read(ref _completionSeen) != 0
-                && !_mailbox.TryPeek(out _)) {
-                CompleteUnderLock();
-                return;
-            }
+            ContinueOrCompleteUnderLock();
+        }
+    }
 
-            if (_mailbox.TryPeek(out _)) {
-                ScheduleUnderLock();
-            }
-            else {
-                _scheduled = false;
-            }
+    private void ContinueOrCompleteUnderLock()
+    {
+        if (Volatile.Read(ref _completionMessageRead) != 0
+            && !_mailbox.TryPeek(out _)) {
+            CompleteUnderLock();
+            return;
+        }
+
+        if (_mailbox.TryPeek(out _)) {
+            ScheduleUnderLock();
+        }
+        else {
+            _scheduled = false;
         }
     }
 
     private void Fail(Exception error)
     {
-        lock (_gate) FailUnderLock(error);
+        lock (_gate) {
+            FailUnderLock(error);
+        }
     }
 
     private void FailUnderLock(Exception error)
@@ -265,8 +272,14 @@ public sealed class WorldActor : IDisposable
         _suspended = false;
         _scheduled = false;
         while (_mailbox.TryDequeue(out var message)) {
-            if (message is TickMessage tick) tick.Reject(error);
-            if (message is SchedulerTickMessage scheduler) scheduler.Reject(error);
+            switch (message) {
+                case TickMessage tick:
+                    tick.Reject(error);
+                    break;
+                case SchedulerTickMessage schedulerTick:
+                    schedulerTick.Reject(error);
+                    break;
+            }
         }
         CompleteUnderLock();
     }
@@ -293,25 +306,25 @@ public sealed class WorldActor : IDisposable
             return;
         }
         Volatile.Write(ref _completed, 1);
-        _runtime?.ActorCompleted(this);
+        _runtime?.OnActorCompleted(this);
         _completion.Set();
     }
 
     private void ThrowIfClosed()
     {
         if (Volatile.Read(ref _completed) != 0
-            || (Volatile.Read(ref _completePosted) != 0 && !IsOwnerThread)) {
+            || (Volatile.Read(ref _completionRequested) != 0 && !IsOwnerThread)) {
             throw new ObjectDisposedException(nameof(WorldActor));
         }
     }
 
     public bool WaitUntilRunning(TimeSpan timeout)
-        => _running.WaitHandle.WaitOne(ToTimeout(timeout));
+        => _running.WaitHandle.WaitOne(ToWaitMilliseconds(timeout));
 
     public bool WaitForCompletion(TimeSpan timeout)
-        => _completion.WaitHandle.WaitOne(ToTimeout(timeout));
+        => _completion.WaitHandle.WaitOne(ToWaitMilliseconds(timeout));
 
-    private static int ToTimeout(TimeSpan timeout)
+    private static int ToWaitMilliseconds(TimeSpan timeout)
         => timeout.TotalMilliseconds >= int.MaxValue
             ? Timeout.Infinite
             : (int)timeout.TotalMilliseconds;
@@ -319,8 +332,7 @@ public sealed class WorldActor : IDisposable
     public void ThrowIfFailed()
     {
         if (Failure is { } failure) {
-            System.Runtime.ExceptionServices.ExceptionDispatchInfo
-                .Capture(failure).Throw();
+            ExceptionDispatchInfo.Capture(failure).Throw();
         }
     }
 
@@ -332,8 +344,12 @@ public sealed class WorldActor : IDisposable
 
     public void CompleteAndDispose(TimeSpan timeout)
     {
-        if (!IsCompleted && (IsOwnerThread || (_runtime is not null && Current?.Runtime == _runtime)))
-            throw new InvalidOperationException("A runtime worker cannot wait for an actor on the same runtime.");
+        if (!IsCompleted
+            && (IsOwnerThread || (_runtime is not null && Current?.Runtime == _runtime))) {
+            throw new InvalidOperationException(
+                "A runtime worker cannot wait for an actor on the same runtime.");
+        }
+
         Complete();
         if (!WaitForCompletion(timeout)) {
             throw new TimeoutException(

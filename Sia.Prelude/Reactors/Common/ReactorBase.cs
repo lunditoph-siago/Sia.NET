@@ -7,7 +7,7 @@ public abstract class ReactorBase : IAddon
     protected delegate void ForeverListener<UEvent>(Entity target, in UEvent e)
         where UEvent : IEvent;
 
-    private event Action? OnUnlisten;
+    private event Action? ListenerCleanup;
 
     [AllowNull]
     public World World { get; private set; }
@@ -16,7 +16,7 @@ public abstract class ReactorBase : IAddon
     {
         var dispatcher = World.Dispatcher;
         dispatcher.Listen(listener);
-        OnUnlisten += () => dispatcher.RetireListener(listener);
+        ListenerCleanup += () => dispatcher.RetireListener(listener);
     }
 
     protected void Listen<UEvent>(WorldDispatcher.Listener<UEvent> listener)
@@ -24,27 +24,28 @@ public abstract class ReactorBase : IAddon
     {
         var dispatcher = World.Dispatcher;
         dispatcher.Listen(listener);
-        OnUnlisten += () => dispatcher.RetireListener(listener);
+        ListenerCleanup += () => dispatcher.RetireListener(listener);
     }
 
     protected void Listen<UEvent>(ForeverListener<UEvent> listener)
         where UEvent : IEvent
     {
-        bool Listener(Entity entity, in UEvent command)
+        bool Listener(Entity entity, in UEvent e)
         {
-            listener(entity, command);
+            listener(entity, e);
             return false;
         }
+
         var dispatcher = World.Dispatcher;
         dispatcher.Listen<UEvent>(Listener);
-        OnUnlisten += () => dispatcher.RetireListener<UEvent>(Listener);
+        ListenerCleanup += () => dispatcher.RetireListener<UEvent>(Listener);
     }
 
     protected void Listen(Entity target, IEventListener<Entity> listener)
     {
         var dispatcher = World.Dispatcher;
         dispatcher.Listen(target, listener);
-        OnUnlisten += () => dispatcher.RetireListener(target, listener);
+        ListenerCleanup += () => dispatcher.RetireListener(target, listener);
     }
 
     public virtual void OnInitialize(World world)
@@ -54,16 +55,17 @@ public abstract class ReactorBase : IAddon
 
     public virtual void OnUninitialize(World world)
     {
-        var cleanup = OnUnlisten;
-        OnUnlisten = null;
+        var cleanup = ListenerCleanup;
+        ListenerCleanup = null;
         if (cleanup is null) {
             return;
         }
-        var result = Outcome<Exception>.Success;
+
+        var outcome = Outcome<Exception>.Success;
         foreach (Action unlisten in cleanup.GetInvocationList()) {
-            result = result.Attempt(unlisten);
+            outcome = outcome.Attempt(unlisten);
         }
-        result.ThrowIfFailed();
+        outcome.ThrowIfFailed();
     }
 }
 
