@@ -33,6 +33,8 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
 
         if (disposing) {
             ThrowIfActorIncomplete();
+            EnsureCanClearHosts();
+            EnsureCanClearAddons();
         }
         else if (_actor is { IsCompleted: false }) {
             return;
@@ -41,9 +43,9 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
         IsDisposed = true;
 
         Outcome<Exception>.Success
-            .Attempt(ClearHosts)
+            .Attempt(ClearHostsCore)
             .Attempt(EntityStates.Retire)
-            .Attempt(ClearAddons)
+            .Attempt(ClearAddonsCore)
             .Attempt(() => OnDisposed?.Invoke(this))
             .ThrowIfFailed();
     }

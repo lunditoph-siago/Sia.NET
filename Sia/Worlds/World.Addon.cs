@@ -20,59 +20,86 @@ public partial class World
     }
 
     private readonly IAddon?[] _addons = new IAddon?[2048];
+    private readonly HashSet<int> _initializingAddons = [];
     private int _addonCount = 0;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public TAddon AcquireAddon<TAddon>()
         where TAddon : class, IAddon, new()
     {
-        ref var addon = ref _addons[WorldAddonIndexer<TAddon>.Index];
-        if (addon != null) {
-            return Unsafe.As<TAddon>(addon);
-        }
-        var newAddon = CreateAddon<TAddon>();
-        addon = newAddon;
-        OnAddonCreated?.Invoke(newAddon);
-        return newAddon;
+        EnsureAddonRegistration();
+        var index = WorldAddonIndexer<TAddon>.Index;
+        return _addons[index] is { } addon ? Unsafe.As<TAddon>(addon)
+            : InitializeAddon(index, static () => new TAddon());
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public TAddon AddAddon<TAddon>()
         where TAddon : class, IAddon, new()
-        => AddAddon(new TAddon());
+    {
+        EnsureAddonRegistration();
+        return InitializeAddon(WorldAddonIndexer<TAddon>.Index, static () => new TAddon());
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public TAddon AddAddon<TAddon>(TAddon addon)
         where TAddon : class, IAddon
     {
+        EnsureAddonRegistration();
         ArgumentNullException.ThrowIfNull(addon);
+        var index = WorldAddonIndexer<TAddon>.Index;
+        BeginAddonInitialization<TAddon>(index);
+        return InitializeAddon(index, addon);
+    }
 
-        ref var slot = ref _addons[WorldAddonIndexer<TAddon>.Index];
-        if (slot != null) {
+    private void BeginAddonInitialization<TAddon>(int index)
+    {
+        if (_addons[index] != null) {
             throw new Exception("Addon already exists: " + typeof(TAddon));
         }
+        if (!_initializingAddons.Add(index))
+            throw new InvalidOperationException("An addon of the same type is already being initialized: " + typeof(TAddon));
+    }
 
-        addon.OnInitialize(this);
-        slot = addon;
-        _addonCount++;
+    private TAddon InitializeAddon<TAddon>(int index, Func<TAddon> create)
+        where TAddon : class, IAddon
+    {
+        BeginAddonInitialization<TAddon>(index);
+        TAddon addon;
+        try { addon = create(); }
+        catch {
+            _initializingAddons.Remove(index);
+            throw;
+        }
+        return InitializeAddon(index, addon);
+    }
+
+    private TAddon InitializeAddon<TAddon>(int index, TAddon addon)
+        where TAddon : class, IAddon
+    {
+        try {
+            addon.OnInitialize(this);
+            _addons[index] = addon;
+            _addonCount++;
+        }
+        finally {
+            _initializingAddons.Remove(index);
+        }
         OnAddonCreated?.Invoke(addon);
         return addon;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private TAddon CreateAddon<TAddon>()
-        where TAddon : class, IAddon, new()
+    private void EnsureAddonRegistration()
     {
-        var addon = new TAddon();
-        addon.OnInitialize(this);
-        _addonCount++;
-        return addon;
+        EnsureOwnerThread();
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool RemoveAddon<TAddon>()
         where TAddon : class, IAddon
     {
+        EnsureOwnerThread();
         ref var addon = ref _addons[WorldAddonIndexer<TAddon>.Index];
         if (addon == null) {
             return false;
@@ -148,6 +175,19 @@ public partial class World
     }
 
     public void ClearAddons()
+    {
+        EnsureOwnerThread();
+        EnsureCanClearAddons();
+        ClearAddonsCore();
+    }
+
+    private void EnsureCanClearAddons()
+    {
+        if (_initializingAddons.Count != 0)
+            throw new InvalidOperationException("Cannot clear addons while an addon is being initialized.");
+    }
+
+    private void ClearAddonsCore()
     {
         var addons = new List<IAddon>(_addonCount);
         for (var i = 0; addons.Count < _addonCount; ++i) {

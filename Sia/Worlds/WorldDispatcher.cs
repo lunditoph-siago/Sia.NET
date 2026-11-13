@@ -66,6 +66,11 @@ public sealed class WorldDispatcher : Dispatcher<IEvent>
     public override void UnlistenAll(Entity target)
     {
         World.EnsureOwnerThread();
+        DetachEntityListeners(target);
+    }
+
+    internal void DetachEntityListeners(Entity target)
+    {
         base.UnlistenAll(target);
         if (target.IsValid && ReferenceEquals(target.Host.World, World)) {
             target.GetStateUnchecked().EventSink = null;

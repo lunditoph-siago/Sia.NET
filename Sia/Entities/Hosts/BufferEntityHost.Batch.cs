@@ -49,7 +49,8 @@ public partial class BufferEntityHost<TEntity, TBuffer>
             var entity = entities[i];
             var state = entity.GetStateUnchecked();
             if (state is null || !entity.References(state) || !ReferenceEquals(state.Host, source)
-                || state.Slot != i || state.Releasing || state.EventSink is not null) return false;
+                || state.Slot != i || state.Releasing || state.Migrating || state.NotifyingMigration
+                || state.EventSink is not null) return false;
         }
         return true;
     }
