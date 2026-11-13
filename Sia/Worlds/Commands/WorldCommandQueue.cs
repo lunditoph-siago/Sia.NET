@@ -27,6 +27,9 @@ public sealed class WorldCommandQueue : IWorldCommandQueue
 
     public int Apply(World world)
     {
+        ArgumentNullException.ThrowIfNull(world);
+        world.EnsureOwnerThread();
+        ObjectDisposedException.ThrowIf(world.IsDisposed, world);
         var count = 0;
         while (_requests.TryDequeue(out var request)) {
             request.Apply(world);

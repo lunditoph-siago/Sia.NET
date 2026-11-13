@@ -130,6 +130,7 @@ public class ParallelRunner : IRunner
     public int DegreeOfParallelism { get; }
 
     private readonly BlockingQueue<IJob> _jobs = new();
+    private readonly object _submissionGate = new();
 
     private readonly DefaultObjectPool<GroupActionJob[]> _groupActionJobArrPool;
     private readonly ConcurrentDictionary<Type, object> _genericGroupActionJobArrPools = [];
@@ -191,15 +192,18 @@ public class ParallelRunner : IRunner
 
     public void Run(Action action, RunnerBarrier? barrier = null)
     {
-        var job = s_actionJobPool.Get();
-        job.Action = action;
+        lock (_submissionGate) {
+            EnsureOpen();
+            var job = s_actionJobPool.Get();
+            job.Action = action;
 
-        if (barrier != null) {
-            job.Barrier = barrier;
-            barrier.AddParticipants(1);
+            if (barrier != null) {
+                job.Barrier = barrier;
+                barrier.AddParticipants(1);
+            }
+
+            _jobs.Enqueue(job);
         }
-
-        _jobs.Enqueue(job);
 #if BROWSER
         SpawnDrainers(1);
 #endif
@@ -207,29 +211,44 @@ public class ParallelRunner : IRunner
 
     public void Run<TData>(in TData data, InAction<TData> action, RunnerBarrier? barrier = null)
     {
-        if (!s_genericActionJobPools.TryGetValue(typeof(TData), out var poolRaw)) {
-            poolRaw = s_genericActionJobPools.GetOrAdd(typeof(TData),
-                static _ => ObjectPool.Create<ActionJob<TData>>());
+        lock (_submissionGate) {
+            EnsureOpen();
+            if (!s_genericActionJobPools.TryGetValue(typeof(TData), out var poolRaw)) {
+                poolRaw = s_genericActionJobPools.GetOrAdd(typeof(TData),
+                    static _ => ObjectPool.Create<ActionJob<TData>>());
+            }
+
+            var pool = Unsafe.As<ObjectPool<ActionJob<TData>>>(poolRaw);
+
+            var job = pool.Get();
+            job.Data = data;
+            job.Action = action;
+
+            if (barrier != null) {
+                job.Barrier = barrier;
+                barrier.AddParticipants(1);
+            }
+
+            _jobs.Enqueue(job);
         }
-
-        var pool = Unsafe.As<ObjectPool<ActionJob<TData>>>(poolRaw);
-
-        var job = pool.Get();
-        job.Data = data;
-        job.Action = action;
-
-        if (barrier != null) {
-            job.Barrier = barrier;
-            barrier.AddParticipants(1);
-        }
-
-        _jobs.Enqueue(job);
 #if BROWSER
         SpawnDrainers(1);
 #endif
     }
 
     public void Run(int taskCount, GroupAction action, RunnerBarrier? barrier = null)
+    {
+        int jobCount;
+        lock (_submissionGate) {
+            EnsureOpen();
+            jobCount = SubmitGroup(taskCount, action, barrier);
+        }
+#if BROWSER
+        SpawnDrainers(jobCount);
+#endif
+    }
+
+    private int SubmitGroup(int taskCount, GroupAction action, RunnerBarrier? barrier)
     {
         var degreeOfParallelism = Math.Min(taskCount, DegreeOfParallelism);
         var div = taskCount / degreeOfParallelism;
@@ -266,13 +285,24 @@ public class ParallelRunner : IRunner
                 _jobs.Enqueue(job);
             }
         }
-#if BROWSER
-        SpawnDrainers(degreeOfParallelism);
-#endif
+        return degreeOfParallelism;
     }
 
     public void Run<TData>(
         int taskCount, in TData data, GroupAction<TData> action, RunnerBarrier? barrier = null)
+    {
+        int jobCount;
+        lock (_submissionGate) {
+            EnsureOpen();
+            jobCount = SubmitGroup(taskCount, data, action, barrier);
+        }
+#if BROWSER
+        SpawnDrainers(jobCount);
+#endif
+    }
+
+    private int SubmitGroup<TData>(
+        int taskCount, in TData data, GroupAction<TData> action, RunnerBarrier? barrier)
     {
         var degreeOfParallelism = Math.Min(taskCount, DegreeOfParallelism);
         var div = taskCount / degreeOfParallelism;
@@ -321,14 +351,15 @@ public class ParallelRunner : IRunner
                 _jobs.Enqueue(job);
             }
         }
-#if BROWSER
-        SpawnDrainers(degreeOfParallelism);
-#endif
+        return degreeOfParallelism;
     }
+
+    private void EnsureOpen()
+        => ObjectDisposedException.ThrowIf(_jobs.IsCompleted, this);
 
     public void Dispose()
     {
-        _jobs.Complete();
+        lock (_submissionGate) _jobs.Complete();
         GC.SuppressFinalize(this);
     }
 }

@@ -98,23 +98,26 @@ public sealed class RunnerBarrier
         Raw.SignalAndWait();
 #endif
 
-        Exception? exception;
-
+        var outcome = Exception is { } error
+            ? Outcome<Exception>.Failure(error)
+            : Outcome<Exception>.Success;
         try {
             for (var i = 0; i != _callbackCount; ++i) {
                 ref var entry = ref _callbacks[i];
-                entry.Callback(entry.UserData);
+                try {
+                    entry.Callback(entry.UserData);
+                }
+                catch (Exception callbackError) {
+                    outcome = outcome.Combine(Outcome<Exception>.Failure(callbackError));
+                }
             }
         }
         finally {
             Array.Clear(_callbacks, 0, _callbackCount);
             _callbackCount = 0;
-            exception = Exception;
         }
 
-        if (exception != null) {
-            throw exception;
-        }
+        outcome.ThrowIfFailed();
     }
 
     public void WaitAndReturn()
