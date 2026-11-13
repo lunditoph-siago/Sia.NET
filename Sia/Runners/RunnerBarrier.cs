@@ -4,14 +4,14 @@ namespace Sia;
 
 public sealed class RunnerBarrier
 {
-    private class PoolPolicy : IPooledObjectPolicy<RunnerBarrier>
+    private sealed class PoolPolicy : IPooledObjectPolicy<RunnerBarrier>
     {
         public RunnerBarrier Create() => new();
         public bool Return(RunnerBarrier barrier)
         {
-            var parCount = barrier.ParticipantCount;
-            if (parCount != 0) {
-                barrier.RemoveParticipants(parCount);
+            var participantCount = barrier.ParticipantCount;
+            if (participantCount != 0) {
+                barrier.RemoveParticipants(participantCount);
             }
 #if BROWSER
             barrier._remaining = 0;
@@ -33,19 +33,20 @@ public sealed class RunnerBarrier
 
     public Exception? Exception { get; private set; }
 
+    private const int k_MaxCallbacks = 32;
     private int _callbackCount;
-    private readonly CallbackEntry[] _callbacks = new CallbackEntry[32];
+    private readonly CallbackEntry[] _callbacks = new CallbackEntry[k_MaxCallbacks];
 
-    private static readonly DefaultObjectPool<RunnerBarrier> s_barrierPool
+    private static readonly DefaultObjectPool<RunnerBarrier> s_BarrierPool
         = new(new PoolPolicy());
 
-    public static RunnerBarrier Get() => s_barrierPool.Get();
+    public static RunnerBarrier Get() => s_BarrierPool.Get();
 
-    private RunnerBarrier() {}
+    private RunnerBarrier() { }
 
     public void AddCallback(Action<object?> callback, object? userData = null)
     {
-        if (_callbackCount >= 32) {
+        if (_callbackCount >= k_MaxCallbacks) {
             throw new InvalidOperationException("RunnerBarrier can only have 32 callbacks");
         }
         _callbacks[_callbackCount] = new(callback, userData);
@@ -89,7 +90,7 @@ public sealed class RunnerBarrier
     {
 #if BROWSER
         var spinner = new SpinWait();
- 
+
         while (Volatile.Read(ref _remaining) > 0) {
             spinner.SpinOnce();
         }
@@ -98,23 +99,21 @@ public sealed class RunnerBarrier
         Raw.SignalAndWait();
 #endif
 
-        Exception? exception;
-
+        var result = Exception is { } error
+            ? Outcome<Exception>.Failure(error)
+            : Outcome<Exception>.Success;
         try {
             for (var i = 0; i != _callbackCount; ++i) {
-                ref var entry = ref _callbacks[i];
-                entry.Callback(entry.UserData);
+                result = result.Attempt(_callbacks[i],
+                    static (in CallbackEntry entry) => entry.Callback(entry.UserData));
             }
         }
         finally {
             Array.Clear(_callbacks, 0, _callbackCount);
             _callbackCount = 0;
-            exception = Exception;
         }
 
-        if (exception != null) {
-            throw exception;
-        }
+        result.ThrowIfFailed();
     }
 
     public void WaitAndReturn()
@@ -123,7 +122,7 @@ public sealed class RunnerBarrier
             Wait();
         }
         finally {
-            s_barrierPool.Return(this);
+            s_BarrierPool.Return(this);
         }
     }
 }

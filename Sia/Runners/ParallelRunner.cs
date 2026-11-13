@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
+
 using Microsoft.Extensions.ObjectPool;
 
 namespace Sia;
@@ -34,7 +35,7 @@ public class ParallelRunner : IRunner
         {
             Action();
             Barrier?.Signal();
-            s_actionJobPool.Return(this);
+            s_ActionJobPool.Return(this);
         }
 
         public override bool TryReset()
@@ -54,8 +55,8 @@ public class ParallelRunner : IRunner
             Action(Data);
             Barrier?.Signal();
 
-            if (s_genericActionJobPools.TryGetValue(typeof(TData), out var raw)) {
-                var pool = Unsafe.As<ObjectPool<ActionJob<TData>>>(raw);
+            if (s_GenericActionJobPools.TryGetValue(typeof(TData), out var untypedPool)) {
+                var pool = Unsafe.As<ObjectPool<ActionJob<TData>>>(untypedPool);
                 pool.Return(this);
             }
         }
@@ -109,17 +110,17 @@ public class ParallelRunner : IRunner
     {
         public TJob[] Create()
         {
-            var arr = new TJob[runner.DegreeOfParallelism];
-            foreach (ref var entry in arr.AsSpan()) {
-                entry = new();
+            var jobs = new TJob[runner.DegreeOfParallelism];
+            foreach (ref var job in jobs.AsSpan()) {
+                job = new();
             }
-            return arr;
+            return jobs;
         }
 
-        public bool Return(TJob[] arr)
+        public bool Return(TJob[] jobs)
         {
-            foreach (ref var entry in arr.AsSpan()) {
-                entry.TryReset();
+            foreach (ref var job in jobs.AsSpan()) {
+                job.TryReset();
             }
             return true;
         }
@@ -130,17 +131,18 @@ public class ParallelRunner : IRunner
     public int DegreeOfParallelism { get; }
 
     private readonly BlockingQueue<IJob> _jobs = new();
+    private readonly object _submissionGate = new();
 
-    private readonly DefaultObjectPool<GroupActionJob[]> _groupActionJobArrPool;
-    private readonly ConcurrentDictionary<Type, object> _genericGroupActionJobArrPools = [];
+    private readonly DefaultObjectPool<GroupActionJob[]> _groupActionJobArrayPool;
+    private readonly ConcurrentDictionary<Type, object> _genericGroupActionJobArrayPools = [];
 
-    private static readonly ObjectPool<ActionJob> s_actionJobPool = ObjectPool.Create<ActionJob>();
-    private static readonly ConcurrentDictionary<Type, object> s_genericActionJobPools = [];
+    private static readonly ObjectPool<ActionJob> s_ActionJobPool = ObjectPool.Create<ActionJob>();
+    private static readonly ConcurrentDictionary<Type, object> s_GenericActionJobPools = [];
 
     public ParallelRunner(int degreeOfParallelism)
     {
         DegreeOfParallelism = degreeOfParallelism;
-        _groupActionJobArrPool = new(new JobArrayPolicy<GroupActionJob>(this));
+        _groupActionJobArrayPool = new(new JobArrayPolicy<GroupActionJob>(this));
 
 #if !BROWSER
         for (var i = 0; i != DegreeOfParallelism; ++i) {
@@ -177,13 +179,13 @@ public class ParallelRunner : IRunner
             try {
                 job.Invoke();
             }
-            catch (Exception e) {
+            catch (Exception error) {
                 var barrier = job.Barrier;
                 if (barrier != null) {
-                    barrier.Throw(e);
+                    barrier.Throw(error);
                 }
                 else {
-                    Console.Error.WriteLine($"[{GetType()}] Uncaught exception: " + e);
+                    Console.Error.WriteLine($"[{GetType()}] Uncaught exception: " + error);
                 }
             }
         }
@@ -191,15 +193,18 @@ public class ParallelRunner : IRunner
 
     public void Run(Action action, RunnerBarrier? barrier = null)
     {
-        var job = s_actionJobPool.Get();
-        job.Action = action;
+        lock (_submissionGate) {
+            ThrowIfClosed();
+            var job = s_ActionJobPool.Get();
+            job.Action = action;
 
-        if (barrier != null) {
-            job.Barrier = barrier;
-            barrier.AddParticipants(1);
+            if (barrier != null) {
+                job.Barrier = barrier;
+                barrier.AddParticipants(1);
+            }
+
+            _jobs.Enqueue(job);
         }
-
-        _jobs.Enqueue(job);
 #if BROWSER
         SpawnDrainers(1);
 #endif
@@ -207,23 +212,26 @@ public class ParallelRunner : IRunner
 
     public void Run<TData>(in TData data, InAction<TData> action, RunnerBarrier? barrier = null)
     {
-        if (!s_genericActionJobPools.TryGetValue(typeof(TData), out var poolRaw)) {
-            poolRaw = s_genericActionJobPools.GetOrAdd(typeof(TData),
-                static _ => ObjectPool.Create<ActionJob<TData>>());
+        lock (_submissionGate) {
+            ThrowIfClosed();
+            if (!s_GenericActionJobPools.TryGetValue(typeof(TData), out var untypedPool)) {
+                untypedPool = s_GenericActionJobPools.GetOrAdd(typeof(TData),
+                    static _ => ObjectPool.Create<ActionJob<TData>>());
+            }
+
+            var pool = Unsafe.As<ObjectPool<ActionJob<TData>>>(untypedPool);
+
+            var job = pool.Get();
+            job.Data = data;
+            job.Action = action;
+
+            if (barrier != null) {
+                job.Barrier = barrier;
+                barrier.AddParticipants(1);
+            }
+
+            _jobs.Enqueue(job);
         }
-
-        var pool = Unsafe.As<ObjectPool<ActionJob<TData>>>(poolRaw);
-
-        var job = pool.Get();
-        job.Data = data;
-        job.Action = action;
-
-        if (barrier != null) {
-            job.Barrier = barrier;
-            barrier.AddParticipants(1);
-        }
-
-        _jobs.Enqueue(job);
 #if BROWSER
         SpawnDrainers(1);
 #endif
@@ -231,77 +239,100 @@ public class ParallelRunner : IRunner
 
     public void Run(int taskCount, GroupAction action, RunnerBarrier? barrier = null)
     {
-        var degreeOfParallelism = Math.Min(taskCount, DegreeOfParallelism);
-        var div = taskCount / degreeOfParallelism;
-        var remaining = taskCount % degreeOfParallelism;
-        var acc = 0;
+        int jobCount;
+        lock (_submissionGate) {
+            ThrowIfClosed();
+            jobCount = EnqueueGroupUnderLock(taskCount, action, barrier);
+        }
+#if BROWSER
+        SpawnDrainers(jobCount);
+#endif
+    }
+
+    private int EnqueueGroupUnderLock(int taskCount, GroupAction action, RunnerBarrier? barrier)
+    {
+        var jobCount = Math.Min(taskCount, DegreeOfParallelism);
+        var tasksPerJob = taskCount / jobCount;
+        var extraTasks = taskCount % jobCount;
+        var rangeEnd = 0;
 
         if (barrier != null) {
-            var jobs = _groupActionJobArrPool.Get();
+            var jobs = _groupActionJobArrayPool.Get();
 
-            var callback = _groupActionJobArrPool.Return;
+            var callback = _groupActionJobArrayPool.Return;
             barrier.AddCallback(Unsafe.As<Action<object?>>(callback), jobs);
-            barrier.AddParticipants(degreeOfParallelism);
+            barrier.AddParticipants(jobCount);
 
-            for (var i = 0; i != degreeOfParallelism; ++i) {
-                var start = acc;
-                acc += i < remaining ? div + 1 : div;
+            for (var i = 0; i != jobCount; ++i) {
+                var rangeStart = rangeEnd;
+                rangeEnd += i < extraTasks ? tasksPerJob + 1 : tasksPerJob;
 
                 var job = jobs[i];
                 job.Barrier = barrier;
-                job.Range = (start, acc);
+                job.Range = (rangeStart, rangeEnd);
                 job.Action = action;
                 _jobs.Enqueue(job);
             }
         }
         else {
-            for (var i = 0; i != degreeOfParallelism; ++i) {
-                var start = acc;
-                acc += i < remaining ? div + 1 : div;
+            for (var i = 0; i != jobCount; ++i) {
+                var rangeStart = rangeEnd;
+                rangeEnd += i < extraTasks ? tasksPerJob + 1 : tasksPerJob;
 
                 var job = new GroupActionJob {
-                    Range = (start, acc),
+                    Range = (rangeStart, rangeEnd),
                     Action = action
                 };
                 _jobs.Enqueue(job);
             }
         }
-#if BROWSER
-        SpawnDrainers(degreeOfParallelism);
-#endif
+        return jobCount;
     }
 
     public void Run<TData>(
         int taskCount, in TData data, GroupAction<TData> action, RunnerBarrier? barrier = null)
     {
-        var degreeOfParallelism = Math.Min(taskCount, DegreeOfParallelism);
-        var div = taskCount / degreeOfParallelism;
-        var remaining = taskCount % degreeOfParallelism;
-        var acc = 0;
+        int jobCount;
+        lock (_submissionGate) {
+            ThrowIfClosed();
+            jobCount = EnqueueGroupUnderLock(taskCount, data, action, barrier);
+        }
+#if BROWSER
+        SpawnDrainers(jobCount);
+#endif
+    }
+
+    private int EnqueueGroupUnderLock<TData>(
+        int taskCount, in TData data, GroupAction<TData> action, RunnerBarrier? barrier)
+    {
+        var jobCount = Math.Min(taskCount, DegreeOfParallelism);
+        var tasksPerJob = taskCount / jobCount;
+        var extraTasks = taskCount % jobCount;
+        var rangeEnd = 0;
 
         if (barrier != null) {
             static object CreateJobArrayPool(ParallelRunner runner)
                 => new DefaultObjectPool<GroupActionJob<TData>[]>(
                     new JobArrayPolicy<GroupActionJob<TData>>(runner));
 
-            if (!_genericGroupActionJobArrPools.TryGetValue(typeof(TData), out var poolRaw)) {
-                poolRaw = _genericGroupActionJobArrPools.GetOrAdd(typeof(TData),
+            if (!_genericGroupActionJobArrayPools.TryGetValue(typeof(TData), out var untypedPool)) {
+                untypedPool = _genericGroupActionJobArrayPools.GetOrAdd(typeof(TData),
                     _ => CreateJobArrayPool(this));
             }
 
-            var pool = Unsafe.As<DefaultObjectPool<GroupActionJob<TData>[]>>(poolRaw);
+            var pool = Unsafe.As<DefaultObjectPool<GroupActionJob<TData>[]>>(untypedPool);
             var jobs = pool.Get();
 
             var callback = pool.Return;
             barrier.AddCallback(Unsafe.As<Action<object?>>(callback), jobs);
-            barrier.AddParticipants(degreeOfParallelism);
+            barrier.AddParticipants(jobCount);
 
-            for (var i = 0; i != degreeOfParallelism; ++i) {
-                var start = acc;
-                acc += i < remaining ? div + 1 : div;
+            for (var i = 0; i != jobCount; ++i) {
+                var rangeStart = rangeEnd;
+                rangeEnd += i < extraTasks ? tasksPerJob + 1 : tasksPerJob;
 
                 var job = jobs[i];
-                job.Range = (start, acc);
+                job.Range = (rangeStart, rangeEnd);
                 job.Barrier = barrier;
                 job.Data = data;
                 job.Action = action;
@@ -309,26 +340,30 @@ public class ParallelRunner : IRunner
             }
         }
         else {
-            for (var i = 0; i != degreeOfParallelism; ++i) {
-                var start = acc;
-                acc += i < remaining ? div + 1 : div;
+            for (var i = 0; i != jobCount; ++i) {
+                var rangeStart = rangeEnd;
+                rangeEnd += i < extraTasks ? tasksPerJob + 1 : tasksPerJob;
 
                 var job = new GroupActionJob<TData> {
-                    Range = (start, acc),
+                    Range = (rangeStart, rangeEnd),
                     Data = data,
                     Action = action
                 };
                 _jobs.Enqueue(job);
             }
         }
-#if BROWSER
-        SpawnDrainers(degreeOfParallelism);
-#endif
+        return jobCount;
     }
+
+    private void ThrowIfClosed()
+        => ObjectDisposedException.ThrowIf(_jobs.IsCompleted, this);
 
     public void Dispose()
     {
-        _jobs.Complete();
+        lock (_submissionGate) {
+            _jobs.Complete();
+        }
+
         GC.SuppressFinalize(this);
     }
 }

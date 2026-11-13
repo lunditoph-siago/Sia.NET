@@ -152,7 +152,7 @@ internal sealed class EventActionState<TEvent, TCapture>
         }
         var target = _target;
         _owner.QueueEffectCleanup(
-            () => _owner.World.Dispatcher.Unlisten(target, this),
+            () => _owner.World.Dispatcher.RetireListener(target, this),
             prepend);
     }
 

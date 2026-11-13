@@ -7,40 +7,43 @@ public abstract class ReactorBase : IAddon
     protected delegate void ForeverListener<UEvent>(Entity target, in UEvent e)
         where UEvent : IEvent;
 
-    private event Action? OnUnlisten;
+    private event Action? ListenerCleanup;
 
     [AllowNull]
     public World World { get; private set; }
 
     protected void Listen(IEventListener<Entity> listener)
     {
-        World.Dispatcher.Listen(listener);
-        OnUnlisten += () => World.Dispatcher.Unlisten(listener);
+        var dispatcher = World.Dispatcher;
+        dispatcher.Listen(listener);
+        ListenerCleanup += () => dispatcher.RetireListener(listener);
     }
 
     protected void Listen<UEvent>(WorldDispatcher.Listener<UEvent> listener)
         where UEvent : IEvent
     {
-        World.Dispatcher.Listen(listener);
-        OnUnlisten += () => World.Dispatcher.Unlisten(listener);
+        var dispatcher = World.Dispatcher;
+        dispatcher.Listen(listener);
+        ListenerCleanup += () => dispatcher.RetireListener(listener);
     }
 
     protected void Listen<UEvent>(ForeverListener<UEvent> listener)
         where UEvent : IEvent
     {
-        bool Listener(Entity entity, in UEvent command)
+        bool Listener(Entity entity, in UEvent e)
         {
-            listener(entity, command);
+            listener(entity, e);
             return false;
         }
-        World.Dispatcher.Listen<UEvent>(Listener);
-        OnUnlisten += () => World.Dispatcher.Unlisten<UEvent>(Listener);
+
+        Listen<UEvent>(Listener);
     }
 
     protected void Listen(Entity target, IEventListener<Entity> listener)
     {
-        World.Dispatcher.Listen(target, listener);
-        OnUnlisten += () => World.Dispatcher.Unlisten(target, listener);
+        var dispatcher = World.Dispatcher;
+        dispatcher.Listen(target, listener);
+        ListenerCleanup += () => dispatcher.RetireListener(target, listener);
     }
 
     public virtual void OnInitialize(World world)
@@ -50,8 +53,17 @@ public abstract class ReactorBase : IAddon
 
     public virtual void OnUninitialize(World world)
     {
-        OnUnlisten?.Invoke();
-        OnUnlisten = null;
+        var cleanup = ListenerCleanup;
+        ListenerCleanup = null;
+        if (cleanup is null) {
+            return;
+        }
+
+        var outcome = Outcome<Exception>.Success;
+        foreach (Action unlisten in cleanup.GetInvocationList()) {
+            outcome = outcome.Attempt(unlisten);
+        }
+        outcome.ThrowIfFailed();
     }
 }
 
@@ -74,9 +86,13 @@ public abstract class ReactorBase<TTypeUnion> : ReactorBase
 
     public override void OnUninitialize(World world)
     {
-        base.OnUninitialize(world);
-        _subscription.Dispose();
+        var subscription = _subscription;
         _subscription = null;
+        var result = Outcome<Exception>.Success.Attempt(() => base.OnUninitialize(world));
+        if (subscription is not null) {
+            result = result.Attempt(subscription.Dispose);
+        }
+        result.ThrowIfFailed();
     }
 
     protected abstract void OnEntityAdded(Entity entity);
