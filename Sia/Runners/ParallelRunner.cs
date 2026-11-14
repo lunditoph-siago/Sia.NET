@@ -194,7 +194,7 @@ public class ParallelRunner : IRunner
     public void Run(Action action, RunnerBarrier? barrier = null)
     {
         lock (_submissionGate) {
-            ThrowIfClosed();
+            ObjectDisposedException.ThrowIf(_jobs.IsCompleted, this);
             var job = s_ActionJobPool.Get();
             job.Action = action;
 
@@ -213,7 +213,7 @@ public class ParallelRunner : IRunner
     public void Run<TData>(in TData data, InAction<TData> action, RunnerBarrier? barrier = null)
     {
         lock (_submissionGate) {
-            ThrowIfClosed();
+            ObjectDisposedException.ThrowIf(_jobs.IsCompleted, this);
             if (!s_GenericActionJobPools.TryGetValue(typeof(TData), out var untypedPool)) {
                 untypedPool = s_GenericActionJobPools.GetOrAdd(typeof(TData),
                     static _ => ObjectPool.Create<ActionJob<TData>>());
@@ -241,7 +241,7 @@ public class ParallelRunner : IRunner
     {
         int jobCount;
         lock (_submissionGate) {
-            ThrowIfClosed();
+            ObjectDisposedException.ThrowIf(_jobs.IsCompleted, this);
             jobCount = EnqueueGroupUnderLock(taskCount, action, barrier);
         }
 #if BROWSER
@@ -294,7 +294,7 @@ public class ParallelRunner : IRunner
     {
         int jobCount;
         lock (_submissionGate) {
-            ThrowIfClosed();
+            ObjectDisposedException.ThrowIf(_jobs.IsCompleted, this);
             jobCount = EnqueueGroupUnderLock(taskCount, data, action, barrier);
         }
 #if BROWSER
@@ -354,9 +354,6 @@ public class ParallelRunner : IRunner
         }
         return jobCount;
     }
-
-    private void ThrowIfClosed()
-        => ObjectDisposedException.ThrowIf(_jobs.IsCompleted, this);
 
     public void Dispose()
     {

@@ -162,7 +162,12 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
         {
             public void Handle<TEvent>()
                 where TEvent : IEvent
-                => query.ListenFilter<TEvent>();
+            {
+                var dispatcher = query._dispatcher;
+                WorldDispatcher.Listener<TEvent> listener = query.OnFilter;
+                dispatcher.Listen(listener);
+                query._unlisteners.Add(() => dispatcher.RetireListener(listener));
+            }
         }
 
         public int Count {
@@ -238,14 +243,6 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
                 return;
             }
             WorldDispatcher.Listener<TEvent> listener = OnTrigger;
-            _dispatcher.Listen(listener);
-            _unlisteners.Add(() => _dispatcher.RetireListener(listener));
-        }
-
-        private void ListenFilter<TEvent>()
-            where TEvent : IEvent
-        {
-            WorldDispatcher.Listener<TEvent> listener = OnFilter;
             _dispatcher.Listen(listener);
             _unlisteners.Add(() => _dispatcher.RetireListener(listener));
         }

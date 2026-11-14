@@ -52,7 +52,9 @@ public sealed class WorldActor : IDisposable
         }
 
         lock (_gate) {
-            ThrowIfClosed();
+            if (IsCompleted || (Volatile.Read(ref _completionRequested) != 0 && !IsOwnerThread)) {
+                throw new ObjectDisposedException(nameof(WorldActor));
+            }
             _mailbox.Enqueue(message);
             TryScheduleUnderLock();
         }
@@ -198,12 +200,18 @@ public sealed class WorldActor : IDisposable
                     message!.Execute(context);
                 }
                 catch (Exception error) {
-                    Fail(error);
+                    lock (_gate) {
+                        FailUnderLock(error);
+                    }
                     return;
                 }
             }
 
-            FinishBatch();
+            lock (_gate) {
+                if (!_suspended) {
+                    ContinueOrCompleteUnderLock();
+                }
+            }
         }
         finally {
             Current = previousActor;
@@ -232,17 +240,6 @@ public sealed class WorldActor : IDisposable
         }
     }
 
-    private void FinishBatch()
-    {
-        lock (_gate) {
-            if (_suspended) {
-                return;
-            }
-
-            ContinueOrCompleteUnderLock();
-        }
-    }
-
     private void ContinueOrCompleteUnderLock()
     {
         if (Volatile.Read(ref _completionMessageRead) != 0
@@ -256,13 +253,6 @@ public sealed class WorldActor : IDisposable
         }
         else {
             _scheduled = false;
-        }
-    }
-
-    private void Fail(Exception error)
-    {
-        lock (_gate) {
-            FailUnderLock(error);
         }
     }
 
@@ -308,14 +298,6 @@ public sealed class WorldActor : IDisposable
         Volatile.Write(ref _completed, 1);
         _runtime?.OnActorCompleted(this);
         _completion.Set();
-    }
-
-    private void ThrowIfClosed()
-    {
-        if (Volatile.Read(ref _completed) != 0
-            || (Volatile.Read(ref _completionRequested) != 0 && !IsOwnerThread)) {
-            throw new ObjectDisposedException(nameof(WorldActor));
-        }
     }
 
     public bool WaitUntilRunning(TimeSpan timeout)

@@ -438,7 +438,11 @@ public sealed class Scheduler : IAddon, IDisposable
     [MethodImpl(MethodImplOptions.NoInlining)]
     private void BuildSlotPlan(ScheduleSlot slot)
     {
-        EnsureStage(slot);
+        if (slot.Stage is null && slot.Schedule is { } schedule
+            && !schedule.Chain.Entries.IsEmpty) {
+            InvokeLifecycle(() => slot.Stage = schedule.Build(_world));
+        }
+
         var nodes = new List<RuntimeNode>();
         var systems = new List<SystemChain.Entry?>();
         var hasDynamicSystems = slot.Entries.Any(static registration =>
@@ -522,14 +526,6 @@ public sealed class Scheduler : IAddon, IDisposable
             }
         }
         return false;
-    }
-
-    private void EnsureStage(ScheduleSlot slot)
-    {
-        if (slot.Stage is null && slot.Schedule is { } schedule
-            && !schedule.Chain.Entries.IsEmpty) {
-            InvokeLifecycle(() => slot.Stage = schedule.Build(_world));
-        }
     }
 
     private ScheduleSlot GetOrCreateSlot(ScheduleLabel label)

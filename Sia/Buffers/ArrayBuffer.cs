@@ -32,23 +32,21 @@ public sealed class ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private void Grow(int count)
-        => Array.Resize(ref _array, GetAllocationSize(count));
+    private void Grow(int requiredCapacity)
+    {
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(requiredCapacity, Array.MaxLength);
+        var size = 8;
+        while (size < requiredCapacity && size <= Array.MaxLength / 2) {
+            size *= 2;
+        }
+        Array.Resize(ref _array, Math.Max(size, requiredCapacity));
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void AppendReserved(in T value)
     {
         _array[_count] = value;
         _count++;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static int GetAllocationSize(int requiredCapacity)
-    {
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(requiredCapacity, Array.MaxLength);
-        var size = 8;
-        while (size < requiredCapacity && size <= Array.MaxLength / 2) { size *= 2; }
-        return Math.Max(size, requiredCapacity);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

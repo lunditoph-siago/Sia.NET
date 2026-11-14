@@ -255,7 +255,9 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     {
         try {
             var dispatcher = World.Dispatcher;
-            var result = NotifyOwnedRemoval(entity)
+            var sender = new OwnedEntityRemoveEventSender(entity, dispatcher);
+            var traversal = Outcome<Exception>.Success.Attempt(() => TEntity.HandleTypes(sender));
+            var result = sender.Result.Combine(traversal)
                 .Attempt(() => dispatcher.Send(entity, WorldEvents.Remove.Instance))
                 .Attempt(() => dispatcher.UnlistenAll(entity));
 
@@ -272,13 +274,6 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
         }
     }
 
-    private Outcome<Exception> NotifyOwnedRemoval(Entity entity)
-    {
-        var sender = new OwnedEntityRemoveEventSender(entity, World.Dispatcher);
-        var traversal = Outcome<Exception>.Success.Attempt(() => TEntity.HandleTypes(sender));
-        return sender.Result.Combine(traversal);
-    }
-
     private sealed class OwnedEntityRemoveEventSender(Entity entity, WorldDispatcher dispatcher) : IGenericTypeHandler
     {
         public Outcome<Exception> Result { get; private set; }
@@ -290,7 +285,9 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Add<TComponent>(Entity entity, in TComponent initial)
     {
-        var state = BeginMigration(entity);
+        World.EnsureOwnerThread();
+        var state = entity.GetState();
+        BeginMigration(state);
         try {
             if (typeof(TInnerHost) == typeof(ArrayEntityHost<TEntity>)
                 && InnerHost is ArrayEntityHost<TEntity> managed
@@ -389,7 +386,9 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     public void AddMany<TList>(Entity entity, in TList list)
         where TList : struct, IHList
     {
-        var state = BeginMigration(entity);
+        World.EnsureOwnerThread();
+        var state = entity.GetState();
+        BeginMigration(state);
         try {
             InnerHost.AddMany(entity, list);
         }
@@ -483,14 +482,6 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
             EndMigration(entity, state);
         }
         TList.HandleTypes(new ExEntityRemoveEventSender(entity, Descriptor, World.Dispatcher));
-    }
-
-    private EntityState BeginMigration(Entity entity)
-    {
-        World.EnsureOwnerThread();
-        var state = entity.GetState();
-        BeginMigration(state);
-        return state;
     }
 
     private void BeginMigration(EntityState state)

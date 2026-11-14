@@ -30,13 +30,10 @@ public abstract class ReactorBase : IAddon
     protected void Listen<UEvent>(ForeverListener<UEvent> listener)
         where UEvent : IEvent
     {
-        bool Listener(Entity entity, in UEvent e)
-        {
+        Listen<UEvent>((Entity entity, in UEvent e) => {
             listener(entity, e);
             return false;
-        }
-
-        Listen<UEvent>(Listener);
+        });
     }
 
     protected void Listen(Entity target, IEventListener<Entity> listener)

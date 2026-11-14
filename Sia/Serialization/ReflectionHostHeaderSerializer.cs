@@ -79,7 +79,8 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
         var entityTypeName = GenerateHListType(components);
 
         var hostType = ResolveHostType(Encoding.Unicode.GetString(hostName), entityTypeName);
-        var host = AcquireHostByType(world, hostType);
+        var acquireHost = s_AcquireHostMethod.MakeGenericMethod(hostType);
+        var host = Unsafe.As<IReactiveEntityHost>(acquireHost.Invoke(null, [world]))!;
 
         buffer = reader.UnreadSequence;
         return host;
@@ -88,12 +89,6 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
     public static IReactiveEntityHost AcquireHost<THost>(World world)
         where THost : class, IReactiveEntityHost
         => world.AcquireRawHost(static owner => (THost)Activator.CreateInstance(typeof(THost), owner)!);
-
-    private static IReactiveEntityHost AcquireHostByType(World world, Type hostType)
-    {
-        var acquireHostMethod = s_AcquireHostMethod.MakeGenericMethod(hostType);
-        return Unsafe.As<IReactiveEntityHost>(acquireHostMethod.Invoke(null, [world]))!;
-    }
 
     private static Type ResolveHostType(string hostTypeName, string entityTypeName)
     {

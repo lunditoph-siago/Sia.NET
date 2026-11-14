@@ -94,26 +94,20 @@ public sealed class ActorRuntime : IDisposable
     {
         _ = task.ContinueWith(
             static (completed, state) => {
-                var (suspendedActor, runtime) = ((WorldActor, ActorRuntime))state!;
-                runtime.ResumeAfterAsyncCompletion(suspendedActor, completed);
+                Exception? failure = null;
+                try {
+                    completed.GetAwaiter().GetResult();
+                }
+                catch (Exception error) {
+                    failure = error;
+                }
+
+                ((WorldActor)state!).ResumeFromSuspension(failure);
             },
-            (actor, this),
+            actor,
             CancellationToken.None,
             TaskContinuationOptions.ExecuteSynchronously,
             TaskScheduler.Default);
-    }
-
-    private void ResumeAfterAsyncCompletion(WorldActor actor, Task task)
-    {
-        Exception? failure = null;
-        try {
-            task.GetAwaiter().GetResult();
-        }
-        catch (Exception error) {
-            failure = error;
-        }
-
-        actor.ResumeFromSuspension(failure);
     }
 
     internal void ScheduleBlocking(
