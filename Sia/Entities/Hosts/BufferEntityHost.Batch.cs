@@ -16,7 +16,10 @@ public partial class BufferEntityHost<TEntity, TBuffer>
         {
             var type = typeof(TEntity);
             while (type != typeof(EmptyHList)) {
-                if (!type.IsGenericType || type.GetGenericTypeDefinition() != typeof(HList<,>)) return false;
+                if (!type.IsGenericType || type.GetGenericTypeDefinition() != typeof(HList<,>)) {
+                    return false;
+                }
+
                 type = type.GetGenericArguments()[1];
             }
             return true;
@@ -49,7 +52,10 @@ public partial class BufferEntityHost<TEntity, TBuffer>
             var entity = entities[i];
             var state = entity.GetStateUnchecked();
             if (state is null || !entity.References(state) || !ReferenceEquals(state.Host, source)
-                || state.Slot != i || state.Releasing || state.EventSink is not null) return false;
+                || state.Slot != i || state.Releasing || state.Migrating || state.NotifyingMigration
+                || state.EventSink is not null) {
+                return false;
+            }
         }
         return true;
     }
@@ -63,10 +69,12 @@ public partial class BufferEntityHost<TEntity, TBuffer>
             try {
                 var map = typeof(THost).GetInterfaceMap(contract);
                 for (var i = 0; i < map.InterfaceMethods.Length; i++) {
-                    if (map.InterfaceMethods[i].Name == name) return map.TargetMethods[i]?.DeclaringType == declaringType;
+                    if (map.InterfaceMethods[i].Name == name) {
+                        return map.TargetMethods[i]?.DeclaringType == declaringType;
+                    }
                 }
             }
-            catch (Exception error) when (error is ArgumentException or InvalidCastException or NotSupportedException or TypeLoadException) {}
+            catch (Exception error) when (error is ArgumentException or InvalidCastException or NotSupportedException or TypeLoadException) { }
             return false;
         }
 
@@ -133,9 +141,15 @@ public partial class BufferEntityHost<TEntity, TBuffer>
             || source.HasMigrationObservers || target.HasMigrationObservers
             || !source.World.Dispatcher.HasNoUntypedListeners
             || !source.World.Dispatcher.HasNoTypedListeners<WorldEvents.Add<TComponent>>()
-            || !source.World.Dispatcher.HasNoTypedListeners<WorldEvents.Set<TComponent>>()) return false;
+            || !source.World.Dispatcher.HasNoTypedListeners<WorldEvents.Set<TComponent>>()) {
+            return false;
+        }
+
         var destination = (BufferEntityHost<HList<TComponent, TEntity>, ArrayBuffer<HList<TComponent, TEntity>>>)target.InnerHost;
-        if (destination._entities.Count != destination.Buffer.Count) return false;
+        if (destination._entities.Count != destination.Buffer.Count) {
+            return false;
+        }
+
         _ = WorldEvents.Add<TComponent>.Instance;
         _ = EventTypeIndexer<WorldEvents.Add<TComponent>>.Index;
         _ = WorldEvents.Set<TComponent>.Instance;
@@ -167,7 +181,10 @@ public partial class BufferEntityHost<TEntity, TBuffer>
         source.World.EnsureOwnerThread();
         if (!RuntimeFeature.IsDynamicCodeSupported || !BatchHost<THost>.CanRemove || !CanBatch(source, entities)
             || !typeof(TEntity).IsGenericType || typeof(TEntity).GetGenericTypeDefinition() != typeof(HList<,>)
-            || source.Descriptor.Components[0].Type != typeof(TComponent)) return false;
+            || source.Descriptor.Components[0].Type != typeof(TComponent)) {
+            return false;
+        }
+
         var handler = new BatchRemoveHead<TComponent, THost>(this, source);
         default(TEntity).Remove(TypeProxy<TComponent>._, handler);
         return handler.Applied;
@@ -180,8 +197,9 @@ public partial class BufferEntityHost<TEntity, TBuffer>
         public bool Applied;
         public void Handle<TTail>(in TTail tail) where TTail : struct, IHList
         {
-            if (source.World.TryGetHost<TTail, ArrayEntityHost<TTail>>(out var target))
+            if (source.World.TryGetHost<TTail, ArrayEntityHost<TTail>>(out var target)) {
                 Applied = host.TryBatchRemoveHead<TComponent, TTail, THost>(source, target);
+            }
         }
     }
 
@@ -196,7 +214,10 @@ public partial class BufferEntityHost<TEntity, TBuffer>
             || !ReferenceEquals(destination.World, world) || source.HasMigrationObservers || target.HasMigrationObservers
             || !world.Dispatcher.HasNoUntypedListeners
             || !world.Dispatcher.HasNoTypedListeners<WorldEvents.Remove<THead>>()
-            || destination._entities.Count != destination.Buffer.Count) return false;
+            || destination._entities.Count != destination.Buffer.Count) {
+            return false;
+        }
+
         _ = WorldEvents.Remove<THead>.Instance;
         _ = EventTypeIndexer<WorldEvents.Remove<THead>>.Index;
         var count = _entities.Count;
@@ -240,13 +261,28 @@ public partial class BufferEntityHost<TEntity, TBuffer>
         world.EnsureOwnerThread();
         var destination = target.InnerHost;
         if (!CanBatchTransition(source, target) || Buffer is not ArrayBuffer<TEntity> sourceBuffer
-            || !BulkHListShape.IsStandard || EntityIndexer<TEntity, TComponent>.Offset != -1) return false;
+            || !BulkHListShape.IsStandard || EntityIndexer<TEntity, TComponent>.Offset != -1) {
+            return false;
+        }
+
         var count = _entities.Count;
-        if (initialValues.Length != count) return false;
-        if (count == 0) return true;
+        if (initialValues.Length != count) {
+            return false;
+        }
+
+        if (count == 0) {
+            return true;
+        }
+
         if (!world.Dispatcher.HasNoTypedListeners<WorldEvents.Add<TComponent>>()
-            || !world.Dispatcher.HasNoTypedListeners<WorldEvents.Set<TComponent>>()) return false;
-        if (!CanMoveAll(source)) return false;
+            || !world.Dispatcher.HasNoTypedListeners<WorldEvents.Set<TComponent>>()) {
+            return false;
+        }
+
+        if (!CanMoveAll(source)) {
+            return false;
+        }
+
         _ = WorldEvents.Add<TComponent>.Instance;
         world.EnsureOwnerThread();
         _ = EventTypeIndexer<WorldEvents.Add<TComponent>>.Index;
@@ -279,11 +315,23 @@ public partial class BufferEntityHost<TEntity, TBuffer>
         world.EnsureOwnerThread();
         var destination = target.InnerHost;
         if (typeof(TEntity) != typeof(HList<THead, TTail>)
-            || !CanBatchTransition(source, target) || Buffer is not ArrayBuffer<TEntity> sourceBuffer) return false;
+            || !CanBatchTransition(source, target) || Buffer is not ArrayBuffer<TEntity> sourceBuffer) {
+            return false;
+        }
+
         var count = _entities.Count;
-        if (count == 0) return true;
-        if (!world.Dispatcher.HasNoTypedListeners<WorldEvents.Remove<THead>>()) return false;
-        if (!CanMoveAll(source)) return false;
+        if (count == 0) {
+            return true;
+        }
+
+        if (!world.Dispatcher.HasNoTypedListeners<WorldEvents.Remove<THead>>()) {
+            return false;
+        }
+
+        if (!CanMoveAll(source)) {
+            return false;
+        }
+
         _ = WorldEvents.Remove<THead>.Instance;
         world.EnsureOwnerThread();
         _ = EventTypeIndexer<WorldEvents.Remove<THead>>.Index;

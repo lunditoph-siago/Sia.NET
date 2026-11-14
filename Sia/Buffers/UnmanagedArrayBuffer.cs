@@ -1,60 +1,83 @@
-#pragma warning disable CS8500 // This takes the address of, gets the size of, or declares a pointer to a managed type
-
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace Sia;
 
-public sealed class UnmanagedArrayBuffer<T>(int initialCapacity) : IBuffer<T>
+public sealed class UnmanagedArrayBuffer<T> : IBuffer<T>
 {
     public bool IsManaged => false;
-    public int Capacity => int.MaxValue;
+    public int Capacity => (int)Math.Min(int.MaxValue, nint.MaxValue / Unsafe.SizeOf<T>());
 
     public int Count {
-        get;
+        get => _count;
         set {
-            if (value == field) return;
-            if (value > _length) {
-                _length = CalculateArraySize(value);
-                var newMem = Marshal.AllocHGlobal(_length * Unsafe.SizeOf<T>());
-                unsafe {
-                    AsSpan().CopyTo(new Span<T>((void*)newMem, _length));
-                }
-                Marshal.FreeHGlobal(_mem);
-                _mem = newMem;
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            ArgumentOutOfRangeException.ThrowIfNegative(value);
+            if (value > _allocatedLength) {
+                var allocatedLength = CalculateArraySize(value);
+                var bytes = checked((nint)allocatedLength * Unsafe.SizeOf<T>());
+                _memory = _memory == IntPtr.Zero
+                    ? Marshal.AllocHGlobal(bytes)
+                    : Marshal.ReAllocHGlobal(_memory, bytes);
+                _allocatedLength = allocatedLength;
             }
-            field = value;
+            _count = value;
         }
     }
 
-    private int _length = initialCapacity;
-    private IntPtr _mem = Marshal.AllocHGlobal(initialCapacity * Unsafe.SizeOf<T>());
+    private int _count;
+    private int _allocatedLength;
+    private IntPtr _memory;
+    private bool _disposed;
 
-    public UnmanagedArrayBuffer() : this(0) {}
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static int CalculateArraySize(int requiredCapacity)
+    public UnmanagedArrayBuffer(int initialCapacity)
     {
-        var size = 8;
-        while (size < requiredCapacity) { size *= 2; }
-        return size;
+        if (RuntimeHelpers.IsReferenceOrContainsReferences<T>()) {
+            throw new NotSupportedException("Unmanaged storage requires elements without managed references.");
+        }
+        ArgumentOutOfRangeException.ThrowIfNegative(initialCapacity);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(initialCapacity, Capacity);
+        if (initialCapacity != 0) {
+            _memory = Marshal.AllocHGlobal(checked((nint)initialCapacity * Unsafe.SizeOf<T>()));
+        }
+        _allocatedLength = initialCapacity;
+    }
+
+    public UnmanagedArrayBuffer() : this(0)
+    {
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe ref T GetRef(int index)
-        => ref new Span<T>((void*)_mem, Count)[index];
+    private int CalculateArraySize(int requiredCapacity)
+    {
+        var capacity = Capacity;
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(requiredCapacity, capacity);
+        var size = Math.Min(8, capacity);
+        while (size < requiredCapacity && size <= capacity / 2) { size *= 2; }
+        return Math.Max(size, requiredCapacity);
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe ref T GetRefOrNullRef(int index)
-        => ref index < 0 || index >= Count ? ref Unsafe.NullRef<T>() : ref ((T*)_mem)[index];
+    public ref T GetRef(int index)
+        => ref AsSpan()[index];
 
-    public unsafe Span<T> AsSpan() => new((void*)_mem, Count);
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref T GetRefOrNullRef(int index)
+        => ref (uint)index >= (uint)_count ? ref Unsafe.NullRef<T>() : ref AsSpan()[index];
+
+    public unsafe Span<T> AsSpan() => new((void*)_memory, Count);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Dispose()
     {
-        if (_mem == IntPtr.Zero) return;
-        Marshal.FreeHGlobal(_mem);
-        _mem = IntPtr.Zero;
+        if (_disposed) {
+            return;
+        }
+
+        _disposed = true;
+        Marshal.FreeHGlobal(_memory);
+        _memory = IntPtr.Zero;
+        _count = 0;
+        _allocatedLength = 0;
     }
 }
