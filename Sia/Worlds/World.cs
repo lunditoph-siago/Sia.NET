@@ -29,9 +29,7 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
 
     private void Dispose(bool disposing)
     {
-        if (IsDisposed) {
-            return;
-        }
+        if (IsDisposed) return;
 
         if (disposing) {
             ThrowIfActorIncomplete();
@@ -45,10 +43,10 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
         IsDisposed = true;
 
         Outcome<Exception>.Success
-            .Attempt(ClearHostsCore)
-            .Attempt(EntityStates.Retire)
-            .Attempt(ClearAddonsCore)
-            .Attempt(() => OnDisposed?.Invoke(this))
+            .Attempt(this, static (in World world) => world.ClearHostsCore())
+            .Attempt(EntityStates, static (in EntityStatePool states) => states.Retire())
+            .Attempt(this, static (in World world) => world.ClearAddonsCore())
+            .Attempt(this, static (in World world) => world.OnDisposed?.Invoke(world))
             .ThrowIfFailed();
     }
 
@@ -63,12 +61,9 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
         T value,
         Outcome<Exception> result)
     {
-        if (observers is null) {
-            return result;
-        }
-
-        foreach (Action<T> observer in observers.GetInvocationList()) {
-            result = result.Attempt(() => observer(value));
+        foreach (var observer in Delegate.EnumerateInvocationList(observers)) {
+            result = result.Attempt((observer, value), static (in (Action<T> Observer, T Value) call) =>
+                call.Observer(call.Value));
         }
         return result;
     }

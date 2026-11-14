@@ -76,7 +76,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     public bool TryGetSequentialBytes(out Span<byte> bytes)
         => InnerHost.TryGetSequentialBytes(out bytes);
 
-    public WorldEntityHost(World world) : this(world, new()) { }
+    public WorldEntityHost(World world) : this(world, new()) {}
 
     private static TInnerHost InitializeInnerHost(World world, TInnerHost innerHost)
     {
@@ -137,9 +137,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
         entity.GetStateUnchecked().Host = this;
         World.Count++;
         OnEntityCreated?.Invoke(entity);
-        if (!entity.IsValid) {
-            return entity;
-        }
+        if (!entity.IsValid) return entity;
 
         World.Dispatcher.Send(entity, WorldEvents.Add.Instance);
         if (entity.IsValid) {
@@ -166,9 +164,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
         if (state.Migrating || state.NotifyingMigration) {
             throw new InvalidOperationException("Cannot release an entity while it is being migrated.");
         }
-        if (state.Releasing) {
-            return;
-        }
+        if (state.Releasing) return;
         if (World.Dispatcher.IsSending) {
             DeferRelease(entity, owned);
             state.Releasing = true;
@@ -186,9 +182,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     [MethodImpl(MethodImplOptions.NoInlining)]
     private void DeferRelease(Entity entity, bool owned)
         => World.Dispatcher.RunAfterSend(() => {
-            if (!entity.IsValid) {
-                return;
-            }
+            if (!entity.IsValid) return;
 
             var state = entity.GetStateUnchecked();
             if (!ReferenceEquals(state.Host, this)) {
@@ -286,6 +280,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     {
         World.EnsureOwnerThread();
         var state = entity.GetState();
+        RequireCurrentHost(state);
         BeginMigration(state);
         try {
             if (typeof(TInnerHost) == typeof(ArrayEntityHost<TEntity>)
@@ -310,9 +305,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
 
     public bool TryAddAll<TComponent>(ReadOnlySpan<Entity> entities, in TComponent initial)
     {
-        if (((IWorldBatchHost)this).IsExactArrayHost) {
-            return EntityBatch.TryAdd(this, entities, initial);
-        }
+        if (((IWorldBatchHost)this).IsExactArrayHost) return EntityBatch.TryAdd(this, entities, initial);
         if (entities.Length == 1
             && InnerHost is BufferEntityHost<TEntity, ArrayBuffer<TEntity>> singleEntityHost
             && InnerHost.GetType() == typeof(TInnerHost)
@@ -334,9 +327,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
 
     public bool TryRemoveAll<TComponent>(ReadOnlySpan<Entity> entities)
     {
-        if (((IWorldBatchHost)this).IsExactArrayHost) {
-            return EntityBatch.TryRemove<TComponent>(this, entities);
-        }
+        if (((IWorldBatchHost)this).IsExactArrayHost) return EntityBatch.TryRemove<TComponent>(this, entities);
         if (entities.Length == 1
             && InnerHost is BufferEntityHost<TEntity, ArrayBuffer<TEntity>> singleEntityHost
             && InnerHost.GetType() == typeof(TInnerHost)
@@ -357,14 +348,10 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
 
     private bool CanTryBatch(ReadOnlySpan<Entity> entities)
     {
-        if (entities.IsEmpty) {
-            return false;
-        }
+        if (entities.IsEmpty) return false;
 
         World.EnsureOwnerThread();
-        if (!World.Dispatcher.HasNoUntypedListeners || !World.HasNoBatchObservers()) {
-            return false;
-        }
+        if (!World.Dispatcher.HasNoUntypedListeners || !World.HasNoBatchObservers()) return false;
 
         foreach (var entity in entities) {
             var state = entity.GetStateUnchecked();
@@ -387,6 +374,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     {
         World.EnsureOwnerThread();
         var state = entity.GetState();
+        RequireCurrentHost(state);
         BeginMigration(state);
         try {
             InnerHost.AddMany(entity, list);
@@ -403,19 +391,34 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
         World.EnsureOwnerThread();
         var state = entity.GetState();
         RequireCurrentHost(state);
-        if (Descriptor.Contains<TComponent>()) {
+        var offset = EntityIndexer<TEntity, TComponent>.Offset;
+        if (offset != -1 && typeof(TInnerHost) == typeof(ArrayEntityHost<TEntity>)
+            && InnerHost is ArrayEntityHost<TEntity> managed && managed.GetType() == typeof(TInnerHost)) {
+            managed.SetExisting(entity, state, offset, value);
+        }
+        else if (offset != -1 && typeof(TInnerHost) == typeof(UnmanagedArrayEntityHost<TEntity>)
+            && InnerHost is UnmanagedArrayEntityHost<TEntity> unmanaged && unmanaged.GetType() == typeof(TInnerHost)) {
+            unmanaged.SetExisting(entity, state, offset, value);
+        }
+        else if (Descriptor.Contains<TComponent>()) {
             InnerHost.Set(entity, value);
         }
         else {
-            BeginMigration(state);
-            try {
-                InnerHost.Set(entity, value);
-            }
-            finally {
-                EndMigration(entity, state);
-            }
+            SetMissingComponent(entity, state, value);
         }
         World.Dispatcher.Send(entity, WorldEvents.Set<TComponent>.Instance);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void SetMissingComponent<TComponent>(Entity entity, EntityState state, in TComponent value)
+    {
+        BeginMigration(state);
+        try {
+            InnerHost.Set(entity, value);
+        }
+        finally {
+            EndMigration(entity, state);
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -485,7 +488,6 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
 
     private void BeginMigration(EntityState state)
     {
-        RequireCurrentHost(state);
         EnsureCanMigrate(state);
         state.Migrating = true;
         World.BeginHostMigration();

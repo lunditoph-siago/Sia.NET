@@ -19,9 +19,7 @@ public sealed class ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
     private int _count;
     private T[] _array = new T[initialCapacity];
 
-    public ArrayBuffer() : this(0)
-    {
-    }
+    public ArrayBuffer() : this(0) {}
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void EnsureCapacity(int count)
@@ -55,10 +53,10 @@ public sealed class ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetRefOrNullRef(int index)
-        => ref index < 0 || index >= _array.Length ? ref Unsafe.NullRef<T>() : ref _array[index];
+        => ref (uint)index >= (uint)_array.Length ? ref Unsafe.NullRef<T>() : ref _array[index];
 
     public Span<T> AsSpan() => _array;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Dispose() { }
+    public void Dispose() {}
 }

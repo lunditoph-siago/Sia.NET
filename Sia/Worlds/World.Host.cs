@@ -39,10 +39,7 @@ public partial class World
     internal bool HasNoBatchObservers()
     {
         lock (_batchObserverLock) {
-            if (_hasNoBatchObservers is { } cached) {
-                return cached;
-            }
-
+            if (_hasNoBatchObservers is { } cached) return cached;
 
             foreach (var host in Hosts) {
                 if (host is not IWorldBatchHost batch || batch.HasMigrationObservers) {
@@ -90,18 +87,15 @@ public partial class World
         EnsureHostRegistration();
         var index = WorldEntityHostIndexer<THost>.Index;
         if (_hosts.TryGetValue(index, out var existing)) {
-            if (reuseExisting) {
-                return (THost)existing;
-            }
-
-
+            if (reuseExisting) return (THost)existing;
             throw new ArgumentException("Host with the same type already exists: " + typeof(THost));
         }
 
         ReserveHostSlot(index);
         try {
             var host = create(this);
-            PublishHost(index, host);
+            _hosts[index] = host;
+            NotifyHostAdded(host);
             return host;
         }
         finally {
@@ -117,7 +111,10 @@ public partial class World
         var index = WorldEntityHostIndexer<THost>.Index;
         ReserveHostSlot(index);
         try {
-            PublishHost(index, host);
+            if (!_hosts.Add(index, host)) {
+                throw new ArgumentException("Host with the same type already exists: " + host.GetType());
+            }
+            NotifyHostAdded(host);
         }
         finally {
             _reservedHostSlots.Remove(index);
@@ -125,12 +122,8 @@ public partial class World
         return host;
     }
 
-    private void PublishHost(int index, IReactiveEntityHost host)
+    private void NotifyHostAdded(IReactiveEntityHost host)
     {
-        if (!_hosts.Add(index, host)) {
-            throw new ArgumentException("Host with the same type already exists: " + host.GetType());
-        }
-
         Version++;
         InvalidateBatchObservers();
         NotifyObservers(OnEntityHostAdded, host, Outcome<Exception>.Success).ThrowIfFailed();
@@ -177,9 +170,7 @@ public partial class World
     {
         EnsureOwnerThread();
         var hostIndex = WorldEntityHostIndexer<THost>.Index;
-        if (!_hosts.TryGetValue(hostIndex, out var host)) {
-            return false;
-        }
+        if (!_hosts.TryGetValue(hostIndex, out var host)) return false;
 
         EnsureHostTeardown();
         EnsureNoEntityRelease(host);
@@ -276,16 +267,14 @@ public partial class World
         var worldHost = host as IWorldBatchHost;
         worldHost?.CloseForCreation();
         result = NotifyObservers(OnEntityHostRemoved, host, result);
-        result = result.Attempt(() => {
-            foreach (var entity in host.UnsafeGetEntitySpan()) {
-                Dispatcher.DetachEntityListeners(entity);
-            }
-        });
+        result = result.Attempt((Dispatcher, host), static (in (WorldDispatcher Dispatcher, IReactiveEntityHost Host) state) =>
+            state.Dispatcher.DetachEntityListeners(state.Host.UnsafeGetEntitySpan()));
         if (worldHost is not null) {
-            result = result.Attempt(() => Count -= host.Count);
+            result = result.Attempt((this, host), static (in (World World, IReactiveEntityHost Host) state) =>
+                state.World.Count -= state.Host.Count);
         }
 
-        return result.Attempt(host.Dispose);
+        return result.Attempt(host, static (in IReactiveEntityHost detached) => detached.Dispose());
     }
 
     public int ClearEmptyHosts()
@@ -299,9 +288,7 @@ public partial class World
             }
         }
 
-        if (candidates is null) {
-            return 0;
-        }
+        if (candidates is null) return 0;
 
         var count = 0;
         var result = Outcome<Exception>.Success;

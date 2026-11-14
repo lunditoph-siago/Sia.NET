@@ -16,9 +16,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>
         {
             var type = typeof(TEntity);
             while (type != typeof(EmptyHList)) {
-                if (!type.IsGenericType || type.GetGenericTypeDefinition() != typeof(HList<,>)) {
-                    return false;
-                }
+                if (!type.IsGenericType || type.GetGenericTypeDefinition() != typeof(HList<,>)) return false;
 
                 type = type.GetGenericArguments()[1];
             }
@@ -69,12 +67,10 @@ public partial class BufferEntityHost<TEntity, TBuffer>
             try {
                 var map = typeof(THost).GetInterfaceMap(contract);
                 for (var i = 0; i < map.InterfaceMethods.Length; i++) {
-                    if (map.InterfaceMethods[i].Name == name) {
-                        return map.TargetMethods[i]?.DeclaringType == declaringType;
-                    }
+                    if (map.InterfaceMethods[i].Name == name) return map.TargetMethods[i]?.DeclaringType == declaringType;
                 }
             }
-            catch (Exception error) when (error is ArgumentException or InvalidCastException or NotSupportedException or TypeLoadException) { }
+            catch (Exception error) when (error is ArgumentException or InvalidCastException or NotSupportedException or TypeLoadException) {}
             return false;
         }
 
@@ -146,9 +142,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>
         }
 
         var destination = (BufferEntityHost<HList<TComponent, TEntity>, ArrayBuffer<HList<TComponent, TEntity>>>)target.InnerHost;
-        if (destination._entities.Count != destination.Buffer.Count) {
-            return false;
-        }
+        if (destination._entities.Count != destination.Buffer.Count) return false;
 
         _ = WorldEvents.Add<TComponent>.Instance;
         _ = EventTypeIndexer<WorldEvents.Add<TComponent>>.Index;
@@ -266,22 +260,16 @@ public partial class BufferEntityHost<TEntity, TBuffer>
         }
 
         var count = _entities.Count;
-        if (initialValues.Length != count) {
-            return false;
-        }
+        if (initialValues.Length != count) return false;
 
-        if (count == 0) {
-            return true;
-        }
+        if (count == 0) return true;
 
         if (!world.Dispatcher.HasNoTypedListeners<WorldEvents.Add<TComponent>>()
             || !world.Dispatcher.HasNoTypedListeners<WorldEvents.Set<TComponent>>()) {
             return false;
         }
 
-        if (!CanMoveAll(source)) {
-            return false;
-        }
+        if (!CanMoveAll(source)) return false;
 
         _ = WorldEvents.Add<TComponent>.Instance;
         world.EnsureOwnerThread();
@@ -320,17 +308,11 @@ public partial class BufferEntityHost<TEntity, TBuffer>
         }
 
         var count = _entities.Count;
-        if (count == 0) {
-            return true;
-        }
+        if (count == 0) return true;
 
-        if (!world.Dispatcher.HasNoTypedListeners<WorldEvents.Remove<THead>>()) {
-            return false;
-        }
+        if (!world.Dispatcher.HasNoTypedListeners<WorldEvents.Remove<THead>>()) return false;
 
-        if (!CanMoveAll(source)) {
-            return false;
-        }
+        if (!CanMoveAll(source)) return false;
 
         _ = WorldEvents.Remove<THead>.Instance;
         world.EnsureOwnerThread();
