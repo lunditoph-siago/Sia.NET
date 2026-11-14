@@ -77,10 +77,12 @@ public struct MemoryPackComponentSerializer() : IComponentSerializer
         ref ReadOnlySequence<byte> buffer, ref TComponent component, Dictionary<EntityId, Entity> entityMap)
     {
         if (_readerState == null || _entityMap != entityMap) {
-            _readerState = MemoryPackReaderOptionalStatePool.Rent(
+            var readerState = MemoryPackReaderOptionalStatePool.Rent(
                 MemoryPackSerializerOptions.Default with {
                     ServiceProvider = new DeserializerServiceProvider(entityMap)
                 });
+            ((IDisposable?)_readerState)?.Dispose();
+            _readerState = readerState;
             _entityMap = entityMap;
         }
 
@@ -92,6 +94,9 @@ public struct MemoryPackComponentSerializer() : IComponentSerializer
         }
         catch (MemoryPackSerializationException) {
             return false;
+        }
+        finally {
+            mpReader.Dispose();
         }
     }
 

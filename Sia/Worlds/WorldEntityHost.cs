@@ -123,6 +123,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     }
 
     public Entity Create() => Create(default!);
+    void IEntityHost.CreateForLoad(out Entity acquired) => Create(default, out acquired);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Entity Create(in TEntity initial) => Create(initial, out _);
