@@ -543,7 +543,6 @@ public sealed class Scheduler : IAddon, IDisposable
     {
         List<SystemStage>? stagesToDispose = null;
 
-        // Detach every stage before invoking cleanup callbacks.
         foreach (var slot in _registrationOrder) {
             if (slot.Stage is { } stage) {
                 (stagesToDispose ??= []).Add(stage);

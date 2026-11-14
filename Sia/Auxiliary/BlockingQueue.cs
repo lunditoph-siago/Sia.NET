@@ -43,7 +43,6 @@ public class BlockingQueue<T>
                 return true;
             }
             if (_isCompleted) {
-                // An enqueue can publish its last item before completion is observed.
                 return _queue.TryDequeue(out item);
             }
 #if BROWSER

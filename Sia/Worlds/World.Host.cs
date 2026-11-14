@@ -276,8 +276,6 @@ public partial class World
         var worldHost = host as IWorldBatchHost;
         worldHost?.CloseForCreation();
         result = NotifyObservers(OnEntityHostRemoved, host, result);
-        // Removal observers may release entities. The remaining entries are
-        // released by host disposal without the ordinary per-entity notifications.
         result = result.Attempt(() => {
             foreach (var entity in host.UnsafeGetEntitySpan()) {
                 Dispatcher.DetachEntityListeners(entity);
@@ -308,7 +306,6 @@ public partial class World
         var count = 0;
         var result = Outcome<Exception>.Success;
         foreach (var (index, host) in candidates) {
-            // An earlier removal observer may have changed this candidate.
             if (!_hosts.TryGetValue(index, out var current)
                 || !ReferenceEquals(current, host)
                 || host.Count != 0

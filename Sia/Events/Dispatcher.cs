@@ -168,7 +168,6 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
             MarkListenerForRemoval(listeners, index);
             return;
         }
-        // Immediate typed and target removal use swap-back ordering.
         var lastIndex = listeners.Count - 1;
         if (index != lastIndex) {
             listeners[index] = listeners[lastIndex];
@@ -306,7 +305,6 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
             return;
         }
 
-        // Each group keeps its original length during this send.
         _sendDepth++;
         try {
             if (globalListenerCount != 0) {
@@ -335,7 +333,6 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
         }
     }
 
-    // Keep the listener failure first and report the deferred work as one cleanup.
     [MethodImpl(MethodImplOptions.NoInlining)]
     private void FlushFailedSendActions(Exception dispatchError)
         => Outcome<Exception>.Failure(dispatchError)
@@ -370,7 +367,6 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
     private void MarkListenerForRemoval<T>(ListenerList<T> listeners, int index)
         where T : class
     {
-        // Keep the indices captured by every active send valid.
         listeners[index] = null;
         if (!listeners.NeedsCompaction) {
             (_pendingListenerCompactions ??= []).Add(listeners);

@@ -36,7 +36,6 @@ public abstract class ExtractSystemBase(
             ? _parentWorld
             : _parentWorld.Query(extractMatcher);
 
-        // The parent world owns its cached query. The view exposes only borrowed access.
         _extractView = new ExtractQuery(_parentQuery);
     }
 

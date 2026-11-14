@@ -40,7 +40,6 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
             EnsureCanClearAddons();
         }
 
-        // Recheck actor completion under the same lock used to bind the actor.
         lock (_actorLifecycleLock) {
             if (IsDisposed) {
                 return;

@@ -498,7 +498,6 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
     internal void RequestDisposal()
     {
         if (_executionInProgress) {
-            // The owner can detach the stage now. Uninitialize once its tick returns.
             _disposalRequested = true;
             return;
         }

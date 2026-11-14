@@ -25,7 +25,6 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
         }
     }
 
-    // The traversal copies its handlers, so keep the codec and cursor by reference.
     private readonly unsafe struct ComponentWriter<TBufferWriter>(
         TComponentSerializer* serializer, TBufferWriter* writer) : IRefGenericHandler
         where TBufferWriter : IBufferWriter<byte>
@@ -104,7 +103,6 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
 
         try {
             while (true) {
-                // Commit the input cursor only after a complete host block.
                 var hostBlock = buffer;
                 var host = THostHeaderSerializer.Deserialize(ref hostBlock, world);
                 if (host is null) {
@@ -157,7 +155,6 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
         ReadOnlySpan<EntityId> serializedIds,
         List<Entity> loadedEntities)
     {
-        // A creation callback can throw after publishing the handle.
         Entity pendingEntity = default;
         try {
             loadedEntities.EnsureCapacity(serializedIds.Length);
@@ -171,7 +168,6 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
                 pendingEntity = default;
             }
 
-            // All IDs must point to their entities before a component resolves references.
             fixed (TComponentSerializer* codec = &serializer)
             fixed (ReadOnlySequence<byte>* cursor = &buffer) {
                 var components = new ComponentTraversal<ComponentReader>(new(codec, cursor, entityMap));

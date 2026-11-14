@@ -312,7 +312,6 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             return host.Create(components, out output);
         }
         catch (Exception error) {
-            // Creation can publish the output before an observer throws.
             return Outcome<Exception>.Failure(error)
                 .Attempt(output, ReleaseOwnedEntity)
                 .ThrowFailure<Entity>();

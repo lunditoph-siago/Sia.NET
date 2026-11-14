@@ -192,7 +192,6 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void ReserveArrayRow(ArrayBuffer<TEntity> buffer)
     {
-        // Reserve both backing stores before publishing a row or acquiring its identity.
         var count = buffer.Count + 1;
         if (count > _entities.Capacity) {
             _entities.EnsureCapacity(count);

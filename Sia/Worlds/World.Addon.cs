@@ -95,7 +95,6 @@ public partial class World
         finally {
             _reservedAddonSlots.Remove(index);
         }
-        // Observers see a published addon and may remove it.
         NotifyObservers(OnAddonCreated, addon, Outcome<Exception>.Success).ThrowIfFailed();
         return addon;
     }

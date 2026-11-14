@@ -167,8 +167,6 @@ public sealed class ActorRuntime : IDisposable
             }
         }
 
-        // Completion takes the actor lock before entering the runtime.
-        // Request it only after releasing the lifecycle lock.
         if (actorsToComplete is not null) {
             foreach (var actor in actorsToComplete) {
                 actor.Complete();

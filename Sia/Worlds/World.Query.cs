@@ -53,7 +53,6 @@ public partial class World
 
         private void HandleHostAdded(IReactiveEntityHost host)
         {
-            // A matcher may dispose this query before it returns.
             if (Matcher?.Match(host) != true || World is null) {
                 return;
             }

@@ -80,7 +80,6 @@ public sealed class QuerySubscription : IDisposable
         var hosts = Query.Hosts.ToArray();
         var snapshots = new HostSnapshot[hosts.Length];
         try {
-            // Capture every host before notifying callbacks that may move entities.
             for (var i = 0; i < hosts.Length; i++) {
                 snapshots[i] = AttachHost(hosts[i]);
             }
@@ -143,7 +142,6 @@ public sealed class QuerySubscription : IDisposable
             while (cursor.SnapshotIndex < snapshots.Length && !_disposed) {
                 var entities = snapshots[cursor.SnapshotIndex].Entities;
                 while (cursor.EntityIndex < entities.Length && !_disposed) {
-                    // Advance before the callback so nested notifications see only unread entities.
                     var entity = entities[cursor.EntityIndex++];
                     if ((_pendingEntities?.Remove(entity) ?? true)
                         && entity.Host is IReactiveEntityHost host
@@ -179,7 +177,6 @@ public sealed class QuerySubscription : IDisposable
             return false;
         }
         if (_pendingEntities is null) {
-            // Build the lookup only when a nested notification needs it.
             var pendingEntities = new HashSet<Entity>();
             for (var cursor = _activeReplay; cursor is not null; cursor = cursor.Previous) {
                 cursor.AddRemainingEntities(pendingEntities);
