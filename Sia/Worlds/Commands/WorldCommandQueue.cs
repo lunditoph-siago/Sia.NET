@@ -27,11 +27,15 @@ public sealed class WorldCommandQueue : IWorldCommandQueue
 
     public int Apply(World world)
     {
-        var count = 0;
+        ArgumentNullException.ThrowIfNull(world);
+        world.EnsureOwnerThread();
+        ObjectDisposedException.ThrowIf(world.IsDisposed, world);
+
+        var appliedCount = 0;
         while (_requests.TryDequeue(out var request)) {
             request.Apply(world);
-            count++;
+            appliedCount++;
         }
-        return count;
+        return appliedCount;
     }
 }
