@@ -43,8 +43,7 @@ public class BlockingQueue<T>
                 return true;
             }
             if (_isCompleted) {
-                item = default;
-                return false;
+                return _queue.TryDequeue(out item);
             }
 #if BROWSER
             if (WaitHandle.WaitAny(_waitHandles, 1500) == WaitHandle.WaitTimeout
