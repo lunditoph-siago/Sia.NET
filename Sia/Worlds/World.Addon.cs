@@ -10,9 +10,9 @@ public partial class World
 
     public IEnumerable<IAddon> Addons {
         get {
-            for (int i = 0, visitedAddons = 0; visitedAddons < _addonCount; ++i) {
+            for (int i = 0, addonAcc = 0; addonAcc < _addonCount; ++i) {
                 if (_addons[i] is { } addon) {
-                    visitedAddons++;
+                    addonAcc++;
                     yield return addon;
                 }
             }
@@ -22,42 +22,39 @@ public partial class World
     private readonly IAddon?[] _addons = new IAddon?[2048];
     private readonly HashSet<int> _reservedAddonSlots = [];
     private bool _clearingAddons;
-    private int _addonCount;
+    private int _addonCount = 0;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public TAddon AcquireAddon<TAddon>()
         where TAddon : class, IAddon, new()
     {
-        EnsureAddonRegistration();
         var index = WorldAddonIndexer<TAddon>.Index;
-        if (_addons[index] is { } addon) {
-            return Unsafe.As<TAddon>(addon);
-        }
-
-        return CreateAddon(index, static () => new TAddon());
+        return _addons[index] is { } addon
+            ? Unsafe.As<TAddon>(addon)
+            : RegisterAddon<TAddon>(index, null, static () => new TAddon());
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public TAddon AddAddon<TAddon>()
         where TAddon : class, IAddon, new()
-    {
-        EnsureAddonRegistration();
-        return CreateAddon(WorldAddonIndexer<TAddon>.Index, static () => new TAddon());
-    }
+        => RegisterAddon<TAddon>(WorldAddonIndexer<TAddon>.Index, null, static () => new TAddon());
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public TAddon AddAddon<TAddon>(TAddon addon)
         where TAddon : class, IAddon
     {
-        EnsureAddonRegistration();
         ArgumentNullException.ThrowIfNull(addon);
-        var index = WorldAddonIndexer<TAddon>.Index;
-        ReserveAddonSlot<TAddon>(index);
-        return InitializeReservedAddon(index, addon);
+        return RegisterAddon(WorldAddonIndexer<TAddon>.Index, addon, null);
     }
 
-    private void ReserveAddonSlot<TAddon>(int index)
+    private TAddon RegisterAddon<TAddon>(int index, TAddon? addon, Func<TAddon>? create)
+        where TAddon : class, IAddon
     {
+        EnsureOwnerThread();
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
+        if (_clearingAddons) {
+            throw new InvalidOperationException("Cannot register an addon while the world is clearing addons.");
+        }
         if (_addons[index] != null) {
             throw new Exception("Addon already exists: " + typeof(TAddon));
         }
@@ -65,29 +62,9 @@ public partial class World
             throw new InvalidOperationException(
                 "An addon of the same type is already being initialized or removed: " + typeof(TAddon));
         }
-    }
 
-    private TAddon CreateAddon<TAddon>(int index, Func<TAddon> create)
-        where TAddon : class, IAddon
-    {
-        ReserveAddonSlot<TAddon>(index);
-
-        TAddon addon;
         try {
-            addon = create();
-        }
-        catch {
-            _reservedAddonSlots.Remove(index);
-            throw;
-        }
-
-        return InitializeReservedAddon(index, addon);
-    }
-
-    private TAddon InitializeReservedAddon<TAddon>(int index, TAddon addon)
-        where TAddon : class, IAddon
-    {
-        try {
+            addon ??= create!();
             addon.OnInitialize(this);
             _addons[index] = addon;
             _addonCount++;
@@ -95,17 +72,8 @@ public partial class World
         finally {
             _reservedAddonSlots.Remove(index);
         }
-        NotifyObservers(OnAddonCreated, addon, Outcome<Exception>.Success).ThrowIfFailed();
+        OnAddonCreated?.Invoke(addon);
         return addon;
-    }
-
-    private void EnsureAddonRegistration()
-    {
-        EnsureOwnerThread();
-        ObjectDisposedException.ThrowIf(IsDisposed, this);
-        if (_clearingAddons) {
-            throw new InvalidOperationException("Cannot register an addon while the world is clearing addons.");
-        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -115,15 +83,14 @@ public partial class World
         EnsureOwnerThread();
         var index = WorldAddonIndexer<TAddon>.Index;
         var addon = _addons[index];
-        if (addon is null) {
-            return false;
-        }
+        if (addon is null) return false;
 
         _reservedAddonSlots.Add(index);
         _addons[index] = null;
         _addonCount--;
         try {
-            UninitializeAddon(addon, Outcome<Exception>.Success).ThrowIfFailed();
+            var result = Outcome<Exception>.Success.Attempt(() => addon.OnUninitialize(this));
+            NotifyObservers(OnAddonRemoved, addon, result).ThrowIfFailed();
             return true;
         }
         finally {
@@ -139,12 +106,12 @@ public partial class World
             return Unsafe.As<TAddon>(exact);
         }
 
-        for (int i = 0, visitedAddons = 0; visitedAddons < _addonCount; ++i) {
+        for (int i = 0, addonAcc = 0; addonAcc < _addonCount; ++i) {
             if (_addons[i] is { } addon) {
                 if (addon is TAddon converted) {
                     return converted;
                 }
-                visitedAddons++;
+                addonAcc++;
             }
         }
 
@@ -159,9 +126,9 @@ public partial class World
             yield return Unsafe.As<TAddon>(exact);
         }
 
-        for (int i = 0, visitedAddons = 0; visitedAddons < _addonCount; ++i) {
+        for (int i = 0, addonAcc = 0; addonAcc < _addonCount; ++i) {
             if (_addons[i] is { } addon) {
-                visitedAddons++;
+                addonAcc++;
                 if (i != exactIndex && addon is TAddon converted) {
                     yield return converted;
                 }
@@ -177,13 +144,13 @@ public partial class World
             return true;
         }
 
-        for (int i = 0, visitedAddons = 0; visitedAddons < _addonCount; ++i) {
+        for (int i = 0, addonAcc = 0; addonAcc < _addonCount; ++i) {
             if (_addons[i] is { } candidate) {
                 if (candidate is TAddon converted) {
                     addon = converted;
                     return true;
                 }
-                visitedAddons++;
+                addonAcc++;
             }
         }
 
@@ -207,10 +174,10 @@ public partial class World
 
     private void ClearAddonsCore()
     {
-        var detachedAddons = new List<IAddon>(_addonCount);
-        for (var i = 0; detachedAddons.Count < _addonCount; ++i) {
+        var addons = new List<IAddon>(_addonCount);
+        for (var i = 0; addons.Count < _addonCount; ++i) {
             if (_addons[i] is { } addon) {
-                detachedAddons.Add(addon);
+                addons.Add(addon);
                 _addons[i] = null;
             }
         }
@@ -219,19 +186,14 @@ public partial class World
         _clearingAddons = true;
         try {
             var result = Outcome<Exception>.Success;
-            foreach (var addon in detachedAddons) {
-                result = UninitializeAddon(addon, result);
+            foreach (var addon in addons) {
+                result = result.Attempt(() => addon.OnUninitialize(this));
+                result = NotifyObservers(OnAddonRemoved, addon, result);
             }
             result.ThrowIfFailed();
         }
         finally {
             _clearingAddons = false;
         }
-    }
-
-    private Outcome<Exception> UninitializeAddon(IAddon addon, Outcome<Exception> result)
-    {
-        result = result.Attempt(() => addon.OnUninitialize(this));
-        return NotifyObservers(OnAddonRemoved, addon, result);
     }
 }

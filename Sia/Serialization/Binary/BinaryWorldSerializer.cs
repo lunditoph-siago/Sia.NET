@@ -159,7 +159,12 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
         try {
             loadedEntities.EnsureCapacity(serializedIds.Length);
             foreach (var id in serializedIds) {
-                host.CreateForLoad(out pendingEntity);
+                if (host is IWorldBatchHost worldHost) {
+                    worldHost.CreateForLoad(out pendingEntity);
+                }
+                else {
+                    pendingEntity = host.Create();
+                }
                 if (!ReferenceEquals(pendingEntity.Host, host)) {
                     throw new InvalidOperationException("The entity was released or moved during deserialization.");
                 }
