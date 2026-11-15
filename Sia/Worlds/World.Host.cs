@@ -37,9 +37,11 @@ public partial class World
 
     internal bool HasNoBatchObservers()
     {
+        if (IsNotifyingHostMigration) return false;
+
         lock (_batchObserverLock) {
             if (_hasNoBatchObservers is { } cached) return cached;
-            foreach (var host in Hosts) {
+            foreach (var host in _hosts.UnsafeRawValues) {
                 if (host is not IWorldBatchHost batch || batch.HasMigrationObservers) {
                     _hasNoBatchObservers = false;
                     return false;
@@ -91,8 +93,9 @@ public partial class World
         BeginHostOperation(index);
         try {
             var host = create(this);
-            _hosts[index] = host;
-            NotifyHostAdded(host);
+            IReactiveEntityHost registered = host;
+            _hosts[index] = registered;
+            NotifyHostAdded(registered);
             return host;
         }
         finally {
@@ -104,14 +107,15 @@ public partial class World
         where THost : IReactiveEntityHost
     {
         EnsureHostRegistration();
-        ArgumentNullException.ThrowIfNull(host);
+        IReactiveEntityHost registered = host;
+        ArgumentNullException.ThrowIfNull(registered, nameof(host));
         var index = WorldEntityHostIndexer<THost>.Index;
         BeginHostOperation(index);
         try {
-            if (!_hosts.Add(index, host)) {
+            if (!_hosts.Add(index, registered)) {
                 throw new ArgumentException("Host with the same type already exists: " + typeof(THost));
             }
-            NotifyHostAdded(host);
+            NotifyHostAdded(registered);
             return host;
         }
         finally {
@@ -203,13 +207,13 @@ public partial class World
         if (_hostOperations.Count != 0) {
             throw new InvalidOperationException("Cannot clear hosts during host initialization or removal.");
         }
-        foreach (var host in Hosts) EnsureNoEntityRelease(host.UnsafeGetEntitySpan());
+        foreach (var host in _hosts.UnsafeRawValues) EnsureNoEntityRelease(host.UnsafeGetEntitySpan());
     }
 
     private static void EnsureNoEntityRelease(ReadOnlySpan<Entity> entities)
     {
         foreach (var entity in entities) {
-            if (entity.IsValid && entity.GetStateUnchecked().Releasing) {
+            if (entity.GetStateUnchecked() is { Releasing: true, Host: not null } state && entity.References(state)) {
                 throw new InvalidOperationException("Cannot remove a host while an entity is being released.");
             }
         }
@@ -238,6 +242,7 @@ public partial class World
     private Outcome<Exception> RemoveHost(int index, IReactiveEntityHost host, Outcome<Exception> result)
     {
         _hosts.Remove(index);
+        (host as IWorldBatchHost)?.CloseForCreation();
         Version++;
         InvalidateBatchObservers();
         return DisposeDetachedHost(host, result);
@@ -245,7 +250,6 @@ public partial class World
 
     private Outcome<Exception> DisposeDetachedHost(IReactiveEntityHost host, Outcome<Exception> result)
     {
-        (host as IWorldBatchHost)?.CloseForCreation();
         result = NotifyObservers(OnEntityHostRemoved, host, result);
         result = result.Attempt((this, host), static (in (World World, IReactiveEntityHost Host) state) => {
             foreach (var entity in state.Host.UnsafeGetEntitySpan()) state.World.Dispatcher.DetachEntityListeners(entity);
@@ -296,12 +300,14 @@ public partial class World
         }
     }
 
+    internal bool IsNotifyingHostMigration => _hostMigrationDepth != 0;
+
     internal void BeginHostMigration() => _hostMigrationDepth++;
     internal void EndHostMigration() => _hostMigrationDepth--;
 
     internal void EnsureNoHostMigration()
     {
-        if (_hostMigrationDepth != 0) {
+        if (IsNotifyingHostMigration) {
             throw new InvalidOperationException("Cannot dispose or remove hosts during entity migration.");
         }
     }

@@ -188,12 +188,11 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         siblingHost.MoveIn(entity, moved, host);
     }
 
-    internal void AddDefault<TComponent>(Entity entity, in TComponent initial)
+    internal void AddDefault<TComponent>(Entity entity, EntityState state, in TComponent initial)
     {
         if (EntityIndexer<TEntity, TComponent>.Offset != -1) {
             EntityExceptionHelper.ThrowComponentExisted<TComponent>();
         }
-        var state = entity.GetStateUnchecked();
         var moved = HList.Cons(initial, Buffer.GetRef(state.Slot));
         if (TryMoveCached(entity, state, moved)) return;
 
@@ -235,7 +234,8 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
             && managedTarget.InnerHost.GetType() == typeof(ArrayEntityHost<TDestination>)) {
             if (!state.Releasing && !managed.HasMigrationObservers && !managedTarget.HasMigrationObservers
                 && ReferenceEquals(managed.World, managedTarget.World)) {
-                managed.InnerHost.MoveCached(managedTarget.InnerHost, managedTarget, entity, state, data);
+                managed.InnerHost.MoveCached(
+                    managedTarget.InnerHost, managedTarget, managedTarget.IsClosedForCreation, entity, state, data);
             }
             else {
                 managed.MoveOut(entity, managedTarget);
@@ -250,7 +250,8 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
             && nativeTarget.InnerHost.GetType() == typeof(UnmanagedArrayEntityHost<TDestination>)) {
             if (!state.Releasing && !native.HasMigrationObservers && !nativeTarget.HasMigrationObservers
                 && ReferenceEquals(native.World, nativeTarget.World)) {
-                native.InnerHost.MoveCached(nativeTarget.InnerHost, nativeTarget, entity, state, data);
+                native.InnerHost.MoveCached(
+                    nativeTarget.InnerHost, nativeTarget, nativeTarget.IsClosedForCreation, entity, state, data);
             }
             else {
                 native.MoveOut(entity, nativeTarget);
@@ -263,13 +264,13 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void MoveCached<TDestination, TStorage>(
-        BufferEntityHost<TDestination, TStorage> destination, IEntityMoveDestination target,
+        BufferEntityHost<TDestination, TStorage> destination, IEntityHost target, bool targetClosed,
         Entity entity, EntityState state, in TDestination data)
         where TDestination : struct, IHList
         where TStorage : IBuffer<TDestination>
     {
         state.EnsureOutsideMigrationCallback();
-        target.EnsureCanMoveIn();
+        ObjectDisposedException.ThrowIf(targetClosed || destination._disposed, target);
         if (typeof(TStorage) == typeof(UnmanagedArrayBuffer<TDestination>)
             && RuntimeHelpers.IsReferenceOrContainsReferences<TDestination>()) {
             throw new NotSupportedException("Unmanaged storage requires elements without managed references.");
@@ -358,13 +359,13 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         success = true;
     }
 
-    internal void RemoveDefault<TComponent>(Entity entity, out bool success)
+    internal void RemoveDefault<TComponent>(Entity entity, EntityState state, out bool success)
     {
         if (EntityIndexer<TEntity, TComponent>.Offset == -1) {
             success = false;
             return;
         }
-        ref var data = ref Buffer.GetRef(entity.GetStateUnchecked().Slot);
+        ref var data = ref Buffer.GetRef(state.Slot);
         var mover = new EntityMover(entity);
         data.Remove(TypeProxy<TComponent>._, mover);
         success = true;

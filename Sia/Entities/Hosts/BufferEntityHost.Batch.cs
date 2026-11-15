@@ -44,12 +44,14 @@ public partial class BufferEntityHost<TEntity, TBuffer>
 
     private bool CanMoveAll(IEntityHost source)
     {
+        if (source.World?.IsNotifyingHostMigration == true) return false;
+
         var entities = _entities.AsSpan();
         for (var i = 0; i < entities.Length; i++) {
             var entity = entities[i];
             var state = entity.GetStateUnchecked();
             if (state is null || !entity.References(state) || !ReferenceEquals(state.Host, source)
-                || state.Slot != i || state.Releasing || state.NotifyingMigration || state.EventSink is not null) return false;
+                || state.Slot != i || state.Releasing || state.EventSink is not null) return false;
         }
         return true;
     }
