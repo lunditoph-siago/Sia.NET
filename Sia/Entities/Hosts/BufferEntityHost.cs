@@ -14,7 +14,7 @@ public static class BufferEntityHost<TEntity>
 }
 
 public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
-    : IEntityHost<TEntity>
+    : IEntityHost<TEntity>, IEntityMoveDestination
     where TEntity : struct, IHList
     where TBuffer : IBuffer<TEntity>
 {
@@ -102,7 +102,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         MoveOut(state);
     }
 
-    void IEntityHost.EnsureCanMoveIn() => ObjectDisposedException.ThrowIf(_disposed, this);
+    void IEntityMoveDestination.EnsureCanMoveIn() => ObjectDisposedException.ThrowIf(_disposed, this);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private EntityState GetOwnedState(Entity entity)
@@ -263,7 +263,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void MoveCached<TDestination, TStorage>(
-        BufferEntityHost<TDestination, TStorage> destination, IEntityHost target,
+        BufferEntityHost<TDestination, TStorage> destination, IEntityMoveDestination target,
         Entity entity, EntityState state, in TDestination data)
         where TDestination : struct, IHList
         where TStorage : IBuffer<TDestination>

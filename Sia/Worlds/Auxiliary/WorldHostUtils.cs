@@ -2,6 +2,19 @@ namespace Sia;
 
 internal static class WorldHostUtils
 {
+    internal static void EnsureCanMoveIn(this IEntityHost host)
+        => (host as IEntityMoveDestination)?.EnsureCanMoveIn();
+
+    internal static void ReleaseOwned(this IEntityHost host, Entity entity)
+    {
+        if (host is IWorldBatchHost worldHost) {
+            worldHost.ReleaseOwned(entity);
+        }
+        else {
+            host.Release(entity);
+        }
+    }
+
     public struct EntityAddEventSender(Entity entity, WorldDispatcher dispatcher) : IGenericTypeHandler
     {
         public readonly void Handle<T>()

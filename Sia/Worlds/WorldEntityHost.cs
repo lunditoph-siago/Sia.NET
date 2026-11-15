@@ -12,10 +12,11 @@ internal interface IWorldBatchHost
     bool IsExactArrayHost { get; }
     bool HasMigrationObservers { get; }
     void CloseForCreation();
+    void ReleaseOwned(Entity entity);
 }
 
 public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost innerHost)
-    : IEntityHost<TEntity>, IReactiveEntityHost, IWorldBatchHost
+    : IEntityHost<TEntity>, IReactiveEntityHost, IWorldBatchHost, IEntityMoveDestination
     where TEntity : struct, IHList
     where TInnerHost : IEntityHost<TEntity>, new()
 {
@@ -52,7 +53,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     bool IWorldBatchHost.HasMigrationObservers => HasMigrationObservers;
     void IWorldBatchHost.CloseForCreation() => _closedForCreation = true;
 
-    void IEntityHost.EnsureCanMoveIn()
+    void IEntityMoveDestination.EnsureCanMoveIn()
     {
         ObjectDisposedException.ThrowIf(_closedForCreation, this);
         InnerHost.EnsureCanMoveIn();
