@@ -18,6 +18,7 @@ public interface IEntityHost : IEnumerable<Entity>, IDisposable
     Entity Create();
     void Release(Entity entity);
     void MoveOut(Entity entity, IEntityHost destination);
+    internal void EnsureCanMoveIn() {}
 
     Entity GetEntity(int slot);
     ref byte GetByteRef(int slot);
@@ -70,9 +71,4 @@ public interface IEntityHost<TEntity> : IEntityHost
     Entity Create(in TEntity initial);
     void MoveIn(Entity entity, in TEntity data, IEntityHost source);
     ref TEntity GetRef(int slot);
-}
-
-internal interface IEntityMoveDestination : IEntityHost
-{
-    void EnsureCanMoveIn();
 }

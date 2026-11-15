@@ -16,7 +16,7 @@ internal interface IWorldBatchHost
 }
 
 public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost innerHost)
-    : IEntityHost<TEntity>, IReactiveEntityHost, IWorldBatchHost, IEntityMoveDestination
+    : IEntityHost<TEntity>, IReactiveEntityHost, IWorldBatchHost
     where TEntity : struct, IHList
     where TInnerHost : IEntityHost<TEntity>, new()
 {
@@ -54,10 +54,10 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     void IWorldBatchHost.CloseForCreation() => _closedForCreation = true;
     internal bool IsClosedForCreation => _closedForCreation;
 
-    void IEntityMoveDestination.EnsureCanMoveIn()
+    void IEntityHost.EnsureCanMoveIn()
     {
         ObjectDisposedException.ThrowIf(_closedForCreation, this);
-        if (InnerHost is IEntityMoveDestination destination) destination.EnsureCanMoveIn();
+        InnerHost.EnsureCanMoveIn();
     }
 
     public World World { get; } = world;

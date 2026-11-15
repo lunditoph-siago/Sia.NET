@@ -2,9 +2,6 @@ namespace Sia;
 
 internal static class WorldHostUtils
 {
-    internal static void EnsureCanMoveIn(this IEntityHost host)
-        => (host as IEntityMoveDestination)?.EnsureCanMoveIn();
-
     internal static void ReleaseOwned(this IEntityHost host, Entity entity)
     {
         if (host is IWorldBatchHost worldHost) {
