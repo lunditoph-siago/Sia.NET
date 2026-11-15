@@ -71,3 +71,8 @@ public interface IEntityHost<TEntity> : IEntityHost
     void MoveIn(Entity entity, in TEntity data, IEntityHost source);
     ref TEntity GetRef(int slot);
 }
+
+internal interface IEntityMoveDestination : IEntityHost
+{
+    void EnsureCanMoveIn();
+}
