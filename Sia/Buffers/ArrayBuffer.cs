@@ -5,46 +5,27 @@ namespace Sia;
 public sealed class ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
 {
     public bool IsManaged => true;
-    public int Capacity => Array.MaxLength;
+    public int Capacity => int.MaxValue;
 
     public int Count {
-        get => _count;
+        get;
         set {
-            ArgumentOutOfRangeException.ThrowIfNegative(value);
-            EnsureCapacity(value);
-            _count = value;
+            if (value == field) return;
+            if (value > _array.Length) Array.Resize(ref _array, CalculateArraySize(value));
+            field = value;
         }
     }
 
-    private int _count;
     private T[] _array = new T[initialCapacity];
 
     public ArrayBuffer() : this(0) {}
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void EnsureCapacity(int count)
+    private static int CalculateArraySize(int requiredCapacity)
     {
-        if (count > _array.Length) {
-            Grow(count);
-        }
-    }
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private void Grow(int requiredCapacity)
-    {
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(requiredCapacity, Array.MaxLength);
         var size = 8;
-        while (size < requiredCapacity && size <= Array.MaxLength / 2) {
-            size *= 2;
-        }
-        Array.Resize(ref _array, Math.Max(size, requiredCapacity));
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void AppendReserved(in T value)
-    {
-        _array[_count] = value;
-        _count++;
+        while (size < requiredCapacity) { size *= 2; }
+        return size;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -53,7 +34,7 @@ public sealed class ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetRefOrNullRef(int index)
-        => ref (uint)index >= (uint)_array.Length ? ref Unsafe.NullRef<T>() : ref _array[index];
+        => ref index < 0 || index >= _array.Length ? ref Unsafe.NullRef<T>() : ref _array[index];
 
     public Span<T> AsSpan() => _array;
 

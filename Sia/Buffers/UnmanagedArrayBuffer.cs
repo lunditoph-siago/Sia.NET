@@ -1,3 +1,5 @@
+#pragma warning disable CS8500 // This takes the address of, gets the size of, or declares a pointer to a managed type
+
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -6,92 +8,53 @@ namespace Sia;
 public sealed class UnmanagedArrayBuffer<T>(int initialCapacity) : IBuffer<T>
 {
     public bool IsManaged => false;
-    public int Capacity => MaximumCapacity;
-
-    private static int MaximumCapacity => (int)Math.Min(int.MaxValue, nint.MaxValue / Unsafe.SizeOf<T>());
+    public int Capacity => int.MaxValue;
 
     public int Count {
-        get => _count;
+        get;
         set {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            ArgumentOutOfRangeException.ThrowIfNegative(value);
-            if (value > _allocatedLength) {
-                Grow(value);
+            if (value == field) return;
+            if (value > _length) {
+                _length = CalculateArraySize(value);
+                var newMem = Marshal.AllocHGlobal(_length * Unsafe.SizeOf<T>());
+                unsafe {
+                    AsSpan().CopyTo(new Span<T>((void*)newMem, _length));
+                }
+                Marshal.FreeHGlobal(_mem);
+                _mem = newMem;
             }
-            _count = value;
+            field = value;
         }
     }
 
-    private int _count;
-    private int _allocatedLength = initialCapacity;
-    private IntPtr _memory = Allocate(initialCapacity);
-    private bool _disposed;
+    private int _length = initialCapacity;
+    private IntPtr _mem = Marshal.AllocHGlobal(initialCapacity * Unsafe.SizeOf<T>());
 
     public UnmanagedArrayBuffer() : this(0) {}
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void EnsureCapacity(int count)
+    private static int CalculateArraySize(int requiredCapacity)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-        if (count > _allocatedLength) Grow(count);
+        var size = 8;
+        while (size < requiredCapacity) { size *= 2; }
+        return size;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal unsafe void AppendReserved(in T value)
-    {
-        new Span<T>((void*)_memory, _allocatedLength)[_count] = value;
-        _count++;
-    }
-
-    private static IntPtr Allocate(int initialCapacity)
-    {
-        if (RuntimeHelpers.IsReferenceOrContainsReferences<T>()) {
-            throw new NotSupportedException("Unmanaged storage requires elements without managed references.");
-        }
-        ArgumentOutOfRangeException.ThrowIfNegative(initialCapacity);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(initialCapacity, MaximumCapacity);
-        return initialCapacity == 0
-            ? IntPtr.Zero
-            : Marshal.AllocHGlobal(checked((nint)initialCapacity * Unsafe.SizeOf<T>()));
-    }
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private void Grow(int requiredCapacity)
-    {
-        var capacity = MaximumCapacity;
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(requiredCapacity, capacity);
-        var size = Math.Min(8, capacity);
-        while (size < requiredCapacity && size <= capacity / 2) {
-            size *= 2;
-        }
-
-        var allocatedLength = Math.Max(size, requiredCapacity);
-        var bytes = checked((nint)allocatedLength * Unsafe.SizeOf<T>());
-        _memory = _memory == IntPtr.Zero
-            ? Marshal.AllocHGlobal(bytes)
-            : Marshal.ReAllocHGlobal(_memory, bytes);
-        _allocatedLength = allocatedLength;
-    }
+    public unsafe ref T GetRef(int index)
+        => ref new Span<T>((void*)_mem, Count)[index];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref T GetRef(int index)
-        => ref AsSpan()[index];
+    public unsafe ref T GetRefOrNullRef(int index)
+        => ref index < 0 || index >= Count ? ref Unsafe.NullRef<T>() : ref ((T*)_mem)[index];
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref T GetRefOrNullRef(int index)
-        => ref (uint)index >= (uint)_count ? ref Unsafe.NullRef<T>() : ref AsSpan()[index];
-
-    public unsafe Span<T> AsSpan() => new((void*)_memory, Count);
+    public unsafe Span<T> AsSpan() => new((void*)_mem, Count);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Dispose()
     {
-        if (_disposed) return;
-
-        _disposed = true;
-        Marshal.FreeHGlobal(_memory);
-        _memory = IntPtr.Zero;
-        _count = 0;
-        _allocatedLength = 0;
+        if (_mem == IntPtr.Zero) return;
+        Marshal.FreeHGlobal(_mem);
+        _mem = IntPtr.Zero;
     }
 }

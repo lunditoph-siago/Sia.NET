@@ -21,7 +21,6 @@ public sealed class WorldDispatcher : Dispatcher<IEvent>
             throw new ArgumentException("The entity belongs to a different world.", nameof(target));
         }
         if (owner is null && HasNoListeners<UEvent>()) return;
-
         SendCore(target, e, owner as IEventSink<Entity, UEvent>);
     }
 
@@ -29,7 +28,6 @@ public sealed class WorldDispatcher : Dispatcher<IEvent>
     internal void SendAddAndSet<TComponent>(Entity target)
     {
         if (!target.IsValid) return;
-
         var add = WorldEvents.Add<TComponent>.Instance;
         World.EnsureOwnerThread();
         var state = target.IsValid ? target.GetStateUnchecked() : null;
@@ -42,7 +40,6 @@ public sealed class WorldDispatcher : Dispatcher<IEvent>
             World.EnsureOwnerThread();
             state = target.IsValid ? target.GetStateUnchecked() : null;
             if (state?.EventSink is null && HasNoListeners<WorldEvents.Set<TComponent>>()) return;
-
             Send(target, set);
             return;
         }
@@ -75,26 +72,8 @@ public sealed class WorldDispatcher : Dispatcher<IEvent>
     internal void DetachEntityListeners(Entity target)
     {
         base.UnlistenAll(target);
-
         if (target.IsValid && ReferenceEquals(target.Host.World, World)) {
             target.GetStateUnchecked().EventSink = null;
-        }
-    }
-
-    internal void DetachEntityListeners(ReadOnlySpan<Entity> entities)
-    {
-        if (IsSending || !HasNoUntypedListeners) {
-            foreach (var entity in entities) {
-                DetachEntityListeners(entity);
-            }
-            return;
-        }
-
-        foreach (var entity in entities) {
-            if (entity.GetStateUnchecked() is { EventSink: not null, Host: { } host } state
-                && entity.References(state) && ReferenceEquals(host.World, World)) {
-                state.EventSink = null;
-            }
         }
     }
 

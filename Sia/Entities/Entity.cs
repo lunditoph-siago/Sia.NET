@@ -17,7 +17,6 @@ public readonly partial struct Entity : IEquatable<Entity>
         _token = ((ulong)generation << 32) | (uint)id.Value;
         state.Token = _token;
         state.Releasing = false;
-        state.Migrating = false;
         state.NotifyingMigration = false;
     }
 

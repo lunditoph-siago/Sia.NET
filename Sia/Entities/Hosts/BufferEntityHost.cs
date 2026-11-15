@@ -1,5 +1,4 @@
 using System.Collections;
-using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using CommunityToolkit.HighPerformance;
@@ -32,14 +31,13 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
 
     public bool TryGetSequentialBytes(out Span<byte> bytes)
     {
-        var count = Buffer.Count;
-        if (count == 0
+        if (Buffer.Count == 0
             || RuntimeHelpers.IsReferenceOrContainsReferences<TEntity>()
-            || (long)count * Unsafe.SizeOf<TEntity>() > int.MaxValue) {
+            || (long)Buffer.Count * Unsafe.SizeOf<TEntity>() > int.MaxValue) {
             bytes = default;
             return false;
         }
-        bytes = MemoryMarshal.Cast<TEntity, byte>(Buffer.AsSpan()[..count]);
+        bytes = MemoryMarshal.Cast<TEntity, byte>(Buffer.AsSpan());
         return true;
     }
 
@@ -74,42 +72,16 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     public virtual Entity Create(in TEntity initial)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        if (typeof(TBuffer) == typeof(ArrayBuffer<TEntity>)) {
-            var buffer = (ArrayBuffer<TEntity>)(object)Buffer;
-            ReserveArrayRow(buffer);
-            var entity = EntityStates.Rent();
-            AppendReservedArrayRow(buffer, entity, entity.GetStateUnchecked(), this, initial);
-            return entity;
-        }
-        return CreateWithRollback(initial);
-    }
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private Entity CreateWithRollback(in TEntity initial)
-    {
-        var states = EntityStates;
-        var entity = states.Rent();
-        try {
-            AppendRow(entity, initial);
-            return entity;
-        }
-        catch (Exception error) {
-            return Outcome<Exception>.Failure(error)
-                .Attempt((states, entity), static (in (EntityStatePool States, Entity Entity) entry) =>
-                    entry.States.Return(entry.Entity.GetStateUnchecked()))
-                .ThrowFailure<Entity>();
-        }
+        var e = EntityStates.Rent();
+        MoveInTrusted(e, initial);
+        return e;
     }
 
     public virtual void Release(Entity entity)
     {
-        var state = entity.GetState();
+        var state = GetOwnedState(entity);
         state.EnsureOutsideMigrationCallback();
-        if (state.Migrating) {
-            throw new InvalidOperationException("Cannot release an entity while it is being migrated.");
-        }
-        EnsureOwnSlot(entity, state);
-        RemoveRow(state);
+        MoveOut(state);
         EntityStates.Return(state);
     }
 
@@ -118,31 +90,31 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
 
     public void MoveOut(Entity entity, IEntityHost destination)
     {
-        var state = entity.GetState();
+        var state = GetOwnedState(entity);
         state.EnsureOutsideMigrationCallback();
         if (state.Releasing) {
             throw new InvalidOperationException("Cannot migrate an entity while it is being released.");
         }
-        EnsureOwnSlot(entity, state);
         if (!ReferenceEquals(destination.World, World)) {
             throw new InvalidOperationException("Migration destination belongs to another world.");
         }
         destination.EnsureCanMoveIn();
-        RemoveRow(state);
+        MoveOut(state);
     }
 
     void IEntityHost.EnsureCanMoveIn() => ObjectDisposedException.ThrowIf(_disposed, this);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void EnsureOwnSlot(Entity entity, EntityState state)
+    private EntityState GetOwnedState(Entity entity)
     {
+        var state = entity.GetState();
         if ((uint)state.Slot >= (uint)_entities.Count || _entities[state.Slot] != entity) {
             throw new InvalidOperationException("Entity belongs to another host.");
         }
+        return state;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void RemoveRow(EntityState state)
+    private void MoveOut(EntityState state)
     {
         Version++;
 
@@ -162,83 +134,34 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
 
     public void MoveIn(Entity entity, in TEntity data, IEntityHost source)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         var state = entity.GetCurrentState();
         state.EnsureOutsideMigrationCallback();
-        if (!ReferenceEquals(state.Host, source) || !ReferenceEquals(source.World, World)) {
-            throw new InvalidOperationException("Migration source does not own the entity or belongs to another world.");
-        }
         if (state.Releasing) {
             throw new InvalidOperationException("Cannot migrate an entity while it is being released.");
+        }
+        if (!ReferenceEquals(state.Host, source) || !ReferenceEquals(source.World, World)) {
+            throw new InvalidOperationException("Migration source does not own the entity or belongs to another world.");
         }
         var sourceEntities = source.UnsafeGetEntitySpan();
         if ((uint)state.Slot < (uint)sourceEntities.Length && sourceEntities[state.Slot] == entity) {
             throw new InvalidOperationException("Cannot move an entity that is still present in its source host.");
         }
-        ObjectDisposedException.ThrowIf(_disposed, this);
-        AppendRow(entity, data);
+        MoveInTrusted(entity, data);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void AppendRow(Entity entity, in TEntity data)
+    private void MoveInTrusted(Entity entity, in TEntity data)
     {
-        if (typeof(TBuffer) == typeof(ArrayBuffer<TEntity>)) {
-            var buffer = (ArrayBuffer<TEntity>)(object)Buffer;
-            ReserveArrayRow(buffer);
-            AppendReservedArrayRow(buffer, entity, entity.GetStateUnchecked(), this, data);
-            return;
-        }
-        AppendRowWithRollback(entity, data);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void ReserveArrayRow(ArrayBuffer<TEntity> buffer)
-    {
-        var count = buffer.Count + 1;
-        if (count > _entities.Capacity) {
-            _entities.EnsureCapacity(count);
-        }
-
-        buffer.EnsureCapacity(count);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void AppendReservedArrayRow(
-        ArrayBuffer<TEntity> buffer, Entity entity, EntityState state, IEntityHost owner, in TEntity data)
-    {
-        var slot = buffer.Count;
-        buffer.AppendReserved(data);
-        PublishRow(entity, state, owner, slot);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void PublishRow(Entity entity, EntityState state, IEntityHost owner, int slot)
-    {
-        _entities.Add(entity);
-        state.Host = owner;
-        state.Slot = slot;
         Version++;
-    }
 
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private void AppendRowWithRollback(Entity entity, in TEntity data)
-    {
-        var value = data;
-        var slot = Buffer.Count;
-        var count = checked(slot + 1);
-        _entities.EnsureCapacity(count);
-        try {
-            Buffer.Count = count;
-            Buffer.GetRef(slot) = value;
-        }
-        catch (Exception error) {
-            Outcome<Exception>.Failure(error)
-                .Attempt((this, slot), static (in (BufferEntityHost<TEntity, TBuffer> Host, int Count) entry) => {
-                    var host = entry.Host;
-                    if (host.Buffer.Count != entry.Count) host.Buffer.Count = entry.Count;
-                })
-                .ThrowFailure();
-        }
-        PublishRow(entity, entity.GetStateUnchecked(), this, slot);
+        var slot = Buffer.Count++;
+        Buffer.GetRef(slot) = data;
+
+        var state = entity.GetStateUnchecked();
+        state.Host = this;
+        state.Slot = slot;
+        _entities.Add(entity);
     }
 
     public ref byte GetByteRef(int slot)
@@ -256,8 +179,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         if (EntityIndexer<TEntity, TComponent>.Offset != -1) {
             EntityExceptionHelper.ThrowComponentExisted<TComponent>();
         }
-        var state = entity.GetState();
-        EnsureOwnSlot(entity, state);
+        var state = GetOwnedState(entity);
         state.EnsureOutsideMigrationCallback();
         var host = state.Host!;
         var moved = HList.Cons(initial, Buffer.GetRef(state.Slot));
@@ -271,22 +193,14 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         if (EntityIndexer<TEntity, TComponent>.Offset != -1) {
             EntityExceptionHelper.ThrowComponentExisted<TComponent>();
         }
-        var state = entity.GetState();
-        EnsureOwnSlot(entity, state);
-        state.EnsureOutsideMigrationCallback();
-        var host = state.Host!;
-        var value = HList.Cons(initial, Buffer.GetRef(state.Slot));
-        if (RuntimeFeature.IsDynamicCodeSupported && typeof(TBuffer) == typeof(ArrayBuffer<TEntity>)
-            && TryGetArrayHosts<HList<TComponent, TEntity>>(host, out var source, out var target)) {
-            MoveBetweenArrayHosts(source, target, entity, state, value);
-            return;
-        }
-        if (RuntimeFeature.IsDynamicCodeSupported && typeof(TBuffer) == typeof(UnmanagedArrayBuffer<TEntity>)
-            && TryMoveBetweenUnmanagedHosts(host, entity, state, value)) return;
+        var state = entity.GetStateUnchecked();
+        var moved = HList.Cons(initial, Buffer.GetRef(state.Slot));
+        if (TryMoveCached(entity, state, moved)) return;
 
+        var host = state.Host!;
         var siblingHost = ResolveSibling<HList<TComponent, TEntity>>(entity, state, host);
         host.MoveOut(entity, siblingHost);
-        siblingHost.MoveIn(entity, value, host);
+        siblingHost.MoveIn(entity, moved, host);
     }
 
     private static IEntityHost<T> ResolveSibling<T>(Entity entity, EntityState state, IEntityHost host)
@@ -296,12 +210,11 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         state.NotifyingMigration = true;
         var world = host.World;
         world?.BeginHostMigration();
-        try { return host.GetSiblingHost<T>(); }
+        try {
+            return host.GetSiblingHost<T>();
+        }
         finally {
-            if (entity.References(state)) {
-                state.NotifyingMigration = false;
-            }
-
+            if (entity.References(state)) state.NotifyingMigration = false;
             world?.EndHostMigration();
         }
     }
@@ -310,42 +223,74 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
 
     public virtual bool TryRemoveAll<TComponent>(ReadOnlySpan<Entity> entities) => false;
 
-    private static bool TryGetArrayHosts<TDestination>(IEntityHost host,
-        [NotNullWhen(true)] out WorldEntityHost<TEntity, ArrayEntityHost<TEntity>>? source,
-        [NotNullWhen(true)] out WorldEntityHost<TDestination, ArrayEntityHost<TDestination>>? target)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool TryMoveCached<TDestination>(Entity entity, EntityState state, in TDestination data)
         where TDestination : struct, IHList
     {
-        source = host as WorldEntityHost<TEntity, ArrayEntityHost<TEntity>>;
-        target = null;
-        return source is not null && source.InnerHost.GetType() == typeof(ArrayEntityHost<TEntity>)
-            && source.World.TryGetHost<TDestination, ArrayEntityHost<TDestination>>(out target);
+        if (!RuntimeFeature.IsDynamicCodeSupported || typeof(TDestination) == typeof(TEntity)) return false;
+        if (typeof(TBuffer) == typeof(ArrayBuffer<TEntity>)
+            && state.Host is WorldEntityHost<TEntity, ArrayEntityHost<TEntity>> managed
+            && managed.InnerHost.GetType() == typeof(ArrayEntityHost<TEntity>)
+            && managed.World.TryGetHost<TDestination, ArrayEntityHost<TDestination>>(out var managedTarget)
+            && managedTarget.InnerHost.GetType() == typeof(ArrayEntityHost<TDestination>)) {
+            if (!state.Releasing && !managed.HasMigrationObservers && !managedTarget.HasMigrationObservers
+                && ReferenceEquals(managed.World, managedTarget.World)) {
+                managed.InnerHost.MoveCached(managedTarget.InnerHost, managedTarget, entity, state, data);
+            }
+            else {
+                managed.MoveOut(entity, managedTarget);
+                managedTarget.MoveIn(entity, data, managed);
+            }
+            return true;
+        }
+        if (typeof(TBuffer) == typeof(UnmanagedArrayBuffer<TEntity>)
+            && state.Host is WorldEntityHost<TEntity, UnmanagedArrayEntityHost<TEntity>> native
+            && native.InnerHost.GetType() == typeof(UnmanagedArrayEntityHost<TEntity>)
+            && native.World.TryGetHost<TDestination, UnmanagedArrayEntityHost<TDestination>>(out var nativeTarget)
+            && nativeTarget.InnerHost.GetType() == typeof(UnmanagedArrayEntityHost<TDestination>)) {
+            if (!state.Releasing && !native.HasMigrationObservers && !nativeTarget.HasMigrationObservers
+                && ReferenceEquals(native.World, nativeTarget.World)) {
+                native.InnerHost.MoveCached(nativeTarget.InnerHost, nativeTarget, entity, state, data);
+            }
+            else {
+                native.MoveOut(entity, nativeTarget);
+                nativeTarget.MoveIn(entity, data, native);
+            }
+            return true;
+        }
+        return false;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void MoveBetweenArrayHosts<TDestination>(
-        WorldEntityHost<TEntity, ArrayEntityHost<TEntity>> source,
-        WorldEntityHost<TDestination, ArrayEntityHost<TDestination>> target,
+    private void MoveCached<TDestination, TStorage>(
+        BufferEntityHost<TDestination, TStorage> destination, IEntityHost target,
         Entity entity, EntityState state, in TDestination data)
         where TDestination : struct, IHList
+        where TStorage : IBuffer<TDestination>
     {
-        BufferEntityHost<TDestination, ArrayBuffer<TDestination>> destination = target.InnerHost;
-        if (target.InnerHost.GetType() != typeof(ArrayEntityHost<TDestination>)
-            || !ReferenceEquals(source.World, target.World)
-            || source.HasMigrationObservers || target.HasMigrationObservers) {
-            source.MoveOut(entity, target);
-            target.MoveIn(entity, data, source);
-            return;
+        state.EnsureOutsideMigrationCallback();
+        target.EnsureCanMoveIn();
+        if (typeof(TStorage) == typeof(UnmanagedArrayBuffer<TDestination>)
+            && RuntimeHelpers.IsReferenceOrContainsReferences<TDestination>()) {
+            throw new NotSupportedException("Unmanaged storage requires elements without managed references.");
         }
-
-        ObjectDisposedException.ThrowIf(target.IsClosedForCreation || destination._disposed, target);
-        source.InnerHost.EnsureOwnSlot(entity, state);
-        var buffer = destination.Buffer;
-        destination.ReserveArrayRow(buffer);
-        source.InnerHost.RemoveRow(state);
-        destination.AppendReservedArrayRow(buffer, entity, state, target, data);
+        if ((uint)state.Slot >= (uint)_entities.Count || _entities[state.Slot] != entity) {
+            throw new InvalidOperationException("Entity belongs to another host.");
+        }
+        var slot = destination.Buffer.Count;
+        var count = checked(slot + 1);
+        if (count > destination._entities.Capacity) destination._entities.EnsureCapacity(count);
+        var value = data;
+        destination.Buffer.Count = count;
+        destination.Buffer.GetRef(slot) = value;
+        MoveOut(state);
+        destination._entities.Add(entity);
+        state.Host = target;
+        state.Slot = slot;
+        destination.Version++;
     }
 
-    private readonly struct EntityMover(Entity e)
+    private struct EntityMover(Entity e)
         : IGenericStructHandler<IHList>
     {
         public readonly void Handle<T>(in T data)
@@ -354,48 +299,12 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
             var state = e.GetState();
             var host = state.Host!;
             var moved = data;
-            if (RuntimeFeature.IsDynamicCodeSupported && state.Migrating && BulkHListShape.IsStandard) {
-                if (typeof(TBuffer) == typeof(ArrayBuffer<TEntity>)
-                    && TryGetArrayHosts<T>(host, out var source, out var target)) {
-                    MoveBetweenArrayHosts(source, target, e, state, moved);
-                    return;
-                }
-                if (typeof(TBuffer) == typeof(UnmanagedArrayBuffer<TEntity>)
-                    && TryMoveBetweenUnmanagedHosts(host, e, state, moved)) return;
-            }
+            if (BulkHListShape.IsStandard && TryMoveCached(e, state, moved)) return;
 
             var siblingHost = ResolveSibling<T>(e, state, host);
             host.MoveOut(e, siblingHost);
             siblingHost.MoveIn(e, moved, host);
         }
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static bool TryMoveBetweenUnmanagedHosts<TDestination>(
-        IEntityHost host, Entity entity, EntityState state, in TDestination data)
-        where TDestination : struct, IHList
-    {
-        if (host is not WorldEntityHost<TEntity, UnmanagedArrayEntityHost<TEntity>> source
-            || source.InnerHost.GetType() != typeof(UnmanagedArrayEntityHost<TEntity>)
-            || !source.World.TryGetHost<TDestination, UnmanagedArrayEntityHost<TDestination>>(out var target)
-            || target.InnerHost.GetType() != typeof(UnmanagedArrayEntityHost<TDestination>)
-            || !ReferenceEquals(source.World, target.World)
-            || source.HasMigrationObservers || target.HasMigrationObservers) {
-            return false;
-        }
-
-        BufferEntityHost<TDestination, UnmanagedArrayBuffer<TDestination>> destination = target.InnerHost;
-        ObjectDisposedException.ThrowIf(target.IsClosedForCreation || destination._disposed, target);
-        source.InnerHost.EnsureOwnSlot(entity, state);
-        var buffer = destination.Buffer;
-        var slot = buffer.Count;
-        var count = checked(slot + 1);
-        destination._entities.EnsureCapacity(count);
-        buffer.EnsureCapacity(count);
-        source.InnerHost.RemoveRow(state);
-        buffer.AppendReserved(data);
-        destination.PublishRow(entity, state, target, slot);
-        return true;
     }
 
     private struct EntityComponentChecker : IGenericTypeHandler
@@ -413,8 +322,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     public virtual void AddMany<TList>(Entity entity, in TList list)
         where TList : struct, IHList
     {
-        var state = entity.GetState();
-        EnsureOwnSlot(entity, state);
+        var state = GetOwnedState(entity);
         state.EnsureOutsideMigrationCallback();
         TList.HandleTypes(EntityComponentChecker.Instance);
 
@@ -425,21 +333,12 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
 
     public virtual void Set<TComponent>(Entity entity, in TComponent value)
     {
-        var state = entity.GetState();
         var offset = EntityIndexer<TEntity, TComponent>.Offset;
         if (offset == -1) {
-            EnsureOwnSlot(entity, state);
             Add(entity, value);
             return;
         }
-        SetExisting(entity, state, offset, value);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void SetExisting<TComponent>(Entity entity, EntityState state, nint offset, in TComponent value)
-    {
-        EnsureOwnSlot(entity, state);
-        ref var data = ref GetRef(state.Slot);
+        ref var data = ref GetRef(entity.GetStateUnchecked().Slot);
         Unsafe.As<TEntity, TComponent>(
             ref Unsafe.AddByteOffset(ref data, offset))
             = value;
@@ -447,12 +346,11 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
 
     public virtual void Remove<TComponent>(Entity entity, out bool success)
     {
-        var state = entity.GetState();
-        EnsureOwnSlot(entity, state);
         if (EntityIndexer<TEntity, TComponent>.Offset == -1) {
             success = false;
             return;
         }
+        var state = GetOwnedState(entity);
         state.EnsureOutsideMigrationCallback();
         ref var data = ref Buffer.GetRef(state.Slot);
         var mover = new EntityMover(entity);
@@ -467,7 +365,8 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
             return;
         }
         ref var data = ref Buffer.GetRef(entity.GetStateUnchecked().Slot);
-        data.Remove(TypeProxy<TComponent>._, new EntityMover(entity));
+        var mover = new EntityMover(entity);
+        data.Remove(TypeProxy<TComponent>._, mover);
         success = true;
     }
 
@@ -497,15 +396,17 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         public readonly void Handle<T>(in T value)
             where T : struct, IHList
         {
-            if (typeof(T) != typeof(TEntity)) new EntityMover(e).Handle(value);
+            if (typeof(T) == typeof(TEntity)) {
+                return;
+            }
+            new EntityMover(e).Handle(value);
         }
     }
 
     public virtual void RemoveMany<TList>(Entity entity)
         where TList : struct, IHList
     {
-        var state = entity.GetState();
-        EnsureOwnSlot(entity, state);
+        var state = GetOwnedState(entity);
         state.EnsureOutsideMigrationCallback();
         ref var data = ref Buffer.GetRef(state.Slot);
         data.Filter(
@@ -534,7 +435,6 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     public void Dispose()
     {
         if (_disposed) return;
-
         World?.EnsureNoHostMigration();
         _disposed = true;
         foreach (var entity in _entities) {

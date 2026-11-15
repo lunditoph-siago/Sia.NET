@@ -8,7 +8,6 @@ internal sealed class EntityState
     public IEventSink<Entity>? EventSink;
     public int Slot = -1;
     public bool Releasing;
-    public bool Migrating;
     public bool NotifyingMigration;
     public ulong Token;
 

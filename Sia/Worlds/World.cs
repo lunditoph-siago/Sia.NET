@@ -43,10 +43,10 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
         IsDisposed = true;
 
         Outcome<Exception>.Success
-            .Attempt(this, static (in World world) => world.ClearHostsCore())
-            .Attempt(EntityStates, static (in EntityStatePool states) => states.Retire())
-            .Attempt(this, static (in World world) => world.ClearAddonsCore())
-            .Attempt(this, static (in World world) => world.OnDisposed?.Invoke(world))
+            .Attempt(ClearHostsCore)
+            .Attempt(EntityStates.Retire)
+            .Attempt(ClearAddonsCore)
+            .Attempt(() => OnDisposed?.Invoke(this))
             .ThrowIfFailed();
     }
 
@@ -57,9 +57,7 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
     }
 
     private static Outcome<Exception> NotifyObservers<T>(
-        Action<T>? observers,
-        T value,
-        Outcome<Exception> result)
+        Action<T>? observers, T value, Outcome<Exception> result)
     {
         foreach (var observer in Delegate.EnumerateInvocationList(observers)) {
             result = result.Attempt((observer, value), static (in (Action<T> Observer, T Value) call) =>
