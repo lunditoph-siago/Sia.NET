@@ -108,10 +108,18 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     private EntityState GetOwnedState(Entity entity)
     {
         var state = entity.GetState();
-        if ((uint)state.Slot >= (uint)_entities.Count || _entities[state.Slot] != entity) {
+        EnsureOwnedSlot(entity, state.Slot);
+        return state;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void EnsureOwnedSlot(Entity entity, int slot)
+    {
+        var entities = _entities.AsSpan();
+        if ((uint)slot >= (uint)entities.Length || entities[slot] != entity) {
+            entity.GetState();
             throw new InvalidOperationException("Entity belongs to another host.");
         }
-        return state;
     }
 
     private void MoveOut(EntityState state)
@@ -155,8 +163,9 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     {
         Version++;
 
+        var value = data;
         var slot = Buffer.Count++;
-        Buffer.GetRef(slot) = data;
+        Buffer.GetRef(slot) = value;
 
         var state = entity.GetStateUnchecked();
         state.Host = this;
@@ -275,9 +284,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
             && RuntimeHelpers.IsReferenceOrContainsReferences<TDestination>()) {
             throw new NotSupportedException("Unmanaged storage requires elements without managed references.");
         }
-        if ((uint)state.Slot >= (uint)_entities.Count || _entities[state.Slot] != entity) {
-            throw new InvalidOperationException("Entity belongs to another host.");
-        }
+        EnsureOwnedSlot(entity, state.Slot);
         var slot = destination.Buffer.Count;
         var count = checked(slot + 1);
         if (count > destination._entities.Capacity) destination._entities.EnsureCapacity(count);
@@ -333,13 +340,21 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     }
 
     public virtual void Set<TComponent>(Entity entity, in TComponent value)
+        => SetDefault(entity, entity.GetStateUnchecked(), value);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void SetDefault<TComponent>(Entity entity, EntityState? state, in TComponent value)
     {
         var offset = EntityIndexer<TEntity, TComponent>.Offset;
         if (offset == -1) {
             Add(entity, value);
             return;
         }
-        ref var data = ref GetRef(entity.GetStateUnchecked().Slot);
+        var slot = state?.Slot ?? -1;
+        EnsureOwnedSlot(entity, slot);
+        var buffer = Buffer;
+        ref var data = ref (buffer is ArrayBuffer<TEntity> array
+            ? ref array.GetRef(slot) : ref buffer.GetRef(slot));
         Unsafe.As<TEntity, TComponent>(
             ref Unsafe.AddByteOffset(ref data, offset))
             = value;

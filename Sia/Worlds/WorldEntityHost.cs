@@ -345,7 +345,13 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
             state.EnsureOutsideMigrationCallback();
             throw new InvalidOperationException("Cannot migrate an entity while it is being released.");
         }
-        InnerHost.Set(entity, value);
+        if (typeof(TInnerHost) == typeof(ArrayEntityHost<TEntity>)
+            && InnerHost is ArrayEntityHost<TEntity> managed && managed.GetType() == typeof(ArrayEntityHost<TEntity>))
+            managed.SetDefault(entity, state, value);
+        else if (typeof(TInnerHost) == typeof(UnmanagedArrayEntityHost<TEntity>)
+            && InnerHost is UnmanagedArrayEntityHost<TEntity> unmanaged && unmanaged.GetType() == typeof(UnmanagedArrayEntityHost<TEntity>))
+            unmanaged.SetDefault(entity, state, value);
+        else InnerHost.Set(entity, value);
         World.Dispatcher.Send(entity, WorldEvents.Set<TComponent>.Instance);
     }
 
