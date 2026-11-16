@@ -288,9 +288,8 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         var slot = destination.Buffer.Count;
         var count = checked(slot + 1);
         if (count > destination._entities.Capacity) destination._entities.EnsureCapacity(count);
-        var value = data;
         destination.Buffer.Count = count;
-        destination.Buffer.GetRef(slot) = value;
+        destination.Buffer.GetRef(slot) = data;
         MoveOut(state);
         destination._entities.Add(entity);
         state.Host = target;

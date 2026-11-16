@@ -94,6 +94,19 @@ internal static class EntityBatch
         return batch.Applied;
     }
 
+    internal static bool CanMoveAll(World world, IEntityHost source, ReadOnlySpan<Entity> entities)
+    {
+        if (world.IsNotifyingHostMigration) return false;
+
+        for (var i = 0; i < entities.Length; i++) {
+            var entity = entities[i];
+            var state = entity.GetStateUnchecked();
+            if (state is null || !entity.References(state) || !ReferenceEquals(state.Host, source)
+                || state.Slot != i || state.Releasing || state.EventSink is not null) return false;
+        }
+        return true;
+    }
+
     private static bool MayBatch(IEntityHost host)
     {
         if (host is IWorldBatchHost { IsExactArrayHost: true }) return true;

@@ -234,15 +234,17 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     private void ReleaseOwned(Entity entity, EntityState state)
     {
         try {
-            var dispatcher = World.Dispatcher;
+            var call = (Host: this, Entity: entity);
             var result = NotifyOwnedRemoval(entity)
-                .Attempt(() => dispatcher.Send(entity, WorldEvents.Remove.Instance))
-                .Attempt(() => dispatcher.UnlistenAll(entity));
+                .Attempt(call, static (in context) =>
+                    context.Host.World.Dispatcher.Send(context.Entity, WorldEvents.Remove.Instance))
+                .Attempt(call, static (in context) =>
+                    context.Host.World.Dispatcher.UnlistenAll(context.Entity));
 
             World.Count--;
             result
-                .Attempt(() => OnEntityReleased?.Invoke(entity))
-                .Attempt(() => InnerHost.Release(entity))
+                .Attempt(call, static (in context) => context.Host.OnEntityReleased?.Invoke(context.Entity))
+                .Attempt(call, static (in context) => context.Host.InnerHost.Release(context.Entity))
                 .ThrowIfFailed();
         }
         finally {
@@ -253,16 +255,19 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     private Outcome<Exception> NotifyOwnedRemoval(Entity entity)
     {
         var sender = new OwnedEntityRemoveEventSender(entity, World.Dispatcher);
-        var traversal = Outcome<Exception>.Success.Attempt(() => TEntity.HandleTypes(sender));
+        var traversal = Outcome<Exception>.Success.Attempt(sender, static (in context) => TEntity.HandleTypes(context));
         return sender.Result.Combine(traversal);
     }
 
     private sealed class OwnedEntityRemoveEventSender(Entity entity, WorldDispatcher dispatcher) : IGenericTypeHandler
     {
+        private readonly (Entity Entity, WorldDispatcher Dispatcher) _call = (entity, dispatcher);
+
         public Outcome<Exception> Result { get; private set; }
 
         public void Handle<T>()
-            => Result = Result.Attempt(() => dispatcher.Send(entity, WorldEvents.Remove<T>.Instance));
+            => Result = Result.Attempt(_call, static (in context) =>
+                context.Dispatcher.Send(context.Entity, WorldEvents.Remove<T>.Instance));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
