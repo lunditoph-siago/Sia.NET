@@ -15,13 +15,8 @@ internal static class EntityBatch
         {
             if (host is not WorldEntityHost<TEntity, ArrayEntityHost<TEntity>> source
                 || source.InnerHost.GetType() != typeof(ArrayEntityHost<TEntity>)
-                || _entities.IsEmpty || _entities.Length != source.Count
-                || !ReferenceEquals(_entities[0].Host, source)) return;
+                || !CanStartBatch(source, _entities)) return;
             source.World.EnsureOwnerThread();
-            if (RuntimeFeature.IsDynamicCodeSupported) {
-                Applied = source.InnerHost.TryBulkAddUniform(source, _entities, initial);
-                return;
-            }
             if (EntityIndexer<TEntity, TComponent>.Offset != -1) return;
             if (!source.World.TryGetHost<HList<TComponent, TEntity>, ArrayEntityHost<HList<TComponent, TEntity>>>(out var target)) return;
             var dispatcher = source.World.Dispatcher;
@@ -30,6 +25,11 @@ internal static class EntityBatch
                 || !dispatcher.HasNoTypedListeners<WorldEvents.Add<TComponent>>()
                 || !dispatcher.HasNoTypedListeners<WorldEvents.Set<TComponent>>()) return;
             if (!CanBatch(source, _entities)) return;
+            if (RuntimeFeature.IsDynamicCodeSupported
+                && source.InnerHost.TryBulkAddUniform(source, _entities, initial)) {
+                Applied = true;
+                return;
+            }
             var values = ArrayPool<TComponent>.Shared.Rent(_entities.Length);
             try {
                 var span = values.AsSpan(0, _entities.Length);
@@ -94,19 +94,6 @@ internal static class EntityBatch
         return batch.Applied;
     }
 
-    internal static bool CanMoveAll(World world, IEntityHost source, ReadOnlySpan<Entity> entities)
-    {
-        if (world.IsNotifyingHostMigration) return false;
-
-        for (var i = 0; i < entities.Length; i++) {
-            var entity = entities[i];
-            var state = entity.GetStateUnchecked();
-            if (state is null || !entity.References(state) || !ReferenceEquals(state.Host, source)
-                || state.Slot != i || state.Releasing || state.EventSink is not null) return false;
-        }
-        return true;
-    }
-
     private static bool MayBatch(IEntityHost host)
     {
         if (host is IWorldBatchHost { IsExactArrayHost: true }) return true;
@@ -116,7 +103,11 @@ internal static class EntityBatch
         return inner.IsGenericType && inner.GetGenericTypeDefinition() == typeof(ArrayEntityHost<>);
     }
 
+    private static bool CanStartBatch(IEntityHost host, ReadOnlySpan<Entity> entities)
+        => entities.Length != 0 && entities.Length == host.Count
+            && entities[0].IsValid && ReferenceEquals(entities[0].Host, host);
+
     private static bool CanBatch(IEntityHost host, ReadOnlySpan<Entity> entities)
         => entities.Length != 0 && entities.SequenceEqual(host.UnsafeGetEntitySpan())
-            && ReferenceEquals(entities[0].Host, host);
+            && entities[0].IsValid && ReferenceEquals(entities[0].Host, host);
 }

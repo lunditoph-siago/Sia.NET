@@ -29,7 +29,7 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
 
     private void Dispose(bool disposing)
     {
-        if (IsDisposed) return;
+        if (IsDisposed) { return; }
 
         if (disposing) {
             ThrowIfActorIncomplete();
@@ -60,8 +60,7 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
         Action<T>? observers, T value, Outcome<Exception> result)
     {
         foreach (var observer in Delegate.EnumerateInvocationList(observers)) {
-            result = result.Attempt((observer, value), static (in (Action<T> Observer, T Value) call) =>
-                call.Observer(call.Value));
+            result = result.Attempt((Observer: observer, Value: value), static (in call) => call.Observer(call.Value));
         }
         return result;
     }

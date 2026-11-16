@@ -12,10 +12,10 @@ internal sealed class EntityState
     public ulong Token;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void EnsureOutsideMigrationCallback()
+    public void EnsureCanMigrate()
     {
-        if (NotifyingMigration) {
-            throw new InvalidOperationException("Cannot structurally change an entity during its migration callback.");
+        if (Releasing || NotifyingMigration) {
+            throw new InvalidOperationException("Cannot migrate an entity during release or a migration callback.");
         }
     }
 }

@@ -20,7 +20,7 @@ public partial class World
     }
 
     private readonly IAddon?[] _addons = new IAddon?[2048];
-    private readonly HashSet<int> _reservedAddonSlots = [];
+    private readonly HashSet<int> _addonOperations = [];
     private bool _clearingAddons;
     private int _addonCount = 0;
 
@@ -52,17 +52,13 @@ public partial class World
     {
         EnsureOwnerThread();
         ObjectDisposedException.ThrowIf(IsDisposed, this);
-        if (_clearingAddons) {
-            throw new InvalidOperationException("Cannot register an addon while the world is clearing addons.");
-        }
+        if (_clearingAddons) throw new InvalidOperationException("Cannot register an addon while clearing addons.");
         if (_addons[index] != null) {
             throw new Exception("Addon already exists: " + typeof(TAddon));
         }
-        if (!_reservedAddonSlots.Add(index)) {
-            throw new InvalidOperationException(
-                "An addon of the same type is already being initialized or removed: " + typeof(TAddon));
+        if (!_addonOperations.Add(index)) {
+            throw new InvalidOperationException("The addon is already being initialized or removed: " + typeof(TAddon));
         }
-
         try {
             addon ??= create!();
             addon.OnInitialize(this);
@@ -70,7 +66,7 @@ public partial class World
             _addonCount++;
         }
         finally {
-            _reservedAddonSlots.Remove(index);
+            _addonOperations.Remove(index);
         }
         OnAddonCreated?.Invoke(addon);
         return addon;
@@ -82,10 +78,8 @@ public partial class World
     {
         EnsureOwnerThread();
         var index = WorldAddonIndexer<TAddon>.Index;
-        var addon = _addons[index];
-        if (addon is null) return false;
-
-        _reservedAddonSlots.Add(index);
+        if (_addons[index] is not { } addon) return false;
+        _addonOperations.Add(index);
         _addons[index] = null;
         _addonCount--;
         try {
@@ -94,7 +88,7 @@ public partial class World
             return true;
         }
         finally {
-            _reservedAddonSlots.Remove(index);
+            _addonOperations.Remove(index);
         }
     }
 
@@ -167,8 +161,8 @@ public partial class World
 
     private void EnsureCanClearAddons()
     {
-        if (_clearingAddons || _reservedAddonSlots.Count != 0) {
-            throw new InvalidOperationException("Cannot clear addons during addon initialization or cleanup.");
+        if (_clearingAddons || _addonOperations.Count != 0) {
+            throw new InvalidOperationException("Cannot clear addons during addon initialization or removal.");
         }
     }
 

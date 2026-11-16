@@ -94,7 +94,8 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
 
     public static IReactiveEntityHost AcquireHost<THost>(World world)
         where THost : class, IReactiveEntityHost
-        => world.AcquireRawHost(static owner => (THost)Activator.CreateInstance(typeof(THost), owner)!);
+        => world.AcquireRawHost(static owner =>
+            Unsafe.As<THost>(Activator.CreateInstance(typeof(THost), owner))!);
 
     private static IReactiveEntityHost GetHost(World world, string hostTypeName)
     {
