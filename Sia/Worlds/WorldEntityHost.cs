@@ -190,6 +190,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void Release(Entity entity, EntityState state)
     {
+        World.ActiveReleaseCount++;
         try {
             var dispatcher = World.Dispatcher;
             TEntity.HandleTypes(new EntityRemoveEventSender(entity, dispatcher));
@@ -207,6 +208,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
             InnerHost.Release(entity);
         }
         finally {
+            World.ActiveReleaseCount--;
             if (entity.References(state)) state.Releasing = false;
         }
     }
@@ -234,6 +236,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
 
     private void ReleaseOwned(Entity entity, EntityState state)
     {
+        World.ActiveReleaseCount++;
         try {
             var dispatcher = World.Dispatcher;
             var result = NotifyOwnedRemoval(entity)
@@ -247,6 +250,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
                 .ThrowIfFailed();
         }
         finally {
+            World.ActiveReleaseCount--;
             if (entity.References(state)) state.Releasing = false;
         }
     }

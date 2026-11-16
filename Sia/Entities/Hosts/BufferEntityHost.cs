@@ -110,13 +110,18 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void EnsureOwnedSlot(Entity entity, int slot)
+    private void EnsureOwnedSlot(in Entity entity, int slot)
     {
-        var entities = _entities.AsSpan();
-        if ((uint)slot >= (uint)entities.Length || entities[slot] != entity) {
-            entity.GetState();
-            throw new InvalidOperationException("Entity belongs to another host.");
+        if ((uint)slot >= (uint)_entities.Count || _entities[slot] != entity) {
+            throw WrongSlot(in entity);
         }
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static InvalidOperationException WrongSlot(in Entity entity)
+    {
+        entity.GetState();
+        return new("Entity belongs to another host.");
     }
 
     private void MoveOut(EntityState state)
@@ -186,6 +191,9 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         state.EnsureCanMigrate();
         var host = state.Host!;
         var moved = HList.Cons(initial, Buffer.GetRef(state.Slot));
+        if (typeof(TBuffer) != typeof(ArrayBuffer<TEntity>) && typeof(TBuffer) != typeof(UnmanagedArrayBuffer<TEntity>)) {
+            state.EnsureCanMigrate();
+        }
         var siblingHost = ResolveSibling<HList<TComponent, TEntity>>(entity, state, host);
         host.MoveOut(entity, siblingHost);
         siblingHost.MoveIn(entity, moved, host);
@@ -242,7 +250,6 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         where TSourceHost : IEntityHost<TEntity>, new()
         where TTargetHost : IEntityHost<TDestination>, new()
     {
-        state.EnsureCanMigrate();
         if (!ReferenceEquals(target.World, source.World)) {
             throw new InvalidOperationException("Migration destination belongs to another world.");
         }
@@ -269,7 +276,6 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     private static IEntityHost<T> ResolveSibling<T>(Entity entity, EntityState state, IEntityHost host)
         where T : struct, IHList
     {
-        state.EnsureCanMigrate();
         var world = host.World;
         state.NotifyingMigration = true;
         world?.BeginHostMigration();
@@ -289,6 +295,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
             where T : struct, IHList
         {
             var state = e.GetState();
+            state.EnsureCanMigrate();
             var moved = data;
             if (BulkHListShape.IsStandard && TryMoveCached(e, state, moved)) return;
 
@@ -327,7 +334,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     {
         var offset = EntityIndexer<TEntity, TComponent>.Offset;
         if (offset == -1) {
-            Add(entity, value);
+            AddMissing(in entity, in value);
             return;
         }
         var slot = entity.GetStateUnchecked()?.Slot ?? -1;
@@ -339,6 +346,10 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
             ref Unsafe.AddByteOffset(ref data, offset))
             = value;
     }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void AddMissing<TComponent>(in Entity entity, in TComponent value)
+        => Add(entity, value);
 
     public virtual void Remove<TComponent>(Entity entity, out bool success)
     {

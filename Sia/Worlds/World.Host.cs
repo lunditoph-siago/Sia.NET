@@ -18,6 +18,7 @@ public partial class World
     private bool? _hasNoBatchObservers;
     private bool _clearingHosts;
     private int _hostMigrationDepth;
+    internal int ActiveReleaseCount;
 
     internal void InvalidateBatchObservers()
     {
@@ -203,7 +204,9 @@ public partial class World
         if (_hostOperations.Count != 0) {
             throw new InvalidOperationException("Cannot clear hosts during host initialization or removal.");
         }
-        foreach (var host in _hosts.UnsafeRawValues) EnsureNoEntityRelease(host.UnsafeGetEntitySpan());
+        if (ActiveReleaseCount != 0 || Dispatcher.PendingAfterSendActionCount != 0) {
+            foreach (var host in _hosts.UnsafeRawValues) EnsureNoEntityRelease(host.UnsafeGetEntitySpan());
+        }
     }
 
     private static void EnsureNoEntityRelease(ReadOnlySpan<Entity> entities)
@@ -247,8 +250,11 @@ public partial class World
     {
         result = NotifyObservers(OnEntityHostRemoved, host, result);
         result = result.Attempt((World: this, Host: host), static (in context) => {
+            var dispatcher = context.World.Dispatcher;
+            var clearsSinksOnDispose = !dispatcher.IsSending && context.Host is IWorldBatchHost { IsExactArrayHost: true };
             foreach (var entity in context.Host.UnsafeGetEntitySpan()) {
-                context.World.Dispatcher.DetachEntityListeners(entity);
+                if (clearsSinksOnDispose && dispatcher.HasNoUntypedListeners) break;
+                dispatcher.DetachEntityListeners(entity);
             }
             if (context.Host is IWorldBatchHost) context.World.Count -= context.Host.Count;
         });
