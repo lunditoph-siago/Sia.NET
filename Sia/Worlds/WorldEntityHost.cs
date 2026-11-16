@@ -13,6 +13,7 @@ internal interface IWorldBatchHost
     bool HasMigrationObservers { get; }
     void CloseForCreation();
     void ReleaseOwned(Entity entity);
+    void CreateForLoad(out Entity acquired);
 }
 
 public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost innerHost)
@@ -124,6 +125,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     }
 
     public Entity Create() => Create(default!);
+    void IWorldBatchHost.CreateForLoad(out Entity acquired) => Create(default, out acquired);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Entity Create(in TEntity initial) => Create(initial, out _);
