@@ -59,7 +59,7 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
         GC.SuppressFinalize(this);
     }
 
-    internal static Outcome<Exception> NotifyObservers<T>(Action<T>? observers, T value, Outcome<Exception> result)
+    private static Outcome<Exception> NotifyObservers<T>(Action<T>? observers, T value, Outcome<Exception> result)
     {
         foreach (var observer in Delegate.EnumerateInvocationList(observers)) {
             result = result.Attempt((observer, value), static (in call) => call.observer(call.value));

@@ -76,9 +76,10 @@ public partial class World
         where THost : IEntityHost<TEntity>, new()
         => TryGetHost<TEntity, THost>(out var host) ? host : AddHost<TEntity, THost>();
 
-    internal THost AddHost<THost>(Func<World, THost> create)
+    public THost AddHost<THost>(Func<World, THost> create)
         where THost : IReactiveEntityHost
     {
+        ArgumentNullException.ThrowIfNull(create);
         var index = WorldEntityHostIndexer<THost>.Index;
         if (_hosts.ContainsKey(index)) {
             throw new ArgumentException("Host with the same type already exists.");
@@ -188,7 +189,7 @@ public partial class World
         }
     }
 
-    internal bool IsClosingHost(IReactiveEntityHost host)
+    public bool IsClosingHost(IReactiveEntityHost host)
         => IsDisposed || _clearingHosts || ReferenceEquals(_closingHost, host);
 
     public int ClearEmptyHosts()

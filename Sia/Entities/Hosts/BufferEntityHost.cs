@@ -49,7 +49,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     private bool _ownsEntityStates = true;
     private bool _disposed;
 
-    bool IEntityHost.IsClosed => _disposed;
+    public bool IsClosed => _disposed;
 
     private EntityStatePool EntityStates {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -53,9 +53,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
     public World World { get; }
     public TInnerHost InnerHost { get; }
 
-    internal bool IsClosed => _disposed || World.IsClosingHost(this);
-
-    bool IEntityHost.IsClosed => IsClosed || InnerHost.IsClosed;
+    public bool IsClosed => _disposed || InnerHost.IsClosed || World.IsClosingHost(this);
 
     public Type EntityType => InnerHost.EntityType;
     public EntityDescriptor Descriptor => InnerHost.Descriptor;
@@ -123,11 +121,14 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
         var dispatcher = World.Dispatcher;
         foreach (var entity in InnerHost.UnsafeGetEntitySpan()) {
             if (dispatcher.HasNoUntypedListeners) break;
-            dispatcher.DetachEntityListeners(entity);
+            dispatcher.UnlistenAll(entity);
         }
         World.Count -= InnerHost.Count;
-        World.NotifyObservers<IEntityHost>(OnDisposed, this,
-            Outcome<Exception>.Success.Attempt(InnerHost.Dispose)).ThrowIfFailed();
+        var result = Outcome<Exception>.Success.Attempt(InnerHost.Dispose);
+        foreach (var observer in Delegate.EnumerateInvocationList(OnDisposed)) {
+            result = result.Attempt(() => observer(this));
+        }
+        result.ThrowIfFailed();
     }
 
     public Entity Create() => Create(default!);
