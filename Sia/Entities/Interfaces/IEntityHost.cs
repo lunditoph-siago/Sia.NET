@@ -8,6 +8,7 @@ public interface IEntityHost : IEnumerable<Entity>, IDisposable
     EntityDescriptor Descriptor { get; }
 
     World? World => null;
+    internal bool IsClosed => false;
 
     int Capacity { get; }
     int Count { get; }

@@ -15,7 +15,7 @@ internal interface IWorldBatchHost
 }
 
 public sealed class WorldEntityHost<TEntity, TInnerHost>
-    : IEntityHost<TEntity>, IReactiveEntityHost, IWorldBatchHost, IEntityHostLifetime
+    : IEntityHost<TEntity>, IReactiveEntityHost, IWorldBatchHost
     where TEntity : struct, IHList
     where TInnerHost : IEntityHost<TEntity>, new()
 {
@@ -56,7 +56,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
 
     internal bool IsClosed => _disposed || World.IsClosingHost(this);
 
-    bool IEntityHostLifetime.IsClosed => IsClosed || InnerHost is IEntityHostLifetime { IsClosed: true };
+    bool IEntityHost.IsClosed => IsClosed || InnerHost.IsClosed;
 
     public Type EntityType => InnerHost.EntityType;
     public EntityDescriptor Descriptor => InnerHost.Descriptor;
@@ -424,7 +424,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
         if (!ReferenceEquals(destination.World, World)) {
             throw new InvalidOperationException("Migration destination belongs to another world.");
         }
-        ObjectDisposedException.ThrowIf(destination is IEntityHostLifetime { IsClosed: true }, destination);
+        ObjectDisposedException.ThrowIf(destination.IsClosed, destination);
         NotifyMigration(Volatile.Read(ref _onEntityMovedOut), entity, state, destination);
         InnerHost.MoveOut(entity, destination);
     }

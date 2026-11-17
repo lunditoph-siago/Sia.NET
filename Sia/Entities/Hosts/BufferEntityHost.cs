@@ -6,11 +6,6 @@ using CommunityToolkit.HighPerformance;
 
 namespace Sia;
 
-internal interface IEntityHostLifetime
-{
-    bool IsClosed { get; }
-}
-
 public static class BufferEntityHost<TEntity>
     where TEntity : struct, IHList
 {
@@ -20,7 +15,7 @@ public static class BufferEntityHost<TEntity>
 }
 
 public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
-    : IEntityHost<TEntity>, IEntityHostLifetime
+    : IEntityHost<TEntity>
     where TEntity : struct, IHList
     where TBuffer : IBuffer<TEntity>
 {
@@ -54,7 +49,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     private bool _ownsEntityStates = true;
     private bool _disposed;
 
-    bool IEntityHostLifetime.IsClosed => _disposed;
+    bool IEntityHost.IsClosed => _disposed;
 
     private EntityStatePool EntityStates {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -107,7 +102,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         if (!ReferenceEquals(destination.World, World)) {
             throw new InvalidOperationException("Migration destination belongs to another world.");
         }
-        ObjectDisposedException.ThrowIf(destination is IEntityHostLifetime { IsClosed: true }, destination);
+        ObjectDisposedException.ThrowIf(destination.IsClosed, destination);
         MoveOut(state);
     }
 
