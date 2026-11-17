@@ -11,7 +11,6 @@ internal interface IWorldBatchHost
 {
     bool IsExactArrayHost { get; }
     bool HasMigrationObservers { get; }
-    void CloseForCreation();
     void ReleaseOwned(Entity entity);
 }
 
@@ -33,7 +32,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
     public event EntityHandler? OnEntityReleased;
     private EntityMigrationHandler? _onEntityMovedOut;
     private EntityMigrationHandler? _onEntityMovedIn;
-    private bool _closedForCreation;
+    private bool _disposed;
 
     public event EntityMigrationHandler? OnEntityMovedOut {
         add => World.UpdateBatchObservers(ref _onEntityMovedOut, value, add: true);
@@ -51,17 +50,19 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
     bool IWorldBatchHost.IsExactArrayHost => typeof(TInnerHost) == typeof(ArrayEntityHost<TEntity>)
         && InnerHost.GetType() == typeof(ArrayEntityHost<TEntity>);
     bool IWorldBatchHost.HasMigrationObservers => HasMigrationObservers;
-    void IWorldBatchHost.CloseForCreation() => _closedForCreation = true;
-    internal bool IsClosedForCreation => _closedForCreation;
-
-    void IEntityHost.EnsureCanMoveIn()
-    {
-        ObjectDisposedException.ThrowIf(_closedForCreation, this);
-        InnerHost.EnsureCanMoveIn();
-    }
 
     public World World { get; }
     public TInnerHost InnerHost { get; }
+
+    internal bool IsClosed => _disposed || World.IsClosingHost(this);
+
+    void IEntityHost.EnsureCanMoveIn()
+    {
+        EnsureOpen();
+        InnerHost.EnsureCanMoveIn();
+    }
+
+    private void EnsureOpen() => ObjectDisposedException.ThrowIf(IsClosed, this);
 
     public Type EntityType => InnerHost.EntityType;
     public EntityDescriptor Descriptor => InnerHost.Descriptor;
@@ -83,17 +84,15 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
     public WorldEntityHost(World world)
     {
         World = world;
-        var innerHost = new TInnerHost();
+        var inner = new TInnerHost();
         try {
-            innerHost.OnInitialize(world);
+            inner.OnInitialize(world);
         }
         catch (Exception error) {
-            Outcome<Exception>.Failure(error)
-                .Attempt(innerHost, static (in TInnerHost host) => host.Dispose())
-                .ThrowIfFailed();
+            Outcome<Exception>.Failure(error).Attempt(inner.Dispose).ThrowIfFailed();
             throw;
         }
-        InnerHost = innerHost;
+        InnerHost = inner;
     }
 
     public unsafe IEntityHost<UEntity> GetSiblingHost<UEntity>()
@@ -125,10 +124,17 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
 
     public void Dispose()
     {
-        World.EnsureNoHostMigration();
-        _closedForCreation = true;
-        InnerHost.Dispose();
-        OnDisposed?.Invoke(this);
+        if (_disposed) return;
+        World.EnsureOutsideHostCallback();
+        _disposed = true;
+        var dispatcher = World.Dispatcher;
+        foreach (var entity in InnerHost.UnsafeGetEntitySpan()) {
+            if (dispatcher.HasNoUntypedListeners) break;
+            dispatcher.DetachEntityListeners(entity);
+        }
+        World.Count -= InnerHost.Count;
+        World.NotifyObservers<IEntityHost>(OnDisposed, this,
+            Outcome<Exception>.Success.Attempt(InnerHost.Dispose)).ThrowIfFailed();
     }
 
     public Entity Create() => Create(default!);
@@ -140,7 +146,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
     public Entity Create(in TEntity initial, out Entity acquired)
     {
         World.EnsureOwnerThread();
-        ObjectDisposedException.ThrowIf(_closedForCreation, this);
+        EnsureOpen();
         var entity = InnerHost.Create(initial);
         acquired = entity;
         entity.GetStateUnchecked().Host = this;
@@ -197,7 +203,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void Release(Entity entity, EntityState state)
     {
-        World.ActiveReleaseCount++;
+        World.HostCallbackDepth++;
         try {
             var dispatcher = World.Dispatcher;
             TEntity.HandleTypes(new EntityRemoveEventSender(entity, dispatcher));
@@ -215,7 +221,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
             InnerHost.Release(entity);
         }
         finally {
-            World.ActiveReleaseCount--;
+            World.HostCallbackDepth--;
             if (entity.References(state)) state.Releasing = false;
         }
     }
@@ -243,7 +249,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
 
     private void ReleaseOwned(Entity entity, EntityState state)
     {
-        World.ActiveReleaseCount++;
+        World.HostCallbackDepth++;
         try {
             var dispatcher = World.Dispatcher;
             var result = NotifyOwnedRemoval(entity)
@@ -251,13 +257,13 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
                 .Attempt(() => dispatcher.UnlistenAll(entity));
 
             World.Count--;
-            result
-                .Attempt(() => OnEntityReleased?.Invoke(entity))
-                .Attempt(() => InnerHost.Release(entity))
-                .ThrowIfFailed();
+            foreach (var observer in Delegate.EnumerateInvocationList(OnEntityReleased)) {
+                result = result.Attempt(() => observer(entity));
+            }
+            result.Attempt(() => InnerHost.Release(entity)).ThrowIfFailed();
         }
         finally {
-            World.ActiveReleaseCount--;
+            World.HostCallbackDepth--;
             if (entity.References(state)) state.Releasing = false;
         }
     }
@@ -281,14 +287,13 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
     public void Add<TComponent>(Entity entity, in TComponent initial)
     {
         World.EnsureOwnerThread();
-        var state = GetOwnedState(entity);
-        state.EnsureCanMigrate();
+        GetOwnedState(entity).EnsureCanMigrate();
         if (typeof(TInnerHost) == typeof(ArrayEntityHost<TEntity>)
             && InnerHost is ArrayEntityHost<TEntity> managed && managed.GetType() == typeof(ArrayEntityHost<TEntity>))
-            managed.AddDefault(entity, state, initial);
+            managed.AddDefault(entity, initial);
         else if (typeof(TInnerHost) == typeof(UnmanagedArrayEntityHost<TEntity>)
             && InnerHost is UnmanagedArrayEntityHost<TEntity> unmanaged && unmanaged.GetType() == typeof(UnmanagedArrayEntityHost<TEntity>))
-            unmanaged.AddDefault(entity, state, initial);
+            unmanaged.AddDefault(entity, initial);
         else InnerHost.Add(entity, initial);
         World.Dispatcher.SendAddAndSet<TComponent>(entity);
     }
@@ -322,11 +327,11 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
         if (entities.IsEmpty) return false;
         World.EnsureOwnerThread();
         if (!World.Dispatcher.HasNoUntypedListeners) return false;
-        if (!World.HasNoBatchObservers()) return false;
+        if (IsClosed || !World.HasNoBatchObservers()) return false;
         foreach (var entity in entities) {
             var state = entity.GetStateUnchecked();
             if (state is null || !entity.References(state) || !ReferenceEquals(state.Host, this)
-                || state.Releasing || state.EventSink is not null) return false;
+                || state.IsTransitioning || state.EventSink is not null) return false;
         }
         return true;
     }
@@ -346,9 +351,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
     {
         World.EnsureOwnerThread();
         var state = GetOwnedState(entity);
-        if ((state.Releasing || state.NotifyingMigration) && !Descriptor.Contains<TComponent>()) {
-            state.EnsureCanMigrate();
-        }
+        if (state.IsTransitioning && !Descriptor.Contains<TComponent>()) state.EnsureCanMigrate();
         InnerHost.Set(entity, value);
         World.Dispatcher.Send(entity, WorldEvents.Set<TComponent>.Instance);
     }
@@ -358,13 +361,13 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
     {
         World.EnsureOwnerThread();
         var state = GetOwnedState(entity);
-        if ((state.Releasing || state.NotifyingMigration) && Descriptor.Contains<TComponent>()) state.EnsureCanMigrate();
+        if (state.IsTransitioning && Descriptor.Contains<TComponent>()) state.EnsureCanMigrate();
         if (typeof(TInnerHost) == typeof(ArrayEntityHost<TEntity>)
             && InnerHost is ArrayEntityHost<TEntity> managed && managed.GetType() == typeof(ArrayEntityHost<TEntity>))
-            managed.RemoveDefault<TComponent>(entity, state, out success);
+            managed.RemoveDefault<TComponent>(entity, out success);
         else if (typeof(TInnerHost) == typeof(UnmanagedArrayEntityHost<TEntity>)
             && InnerHost is UnmanagedArrayEntityHost<TEntity> unmanaged && unmanaged.GetType() == typeof(UnmanagedArrayEntityHost<TEntity>))
-            unmanaged.RemoveDefault<TComponent>(entity, state, out success);
+            unmanaged.RemoveDefault<TComponent>(entity, out success);
         else InnerHost.Remove<TComponent>(entity, out success);
         if (success) {
             World.Dispatcher.Send(entity, WorldEvents.Remove<TComponent>.Instance);
@@ -377,9 +380,11 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
     {
         World.EnsureOwnerThread();
         var state = GetOwnedState(entity);
-        if (state.Releasing || state.NotifyingMigration) {
+        if (state.IsTransitioning) {
             foreach (var component in EntityDescriptor<TList>.Components) {
-                if (Descriptor.Offsets.ContainsKey(component.Type)) state.EnsureCanMigrate();
+                if (Descriptor.Offsets.ContainsKey(component.Type)) {
+                    state.EnsureCanMigrate();
+                }
             }
             return;
         }
@@ -390,7 +395,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
     public void MoveIn(Entity entity, in TEntity data, IEntityHost source)
     {
         World.EnsureOwnerThread();
-        ObjectDisposedException.ThrowIf(_closedForCreation, this);
+        EnsureOpen();
         var state = entity.GetCurrentState();
         state.EnsureCanMigrate();
         if (!ReferenceEquals(state.Host, source) || !ReferenceEquals(source.World, World)) {
@@ -398,7 +403,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
         }
         InnerHost.MoveIn(entity, data, source);
         state.Host = this;
-        if (source is IReactiveEntityHost reactiveSource) NotifyMovedIn(entity, state, reactiveSource);
+        NotifyMigration(Volatile.Read(ref _onEntityMovedIn), entity, state, source);
     }
 
     public void MoveOut(Entity entity, IEntityHost destination)
@@ -410,46 +415,30 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
             throw new InvalidOperationException("Migration destination belongs to another world.");
         }
         destination.EnsureCanMoveIn();
-        if (destination is IReactiveEntityHost reactiveDestination) NotifyMovedOut(entity, state, reactiveDestination);
+        NotifyMigration(Volatile.Read(ref _onEntityMovedOut), entity, state, destination);
         InnerHost.MoveOut(entity, destination);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void NotifyMovedOut(Entity entity, EntityState state, IReactiveEntityHost destination)
-    {
-        if (Volatile.Read(ref _onEntityMovedOut) is not { } observer) return;
-        NotifyMigration(entity, state, destination, observer);
-        if (!entity.References(state) || !ReferenceEquals(state.Host, this)) {
-            throw new InvalidOperationException("Entity changed its host during its migration callback.");
-        }
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void NotifyMovedIn(Entity entity, EntityState state, IReactiveEntityHost source)
-    {
-        if (Volatile.Read(ref _onEntityMovedIn) is { } observer) NotifyMigration(entity, state, source, observer);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private EntityState GetOwnedState(Entity entity)
     {
         var state = entity.GetState();
-        if (!ReferenceEquals(state.Host, this)) {
-            throw new InvalidOperationException("Entity belongs to another host.");
-        }
+        if (!ReferenceEquals(state.Host, this)) throw new InvalidOperationException("Entity belongs to another host.");
         return state;
     }
 
-    private void NotifyMigration(Entity entity, EntityState state, IReactiveEntityHost other, EntityMigrationHandler observer)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void NotifyMigration(EntityMigrationHandler? observer, Entity entity, EntityState state, IEntityHost other)
     {
+        if (observer is null || other is not IReactiveEntityHost reactive) return;
         state.NotifyingMigration = true;
-        World.BeginHostMigration();
+        World.HostCallbackDepth++;
         try {
-            observer(entity, other);
+            observer(entity, reactive);
         }
         finally {
-            if (entity.References(state)) state.NotifyingMigration = false;
-            World.EndHostMigration();
+            World.HostCallbackDepth--;
+            state.NotifyingMigration = false;
         }
     }
 

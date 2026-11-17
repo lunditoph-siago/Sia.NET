@@ -33,7 +33,7 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
 
         if (disposing) {
             ThrowIfActorIncomplete();
-            EnsureCanClearHosts();
+            EnsureCanRemoveHosts();
             EnsureCanClearAddons();
         }
         else if (_actor is { IsCompleted: false }) {
@@ -42,12 +42,12 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
 
         IsDisposed = true;
 
-        Outcome<Exception>.Success
+        var result = Outcome<Exception>.Success
             .Attempt(ClearHostsCore)
             .Attempt(EntityStates.Retire)
-            .Attempt(ClearAddonsCore)
-            .Attempt(() => OnDisposed?.Invoke(this))
-            .ThrowIfFailed();
+            .Attempt(ClearAddonsCore);
+        result = NotifyObservers(OnDisposed, this, result);
+        if (disposing) result.ThrowIfFailed();
     }
 
     public void Dispose()
@@ -56,11 +56,10 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
         GC.SuppressFinalize(this);
     }
 
-    private static Outcome<Exception> NotifyObservers<T>(
-        Action<T>? observers, T value, Outcome<Exception> result)
+    internal static Outcome<Exception> NotifyObservers<T>(Action<T>? observers, T value, Outcome<Exception> result)
     {
         foreach (var observer in Delegate.EnumerateInvocationList(observers)) {
-            result = result.Attempt((Observer: observer, Value: value), static (in call) => call.Observer(call.Value));
+            result = result.Attempt((observer, value), static (in call) => call.observer(call.value));
         }
         return result;
     }

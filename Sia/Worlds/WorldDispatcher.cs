@@ -71,10 +71,9 @@ public sealed class WorldDispatcher : Dispatcher<IEvent>
 
     internal void DetachEntityListeners(Entity target)
     {
-        if (IsSending || !HasNoUntypedListeners) base.UnlistenAll(target);
-        if (target.GetStateUnchecked() is { EventSink: not null, Host: { } host } state
-            && target.References(state) && ReferenceEquals(host.World, World)) {
-            state.EventSink = null;
+        base.UnlistenAll(target);
+        if (target.IsValid && ReferenceEquals(target.Host.World, World)) {
+            target.GetStateUnchecked().EventSink = null;
         }
     }
 
