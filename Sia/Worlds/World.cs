@@ -48,7 +48,7 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
         var result = Outcome<Exception>.Success
             .Attempt(ClearHostsCore)
             .Attempt(EntityStates.Retire)
-            .Attempt(ClearAddonsCore);
+            .Attempt(ClearAddons);
         result = NotifyObservers(OnDisposed, this, result);
         if (disposing) result.ThrowIfFailed();
     }

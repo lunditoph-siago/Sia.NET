@@ -175,15 +175,13 @@ public partial class World
 
     public void ClearAddons()
     {
-        EnsureOwnerThread();
+        if (!IsDisposed) {
+            EnsureOwnerThread();
+        }
         if (_clearingAddons || _addonOperations.Count != 0) {
             throw new InvalidOperationException("Cannot clear addons during addon initialization or removal.");
         }
-        ClearAddonsCore();
-    }
 
-    private void ClearAddonsCore()
-    {
         var addons = new List<IAddon>(_addonCount);
         for (var i = 0; addons.Count < _addonCount; ++i) {
             if (_addons[i] is { } addon) {
