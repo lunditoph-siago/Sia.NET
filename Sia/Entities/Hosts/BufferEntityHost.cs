@@ -6,6 +6,11 @@ using CommunityToolkit.HighPerformance;
 
 namespace Sia;
 
+internal interface IEntityHostLifetime
+{
+    bool IsClosed { get; }
+}
+
 public static class BufferEntityHost<TEntity>
     where TEntity : struct, IHList
 {
@@ -15,7 +20,7 @@ public static class BufferEntityHost<TEntity>
 }
 
 public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
-    : IEntityHost<TEntity>
+    : IEntityHost<TEntity>, IEntityHostLifetime
     where TEntity : struct, IHList
     where TBuffer : IBuffer<TEntity>
 {
@@ -49,6 +54,8 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     private bool _ownsEntityStates = true;
     private bool _disposed;
 
+    bool IEntityHostLifetime.IsClosed => _disposed;
+
     private EntityStatePool EntityStates {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => _entityStates ??= new();
@@ -56,7 +63,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
 
     void IEntityHost.OnInitialize(World world)
     {
-        EnsureOpen();
+        ObjectDisposedException.ThrowIf(_disposed, this);
         if (Count != 0) {
             throw new InvalidOperationException(
                 "Cannot initialize a non-empty host.");
@@ -72,7 +79,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     public virtual Entity Create() => Create(default!);
     public virtual Entity Create(in TEntity initial)
     {
-        EnsureOpen();
+        ObjectDisposedException.ThrowIf(_disposed, this);
         var e = EntityStates.Rent();
         MoveInTrusted(e, initial);
         return e;
@@ -81,7 +88,9 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     public virtual void Release(Entity entity)
     {
         var state = GetOwnedState(entity);
-        if (state.NotifyingMigration) state.EnsureCanMigrate();
+        if (state.NotifyingMigration) {
+            throw new InvalidOperationException("Cannot release an entity during a migration callback.");
+        }
         MoveOut(state);
         EntityStates.Return(state);
     }
@@ -92,11 +101,13 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     public void MoveOut(Entity entity, IEntityHost destination)
     {
         var state = GetOwnedState(entity);
-        state.EnsureCanMigrate();
+        if (state.IsTransitioning) {
+            throw new InvalidOperationException("Cannot migrate an entity during release or a migration callback.");
+        }
         if (!ReferenceEquals(destination.World, World)) {
             throw new InvalidOperationException("Migration destination belongs to another world.");
         }
-        destination.EnsureCanMoveIn();
+        ObjectDisposedException.ThrowIf(destination is IEntityHostLifetime { IsClosed: true }, destination);
         MoveOut(state);
     }
 
@@ -112,9 +123,6 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
 
     private static bool HasEntity(Entity entity, int slot, ReadOnlySpan<Entity> entities)
         => (uint)slot < (uint)entities.Length && entities[slot] == entity;
-
-    void IEntityHost.EnsureCanMoveIn() => EnsureOpen();
-    private void EnsureOpen() => ObjectDisposedException.ThrowIf(_disposed, this);
 
     private void MoveOut(EntityState state)
     {
@@ -136,9 +144,11 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
 
     public void MoveIn(Entity entity, in TEntity data, IEntityHost source)
     {
-        EnsureOpen();
+        ObjectDisposedException.ThrowIf(_disposed, this);
         var state = entity.GetCurrentState();
-        state.EnsureCanMigrate();
+        if (state.IsTransitioning) {
+            throw new InvalidOperationException("Cannot migrate an entity during release or a migration callback.");
+        }
         if (!ReferenceEquals(state.Host, source) || !ReferenceEquals(source.World, World)
             || HasEntity(entity, state.Slot, source.UnsafeGetEntitySpan())) {
             throw new InvalidOperationException("Entity has not moved out of a source host in this world.");
@@ -216,7 +226,9 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     private static void Move<T>(Entity entity, T data) where T : struct, IHList
     {
         var state = entity.GetState();
-        state.EnsureCanMigrate();
+        if (state.IsTransitioning) {
+            throw new InvalidOperationException("Cannot migrate an entity during release or a migration callback.");
+        }
         var host = state.Host!;
         var world = host.World;
         IEntityHost<T> sibling;
@@ -415,7 +427,9 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
 
     public void Dispose()
     {
-        if (Count != 0) World?.EnsureOutsideHostCallback();
+        if (Count != 0 && World is { } world && (world.HostCallbackDepth != 0 || world.Dispatcher.IsSending)) {
+            throw new InvalidOperationException("Cannot remove a host during entity callbacks or event dispatch.");
+        }
         if (_disposed) return;
         _disposed = true;
         foreach (var entity in _entities) {

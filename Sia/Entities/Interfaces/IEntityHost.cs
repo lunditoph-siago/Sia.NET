@@ -18,7 +18,6 @@ public interface IEntityHost : IEnumerable<Entity>, IDisposable
     Entity Create();
     void Release(Entity entity);
     void MoveOut(Entity entity, IEntityHost destination);
-    internal void EnsureCanMoveIn() {}
 
     Entity GetEntity(int slot);
     ref byte GetByteRef(int slot);

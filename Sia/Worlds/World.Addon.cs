@@ -28,24 +28,53 @@ public partial class World
     public TAddon AcquireAddon<TAddon>()
         where TAddon : class, IAddon, new()
     {
-        return _addons[WorldAddonIndexer<TAddon>.Index] is { } addon
-            ? Unsafe.As<TAddon>(addon) : AddAddon<TAddon>();
+        ref var addon = ref _addons[WorldAddonIndexer<TAddon>.Index];
+        if (addon != null) {
+            return Unsafe.As<TAddon>(addon);
+        }
+        return CreateAddon<TAddon>();
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public TAddon AddAddon<TAddon>()
         where TAddon : class, IAddon, new()
-        => RegisterAddon(static () => new TAddon());
+        => CreateAddon<TAddon>();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public TAddon AddAddon<TAddon>(TAddon addon)
         where TAddon : class, IAddon
     {
         ArgumentNullException.ThrowIfNull(addon);
-        return RegisterAddon(() => addon);
+        var index = BeginAddonRegistration<TAddon>();
+        try {
+            InitializeAddon(index, addon);
+        }
+        finally {
+            _addonOperations.Remove(index);
+        }
+        OnAddonCreated?.Invoke(addon);
+        return addon;
     }
 
-    private TAddon RegisterAddon<TAddon>(Func<TAddon> create) where TAddon : class, IAddon
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private TAddon CreateAddon<TAddon>()
+        where TAddon : class, IAddon, new()
+    {
+        var index = BeginAddonRegistration<TAddon>();
+        TAddon addon;
+        try {
+            addon = new TAddon();
+            InitializeAddon(index, addon);
+        }
+        finally {
+            _addonOperations.Remove(index);
+        }
+        OnAddonCreated?.Invoke(addon);
+        return addon;
+    }
+
+    private int BeginAddonRegistration<TAddon>()
+        where TAddon : class, IAddon
     {
         EnsureOwnerThread();
         ObjectDisposedException.ThrowIf(IsDisposed, this);
@@ -56,18 +85,14 @@ public partial class World
         if (_clearingAddons || !_addonOperations.Add(index)) {
             throw new InvalidOperationException("Cannot register an addon during its lifecycle operation or while clearing addons.");
         }
-        TAddon addon;
-        try {
-            addon = create();
-            addon.OnInitialize(this);
-            _addons[index] = addon;
-            _addonCount++;
-        }
-        finally {
-            _addonOperations.Remove(index);
-        }
-        OnAddonCreated?.Invoke(addon);
-        return addon;
+        return index;
+    }
+
+    private void InitializeAddon(int index, IAddon addon)
+    {
+        addon.OnInitialize(this);
+        _addons[index] = addon;
+        _addonCount++;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -152,15 +177,10 @@ public partial class World
     public void ClearAddons()
     {
         EnsureOwnerThread();
-        EnsureCanClearAddons();
-        ClearAddonsCore();
-    }
-
-    private void EnsureCanClearAddons()
-    {
         if (_clearingAddons || _addonOperations.Count != 0) {
             throw new InvalidOperationException("Cannot clear addons during addon initialization or removal.");
         }
+        ClearAddonsCore();
     }
 
     private Outcome<Exception> UninitializeAddon(IAddon addon, Outcome<Exception> result)

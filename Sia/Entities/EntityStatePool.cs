@@ -12,14 +12,6 @@ internal sealed class EntityState
     public ulong Token;
 
     public bool IsTransitioning => Releasing || NotifyingMigration;
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void EnsureCanMigrate()
-    {
-        if (IsTransitioning) {
-            throw new InvalidOperationException("Cannot migrate an entity during release or a migration callback.");
-        }
-    }
 }
 
 internal sealed class EntityStatePool

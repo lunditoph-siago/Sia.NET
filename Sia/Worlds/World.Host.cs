@@ -120,7 +120,9 @@ public partial class World
         EnsureOwnerThread();
         var hostIndex = WorldEntityHostIndexer<THost>.Index;
         if (!_hosts.TryGetValue(hostIndex, out var host)) return false;
-        EnsureCanRemoveHosts();
+        if (!CanRemoveHosts) {
+            throw new InvalidOperationException("Cannot remove hosts during callbacks, initialization, teardown, or event dispatch.");
+        }
         var entities = host.UnsafeGetEntitySpan().ToArray();
         foreach (var entity in entities) {
             if (entity.IsValid && entity.GetStateUnchecked().Releasing) {
@@ -169,28 +171,18 @@ public partial class World
     public void ClearHosts()
     {
         EnsureOwnerThread();
-        EnsureCanRemoveHosts();
+        if (!CanRemoveHosts) {
+            throw new InvalidOperationException("Cannot remove hosts during callbacks, initialization, teardown, or event dispatch.");
+        }
         ClearHostsCore();
     }
 
     internal bool IsClosingHost(IReactiveEntityHost host)
         => IsDisposed || _clearingHosts || ReferenceEquals(_closingHost, host);
 
-    internal void EnsureOutsideHostCallback()
-    {
-        if (HostCallbackDepth != 0 || Dispatcher.IsSending) {
-            throw new InvalidOperationException("Cannot remove a host during entity callbacks or event dispatch.");
-        }
-    }
-
-    private void EnsureCanRemoveHosts()
-    {
-        EnsureOutsideHostCallback();
-        if (_clearingHosts || _closingHost != null || _initializingHosts.Count != 0
-            || Dispatcher.PendingAfterSendActionCount != 0) {
-            throw new InvalidOperationException("Cannot remove hosts during host initialization, teardown, or deferred dispatch.");
-        }
-    }
+    private bool CanRemoveHosts
+        => HostCallbackDepth == 0 && !Dispatcher.IsSending && Dispatcher.PendingAfterSendActionCount == 0
+            && !_clearingHosts && _closingHost == null && _initializingHosts.Count == 0;
 
     private void ClearHostsCore()
     {
@@ -225,7 +217,9 @@ public partial class World
     public int ClearEmptyHosts()
     {
         EnsureOwnerThread();
-        EnsureCanRemoveHosts();
+        if (!CanRemoveHosts) {
+            throw new InvalidOperationException("Cannot remove hosts during callbacks, initialization, teardown, or event dispatch.");
+        }
         int[]? hostsToRemove = null;
         var count = 0;
 
