@@ -69,19 +69,18 @@ public partial class World
     public WorldEntityHost<TEntity, THost> AddHost<TEntity, THost>()
         where TEntity : struct, IHList
         where THost : IEntityHost<TEntity>, new()
-        => RegisterHost<WorldEntityHost<TEntity, THost>>(static world => new(world), acquire: false);
+        => RegisterHost<WorldEntityHost<TEntity, THost>>(static world => new(world));
 
     public WorldEntityHost<TEntity, THost> AcquireHost<TEntity, THost>()
         where TEntity : struct, IHList
         where THost : IEntityHost<TEntity>, new()
-        => RegisterHost<WorldEntityHost<TEntity, THost>>(static world => new(world), acquire: true);
+        => TryGetHost<TEntity, THost>(out var host) ? host : AddHost<TEntity, THost>();
 
-    internal THost RegisterHost<THost>(Func<World, THost> create, bool acquire)
+    internal THost RegisterHost<THost>(Func<World, THost>? create, THost host = default!)
         where THost : IReactiveEntityHost
     {
         var index = WorldEntityHostIndexer<THost>.Index;
-        if (_hosts.TryGetValue(index, out var existing)) {
-            if (acquire) return (THost)existing;
+        if (_hosts.ContainsKey(index)) {
             throw new ArgumentException("Host with the same type already exists.");
         }
         EnsureOwnerThread();
@@ -90,7 +89,9 @@ public partial class World
             throw new InvalidOperationException("Cannot register a host during its initialization or while clearing hosts.");
         }
         try {
-            var host = create(this);
+            if (create != null) {
+                host = create(this);
+            }
             _hosts.Add(index, host);
             Version++;
             InvalidateBatchObservers();
@@ -106,7 +107,7 @@ public partial class World
         where THost : IReactiveEntityHost
     {
         ArgumentNullException.ThrowIfNull(host);
-        return RegisterHost(_ => host, acquire: false);
+        return RegisterHost(null, host);
     }
 
     public bool ReleaseHost<THost>()
@@ -120,20 +121,12 @@ public partial class World
             throw new InvalidOperationException("Cannot remove hosts during callbacks, initialization, teardown, or event dispatch.");
         }
         var entities = host.UnsafeGetEntitySpan().ToArray();
-        foreach (var entity in entities) {
-            if (entity.IsValid && entity.GetStateUnchecked().Releasing) {
-                throw new InvalidOperationException("Cannot release a host while an entity is being released.");
-            }
-        }
         _closingHost = host;
         try {
             var result = Outcome<Exception>.Success;
             foreach (var entity in entities) {
                 if (ReferenceEquals(entity.Host, host)) {
-                    result = result.Attempt(() => {
-                        if (host is IWorldBatchHost owned) owned.ReleaseOwned(entity);
-                        else host.Release(entity);
-                    });
+                    result = result.Attempt((host, entity), static (in item) => item.host.ReleaseOwned(item.entity));
                 }
             }
             if (host.Count != 0) {
@@ -170,19 +163,14 @@ public partial class World
 
     public void ClearHosts()
     {
-        EnsureOwnerThread();
+        if (!IsDisposed) {
+            EnsureOwnerThread();
+        }
         if (HostCallbackDepth != 0 || Dispatcher.IsSending || Dispatcher.PendingAfterSendActionCount != 0
             || _clearingHosts || _closingHost != null || _initializingHosts.Count != 0) {
             throw new InvalidOperationException("Cannot remove hosts during callbacks, initialization, teardown, or event dispatch.");
         }
-        ClearHostsCore();
-    }
 
-    internal bool IsClosingHost(IReactiveEntityHost host)
-        => IsDisposed || _clearingHosts || ReferenceEquals(_closingHost, host);
-
-    private void ClearHostsCore()
-    {
         var hosts = _hosts.UnsafeRawValues.ToArray();
         _clearingHosts = true;
         try {
@@ -201,6 +189,9 @@ public partial class World
             _clearingHosts = false;
         }
     }
+
+    internal bool IsClosingHost(IReactiveEntityHost host)
+        => IsDisposed || _clearingHosts || ReferenceEquals(_closingHost, host);
 
     public int ClearEmptyHosts()
     {

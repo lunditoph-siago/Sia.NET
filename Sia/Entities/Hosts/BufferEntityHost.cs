@@ -76,15 +76,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         var entity = EntityStates.Rent();
-        Version++;
-        var value = initial;
-        var slot = Buffer.Count++;
-        Buffer.GetRef(slot) = value;
-
-        var state = entity.GetStateUnchecked();
-        state.Host = this;
-        state.Slot = slot;
-        _entities.Add(entity);
+        MoveInTrusted(entity, initial);
         return entity;
     }
 
@@ -156,13 +148,19 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         if ((uint)state.Slot < (uint)entities.Length && entities[state.Slot] == entity) {
             throw new InvalidOperationException("Entity has not moved out of a source host in this world.");
         }
+        MoveInTrusted(entity, data);
+    }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void MoveInTrusted(Entity entity, in TEntity data)
+    {
         Version++;
 
         var value = data;
         var slot = Buffer.Count++;
         Buffer.GetRef(slot) = value;
 
+        var state = entity.GetStateUnchecked();
         state.Host = this;
         state.Slot = slot;
         _entities.Add(entity);

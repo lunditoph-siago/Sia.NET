@@ -45,30 +45,16 @@ public partial class World
         where TAddon : class, IAddon
     {
         ArgumentNullException.ThrowIfNull(addon);
-        EnsureOwnerThread();
-        ObjectDisposedException.ThrowIf(IsDisposed, this);
-        var index = WorldAddonIndexer<TAddon>.Index;
-        if (_addons[index] != null) {
-            throw new Exception("Addon already exists: " + typeof(TAddon));
-        }
-        if (_clearingAddons || !_addonOperations.Add(index)) {
-            throw new InvalidOperationException("Cannot register an addon during its lifecycle operation or while clearing addons.");
-        }
-        try {
-            addon.OnInitialize(this);
-            _addons[index] = addon;
-            _addonCount++;
-        }
-        finally {
-            _addonOperations.Remove(index);
-        }
-        OnAddonCreated?.Invoke(addon);
-        return addon;
+        return RegisterAddon(addon, null);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private TAddon CreateAddon<TAddon>()
         where TAddon : class, IAddon, new()
+        => RegisterAddon(null, static () => new TAddon());
+
+    private TAddon RegisterAddon<TAddon>(TAddon? addon, Func<TAddon>? create)
+        where TAddon : class, IAddon
     {
         EnsureOwnerThread();
         ObjectDisposedException.ThrowIf(IsDisposed, this);
@@ -79,9 +65,8 @@ public partial class World
         if (_clearingAddons || !_addonOperations.Add(index)) {
             throw new InvalidOperationException("Cannot register an addon during its lifecycle operation or while clearing addons.");
         }
-        TAddon addon;
         try {
-            addon = new TAddon();
+            addon ??= create!();
             addon.OnInitialize(this);
             _addons[index] = addon;
             _addonCount++;

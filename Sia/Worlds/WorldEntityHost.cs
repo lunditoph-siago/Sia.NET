@@ -11,7 +11,6 @@ internal interface IWorldBatchHost
 {
     bool IsExactArrayHost { get; }
     bool HasMigrationObservers { get; }
-    void ReleaseOwned(Entity entity);
 }
 
 public sealed class WorldEntityHost<TEntity, TInnerHost>
@@ -94,13 +93,11 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
     {
         if (typeof(TInnerHost) == typeof(ArrayEntityHost<TEntity>)
             && InnerHost.GetType() == typeof(ArrayEntityHost<TEntity>)) {
-            return World.TryGetHost<UEntity, ArrayEntityHost<UEntity>>(out var found)
-                ? found : World.AcquireHost<UEntity, ArrayEntityHost<UEntity>>();
+            return World.AcquireHost<UEntity, ArrayEntityHost<UEntity>>();
         }
         if (typeof(TInnerHost) == typeof(UnmanagedArrayEntityHost<TEntity>)
             && InnerHost.GetType() == typeof(UnmanagedArrayEntityHost<TEntity>)) {
-            return World.TryGetHost<UEntity, UnmanagedArrayEntityHost<UEntity>>(out var found)
-                ? found : World.AcquireHost<UEntity, UnmanagedArrayEntityHost<UEntity>>();
+            return World.AcquireHost<UEntity, UnmanagedArrayEntityHost<UEntity>>();
         }
         IEntityHost<UEntity>? host = null;
         InnerHost.GetSiblingHostType<UEntity, SiblingInnerHostGetter<UEntity>>(

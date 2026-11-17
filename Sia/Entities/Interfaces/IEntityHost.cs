@@ -59,6 +59,8 @@ public interface IEntityHost : IEnumerable<Entity>, IDisposable
 
 public interface IReactiveEntityHost : IEntityHost
 {
+    internal void ReleaseOwned(Entity entity) => Release(entity);
+
     event EntityHandler? OnEntityCreated;
     event EntityHandler? OnEntityReleased;
     event EntityMigrationHandler? OnEntityMovedOut;
