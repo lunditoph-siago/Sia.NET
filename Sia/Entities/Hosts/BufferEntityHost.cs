@@ -262,7 +262,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
                 source.MoveOut(e, target);
                 target.MoveIn(e, value, source);
             }
-            else new EntityMover(e).Handle(data);
+            else Move(e, data);
         }
     }
 

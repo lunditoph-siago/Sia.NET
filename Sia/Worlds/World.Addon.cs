@@ -32,28 +32,23 @@ public partial class World
         if (addon != null) {
             return Unsafe.As<TAddon>(addon);
         }
-        return CreateAddon<TAddon>();
+        return AddAddon<TAddon>();
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public TAddon AddAddon<TAddon>()
         where TAddon : class, IAddon, new()
-        => CreateAddon<TAddon>();
+        => CreateAddon(static () => new TAddon());
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public TAddon AddAddon<TAddon>(TAddon addon)
         where TAddon : class, IAddon
     {
         ArgumentNullException.ThrowIfNull(addon);
-        return RegisterAddon(addon, null);
+        return CreateAddon(() => addon);
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private TAddon CreateAddon<TAddon>()
-        where TAddon : class, IAddon, new()
-        => RegisterAddon(null, static () => new TAddon());
-
-    private TAddon RegisterAddon<TAddon>(TAddon? addon, Func<TAddon>? create)
+    private TAddon CreateAddon<TAddon>(Func<TAddon> create)
         where TAddon : class, IAddon
     {
         EnsureOwnerThread();
@@ -65,8 +60,9 @@ public partial class World
         if (_clearingAddons || !_addonOperations.Add(index)) {
             throw new InvalidOperationException("Cannot register an addon during its lifecycle operation or while clearing addons.");
         }
+        TAddon addon;
         try {
-            addon ??= create!();
+            addon = create();
             addon.OnInitialize(this);
             _addons[index] = addon;
             _addonCount++;
