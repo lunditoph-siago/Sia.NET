@@ -75,9 +75,17 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     public virtual Entity Create(in TEntity initial)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        var e = EntityStates.Rent();
-        MoveInTrusted(e, initial);
-        return e;
+        var entity = EntityStates.Rent();
+        Version++;
+        var value = initial;
+        var slot = Buffer.Count++;
+        Buffer.GetRef(slot) = value;
+
+        var state = entity.GetStateUnchecked();
+        state.Host = this;
+        state.Slot = slot;
+        _entities.Add(entity);
+        return entity;
     }
 
     public virtual void Release(Entity entity)
@@ -110,14 +118,11 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     private EntityState GetOwnedState(Entity entity)
     {
         var state = entity.GetState();
-        if (!HasEntity(entity, state.Slot, _entities.AsSpan())) {
+        if ((uint)state.Slot >= (uint)_entities.Count || _entities[state.Slot] != entity) {
             throw new InvalidOperationException("Entity belongs to another host.");
         }
         return state;
     }
-
-    private static bool HasEntity(Entity entity, int slot, ReadOnlySpan<Entity> entities)
-        => (uint)slot < (uint)entities.Length && entities[slot] == entity;
 
     private void MoveOut(EntityState state)
     {
@@ -144,23 +149,20 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         if (state.IsTransitioning) {
             throw new InvalidOperationException("Cannot migrate an entity during release or a migration callback.");
         }
-        if (!ReferenceEquals(state.Host, source) || !ReferenceEquals(source.World, World)
-            || HasEntity(entity, state.Slot, source.UnsafeGetEntitySpan())) {
+        if (!ReferenceEquals(state.Host, source) || !ReferenceEquals(source.World, World)) {
             throw new InvalidOperationException("Entity has not moved out of a source host in this world.");
         }
-        MoveInTrusted(entity, data);
-    }
+        var entities = source.UnsafeGetEntitySpan();
+        if ((uint)state.Slot < (uint)entities.Length && entities[state.Slot] == entity) {
+            throw new InvalidOperationException("Entity has not moved out of a source host in this world.");
+        }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void MoveInTrusted(Entity entity, in TEntity data)
-    {
         Version++;
 
         var value = data;
         var slot = Buffer.Count++;
         Buffer.GetRef(slot) = value;
 
-        var state = entity.GetStateUnchecked();
         state.Host = this;
         state.Slot = slot;
         _entities.Add(entity);

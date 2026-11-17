@@ -92,7 +92,8 @@ public partial class World
         try {
             var host = create(this);
             _hosts.Add(index, host);
-            HostsChanged();
+            Version++;
+            InvalidateBatchObservers();
             NotifyObservers(OnEntityHostAdded, host, Outcome<Exception>.Success).ThrowIfFailed();
             return host;
         }
@@ -108,19 +109,14 @@ public partial class World
         return RegisterHost(_ => host, acquire: false);
     }
 
-    private void HostsChanged()
-    {
-        Version++;
-        InvalidateBatchObservers();
-    }
-
     public bool ReleaseHost<THost>()
         where THost : IEntityHost
     {
         EnsureOwnerThread();
         var hostIndex = WorldEntityHostIndexer<THost>.Index;
         if (!_hosts.TryGetValue(hostIndex, out var host)) return false;
-        if (!CanRemoveHosts) {
+        if (HostCallbackDepth != 0 || Dispatcher.IsSending || Dispatcher.PendingAfterSendActionCount != 0
+            || _clearingHosts || _closingHost != null || _initializingHosts.Count != 0) {
             throw new InvalidOperationException("Cannot remove hosts during callbacks, initialization, teardown, or event dispatch.");
         }
         var entities = host.UnsafeGetEntitySpan().ToArray();
@@ -144,7 +140,11 @@ public partial class World
                 result.Combine(Outcome<Exception>.Failure(
                     new InvalidOperationException("Cannot release a host that still contains entities."))).ThrowIfFailed();
             }
-            RemoveHost(hostIndex, host, result).ThrowIfFailed();
+            _hosts.Remove(hostIndex);
+            Version++;
+            InvalidateBatchObservers();
+            result = NotifyObservers(OnEntityHostRemoved, host, result);
+            result.Attempt(host, static (in detached) => detached.Dispose()).ThrowIfFailed();
             return true;
         }
         finally {
@@ -171,7 +171,8 @@ public partial class World
     public void ClearHosts()
     {
         EnsureOwnerThread();
-        if (!CanRemoveHosts) {
+        if (HostCallbackDepth != 0 || Dispatcher.IsSending || Dispatcher.PendingAfterSendActionCount != 0
+            || _clearingHosts || _closingHost != null || _initializingHosts.Count != 0) {
             throw new InvalidOperationException("Cannot remove hosts during callbacks, initialization, teardown, or event dispatch.");
         }
         ClearHostsCore();
@@ -180,19 +181,19 @@ public partial class World
     internal bool IsClosingHost(IReactiveEntityHost host)
         => IsDisposed || _clearingHosts || ReferenceEquals(_closingHost, host);
 
-    private bool CanRemoveHosts
-        => HostCallbackDepth == 0 && !Dispatcher.IsSending && Dispatcher.PendingAfterSendActionCount == 0
-            && !_clearingHosts && _closingHost == null && _initializingHosts.Count == 0;
-
     private void ClearHostsCore()
     {
         var hosts = _hosts.UnsafeRawValues.ToArray();
         _clearingHosts = true;
         try {
             _hosts.Clear();
-            HostsChanged();
+            Version++;
+            InvalidateBatchObservers();
             var result = Outcome<Exception>.Success;
-            foreach (var host in hosts) result = DisposeDetachedHost(host, result);
+            foreach (var host in hosts) {
+                result = NotifyObservers(OnEntityHostRemoved, host, result);
+                result = result.Attempt(host, static (in detached) => detached.Dispose());
+            }
             result.ThrowIfFailed();
         }
         finally {
@@ -201,23 +202,11 @@ public partial class World
         }
     }
 
-    private Outcome<Exception> RemoveHost(int index, IReactiveEntityHost host, Outcome<Exception> result)
-    {
-        _hosts.Remove(index);
-        HostsChanged();
-        return DisposeDetachedHost(host, result);
-    }
-
-    private Outcome<Exception> DisposeDetachedHost(IReactiveEntityHost host, Outcome<Exception> result)
-    {
-        result = NotifyObservers(OnEntityHostRemoved, host, result);
-        return result.Attempt(host, static (in detached) => detached.Dispose());
-    }
-
     public int ClearEmptyHosts()
     {
         EnsureOwnerThread();
-        if (!CanRemoveHosts) {
+        if (HostCallbackDepth != 0 || Dispatcher.IsSending || Dispatcher.PendingAfterSendActionCount != 0
+            || _clearingHosts || _closingHost != null || _initializingHosts.Count != 0) {
             throw new InvalidOperationException("Cannot remove hosts during callbacks, initialization, teardown, or event dispatch.");
         }
         int[]? hostsToRemove = null;
@@ -239,7 +228,11 @@ public partial class World
                     var index = hostsToRemove[i];
                     if (!_hosts.TryGetValue(index, out var host) || host.Count != 0) continue;
                     _closingHost = host;
-                    result = RemoveHost(index, host, result);
+                    _hosts.Remove(index);
+                    Version++;
+                    InvalidateBatchObservers();
+                    result = NotifyObservers(OnEntityHostRemoved, host, result);
+                    result = result.Attempt(host, static (in detached) => detached.Dispose());
                     removed++;
                 }
                 result.ThrowIfFailed();

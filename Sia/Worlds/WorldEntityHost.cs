@@ -411,7 +411,17 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
         }
         InnerHost.MoveIn(entity, data, source);
         state.Host = this;
-        NotifyMigration(Volatile.Read(ref _onEntityMovedIn), entity, state, source);
+        if (Volatile.Read(ref _onEntityMovedIn) is { } observer && source is IReactiveEntityHost reactive) {
+            state.NotifyingMigration = true;
+            World.HostCallbackDepth++;
+            try {
+                observer(entity, reactive);
+            }
+            finally {
+                World.HostCallbackDepth--;
+                state.NotifyingMigration = false;
+            }
+        }
     }
 
     public void MoveOut(Entity entity, IEntityHost destination)
@@ -425,7 +435,17 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
             throw new InvalidOperationException("Migration destination belongs to another world.");
         }
         ObjectDisposedException.ThrowIf(destination.IsClosed, destination);
-        NotifyMigration(Volatile.Read(ref _onEntityMovedOut), entity, state, destination);
+        if (Volatile.Read(ref _onEntityMovedOut) is { } observer && destination is IReactiveEntityHost reactive) {
+            state.NotifyingMigration = true;
+            World.HostCallbackDepth++;
+            try {
+                observer(entity, reactive);
+            }
+            finally {
+                World.HostCallbackDepth--;
+                state.NotifyingMigration = false;
+            }
+        }
         InnerHost.MoveOut(entity, destination);
     }
 
@@ -435,21 +455,6 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
         var state = entity.GetState();
         if (!ReferenceEquals(state.Host, this)) throw new InvalidOperationException("Entity belongs to another host.");
         return state;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void NotifyMigration(EntityMigrationHandler? observer, Entity entity, EntityState state, IEntityHost other)
-    {
-        if (observer is null || other is not IReactiveEntityHost reactive) return;
-        state.NotifyingMigration = true;
-        World.HostCallbackDepth++;
-        try {
-            observer(entity, reactive);
-        }
-        finally {
-            World.HostCallbackDepth--;
-            state.NotifyingMigration = false;
-        }
     }
 
     public Entity GetEntity(int slot) => InnerHost.GetEntity(slot);

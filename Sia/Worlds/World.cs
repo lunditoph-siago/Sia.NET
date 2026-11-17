@@ -33,7 +33,9 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
 
         if (disposing) {
             ThrowIfActorIncomplete();
-            if (!CanRemoveHosts || _clearingAddons || _addonOperations.Count != 0) {
+            if (HostCallbackDepth != 0 || Dispatcher.IsSending || Dispatcher.PendingAfterSendActionCount != 0
+                || _clearingHosts || _closingHost != null || _initializingHosts.Count != 0
+                || _clearingAddons || _addonOperations.Count != 0) {
                 throw new InvalidOperationException("Cannot dispose the world during host or addon lifecycle operations.");
             }
         }
