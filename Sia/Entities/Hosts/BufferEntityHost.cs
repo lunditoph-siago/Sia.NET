@@ -254,10 +254,6 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
             throw new InvalidOperationException("Migration destination belongs to another world.");
         }
         ObjectDisposedException.ThrowIf(target.IsClosedForCreation || destination._disposed, target);
-        if (typeof(TStorage) == typeof(UnmanagedArrayBuffer<TDestination>)
-            && RuntimeHelpers.IsReferenceOrContainsReferences<TDestination>()) {
-            throw new NotSupportedException("Unmanaged storage requires elements without managed references.");
-        }
         source.NotifyMovedOut(entity, state, target);
         EnsureOwnedSlot(entity, state.Slot);
         var slot = destination.Buffer.Count;

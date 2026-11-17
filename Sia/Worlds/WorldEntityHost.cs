@@ -15,7 +15,7 @@ internal interface IWorldBatchHost
     void ReleaseOwned(Entity entity);
 }
 
-public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost innerHost)
+public sealed class WorldEntityHost<TEntity, TInnerHost>
     : IEntityHost<TEntity>, IReactiveEntityHost, IWorldBatchHost
     where TEntity : struct, IHList
     where TInnerHost : IEntityHost<TEntity>, new()
@@ -60,8 +60,8 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
         InnerHost.EnsureCanMoveIn();
     }
 
-    public World World { get; } = world;
-    public TInnerHost InnerHost { get; } = InitializeInnerHost(world, innerHost);
+    public World World { get; }
+    public TInnerHost InnerHost { get; }
 
     public Type EntityType => InnerHost.EntityType;
     public EntityDescriptor Descriptor => InnerHost.Descriptor;
@@ -73,10 +73,17 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
     public bool TryGetSequentialBytes(out Span<byte> bytes)
         => InnerHost.TryGetSequentialBytes(out bytes);
 
-    public WorldEntityHost(World world) : this(world, new()) {}
-
-    private static TInnerHost InitializeInnerHost(World world, TInnerHost innerHost)
+    public WorldEntityHost(World world, TInnerHost innerHost)
     {
+        World = world;
+        innerHost.OnInitialize(world);
+        InnerHost = innerHost;
+    }
+
+    public WorldEntityHost(World world)
+    {
+        World = world;
+        var innerHost = new TInnerHost();
         try {
             innerHost.OnInitialize(world);
         }
@@ -86,7 +93,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>(World world, TInnerHost
                 .ThrowIfFailed();
             throw;
         }
-        return innerHost;
+        InnerHost = innerHost;
     }
 
     public unsafe IEntityHost<UEntity> GetSiblingHost<UEntity>()

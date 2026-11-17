@@ -76,22 +76,21 @@ public partial class World
         where THost : IEntityHost<TEntity>, new()
         => RegisterHost<WorldEntityHost<TEntity, THost>>(static world => new(world), acquire: true);
 
-    internal THost AcquireRawHost<THost>(Func<World, THost> create)
-        where THost : IReactiveEntityHost
-        => RegisterHost(create, acquire: true);
-
-    private THost RegisterHost<THost>(Func<World, THost> create, bool acquire)
+    internal THost RegisterHost<THost>(Func<World, THost> create, bool acquire)
         where THost : IReactiveEntityHost
     {
-        EnsureHostRegistration();
+        EnsureOwnerThread();
         var index = WorldEntityHostIndexer<THost>.Index;
         if (_hosts.TryGetValue(index, out var existing)) {
             if (acquire) return (THost)existing;
             throw new ArgumentException("Host with the same type already exists: " + typeof(THost));
         }
+        EnsureHostRegistration();
         BeginHostOperation(index);
         try {
-            return PublishHost(index, create(this));
+            var host = create(this);
+            PublishHost<THost>(index, host);
+            return host;
         }
         finally {
             _hostOperations.Remove(index);
@@ -101,33 +100,33 @@ public partial class World
     public THost UnsafeAddRawHost<THost>(THost host)
         where THost : IReactiveEntityHost
     {
+        EnsureOwnerThread();
         EnsureHostRegistration();
         var index = WorldEntityHostIndexer<THost>.Index;
         BeginHostOperation(index);
         try {
-            return PublishHost(index, host);
+            IReactiveEntityHost registered = host;
+            ArgumentNullException.ThrowIfNull(registered, nameof(host));
+            PublishHost<THost>(index, registered);
+            return host;
         }
         finally {
             _hostOperations.Remove(index);
         }
     }
 
-    private THost PublishHost<THost>(int index, THost host) where THost : IReactiveEntityHost
+    private void PublishHost<THost>(int index, IReactiveEntityHost host) where THost : IReactiveEntityHost
     {
-        IReactiveEntityHost registered = host;
-        ArgumentNullException.ThrowIfNull(registered, nameof(host));
-        if (!_hosts.Add(index, registered)) {
+        if (!_hosts.Add(index, host)) {
             throw new ArgumentException("Host with the same type already exists: " + typeof(THost));
         }
         Version++;
         InvalidateBatchObservers();
-        NotifyObservers(OnEntityHostAdded, registered, Outcome<Exception>.Success).ThrowIfFailed();
-        return host;
+        NotifyObservers(OnEntityHostAdded, host, Outcome<Exception>.Success).ThrowIfFailed();
     }
 
     private void EnsureHostRegistration()
     {
-        EnsureOwnerThread();
         ObjectDisposedException.ThrowIf(IsDisposed, this);
         if (_clearingHosts) throw new InvalidOperationException("Cannot register a host while clearing hosts.");
     }
