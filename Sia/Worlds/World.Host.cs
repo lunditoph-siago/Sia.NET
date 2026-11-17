@@ -69,14 +69,14 @@ public partial class World
     public WorldEntityHost<TEntity, THost> AddHost<TEntity, THost>()
         where TEntity : struct, IHList
         where THost : IEntityHost<TEntity>, new()
-        => RegisterHost<WorldEntityHost<TEntity, THost>>(static world => new(world));
+        => AddHost<WorldEntityHost<TEntity, THost>>(static world => new(world));
 
     public WorldEntityHost<TEntity, THost> AcquireHost<TEntity, THost>()
         where TEntity : struct, IHList
         where THost : IEntityHost<TEntity>, new()
         => TryGetHost<TEntity, THost>(out var host) ? host : AddHost<TEntity, THost>();
 
-    internal THost RegisterHost<THost>(Func<World, THost>? create, THost host = default!)
+    internal THost AddHost<THost>(Func<World, THost> create)
         where THost : IReactiveEntityHost
     {
         var index = WorldEntityHostIndexer<THost>.Index;
@@ -89,9 +89,7 @@ public partial class World
             throw new InvalidOperationException("Cannot register a host during its initialization or while clearing hosts.");
         }
         try {
-            if (create != null) {
-                host = create(this);
-            }
+            var host = create(this);
             _hosts.Add(index, host);
             Version++;
             InvalidateBatchObservers();
@@ -107,7 +105,7 @@ public partial class World
         where THost : IReactiveEntityHost
     {
         ArgumentNullException.ThrowIfNull(host);
-        return RegisterHost(null, host);
+        return AddHost(_ => host);
     }
 
     public bool ReleaseHost<THost>()

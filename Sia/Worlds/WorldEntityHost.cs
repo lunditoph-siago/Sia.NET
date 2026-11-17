@@ -282,7 +282,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
     public void Add<TComponent>(Entity entity, in TComponent initial)
     {
         World.EnsureOwnerThread();
-        if (GetOwnedState(entity).IsTransitioning) {
+        if (GetEntityState(entity).IsTransitioning) {
             throw new InvalidOperationException("Cannot migrate an entity during release or a migration callback.");
         }
         if (typeof(TInnerHost) == typeof(ArrayEntityHost<TEntity>)
@@ -338,7 +338,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
         where TList : struct, IHList
     {
         World.EnsureOwnerThread();
-        if (GetOwnedState(entity).IsTransitioning) {
+        if (GetEntityState(entity).IsTransitioning) {
             throw new InvalidOperationException("Cannot migrate an entity during release or a migration callback.");
         }
         InnerHost.AddMany(entity, list);
@@ -349,7 +349,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
     public void Set<TComponent>(Entity entity, in TComponent value)
     {
         World.EnsureOwnerThread();
-        var state = GetOwnedState(entity);
+        var state = GetEntityState(entity);
         if (state.IsTransitioning && !Descriptor.Contains<TComponent>()) {
             throw new InvalidOperationException("Cannot migrate an entity during release or a migration callback.");
         }
@@ -361,7 +361,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
     public void Remove<TComponent>(Entity entity, out bool success)
     {
         World.EnsureOwnerThread();
-        var state = GetOwnedState(entity);
+        var state = GetEntityState(entity);
         if (state.IsTransitioning && Descriptor.Contains<TComponent>()) {
             throw new InvalidOperationException("Cannot migrate an entity during release or a migration callback.");
         }
@@ -382,7 +382,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
         where TList : struct, IHList
     {
         World.EnsureOwnerThread();
-        var state = GetOwnedState(entity);
+        var state = GetEntityState(entity);
         if (state.IsTransitioning) {
             foreach (var component in EntityDescriptor<TList>.Components) {
                 if (Descriptor.Offsets.ContainsKey(component.Type)) {
@@ -424,7 +424,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
     public void MoveOut(Entity entity, IEntityHost destination)
     {
         World.EnsureOwnerThread();
-        var state = GetOwnedState(entity);
+        var state = GetEntityState(entity);
         if (state.IsTransitioning) {
             throw new InvalidOperationException("Cannot migrate an entity during release or a migration callback.");
         }
@@ -447,7 +447,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private EntityState GetOwnedState(Entity entity)
+    private EntityState GetEntityState(Entity entity)
     {
         var state = entity.GetState();
         if (!ReferenceEquals(state.Host, this)) throw new InvalidOperationException("Entity belongs to another host.");
