@@ -39,9 +39,9 @@ public class WorldAddonTests
     public void SparseRegistry_EnumeratesUniquelyAndClearsEveryRemainingAddon()
     {
         using var world = new World();
-        var first = world.AddAddon<FirstAddon>();
-        var removed = world.AddAddon<SecondAddon>();
-        var third = world.AddAddon<ThirdAddon>();
+        var first = world.AddAddon(static () => new FirstAddon());
+        var removed = world.AddAddon(static () => new SecondAddon());
+        var third = world.AddAddon(static () => new ThirdAddon());
 
         Assert.True(world.RemoveAddon<SecondAddon>());
 
@@ -67,9 +67,9 @@ public class WorldAddonTests
         var firstError = new InvalidOperationException("first");
         var secondError = new ArgumentException("second");
         using var world = new World();
-        var first = world.AddAddon<FirstAddon>();
-        var second = world.AddAddon<SecondAddon>();
-        var third = world.AddAddon<ThirdAddon>();
+        var first = world.AddAddon(static () => new FirstAddon());
+        var second = world.AddAddon(static () => new SecondAddon());
+        var third = world.AddAddon(static () => new ThirdAddon());
         first.Calls = second.Calls = third.Calls = calls;
         first.Error = firstError;
         second.Error = secondError;
@@ -92,7 +92,7 @@ public class WorldAddonTests
         var world = new World();
         var entity = world.Create();
         entity.Host.OnDisposed += _ => throw hostError;
-        var addon = world.AddAddon<FirstAddon>();
+        var addon = world.AddAddon(static () => new FirstAddon());
 
         var thrown = Assert.Throws<InvalidOperationException>(world.Dispose);
 

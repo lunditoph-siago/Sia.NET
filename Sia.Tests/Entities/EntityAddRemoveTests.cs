@@ -30,10 +30,10 @@ public class EntityAddRemoveTests
         using var world = new World();
         var source = new TrackingHost<HList<Position, EmptyHList>>();
         var target = new TrackingHost<HList<Velocity, HList<Position, EmptyHList>>>();
-        var host = world.UnsafeAddRawHost(
-            new WorldEntityHost<HList<Position, EmptyHList>, ArrayEntityHost<HList<Position, EmptyHList>>>(world, source));
-        world.UnsafeAddRawHost(
-            new WorldEntityHost<HList<Velocity, HList<Position, EmptyHList>>, ArrayEntityHost<HList<Velocity, HList<Position, EmptyHList>>>>(world, target));
+        var host = world.AddHost(owner =>
+            new WorldEntityHost<HList<Position, EmptyHList>, ArrayEntityHost<HList<Position, EmptyHList>>>(owner, source));
+        world.AddHost(owner =>
+            new WorldEntityHost<HList<Velocity, HList<Position, EmptyHList>>, ArrayEntityHost<HList<Velocity, HList<Position, EmptyHList>>>>(owner, target));
         var entity = host.Create(HList.From(new Position(1, 2)));
 
         entity.Add(new Velocity(3, 4));

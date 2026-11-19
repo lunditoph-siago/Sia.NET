@@ -76,43 +76,31 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
         var entityTypeName = GenerateHListType(components);
 
         var hostTypeName = Encoding.Unicode.GetString(hostTypeRaw);
-        if (s_aliasHostTypes.TryGetValue(hostTypeName, out var innerHostType)) {
-            return GetWorldHost(world, innerHostType, Type.GetType(entityTypeName)!);
+        Type hostType;
+        if (s_aliasHostTypes.TryGetValue(hostTypeName, out var innerHostType) || hostTypeName[0] == '$') {
+            innerHostType ??= Type.GetType(hostTypeName[1..].Replace("%1", entityTypeName))!;
+            var entityType = Type.GetType(entityTypeName)!;
+            if (innerHostType.IsGenericTypeDefinition) innerHostType = innerHostType.MakeGenericType(entityType);
+            hostType = typeof(WorldEntityHost<,>).MakeGenericType(entityType, innerHostType);
         }
-        else if (hostTypeName[0] == '$') {
-            innerHostType = Type.GetType(hostTypeName[1..].Replace("%1", entityTypeName))!;
-            return GetWorldHost(world, innerHostType, Type.GetType(entityTypeName)!);
+        else {
+            hostTypeName = hostTypeName.Replace("%1", entityTypeName);
+            hostType = Type.GetType(hostTypeName)
+                ?? throw new InvalidDataException("Invalid host type: " + hostTypeName);
         }
-
-        hostTypeName = hostTypeName.Replace("%1", entityTypeName);
-        return GetHost(world, hostTypeName);
+        var acquireHostMethod = s_acquireHostMethod.MakeGenericMethod(hostType);
+        return Unsafe.As<IReactiveEntityHost>(acquireHostMethod.Invoke(null, [world]))!;
     }
 
     private static readonly MethodInfo s_acquireHostMethod =
         typeof(ReflectionHostHeaderSerializer)
-            .GetMethod("AcquireHost", BindingFlags.Static | BindingFlags.Public)!;
+            .GetMethod("AcquireHost", BindingFlags.Static | BindingFlags.NonPublic)!;
 
-    public static IReactiveEntityHost AcquireHost<THost>(World world)
+    private static IReactiveEntityHost AcquireHost<THost>(World world)
         where THost : class, IReactiveEntityHost
         => world.TryGetHost<THost>(out var host)
-            ? host : world.UnsafeAddRawHost(
-                Unsafe.As<THost>(Activator.CreateInstance(typeof(THost), world))!);
-
-    private static IReactiveEntityHost GetHost(World world, string hostTypeName)
-    {
-        var hostType = Type.GetType(hostTypeName)
-            ?? throw new InvalidDataException("Invalid host type: " + hostTypeName);
-        var acquireHostMethod = s_acquireHostMethod.MakeGenericMethod(hostType);
-        return Unsafe.As<IReactiveEntityHost>(acquireHostMethod.Invoke(null, [world]))!;
-    }
-
-    private static IReactiveEntityHost GetWorldHost(World world, Type hostGenericType, Type entityType)
-    {
-        var innerHostType = hostGenericType.MakeGenericType(entityType);
-        var hostType = typeof(WorldEntityHost<,>).MakeGenericType(entityType, innerHostType);
-        var acquireHostMethod = s_acquireHostMethod.MakeGenericMethod(hostType);
-        return Unsafe.As<IReactiveEntityHost>(acquireHostMethod.Invoke(null, [world]))!;
-    }
+            ? host : world.AddHost<THost>(static owner =>
+                Unsafe.As<THost>(Activator.CreateInstance(typeof(THost), owner))!);
 
     private static string GenerateHListType(string[] components)
     {

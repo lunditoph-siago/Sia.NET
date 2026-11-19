@@ -33,6 +33,11 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
 
         if (disposing) {
             ThrowIfActorIncomplete();
+            if (HostCallbackDepth != 0 || Dispatcher.IsSending || Dispatcher.PendingAfterSendActionCount != 0
+                || _clearingHosts || _closingHost != null || _initializingHosts.Count != 0
+                || _clearingAddons || _addonOperations.Count != 0) {
+                throw new InvalidOperationException("Cannot dispose the world during host or addon lifecycle operations.");
+            }
         }
         else if (_actor is { IsCompleted: false }) {
             return;
@@ -40,18 +45,26 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
 
         IsDisposed = true;
 
-        Outcome<Exception>.Success
+        var result = Outcome<Exception>.Success
             .Attempt(ClearHosts)
             .Attempt(EntityStates.Retire)
-            .Attempt(ClearAddons)
-            .Attempt(() => OnDisposed?.Invoke(this))
-            .ThrowIfFailed();
+            .Attempt(ClearAddons);
+        result = NotifyObservers(OnDisposed, this, result);
+        if (disposing) result.ThrowIfFailed();
     }
 
     public void Dispose()
     {
         Dispose(true);
         GC.SuppressFinalize(this);
+    }
+
+    private static Outcome<Exception> NotifyObservers<T>(Action<T>? observers, T value, Outcome<Exception> result)
+    {
+        foreach (var observer in Delegate.EnumerateInvocationList(observers)) {
+            result = result.Attempt((observer, value), static (in call) => call.observer(call.value));
+        }
+        return result;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

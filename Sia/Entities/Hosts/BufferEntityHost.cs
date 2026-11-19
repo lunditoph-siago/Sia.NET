@@ -1,5 +1,4 @@
 using System.Collections;
-using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using CommunityToolkit.HighPerformance;
@@ -47,6 +46,9 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     private readonly List<Entity> _entities = [];
     private EntityStatePool? _entityStates;
     private bool _ownsEntityStates = true;
+    private bool _disposed;
+
+    public bool IsClosed => _disposed;
 
     private EntityStatePool EntityStates {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -55,6 +57,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
 
     void IEntityHost.OnInitialize(World world)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         if (Count != 0) {
             throw new InvalidOperationException(
                 "Cannot initialize a non-empty host.");
@@ -70,14 +73,18 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     public virtual Entity Create() => Create(default!);
     public virtual Entity Create(in TEntity initial)
     {
-        var e = EntityStates.Rent();
-        MoveInTrusted(e, initial);
-        return e;
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        var entity = EntityStates.Rent();
+        MoveInTrusted(entity, initial);
+        return entity;
     }
 
     public virtual void Release(Entity entity)
     {
-        var state = entity.GetState();
+        var state = GetEntityState(entity, out _);
+        if (state.NotifyingMigration) {
+            throw new InvalidOperationException("Cannot release an entity during a migration callback.");
+        }
         MoveOut(state);
         EntityStates.Return(state);
     }
@@ -87,11 +94,27 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
 
     public void MoveOut(Entity entity, IEntityHost destination)
     {
-        var state = entity.GetState();
-        if (state.Releasing) {
-            throw new InvalidOperationException("Cannot migrate an entity while it is being released.");
+        var state = GetEntityState(entity, out _);
+        if (state.IsTransitioning) {
+            throw new InvalidOperationException("Cannot migrate an entity during release or a migration callback.");
         }
+        if (!ReferenceEquals(destination.World, World)) {
+            throw new InvalidOperationException("Migration destination belongs to another world.");
+        }
+        ObjectDisposedException.ThrowIf(destination.IsClosed, destination);
         MoveOut(state);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private EntityState GetEntityState(in Entity entity, out int slot)
+    {
+        var state = entity.GetStateUnchecked();
+        slot = state?.Slot ?? -1;
+        if ((uint)slot >= (uint)_entities.Count || _entities[slot] != entity) {
+            entity.GetState();
+            throw new InvalidOperationException("Entity belongs to another host.");
+        }
+        return state!;
     }
 
     private void MoveOut(EntityState state)
@@ -114,8 +137,17 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
 
     public void MoveIn(Entity entity, in TEntity data, IEntityHost source)
     {
-        if (entity.GetCurrentState().Releasing) {
-            throw new InvalidOperationException("Cannot migrate an entity while it is being released.");
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        var state = entity.GetCurrentState();
+        if (state.IsTransitioning) {
+            throw new InvalidOperationException("Cannot migrate an entity during release or a migration callback.");
+        }
+        if (!ReferenceEquals(state.Host, source) || !ReferenceEquals(source.World, World)) {
+            throw new InvalidOperationException("Entity has not moved out of a source host in this world.");
+        }
+        var entities = source.UnsafeGetEntitySpan();
+        if ((uint)state.Slot < (uint)entities.Length && entities[state.Slot] == entity) {
+            throw new InvalidOperationException("Entity has not moved out of a source host in this world.");
         }
         MoveInTrusted(entity, data);
     }
@@ -125,8 +157,9 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     {
         Version++;
 
+        var value = data;
         var slot = Buffer.Count++;
-        Buffer.GetRef(slot) = data;
+        Buffer.GetRef(slot) = value;
 
         var state = entity.GetStateUnchecked();
         state.Host = this;
@@ -149,93 +182,117 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         if (EntityIndexer<TEntity, TComponent>.Offset != -1) {
             EntityExceptionHelper.ThrowComponentExisted<TComponent>();
         }
-        var state = entity.GetStateUnchecked();
-        ref var data = ref Buffer.GetRef(state.Slot);
-        var host = state.Host!;
-        var siblingHost = host.GetSiblingHost<HList<TComponent, TEntity>>();
-        var moved = HList.Cons(initial, data);
-        host.MoveOut(entity, siblingHost);
-        siblingHost.MoveIn(entity, moved, host);
+        var state = GetEntityState(entity, out var slot);
+        if (state.IsTransitioning) {
+            throw new InvalidOperationException("Cannot migrate an entity during release or a migration callback.");
+        }
+        Move(entity, state, this, HList.Cons(initial, Buffer.GetRef(slot)), useBuiltIn: true);
     }
 
-    internal void AddDefault<TComponent>(Entity entity, in TComponent initial)
+    internal void AddDefault<TComponent>(Entity entity, EntityState state, in TComponent initial)
     {
         if (EntityIndexer<TEntity, TComponent>.Offset != -1) {
             EntityExceptionHelper.ThrowComponentExisted<TComponent>();
         }
-        var state = entity.GetStateUnchecked();
-        ref var data = ref Buffer.GetRef(state.Slot);
-        var host = state.Host!;
-        if (RuntimeFeature.IsDynamicCodeSupported && typeof(TBuffer) == typeof(ArrayBuffer<TEntity>)
-            && TryGetArrayTarget<HList<TComponent, TEntity>>(host, out var source, out var target)) {
-            var value = HList.Cons(initial, data);
-            source.MoveOut(entity, target);
-            target.MoveIn(entity, value, source);
-            return;
-        }
-        var siblingHost = host.GetSiblingHost<HList<TComponent, TEntity>>();
-        var moved = HList.Cons(initial, data);
-        host.MoveOut(entity, siblingHost);
-        siblingHost.MoveIn(entity, moved, host);
+        Move(entity, state, this, HList.Cons(initial, Buffer.GetRef(state.Slot)), useBuiltIn: true);
     }
 
     public virtual bool TryAddAll<TComponent>(ReadOnlySpan<Entity> entities, in TComponent initial) => false;
 
     public virtual bool TryRemoveAll<TComponent>(ReadOnlySpan<Entity> entities) => false;
 
-    private static bool TryGetArrayTarget<TDestination>(IEntityHost host,
-        [NotNullWhen(true)] out WorldEntityHost<TEntity, ArrayEntityHost<TEntity>>? source,
-        [NotNullWhen(true)] out WorldEntityHost<TDestination, ArrayEntityHost<TDestination>>? target)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void Move<TDestination, TStorage, TSourceHost, TTargetHost>(
+        WorldEntityHost<TEntity, TSourceHost> source, WorldEntityHost<TDestination, TTargetHost> target,
+        BufferEntityHost<TDestination, TStorage> destination, Entity entity, in TDestination data)
         where TDestination : struct, IHList
+        where TStorage : IBuffer<TDestination>
+        where TSourceHost : IEntityHost<TEntity>, new()
+        where TTargetHost : IEntityHost<TDestination>, new()
     {
-        source = host as WorldEntityHost<TEntity, ArrayEntityHost<TEntity>>;
-        target = null;
-        return source is not null && source.InnerHost.GetType() == typeof(ArrayEntityHost<TEntity>)
-            && source.World.TryGetHost<TDestination, ArrayEntityHost<TDestination>>(out target);
+        var state = GetEntityState(in entity, out _);
+        if (!ReferenceEquals(source.World, target.World)) {
+            throw new InvalidOperationException("Migration destination belongs to another world.");
+        }
+        ObjectDisposedException.ThrowIf(target.IsDisposed || destination._disposed || source.World.IsClosingHost(target), target);
+        if (source.NotifyMigration(entity, state, target, incoming: false)) {
+            ObjectDisposedException.ThrowIf(target.IsDisposed || destination._disposed || source.World.IsClosingHost(target), target);
+            GetEntityState(in entity, out _);
+        }
+        var slot = destination.Buffer.Count;
+        var count = checked(slot + 1);
+        if (count > destination._entities.Capacity) destination._entities.EnsureCapacity(count);
+        destination.Buffer.Count = count;
+        destination.Buffer.GetRef(slot) = data;
+        MoveOut(state);
+        destination._entities.Add(entity);
+        state.Host = target;
+        state.Slot = slot;
+        destination.Version++;
+        target.NotifyMigration(entity, state, source, incoming: true);
     }
 
-    private struct EntityMover(Entity e)
+    private static void Move<T>(Entity entity, T data, BufferEntityHost<TEntity, TBuffer> source)
+        where T : struct, IHList
+    {
+        var state = source.GetEntityState(entity, out _);
+        if (state.IsTransitioning) {
+            throw new InvalidOperationException("Cannot migrate an entity during release or a migration callback.");
+        }
+        var host = state.Host!;
+        var world = host.World;
+        IEntityHost<T> sibling;
+        state.NotifyingMigration = true;
+        if (world != null) world.HostCallbackDepth++;
+        try {
+            sibling = host.GetSiblingHost<T>();
+        }
+        finally {
+            state.NotifyingMigration = false;
+            if (world != null) world.HostCallbackDepth--;
+        }
+        host.MoveOut(entity, sibling);
+        sibling.MoveIn(entity, data, host);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void Move<T>(Entity entity, EntityState state, BufferEntityHost<TEntity, TBuffer> source,
+        in T data, bool useBuiltIn)
+        where T : struct, IHList
+    {
+        var host = state.Host!;
+        var moved = data;
+        if (useBuiltIn && typeof(T) != typeof(TEntity)
+            && RuntimeFeature.IsDynamicCodeSupported && typeof(TBuffer) == typeof(ArrayBuffer<TEntity>)
+            && host is WorldEntityHost<TEntity, ArrayEntityHost<TEntity>> managed
+            && managed.InnerHost.GetType() == typeof(ArrayEntityHost<TEntity>)
+            && managed.World.TryGetHost<T, ArrayEntityHost<T>>(out var managedTarget)
+            && managedTarget.InnerHost.GetType() == typeof(ArrayEntityHost<T>)) {
+            source.Move(managed, managedTarget, managedTarget.InnerHost, entity, moved);
+        }
+        else if (useBuiltIn && typeof(T) != typeof(TEntity)
+            && RuntimeFeature.IsDynamicCodeSupported && typeof(TBuffer) == typeof(UnmanagedArrayBuffer<TEntity>)
+            && host is WorldEntityHost<TEntity, UnmanagedArrayEntityHost<TEntity>> unmanaged
+            && unmanaged.InnerHost.GetType() == typeof(UnmanagedArrayEntityHost<TEntity>)
+            && unmanaged.World.TryGetHost<T, UnmanagedArrayEntityHost<T>>(out var unmanagedTarget)
+            && unmanagedTarget.InnerHost.GetType() == typeof(UnmanagedArrayEntityHost<T>)) {
+            source.Move(unmanaged, unmanagedTarget, unmanagedTarget.InnerHost, entity, moved);
+        }
+        else Move(entity, moved, source);
+    }
+
+    private struct EntityMover(Entity e, BufferEntityHost<TEntity, TBuffer> source)
         : IGenericStructHandler<IHList>
     {
+        [MethodImpl(MethodImplOptions.NoInlining)]
         public readonly void Handle<T>(in T data)
             where T : struct, IHList
         {
-            var host = e.GetStateUnchecked().Host!;
-            var siblingHost = host.GetSiblingHost<T>();
-            host.MoveOut(e, siblingHost);
-            siblingHost.MoveIn(e, data, host);
-        }
-    }
-
-    private readonly struct UnmanagedEntityMover(Entity e) : IGenericStructHandler<IHList>
-    {
-        public void Handle<T>(in T data) where T : struct, IHList
-        {
-            var host = e.GetStateUnchecked().Host!;
-            if (host is WorldEntityHost<TEntity, UnmanagedArrayEntityHost<TEntity>> source
-                && source.InnerHost.GetType() == typeof(UnmanagedArrayEntityHost<TEntity>)
-                && source.World.TryGetHost<T, UnmanagedArrayEntityHost<T>>(out var target)) {
-                source.MoveOut(e, target);
-                target.MoveIn(e, data, source);
+            var state = e.GetStateUnchecked();
+            if (state.IsTransitioning) {
+                throw new InvalidOperationException("Cannot migrate an entity during release or a migration callback.");
             }
-            else new EntityMover(e).Handle(data);
-        }
-    }
-
-    private readonly struct ArrayEntityMover(Entity e) : IGenericStructHandler<IHList>
-    {
-        public void Handle<T>(in T data) where T : struct, IHList
-        {
-            var host = e.GetStateUnchecked().Host!;
-            if (TryGetArrayTarget<T>(host, out var source, out var target)) {
-                source.MoveOut(e, target);
-                target.MoveIn(e, data, source);
-            }
-            else {
-                var siblingHost = host.GetSiblingHost<T>();
-                host.MoveOut(e, siblingHost);
-                siblingHost.MoveIn(e, data, host);
-            }
+            Move(e, state, source, data, BulkHListShape.IsStandard);
         }
     }
 
@@ -256,8 +313,9 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     {
         TList.HandleTypes(EntityComponentChecker.Instance);
 
-        ref var data = ref Buffer.GetRef(entity.GetStateUnchecked().Slot);
-        var mover = new EntityMover(entity);
+        GetEntityState(entity, out var slot);
+        ref var data = ref Buffer.GetRef(slot);
+        var mover = new EntityMover(entity, this);
         data.Concat(list, mover);
     }
 
@@ -268,7 +326,12 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
             Add(entity, value);
             return;
         }
-        ref var data = ref GetRef(entity.GetStateUnchecked().Slot);
+        GetEntityState(in entity, out var slot);
+        var buffer = Buffer;
+        ref var data = ref (buffer is ArrayBuffer<TEntity> array
+            ? ref array.GetRef(slot)
+            : ref (buffer is UnmanagedArrayBuffer<TEntity> native
+                ? ref native.GetRef(slot) : ref buffer.GetRef(slot)));
         Unsafe.As<TEntity, TComponent>(
             ref Unsafe.AddByteOffset(ref data, offset))
             = value;
@@ -280,39 +343,21 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
             success = false;
             return;
         }
-        ref var data = ref Buffer.GetRef(entity.GetStateUnchecked().Slot);
-        var mover = new EntityMover(entity);
+        GetEntityState(entity, out var slot);
+        ref var data = ref Buffer.GetRef(slot);
+        var mover = new EntityMover(entity, this);
         data.Remove(TypeProxy<TComponent>._, mover);
         success = true;
     }
 
-    internal void RemoveDefault<TComponent>(Entity entity, out bool success)
+    internal void RemoveDefault<TComponent>(Entity entity, EntityState state, out bool success)
     {
-        if (!RuntimeFeature.IsDynamicCodeSupported || typeof(TBuffer) != typeof(ArrayBuffer<TEntity>)
-            || !BulkHListShape.IsStandard) {
-            if (EntityIndexer<TEntity, TComponent>.Offset == -1) {
-                success = false;
-                return;
-            }
-            ref var fallbackData = ref Buffer.GetRef(entity.GetStateUnchecked().Slot);
-            if (RuntimeFeature.IsDynamicCodeSupported && typeof(TBuffer) == typeof(UnmanagedArrayBuffer<TEntity>)
-                && BulkHListShape.IsStandard) {
-                var unmanagedMover = new UnmanagedEntityMover(entity);
-                fallbackData.Remove(TypeProxy<TComponent>._, unmanagedMover);
-            }
-            else {
-                var fallbackMover = new EntityMover(entity);
-                fallbackData.Remove(TypeProxy<TComponent>._, fallbackMover);
-            }
-            success = true;
-            return;
-        }
         if (EntityIndexer<TEntity, TComponent>.Offset == -1) {
             success = false;
             return;
         }
-        ref var data = ref Buffer.GetRef(entity.GetStateUnchecked().Slot);
-        var mover = new ArrayEntityMover(entity);
+        ref var data = ref Buffer.GetRef(state.Slot);
+        var mover = new EntityMover(entity, this);
         data.Remove(TypeProxy<TComponent>._, mover);
         success = true;
     }
@@ -337,7 +382,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
             => !_types.Contains(typeof(T));
     }
 
-    private struct FilteredHListMover(Entity e)
+    private struct FilteredHListMover(Entity e, BufferEntityHost<TEntity, TBuffer> source)
         : IGenericStructHandler<IHList>
     {
         public readonly void Handle<T>(in T value)
@@ -346,20 +391,18 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
             if (typeof(T) == typeof(TEntity)) {
                 return;
             }
-            var host = e.GetStateUnchecked().Host!;
-            var siblingHost = host.GetSiblingHost<T>();
-            host.MoveOut(e, siblingHost);
-            siblingHost.MoveIn(e, value, host);
+            new EntityMover(e, source).Handle(value);
         }
     }
 
     public virtual void RemoveMany<TList>(Entity entity)
         where TList : struct, IHList
     {
-        ref var data = ref Buffer.GetRef(entity.GetStateUnchecked().Slot);
+        GetEntityState(entity, out var slot);
+        ref var data = ref Buffer.GetRef(slot);
         data.Filter(
             EntityComponentPredicate<TList>.Instance,
-            new FilteredHListMover(entity));
+            new FilteredHListMover(entity, this));
     }
 
     public virtual IEntityHost<UEntity> GetSiblingHost<UEntity>()
@@ -382,6 +425,11 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
 
     public void Dispose()
     {
+        if (Count != 0 && World is { } world && (world.HostCallbackDepth != 0 || world.Dispatcher.IsSending)) {
+            throw new InvalidOperationException("Cannot remove a host during entity callbacks or event dispatch.");
+        }
+        if (_disposed) return;
+        _disposed = true;
         foreach (var entity in _entities) {
             var state = entity.GetStateUnchecked();
             if (_ownsEntityStates) {

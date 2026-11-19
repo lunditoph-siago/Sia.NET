@@ -28,7 +28,9 @@ public sealed class UnmanagedArrayBuffer<T>(int initialCapacity) : IBuffer<T>
     }
 
     private int _length = initialCapacity;
-    private IntPtr _mem = Marshal.AllocHGlobal(initialCapacity * Unsafe.SizeOf<T>());
+    private IntPtr _mem = !RuntimeHelpers.IsReferenceOrContainsReferences<T>()
+        ? Marshal.AllocHGlobal(initialCapacity * Unsafe.SizeOf<T>())
+        : throw new NotSupportedException("Unmanaged storage requires elements without managed references.");
 
     public UnmanagedArrayBuffer() : this(0) {}
 

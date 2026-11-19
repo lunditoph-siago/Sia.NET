@@ -25,7 +25,7 @@ public sealed class OwnedOutputTests
         Assert.Equal(1, host.Count);
         Assert.Equal(1, world.Count);
 
-        host.ReleaseOwned(acquired);
+        host.Release(acquired);
         Assert.False(acquired.IsValid);
         Assert.Equal(0, host.Count);
         Assert.Equal(0, world.Count);
@@ -34,15 +34,15 @@ public sealed class OwnedOutputTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ReleaseCallback_CannotReleaseTheSameEntityTwice(bool useOwnedRelease)
+    public void ReleaseCallback_CannotReleaseTheSameEntityTwice(bool throughHost)
     {
         using var world = new World();
         var host = world.GetArrayHost<HList<Value, EmptyHList>>();
         var entity = host.Create(HList.From(new Value(1, null)));
         var calls = 0;
         host.OnEntityReleased += e => { calls++; e.Destroy(); };
-        if (useOwnedRelease)
-            host.ReleaseOwned(entity);
+        if (throughHost)
+            host.Release(entity);
         else
             entity.Destroy();
         Assert.Equal(1, calls);
@@ -55,8 +55,10 @@ public sealed class OwnedOutputTests
         Assert.Equal(0, world.Count);
     }
 
-    [Fact]
-    public void OwnedRelease_ReportsFailuresAndReleasesStorage()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Release_ReportsFailuresAndReleasesStorage(bool throughHost)
     {
         using var world = new World();
         var host = world.GetArrayHost<HList<Value, EmptyHList>>();
@@ -64,15 +66,21 @@ public sealed class OwnedOutputTests
         var componentError = new InvalidOperationException("component remove");
         var entityError = new InvalidOperationException("entity remove");
         var hostError = new InvalidOperationException("host release");
+        var laterObserverCalled = false;
         world.Dispatcher.Listen<WorldEvents.Remove<Value>>((Entity _, in WorldEvents.Remove<Value> e) => throw componentError);
         world.Dispatcher.Listen<WorldEvents.Remove>((Entity _, in WorldEvents.Remove e) => throw entityError);
         host.OnEntityReleased += _ => throw hostError;
-        var failure = Assert.Throws<AggregateException>(() => host.ReleaseOwned(entity));
+        host.OnEntityReleased += _ => laterObserverCalled = true;
+        var failure = Assert.Throws<AggregateException>(() => {
+            if (throughHost) host.Release(entity);
+            else entity.Destroy();
+        });
         Assert.Equal(new Exception[] { componentError, entityError, hostError }, failure.InnerExceptions);
         Assert.Equal(0, host.Count);
         Assert.Equal(0, world.Count);
         Assert.False(entity.IsValid);
         Assert.False(world.Dispatcher.IsSending);
+        Assert.True(laterObserverCalled);
     }
 
     [Fact]

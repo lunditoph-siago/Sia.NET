@@ -12,7 +12,7 @@ public abstract class AddonSystemBase(
     {
         _addonRemovers.TryAdd(typeof(TAddon),
             static world => world.RemoveAddon<TAddon>());
-        return world.AddAddon<TAddon>();
+        return world.AddAddon(static () => new TAddon());
     }
 
     public override void Uninitialize(World world)

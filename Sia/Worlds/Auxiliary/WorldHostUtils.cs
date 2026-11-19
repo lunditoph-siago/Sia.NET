@@ -8,12 +8,6 @@ internal static class WorldHostUtils
             => dispatcher.SendAddAndSet<T>(entity);
     }
 
-    public struct EntityRemoveEventSender(Entity entity, WorldDispatcher dispatcher) : IGenericTypeHandler
-    {
-        public readonly void Handle<T>()
-            => dispatcher.Send(entity, WorldEvents.Remove<T>.Instance);
-    }
-
     public struct ExEntityRemoveEventSender(
         Entity entity, EntityDescriptor prevDesc, WorldDispatcher dispatcher) : IGenericTypeHandler
     {
