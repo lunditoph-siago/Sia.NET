@@ -26,7 +26,7 @@ public sealed class SubWorld : IDisposable
         World = new World();
         _actorDrainTimeout = actorDrainTimeout ?? DefaultActorDrainTimeout;
 
-        World.AddAddon(new SubWorldContext(parent));
+        World.AddAddon(() => new SubWorldContext(parent));
     }
 
     ~SubWorld()

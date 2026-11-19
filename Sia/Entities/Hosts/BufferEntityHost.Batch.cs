@@ -36,6 +36,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>
             && GetType() == typeof(ArrayEntityHost<TEntity>)
             && destination.GetType() == typeof(ArrayEntityHost<TDestination>)
             && ReferenceEquals(World, world) && ReferenceEquals(destination.World, world)
+            && !target.IsClosed
             && !source.HasMigrationObservers && !target.HasMigrationObservers
             && world.Dispatcher.HasNoUntypedListeners
             && _entities.Count == Buffer.Count
@@ -49,7 +50,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>
             var entity = entities[i];
             var state = entity.GetStateUnchecked();
             if (state is null || !entity.References(state) || !ReferenceEquals(state.Host, source)
-                || state.Slot != i || state.Releasing || state.EventSink is not null) return false;
+                || state.Slot != i || state.IsTransitioning || state.EventSink is not null) return false;
         }
         return true;
     }
@@ -130,6 +131,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>
             || !source.World.TryGetHost<HList<TComponent, TEntity>, ArrayEntityHost<HList<TComponent, TEntity>>>(out var target)
             || target.InnerHost.GetType() != typeof(ArrayEntityHost<HList<TComponent, TEntity>>)
             || !ReferenceEquals(target.InnerHost.World, source.World)
+            || target.IsClosed
             || source.HasMigrationObservers || target.HasMigrationObservers
             || !source.World.Dispatcher.HasNoUntypedListeners
             || !source.World.Dispatcher.HasNoTypedListeners<WorldEvents.Add<TComponent>>()
@@ -193,6 +195,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>
         var destination = (BufferEntityHost<TTail, ArrayBuffer<TTail>>)target.InnerHost;
         if (typeof(TEntity) != typeof(HList<THead, TTail>)
             || target.InnerHost.GetType() != typeof(ArrayEntityHost<TTail>)
+            || target.IsClosed
             || !ReferenceEquals(destination.World, world) || source.HasMigrationObservers || target.HasMigrationObservers
             || !world.Dispatcher.HasNoUntypedListeners
             || !world.Dispatcher.HasNoTypedListeners<WorldEvents.Remove<THead>>()

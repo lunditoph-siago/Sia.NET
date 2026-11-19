@@ -331,7 +331,7 @@ public class SchedulingTests
     {
         InitOrder.Clear();
         using var world = new World();
-        var scheduler = world.AddAddon<Scheduler>()
+        var scheduler = world.AddAddon(static () => new Scheduler())
             .ConfigureSchedule(CoreSchedules.Update, static schedule =>
                 schedule.Add<UpdateInitSystem>().After(CoreSchedules.Startup))
             .ConfigureSchedule(CoreSchedules.Startup, static schedule =>
@@ -351,7 +351,7 @@ public class SchedulingTests
         var upstream = new ScheduleLabel("upstream");
         var first = new ScheduleLabel("cycle.first");
         var second = new ScheduleLabel("cycle.second");
-        var scheduler = world.AddAddon<Scheduler>()
+        var scheduler = world.AddAddon(static () => new Scheduler())
             .ConfigureSchedule(upstream, schedule => schedule.Before(first))
             .ConfigureSchedule(first, schedule => schedule.Before(second))
             .ConfigureSchedule(second, schedule => schedule.Before(first));
@@ -367,7 +367,7 @@ public class SchedulingTests
     {
         InitOrder.Clear();
         using var world = new World();
-        var scheduler = world.AddAddon<Scheduler>();
+        var scheduler = world.AddAddon(static () => new Scheduler());
         using var source = scheduler.RegisterSource(new OneShotScheduleSource(scheduler));
 
         scheduler.Tick();
@@ -381,7 +381,7 @@ public class SchedulingTests
         InitOrder.Clear();
         using var world = new World();
         var manual = new ScheduleLabel("manual");
-        var scheduler = world.AddAddon<Scheduler>();
+        var scheduler = world.AddAddon(static () => new Scheduler());
         using var first = scheduler.RegisterEntry(
             CoreSchedules.First, new TestScheduleEntry("first"));
         using var update = scheduler.RegisterEntry(
@@ -407,7 +407,7 @@ public class SchedulingTests
     {
         var callbacks = new List<string>();
         using var world = new World();
-        var scheduler = world.AddAddon<Scheduler>();
+        var scheduler = world.AddAddon(static () => new Scheduler());
         var transient = scheduler.RegisterEntry(
             new ScheduleLabel("transient"), new TestScheduleEntry("transient"));
         transient.Dispose();
@@ -448,7 +448,7 @@ public class SchedulingTests
     {
         var callbacks = new List<string>();
         using var world = new World();
-        var scheduler = world.AddAddon<Scheduler>();
+        var scheduler = world.AddAddon(static () => new Scheduler());
         var first = new CallbackScheduleEntry("first", callbacks);
         var second = new CallbackScheduleEntry("second", callbacks);
         var added = new CallbackScheduleEntry("added", callbacks);
@@ -475,7 +475,7 @@ public class SchedulingTests
     {
         var callbacks = new List<string>();
         using var world = new World();
-        var scheduler = world.AddAddon<Scheduler>();
+        var scheduler = world.AddAddon(static () => new Scheduler());
         var source = new CallbackScheduleSource("source", callbacks) {
             ThrowOnAttach = true
         };
@@ -494,7 +494,7 @@ public class SchedulingTests
         var firstError = new InvalidOperationException("entry.detach");
         var secondError = new ArgumentException("source.detach");
         using var world = new World();
-        var scheduler = world.AddAddon<Scheduler>();
+        var scheduler = world.AddAddon(static () => new Scheduler());
         var entry = scheduler.RegisterEntry(
             CoreSchedules.Update,
             new LifecycleScheduleEntry("entry", callbacks, firstError));
@@ -532,7 +532,7 @@ public class SchedulingTests
     {
         var error = new InvalidOperationException("source.detach");
         using var world = new World();
-        var scheduler = world.AddAddon<Scheduler>();
+        var scheduler = world.AddAddon(static () => new Scheduler());
         scheduler.RegisterSource(
             new CallbackScheduleSource("source", []) { DetachError = error });
 

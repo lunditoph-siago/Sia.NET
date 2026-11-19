@@ -65,7 +65,9 @@ public sealed class WorldDispatcher : Dispatcher<IEvent>
 
     public override void UnlistenAll(Entity target)
     {
-        World.EnsureOwnerThread();
+        if (!World.IsDisposed && World.Actor is not { IsCompleted: true }) {
+            World.EnsureOwnerThread();
+        }
         base.UnlistenAll(target);
         if (target.IsValid && ReferenceEquals(target.Host.World, World)) {
             target.GetStateUnchecked().EventSink = null;
