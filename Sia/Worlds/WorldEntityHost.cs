@@ -233,7 +233,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
             }
             try {
                 if (entity.GetStateUnchecked().EventSink is not null || !dispatcher.HasNoListeners<WorldEvents.Remove>()) {
-                    dispatcher.SendOwned(entity, WorldEvents.Remove.Instance);
+                    dispatcher.Send(entity, WorldEvents.Remove.Instance, owned: true);
                 }
             }
             catch (Exception error) {
@@ -299,7 +299,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
         private void Send<T>(WorldDispatcher dispatcher)
         {
             try {
-                dispatcher.SendOwned(entity, WorldEvents.Remove<T>.Instance);
+                dispatcher.Send(entity, WorldEvents.Remove<T>.Instance, owned: true);
             }
             catch (Exception error) {
                 host.RecordReleaseError(error);

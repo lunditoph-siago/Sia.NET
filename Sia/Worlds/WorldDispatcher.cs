@@ -13,23 +13,21 @@ public sealed class WorldDispatcher : Dispatcher<IEvent>
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public override void Send<UEvent>(Entity target, in UEvent e)
+        => Send(target, e, owned: false);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void Send<UEvent>(Entity target, in UEvent e, bool owned) where UEvent : IEvent
     {
         World.EnsureOwnerThread();
         var state = target.IsValid ? target.GetStateUnchecked() : null;
         var owner = state?.EventSink;
-        if (owner != null && !ReferenceEquals(state!.Host!.World, World)) {
-            throw new ArgumentException("The entity belongs to a different world.", nameof(target));
+        if (!owned) {
+            if (owner != null && !ReferenceEquals(state!.Host!.World, World)) {
+                throw new ArgumentException("The entity belongs to a different world.", nameof(target));
+            }
+            if (owner is null && HasNoListeners<UEvent>()) return;
         }
-        if (owner is null && HasNoListeners<UEvent>()) return;
-        SendCore(target, e, owner as IEventSink<Entity, UEvent>);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void SendOwned<UEvent>(Entity target, in UEvent e) where UEvent : IEvent
-    {
-        World.EnsureOwnerThread();
-        SendCore(target, e, target.IsValid
-            ? target.GetStateUnchecked().EventSink as IEventSink<Entity, UEvent> : null);
+        SendToListeners(target, e, owner as IEventSink<Entity, UEvent>);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -51,7 +49,7 @@ public sealed class WorldDispatcher : Dispatcher<IEvent>
             Send(target, set);
             return;
         }
-        SendCore(target, add, owner as IEventSink<Entity, WorldEvents.Add<TComponent>>);
+        SendToListeners(target, add, owner as IEventSink<Entity, WorldEvents.Add<TComponent>>);
         if (target.IsValid) {
             Send(target, WorldEvents.Set<TComponent>.Instance);
         }

@@ -245,9 +245,9 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
 
     public virtual void Send<UEvent>(TTarget target, in UEvent e)
         where UEvent : TEvent
-        => SendCore(target, e, null);
+        => SendToListeners(target, e, null);
 
-    protected void SendCore<UEvent>(TTarget target, in UEvent e, IEventSink<TTarget, UEvent>? owner)
+    protected void SendToListeners<UEvent>(TTarget target, in UEvent e, IEventSink<TTarget, UEvent>? owner)
         where UEvent : TEvent
     {
         var globalListeners = _globalListeners;
