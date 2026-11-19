@@ -87,10 +87,12 @@ public partial class World
         }
         try {
             var host = create(this);
-            _hosts.Add(index, host);
+            IReactiveEntityHost registered = host;
+            ArgumentNullException.ThrowIfNull(registered, nameof(host));
+            _hosts.Add(index, registered);
             Version++;
             InvalidateBatchObservers();
-            NotifyObservers(OnEntityHostAdded, host, Outcome<Exception>.Success).ThrowIfFailed();
+            NotifyObservers(OnEntityHostAdded, registered, Outcome<Exception>.Success).ThrowIfFailed();
             return host;
         }
         finally {

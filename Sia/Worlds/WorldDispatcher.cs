@@ -24,6 +24,14 @@ public sealed class WorldDispatcher : Dispatcher<IEvent>
         SendCore(target, e, owner as IEventSink<Entity, UEvent>);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void SendOwned<UEvent>(Entity target, in UEvent e) where UEvent : IEvent
+    {
+        World.EnsureOwnerThread();
+        SendCore(target, e, target.IsValid
+            ? target.GetStateUnchecked().EventSink as IEventSink<Entity, UEvent> : null);
+    }
+
     [MethodImpl(MethodImplOptions.NoInlining)]
     internal void SendAddAndSet<TComponent>(Entity target)
     {
@@ -68,9 +76,15 @@ public sealed class WorldDispatcher : Dispatcher<IEvent>
         if (!World.IsDisposed && World.Actor is not { IsCompleted: true }) {
             World.EnsureOwnerThread();
         }
-        base.UnlistenAll(target);
-        if (target.IsValid && ReferenceEquals(target.Host.World, World)) {
-            target.GetStateUnchecked().EventSink = null;
+        DetachEntityListeners(target);
+    }
+
+    internal void DetachEntityListeners(Entity target)
+    {
+        if (IsSending || !HasNoUntypedListeners) base.UnlistenAll(target);
+        if (target.GetStateUnchecked() is { EventSink: not null, Host: { } host } state
+            && target.References(state) && ReferenceEquals(host.World, World)) {
+            state.EventSink = null;
         }
     }
 
