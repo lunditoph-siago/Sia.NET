@@ -6,7 +6,7 @@ public class BufferEntityHostTests
     public void Release_RemovesEntityBeforeInvalidatingItsHandle()
     {
         var buffer = new ReleaseOrderBuffer<HList<int, EmptyHList>>();
-        var host = new BufferEntityHost<HList<int, EmptyHList>, ReleaseOrderBuffer<HList<int, EmptyHList>>>(buffer);
+        var host = BufferEntityHost<HList<int, EmptyHList>>.Create(buffer);
         var entity = host.Create(HList.From(1));
         buffer.Tracked = entity;
 
@@ -20,7 +20,7 @@ public class BufferEntityHostTests
     [Fact]
     public void Release_ReusesStateWithoutRevivingTheStaleHandle()
     {
-        var host = new BufferEntityHost<HList<int, EmptyHList>, ArrayBuffer<HList<int, EmptyHList>>>(
+        var host = BufferEntityHost<HList<int, EmptyHList>>.Create(
             new ArrayBuffer<HList<int, EmptyHList>>());
         var stale = host.Create(HList.From(1));
         var staleId = stale.Id;
@@ -45,7 +45,7 @@ public class BufferEntityHostTests
     [Fact]
     public void Dispose_InvalidatesEveryEntityHandle()
     {
-        var host = new BufferEntityHost<HList<int, EmptyHList>, ArrayBuffer<HList<int, EmptyHList>>>(
+        var host = BufferEntityHost<HList<int, EmptyHList>>.Create(
             new ArrayBuffer<HList<int, EmptyHList>>());
         var first = host.Create(HList.From(1));
         var second = host.Create(HList.From(2));
@@ -91,9 +91,9 @@ public class BufferEntityHostTests
     [Fact]
     public void EntityIds_RemainUniqueAcrossPoolsAndDirectAllocation()
     {
-        using var first = new BufferEntityHost<HList<int, EmptyHList>, ArrayBuffer<HList<int, EmptyHList>>>(
+        using var first = BufferEntityHost<HList<int, EmptyHList>>.Create(
             new ArrayBuffer<HList<int, EmptyHList>>());
-        using var second = new BufferEntityHost<HList<int, EmptyHList>, ArrayBuffer<HList<int, EmptyHList>>>(
+        using var second = BufferEntityHost<HList<int, EmptyHList>>.Create(
             new ArrayBuffer<HList<int, EmptyHList>>());
         var ids = new HashSet<EntityId>();
 
