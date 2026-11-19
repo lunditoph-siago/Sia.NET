@@ -4,7 +4,6 @@ public abstract class SnapshotExtractSystem<TExtract> : SystemBase
     where TExtract : unmanaged
 {
     private IEntityQuery? _extractQuery;
-    private bool _ownsQuery;
     private WorldSnapshot<TExtract> _snapshot = WorldSnapshot<TExtract>.Empty;
     private long _version;
     private World _extractWorld = null!;
@@ -28,10 +27,7 @@ public abstract class SnapshotExtractSystem<TExtract> : SystemBase
 
     public override void Uninitialize(World world)
     {
-        if (_ownsQuery && _extractQuery is not null) {
-            _extractQuery.Dispose();
-            _ownsQuery = false;
-        }
+        if (_extractQuery is World.EntityQuery ownedQuery) ownedQuery.Dispose();
         _extractQuery = null;
         _extractWorld = null!;
     }
@@ -47,10 +43,8 @@ public abstract class SnapshotExtractSystem<TExtract> : SystemBase
         }
 
         if (_extractQuery is null) {
-            _ownsQuery = ExtractMatcher != Matchers.Any;
-            _extractQuery = _ownsQuery
-                ? _extractWorld.Query(ExtractMatcher)
-                : _extractWorld;
+            var matcher = ExtractMatcher;
+            _extractQuery = matcher == Matchers.Any ? _extractWorld : _extractWorld.Query(matcher, cache: false);
         }
 
         var count = _extractQuery.Count;

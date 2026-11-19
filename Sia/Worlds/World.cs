@@ -38,6 +38,7 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
                 || _clearingAddons || _addonOperations.Count != 0) {
                 throw new InvalidOperationException("Cannot dispose the world during host or addon lifecycle operations.");
             }
+            EnsureCanUninitializeAddons();
         }
         else if (_actor is { IsCompleted: false }) {
             return;

@@ -305,7 +305,18 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
 
     internal Entity CreateOutput<TList>(in TList components)
         where TList : struct, IHList
-        => World.Create(components);
+    {
+        var host = World.GetArrayHost<TList>();
+        Entity output = default;
+        try {
+            return host.Create(components, out output);
+        }
+        catch (Exception error) {
+            return Outcome<Exception>.Failure(error)
+                .Attempt(output, ReleaseEntity)
+                .ThrowFailure<Entity>();
+        }
+    }
 
     internal Entity CreateNode<T>(in T component)
         => CreateGraphEntity(HList.From(component));
@@ -653,7 +664,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             }
             if (runtime != null) {
                 result = result.Attempt(runtime,
-                    static (in SystemStage stage) => stage.Dispose());
+                    static (in SystemStage stage) => stage.RequestDisposal());
             }
         }
         else if (entity.ContainsUnchecked<ScheduleNode>()) {
@@ -686,9 +697,12 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             result = result.Attempt(entity.GetUnchecked<EffectNode>().Cleanup,
                 static (in IEffectCleanup cleanup) => cleanup.Unmount());
         }
-        result = result.Attempt(entity, static (in Entity e) => e.Destroy());
+        result = result.Attempt(entity, ReleaseEntity);
         return result;
     }
+
+    private static void ReleaseEntity(in Entity entity)
+        => entity.Host?.Release(entity);
 
     private Outcome<Exception> FinalizeCellFrame(
         in DestroyFrame frame, Outcome<Exception> result)
@@ -697,7 +711,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             result = result.Attempt(states,
                 static (in StateCells cells) => cells.Unmount());
         }
-        result = result.Attempt(frame.Owner, static (in Entity entity) => entity.Destroy());
+        result = result.Attempt(frame.Owner, ReleaseEntity);
         if (result.IsSuccess) {
             ReturnCellSlots(frame.Slots);
         }
@@ -707,7 +721,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
     private Outcome<Exception> FinalizeEachNodeFrame(
         in DestroyFrame frame, Outcome<Exception> result)
     {
-        result = result.Attempt(frame.Owner, static (in Entity entity) => entity.Destroy());
+        result = result.Attempt(frame.Owner, ReleaseEntity);
         ReturnDestroyChildren(frame.Children!);
         if (result.IsSuccess && frame.Recyclable != null) {
             ReturnEachIndex(frame.Recyclable);
@@ -836,17 +850,17 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         result = result.Attempt(() => registry.Registration?.Dispose());
         registry.Registration = null;
 
-        var disposed = new HashSet<SystemStage>();
+        var requestedStages = new HashSet<SystemStage>();
         for (var i = registry.RuntimeOrder.Length - 1; i >= 0; i--) {
             var runtime = registry.RuntimeOrder[i];
-            if (disposed.Add(runtime)) {
-                result = result.Attempt(runtime.Dispose);
+            if (requestedStages.Add(runtime)) {
+                result = result.Attempt(runtime.RequestDisposal);
             }
         }
         for (var i = registry.Slots.Count - 1; i >= 0; i--) {
             var runtime = registry.Slots[i].Runtime;
-            if (runtime != null && disposed.Add(runtime)) {
-                result = result.Attempt(runtime.Dispose);
+            if (runtime is not null && requestedStages.Add(runtime)) {
+                result = result.Attempt(runtime.RequestDisposal);
             }
         }
         registry.Slots.Clear();

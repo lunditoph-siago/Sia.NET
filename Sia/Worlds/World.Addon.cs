@@ -68,6 +68,7 @@ public partial class World
         EnsureOwnerThread();
         var index = WorldAddonIndexer<TAddon>.Index;
         if (_addons[index] is not { } addon) return false;
+        addon.EnsureCanUninitialize();
         _addonOperations.Add(index);
         _addons[index] = null;
         _addonCount--;
@@ -150,6 +151,7 @@ public partial class World
         if (_clearingAddons || _addonOperations.Count != 0) {
             throw new InvalidOperationException("Cannot clear addons during addon initialization or removal.");
         }
+        EnsureCanUninitializeAddons();
 
         var addons = new List<IAddon>(_addonCount);
         for (var i = 0; addons.Count < _addonCount; ++i) {
@@ -172,6 +174,13 @@ public partial class World
         }
         finally {
             _clearingAddons = false;
+        }
+    }
+
+    private void EnsureCanUninitializeAddons()
+    {
+        foreach (var addon in Addons) {
+            addon.EnsureCanUninitialize();
         }
     }
 }

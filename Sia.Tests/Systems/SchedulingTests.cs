@@ -487,6 +487,47 @@ public class SchedulingTests
         Assert.True(registration.IsAttached);
     }
 
+    [Theory]
+    [InlineData(nameof(World.RemoveAddon))]
+    [InlineData(nameof(World.ClearAddons))]
+    [InlineData(nameof(World.Dispose))]
+    public void Scheduler_RejectsWorldTeardownDuringConfiguration(string operation)
+    {
+        using var world = new World();
+        var entity = world.Create();
+        var scheduler = world.AcquireAddon<Scheduler>();
+        var callbacks = new List<string>();
+        using var registration = scheduler.RegisterSource(new CallbackScheduleSource("source", callbacks));
+        var label = new ScheduleLabel("guard");
+        var removed = 0;
+        world.OnAddonRemoved += _ => removed++;
+        Action teardown = operation switch {
+            nameof(World.RemoveAddon) => () => world.RemoveAddon<Scheduler>(),
+            nameof(World.ClearAddons) => world.ClearAddons,
+            nameof(World.Dispose) => world.Dispose,
+            _ => throw new ArgumentOutOfRangeException(nameof(operation))
+        };
+
+        Assert.Throws<InvalidOperationException>(() => scheduler.ConfigureSchedule(label, schedule => {
+            teardown();
+            return schedule;
+        }));
+
+        Assert.Same(scheduler, world.GetAddon<Scheduler>());
+        Assert.False(scheduler.IsDisposed);
+        Assert.False(world.IsDisposed);
+        Assert.True(entity.IsValid);
+        Assert.True(registration.IsAttached);
+        Assert.Null(scheduler.TryGet(label));
+        Assert.Equal(0, removed);
+
+        scheduler.ConfigureSchedule(label, static schedule => schedule.AsManual());
+        Assert.True(world.RemoveAddon<Scheduler>());
+        Assert.True(scheduler.IsDisposed);
+        Assert.False(registration.IsAttached);
+        Assert.Equal(1, removed);
+    }
+
     [Fact]
     public void Scheduler_DisposeDetachesAllParticipantsAndAggregatesFailures()
     {

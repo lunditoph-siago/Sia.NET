@@ -49,6 +49,46 @@ public class ReactorHooksInteropTests(QueryTestHelpers helpers) : IClassFixture<
         Assert.Equal(0, removedCalls);
     }
 
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    public void QuerySubscription_PendingReplayTracksCommittedMigration(bool abort, bool reenter)
+    {
+        using var world = new World();
+        var first = world.Create(HList.From(new Marker()));
+        var pending = world.Create(HList.From(new Marker()));
+        var host = (IReactiveEntityHost)first.Host!;
+        var query = world.Query<TypeUnion<Marker>>();
+        var added = new List<Entity>();
+        var removed = new List<Entity>();
+        var failure = new InvalidOperationException("abort move");
+        EntityMigrationHandler rejectMove = (_, _) => throw failure;
+
+        using var subscription = new QuerySubscription(query, entity => {
+            added.Add(entity);
+            if (entity != first) return;
+            if (abort) {
+                host.OnEntityMovedOut += rejectMove;
+                try {
+                    Assert.Same(failure, Assert.Throws<InvalidOperationException>(() => pending.Remove<Marker>()));
+                }
+                finally {
+                    host.OnEntityMovedOut -= rejectMove;
+                }
+            }
+            else {
+                pending.Remove<Marker>();
+                if (reenter) pending.Add<Marker>();
+            }
+        }, removed.Add);
+
+        Entity[] expected = abort || reenter ? [first, pending] : [first];
+        Assert.Equal(expected, added);
+        Assert.Empty(removed);
+        Assert.Equal(expected.Length, query.Count);
+    }
+
     [Fact]
     public void QuerySubscription_HostRemovalDetachesBeforeCallbacks()
     {

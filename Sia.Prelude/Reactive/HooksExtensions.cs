@@ -111,6 +111,6 @@ public static class HooksExtensions
                 return new GlobalEventSubscription<TEvent>(world, Listener);
             },
             static (in GlobalEventSubscription<TEvent> subscription) =>
-                subscription.World.Dispatcher.Unlisten(subscription.Listener));
+                subscription.World.Dispatcher.RetireListener(subscription.Listener));
     }
 }

@@ -23,37 +23,26 @@ public abstract class ExtractSystemBase(
     IEntityMatcher? extractMatcher = null)
     : SystemBase(matcher, trigger, filter, children)
 {
-    private World _parentWorld = null!;
     private IEntityQuery _parentQuery = null!;
     private ExtractQuery _extract = null!;
-    private bool _ownsParentQuery;
 
     public override void Initialize(World world)
     {
-        _parentWorld = world.TryGetAddon<IWorldSource>(out var source)
+        var parentWorld = world.TryGetAddon<IWorldSource>(out var source)
             ? source.Source
             : world;
-        _ownsParentQuery = extractMatcher is not null && extractMatcher != Matchers.Any;
-
-        if (_ownsParentQuery) {
-            _parentQuery = _parentWorld.Query(extractMatcher!);
-        }
-        else {
-            _parentQuery = _parentWorld;
-        }
+        _parentQuery = extractMatcher is null || extractMatcher == Matchers.Any
+            ? parentWorld
+            : parentWorld.Query(extractMatcher, cache: false);
 
         _extract = new ExtractQuery(_parentQuery);
     }
 
     public override void Uninitialize(World world)
     {
-        if (_ownsParentQuery) {
-            _parentQuery.Dispose();
-            _ownsParentQuery = false;
-        }
+        if (_parentQuery is World.EntityQuery ownedQuery) ownedQuery.Dispose();
         _parentQuery = null!;
         _extract = null!;
-        _parentWorld = null!;
     }
 
     public sealed override void Execute(WorldContext context, IEntityQuery query)

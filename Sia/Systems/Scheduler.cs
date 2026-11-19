@@ -111,6 +111,7 @@ public sealed class Scheduler : IAddon, IDisposable
     private World _world = null!;
 
     void IAddon.OnInitialize(World world) => _world = world;
+    void IAddon.EnsureCanUninitialize() => EnsureCanDispose();
     void IAddon.OnUninitialize(World world) => Dispose();
 
     public Scheduler AddSchedule(Schedule schedule)
@@ -134,7 +135,8 @@ public sealed class Scheduler : IAddon, IDisposable
         var current = _slots.TryGetValue(label, out var existing)
             ? existing.Schedule
             : null;
-        var schedule = configure(current ?? new Schedule(label));
+        Schedule schedule = null!;
+        InvokeLifecycle(() => schedule = configure(current ?? new Schedule(label)));
         if (schedule.Label != label) {
             throw new ArgumentException(
                 "A schedule configuration cannot change its label.",
@@ -223,14 +225,8 @@ public sealed class Scheduler : IAddon, IDisposable
                 EnsureSlotPlan(slot);
             }
         }
-        catch {
-            foreach (var slot in _registrationOrder) {
-                slot.Stage?.Dispose();
-                slot.Stage = null;
-                slot.RuntimeOrder = [];
-                slot.VersionSnapshot = [];
-                slot.RuntimePlanDirty = true;
-            }
+        catch (Exception error) {
+            InvalidateStages(Outcome<Exception>.Failure(error));
             throw;
         }
 
@@ -316,10 +312,7 @@ public sealed class Scheduler : IAddon, IDisposable
         if (IsDisposed) {
             return;
         }
-        if (_phase != SchedulerPhase.Idle || _lifecycleCallbackDepth != 0) {
-            throw new InvalidOperationException(
-                "The scheduler cannot be disposed during a tick or lifecycle callback.");
-        }
+        EnsureCanDispose();
         IsDisposed = true;
 
         var detachedEntries = new List<(IScheduleEntry Entry, ScheduleLabel Label)>();
@@ -373,6 +366,14 @@ public sealed class Scheduler : IAddon, IDisposable
         result.ThrowIfFailed();
     }
 
+    private void EnsureCanDispose()
+    {
+        if (!IsDisposed && (_phase != SchedulerPhase.Idle || _lifecycleCallbackDepth != 0)) {
+            throw new InvalidOperationException(
+                "The scheduler cannot be disposed during a tick or lifecycle callback.");
+        }
+    }
+
     private void DetachSource(SourceRegistration registration)
     {
         if (!registration.TryDeactivate(out var source)) {
@@ -405,6 +406,7 @@ public sealed class Scheduler : IAddon, IDisposable
 
     private void BeginTick()
     {
+        _world.EnsureOwnerThread();
         if (_phase != SchedulerPhase.Idle || _lifecycleCallbackDepth != 0) {
             throw new InvalidOperationException(
                 "Scheduler ticks cannot be nested or started from a lifecycle callback.");
@@ -442,7 +444,11 @@ public sealed class Scheduler : IAddon, IDisposable
     [MethodImpl(MethodImplOptions.NoInlining)]
     private void BuildSlotPlan(ScheduleSlot slot)
     {
-        EnsureStage(slot);
+        if (slot.Stage is null && slot.Schedule is { } schedule
+            && !schedule.Chain.Entries.IsEmpty) {
+            InvokeLifecycle(() => slot.Stage = schedule.Build(_world));
+        }
+
         var nodes = new List<RuntimeNode>();
         var systems = new List<SystemChain.Entry?>();
         var hasDynamicSystems = slot.Entries.Any(static registration =>
@@ -528,14 +534,6 @@ public sealed class Scheduler : IAddon, IDisposable
         return false;
     }
 
-    private void EnsureStage(ScheduleSlot slot)
-    {
-        if (slot.Stage is null && slot.Schedule is { } schedule
-            && !schedule.Chain.Entries.IsEmpty) {
-            slot.Stage = schedule.Build(_world);
-        }
-    }
-
     private ScheduleSlot GetOrCreateSlot(ScheduleLabel label)
     {
         if (!_slots.TryGetValue(label, out var slot)) {
@@ -547,12 +545,13 @@ public sealed class Scheduler : IAddon, IDisposable
         return slot;
     }
 
-    private void InvalidateStages()
+    private void InvalidateStages(Outcome<Exception> outcome = default)
     {
-        var result = Outcome<Exception>.Success;
+        List<SystemStage>? stagesToDispose = null;
+
         foreach (var slot in _registrationOrder) {
             if (slot.Stage is { } stage) {
-                result = result.Attempt(stage.Dispose);
+                (stagesToDispose ??= []).Add(stage);
                 slot.Stage = null;
             }
             slot.RuntimeOrder = [];
@@ -560,7 +559,13 @@ public sealed class Scheduler : IAddon, IDisposable
             slot.RuntimePlanDirty = true;
         }
         _planValid = false;
-        result.ThrowIfFailed();
+
+        if (stagesToDispose is not null) {
+            foreach (var stage in stagesToDispose) {
+                outcome = outcome.Attempt(() => InvokeLifecycle(stage.Dispose));
+            }
+        }
+        outcome.ThrowIfFailed();
     }
 
     private void MarkEntriesForCompaction(ScheduleSlot slot)
@@ -609,7 +614,8 @@ public sealed class Scheduler : IAddon, IDisposable
 
     private void EnsureScheduleMutable()
     {
-        if (_phase is SchedulerPhase.BeforeSchedule or SchedulerPhase.Executing) {
+        if (_lifecycleCallbackDepth != 0
+            || _phase is SchedulerPhase.BeforeSchedule or SchedulerPhase.Executing) {
             throw new InvalidOperationException(
                 "Schedules can only be changed while idle or from OnBeginTick.");
         }
