@@ -103,14 +103,10 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
 
     internal bool RetireListener(IEventListener<TTarget> listener)
     {
+        if (!IsSending) return _globalListeners.Remove(listener);
         var index = _globalListeners.IndexOf(listener);
         if (index < 0) return false;
-        if (IsSending) {
-            RemoveListener(_globalListeners, index, _globalListeners.Count, deferred: true);
-        }
-        else {
-            _globalListeners.RemoveAt(index);
-        }
+        RemoveListener(_globalListeners, index, _globalListeners.Count, deferred: true);
         return true;
     }
 
@@ -323,12 +319,8 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
         }
         _sendDepth--;
         if (_sendDepth == 0) {
-            if (_pendingListenerCompactions is { Count: > 0 }) {
-                CompleteSend();
-            }
-            else {
-                FlushAfterSendActions();
-            }
+            if (_pendingListenerCompactions is { Count: > 0 }) CompleteSend();
+            else FlushAfterSendActions();
         }
     }
 
@@ -366,11 +358,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
             var lastIndex = length - 1;
             if (index != lastIndex) listeners[index] = listeners[lastIndex];
             listeners.RemoveAt(lastIndex);
-            if (listeners.Targeted && listeners.Count == 0) {
-                _targetListeners.Remove(listeners.Key);
-                listeners.Key = default!;
-                _targetListenersPool.Push(listeners);
-            }
+            if (listeners.Targeted && listeners.Count == 0) RecycleTargetListeners(listeners);
             return true;
         }
 
@@ -382,6 +370,13 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
         return false;
     }
 
+    private void RecycleTargetListeners(ListenerList listeners)
+    {
+        _targetListeners.Remove(listeners.Key);
+        listeners.Key = default!;
+        _targetListenersPool.Push(listeners);
+    }
+
     private void CompactListenerLists()
     {
         if (_pendingListenerCompactions is not { Count: > 0 } lists) return;
@@ -391,11 +386,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
                 try {
                     listeners.RemoveAll(static listener => listener is null);
                     listeners.NeedsCompaction = false;
-                    if (listeners.Targeted && listeners.Count == 0) {
-                        _targetListeners.Remove(listeners.Key);
-                        listeners.Key = default!;
-                        _targetListenersPool.Push(listeners);
-                    }
+                    if (listeners.Targeted && listeners.Count == 0) RecycleTargetListeners(listeners);
                 }
                 catch (Exception error) {
                     result = result.Combine(Outcome<Exception>.Failure(error));
