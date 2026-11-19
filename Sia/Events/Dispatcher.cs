@@ -9,38 +9,15 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
     public delegate bool Listener<UEvent>(TTarget target, in UEvent e)
         where UEvent : TEvent;
 
-    private interface IListenerList
-    {
-        bool Retire(int index);
-        void Compact();
-    }
-
-    private class ListenerList<T> : List<T?>, IListenerList where T : class
-    {
-        public bool NeedsCompaction { get; set; }
-
-        public bool Retire(int index)
-        {
-            this[index] = null;
-            if (NeedsCompaction) return false;
-            NeedsCompaction = true;
-            return true;
-        }
-
-        public void Compact()
-        {
-            RemoveAll(static listener => listener is null);
-            NeedsCompaction = false;
-        }
-    }
-
-    private sealed class TargetListenerList : ListenerList<IEventListener<TTarget>>
+    private sealed class ListenerList : List<object?>
     {
         public TKey Key { get; set; } = default!;
+        public bool Targeted { get; init; }
+        public bool NeedsCompaction { get; set; }
     }
 
     private int _sendDepth;
-    private List<IListenerList>? _pendingListenerCompactions;
+    private List<ListenerList>? _pendingListenerCompactions;
     private List<Action>? _afterSendActions;
     private int _afterSendActionIndex;
     private bool _flushingAfterSendActions;
@@ -49,9 +26,9 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
 
     public int PendingAfterSendActionCount => (_afterSendActions?.Count ?? 0) - _afterSendActionIndex;
 
-    private readonly ListenerList<IEventListener<TTarget>> _globalListeners = [];
+    private readonly ListenerList _globalListeners = [];
     private readonly ArrayBuffer<object> _eventListeners = new();
-    private readonly Dictionary<TKey, TargetListenerList> _targetListeners = [];
+    private readonly Dictionary<TKey, ListenerList> _targetListeners = [];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool HasNoListeners<UEvent>() where UEvent : TEvent
@@ -59,10 +36,10 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
         if (_globalListeners.Count != 0 || _targetListeners.Count != 0) return false;
         ref var listeners = ref _eventListeners.GetRefOrNullRef(EventTypeIndexer<UEvent>.Index);
         return Unsafe.IsNullRef(ref listeners) || listeners is null
-            || Unsafe.As<List<Listener<UEvent>>>(listeners).Count == 0;
+            || Unsafe.As<ListenerList>(listeners).Count == 0;
     }
 
-    private readonly Stack<TargetListenerList> _targetListenersPool = new();
+    private readonly Stack<ListenerList> _targetListenersPool = new();
 
     protected abstract TKey GetKey(TTarget target);
 
@@ -76,7 +53,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
     {
         var typeIndex = EventTypeIndexer<UEvent>.Index;
 
-        ListenerList<Listener<UEvent>> listeners;
+        ListenerList listeners;
         ref var rawListeners = ref _eventListeners.GetRefOrNullRef(typeIndex);
 
         if (Unsafe.IsNullRef(ref rawListeners) || rawListeners == null) {
@@ -88,7 +65,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
             _eventListeners.GetRef(typeIndex) = listeners;
         }
         else {
-            listeners = (ListenerList<Listener<UEvent>>)rawListeners;
+            listeners = Unsafe.As<ListenerList>(rawListeners);
         }
 
         listeners.Add(listener);
@@ -98,7 +75,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
     {
         var key = GetKey(target);
         if (!_targetListeners.TryGetValue(key, out var listeners)) {
-            listeners = _targetListenersPool.TryPop(out var result) ? result : [];
+            listeners = _targetListenersPool.TryPop(out var result) ? result : new() { Targeted = true };
             listeners.Key = key;
             _targetListeners.Add(key, listeners);
         }
@@ -129,7 +106,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
         var index = _globalListeners.IndexOf(listener);
         if (index < 0) return false;
         if (IsSending) {
-            MarkListenerForRemoval(_globalListeners, index);
+            RemoveListener(_globalListeners, index, _globalListeners.Count, deferred: true);
         }
         else {
             _globalListeners.RemoveAt(index);
@@ -147,24 +124,14 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
             return false;
         }
 
-        var listeners = (ListenerList<Listener<UEvent>>)rawListeners;
+        var listeners = Unsafe.As<ListenerList>(rawListeners);
         var index = listeners.IndexOf(listener);
 
         if (index == -1) {
             return false;
         }
 
-        if (IsSending) {
-            MarkListenerForRemoval(listeners, index);
-            return true;
-        }
-
-        var lastIndex = listeners.Count - 1;
-        if (index != lastIndex) {
-            listeners[index] = listeners[lastIndex];
-        }
-
-        listeners.RemoveAt(lastIndex);
+        RemoveListener(listeners, index, listeners.Count, deferred: IsSending);
         return true;
     }
 
@@ -191,16 +158,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
             return false;
         }
 
-        if (IsSending) {
-            MarkListenerForRemoval(listeners, index);
-            return true;
-        }
-
-        var lastIndex = listeners.Count - 1;
-        if (index != lastIndex) {
-            listeners[index] = listeners[lastIndex];
-        }
-        listeners.RemoveAt(lastIndex);
+        RemoveListener(listeners, index, listeners.Count, deferred: IsSending);
         return true;
     }
 
@@ -214,7 +172,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
         if (Unsafe.IsNullRef(ref rawListeners) || rawListeners == null) {
             return;
         }
-        var listeners = (List<Listener<UEvent>>)rawListeners;
+        var listeners = Unsafe.As<ListenerList>(rawListeners);
         listeners.Clear();
     }
 
@@ -246,7 +204,7 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
     {
         if (!EventTypeIndexState<UEvent>.TryGetIndex(out var index)) return true;
         ref var raw = ref _eventListeners.GetRefOrNullRef(index);
-        return Unsafe.IsNullRef(ref raw) || raw == null || Unsafe.As<List<Listener<UEvent>>>(raw).Count == 0;
+        return Unsafe.IsNullRef(ref raw) || raw == null || Unsafe.As<ListenerList>(raw).Count == 0;
     }
 
     public void RunAfterSend(Action action)
@@ -268,8 +226,8 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private void FlushAfterSendActions(Exception error)
-        => Outcome<Exception>.Failure(error)
+    private void CompleteSend(Exception? error = null)
+        => (error is null ? Outcome<Exception>.Success : Outcome<Exception>.Failure(error))
             .Attempt(this, static (in Dispatcher<TTarget, TKey, TEvent> dispatcher) => dispatcher.CompactListenerLists())
             .Attempt(this, static (in Dispatcher<TTarget, TKey, TEvent> dispatcher) => dispatcher.FlushAfterSendActions())
             .ThrowIfFailed();
@@ -321,18 +279,18 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
         var globalListeners = _globalListeners;
         var globalListenerCount = globalListeners.Count;
 
-        ListenerList<Listener<UEvent>>? eventListeners = null;
+        ListenerList? eventListeners = null;
         var eventListenerCount = 0;
         if (_eventListeners.Count != 0) {
             ref var rawEventListeners = ref _eventListeners.GetRefOrNullRef(
                 EventTypeIndexer<UEvent>.Index);
             if (!Unsafe.IsNullRef(ref rawEventListeners) && rawEventListeners != null) {
-                eventListeners = Unsafe.As<ListenerList<Listener<UEvent>>>(rawEventListeners);
+                eventListeners = Unsafe.As<ListenerList>(rawEventListeners);
                 eventListenerCount = eventListeners.Count;
             }
         }
 
-        TargetListenerList? targetListeners = null;
+        ListenerList? targetListeners = null;
         var targetListenerCount = 0;
         if (_targetListeners.Count != 0
             && _targetListeners.TryGetValue(GetKey(target), out targetListeners)) {
@@ -349,24 +307,24 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
                 ExecuteListeners(target, globalListeners, e, globalListenerCount);
             }
             if (eventListenerCount != 0) {
-                ExecuteListeners(target, eventListeners!, e, eventListenerCount);
+                ExecuteTypedListeners(target, eventListeners!, e, eventListenerCount);
             }
             owner?.OnEvent(target, e);
             if (targetListenerCount != 0) {
-                ExecuteListeners(target, targetListeners!, e, targetListenerCount, targeted: true);
+                ExecuteListeners(target, targetListeners!, e, targetListenerCount);
             }
         }
         catch (Exception error) {
             _sendDepth--;
             if (_sendDepth == 0) {
-                FlushAfterSendActions(error);
+                CompleteSend(error);
             }
             throw;
         }
         _sendDepth--;
         if (_sendDepth == 0) {
             if (_pendingListenerCompactions is { Count: > 0 }) {
-                CompactAfterSendActions();
+                CompleteSend();
             }
             else {
                 FlushAfterSendActions();
@@ -376,64 +334,53 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void ExecuteListeners<UEvent>(
-        TTarget target, ListenerList<IEventListener<TTarget>> listeners, in UEvent e, int length, bool targeted = false)
+        TTarget target, ListenerList listeners, in UEvent e, int length)
         where UEvent : TEvent
     {
         for (var i = 0; i < length; ++i) {
-            if (listeners[i] is { } listener && listener.OnEvent(target, e)) {
-                if (_sendDepth == 1 && !listeners.NeedsCompaction) {
-                    var lastIndex = --length;
-                    if (i != lastIndex) listeners[i] = listeners[lastIndex];
-                    listeners.RemoveAt(lastIndex);
-                    i--;
-                    if (targeted && listeners.Count == 0) {
-                        var targetListeners = Unsafe.As<TargetListenerList>(listeners);
-                        _targetListeners.Remove(targetListeners.Key);
-                        targetListeners.Key = default!;
-                        _targetListenersPool.Push(targetListeners);
-                    }
-                }
-                else {
-                    MarkListenerForRemoval(listeners, i);
-                }
+            if (listeners[i] is { } listener && Unsafe.As<IEventListener<TTarget>>(listener).OnEvent(target, e)
+                && RemoveListener(listeners, i, length, deferred: _sendDepth != 1)) {
+                length--;
+                i--;
             }
         }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void ExecuteListeners<UEvent>(
-        TTarget target, ListenerList<Listener<UEvent>> listeners, in UEvent e, int length)
+    private void ExecuteTypedListeners<UEvent>(
+        TTarget target, ListenerList listeners, in UEvent e, int length)
         where UEvent : TEvent
     {
         for (var i = 0; i < length; ++i) {
-            if (listeners[i] is { } listener && listener(target, e)) {
-                if (_sendDepth == 1 && !listeners.NeedsCompaction) {
-                    var lastIndex = --length;
-                    if (i != lastIndex) listeners[i] = listeners[lastIndex];
-                    listeners.RemoveAt(lastIndex);
-                    i--;
-                }
-                else {
-                    MarkListenerForRemoval(listeners, i);
-                }
+            if (listeners[i] is { } listener && Unsafe.As<Listener<UEvent>>(listener)(target, e)
+                && RemoveListener(listeners, i, length, deferred: _sendDepth != 1)) {
+                length--;
+                i--;
             }
         }
     }
 
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private void MarkListenerForRemoval(IListenerList listeners, int index)
+    private bool RemoveListener(ListenerList listeners, int index, int length, bool deferred)
     {
-        if (listeners.Retire(index)) {
-            (_pendingListenerCompactions ??= []).Add(listeners);
+        if (!deferred && !listeners.NeedsCompaction) {
+            var lastIndex = length - 1;
+            if (index != lastIndex) listeners[index] = listeners[lastIndex];
+            listeners.RemoveAt(lastIndex);
+            if (listeners.Targeted && listeners.Count == 0) {
+                _targetListeners.Remove(listeners.Key);
+                listeners.Key = default!;
+                _targetListenersPool.Push(listeners);
+            }
+            return true;
         }
-    }
 
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private void CompactAfterSendActions()
-        => Outcome<Exception>.Success
-            .Attempt(this, static (in Dispatcher<TTarget, TKey, TEvent> dispatcher) => dispatcher.CompactListenerLists())
-            .Attempt(this, static (in Dispatcher<TTarget, TKey, TEvent> dispatcher) => dispatcher.FlushAfterSendActions())
-            .ThrowIfFailed();
+        listeners[index] = null;
+        if (!listeners.NeedsCompaction) {
+            (_pendingListenerCompactions ??= []).Add(listeners);
+            listeners.NeedsCompaction = true;
+        }
+        return false;
+    }
 
     private void CompactListenerLists()
     {
@@ -442,11 +389,12 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
         try {
             foreach (var listeners in lists) {
                 try {
-                    listeners.Compact();
-                    if (listeners is TargetListenerList { Count: 0 } targetListeners) {
-                        _targetListeners.Remove(targetListeners.Key);
-                        targetListeners.Key = default!;
-                        _targetListenersPool.Push(targetListeners);
+                    listeners.RemoveAll(static listener => listener is null);
+                    listeners.NeedsCompaction = false;
+                    if (listeners.Targeted && listeners.Count == 0) {
+                        _targetListeners.Remove(listeners.Key);
+                        listeners.Key = default!;
+                        _targetListenersPool.Push(listeners);
                     }
                 }
                 catch (Exception error) {
