@@ -139,13 +139,22 @@ public sealed class QuerySubscription : IDisposable
         }
 
         try {
+            var hostIndex = -1;
             while (cursor.SnapshotIndex < snapshots.Length && !_disposed) {
                 var entities = snapshots[cursor.SnapshotIndex].Entities;
                 while (cursor.EntityIndex < entities.Length && !_disposed) {
                     var entity = entities[cursor.EntityIndex++];
-                    if ((_pendingEntities?.Remove(entity) ?? true)
-                        && entity.Host is IReactiveEntityHost host
-                        && _memberHosts.Contains(host)) {
+                    if (_pendingEntities?.Remove(entity) == false
+                        || entity.Host is not { } host) {
+                        continue;
+                    }
+                    if ((uint)hostIndex >= (uint)_memberHosts.Count
+                        || !ReferenceEquals(host, _memberHosts[hostIndex])) {
+                        hostIndex = host is IReactiveEntityHost reactive
+                            ? _memberHosts.IndexOf(reactive)
+                            : -1;
+                    }
+                    if (hostIndex >= 0) {
                         _onAdded(entity);
                     }
                 }
@@ -242,8 +251,8 @@ public sealed class QuerySubscription : IDisposable
         _disposed = true;
 
         var result = Outcome<Exception>.Success
-            .Attempt(() => Query.OnEntityHostAdded -= OnHostAdded)
-            .Attempt(() => Query.OnEntityHostRemoved -= OnHostRemoved);
+            .Attempt(this, static (in subscription) => subscription.Query.OnEntityHostAdded -= subscription.OnHostAdded)
+            .Attempt(this, static (in subscription) => subscription.Query.OnEntityHostRemoved -= subscription.OnHostRemoved);
         foreach (var host in _memberHosts) {
             result = DetachHost(host, result);
         }
@@ -256,9 +265,12 @@ public sealed class QuerySubscription : IDisposable
     private Outcome<Exception> DetachHost(
         IReactiveEntityHost host,
         Outcome<Exception> result)
-        => result
-            .Attempt(() => host.OnEntityCreated -= HandleAdded)
-            .Attempt(() => host.OnEntityReleased -= HandleRemoved)
-            .Attempt(() => host.OnEntityMovedOut -= HandleMovedOut)
-            .Attempt(() => host.OnEntityMovedIn -= HandleMovedIn);
+    {
+        var state = (subscription: this, host);
+        return result
+            .Attempt(state, static (in item) => item.host.OnEntityCreated -= item.subscription.HandleAdded)
+            .Attempt(state, static (in item) => item.host.OnEntityReleased -= item.subscription.HandleRemoved)
+            .Attempt(state, static (in item) => item.host.OnEntityMovedOut -= item.subscription.HandleMovedOut)
+            .Attempt(state, static (in item) => item.host.OnEntityMovedIn -= item.subscription.HandleMovedIn);
+    }
 }

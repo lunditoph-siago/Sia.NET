@@ -151,6 +151,7 @@ public partial class World
         if (_clearingAddons || _addonOperations.Count != 0) {
             throw new InvalidOperationException("Cannot clear addons during addon initialization or removal.");
         }
+        if (_addonCount == 0) return;
         EnsureCanUninitializeAddons();
 
         var addons = new List<IAddon>(_addonCount);
@@ -179,8 +180,11 @@ public partial class World
 
     private void EnsureCanUninitializeAddons()
     {
-        foreach (var addon in Addons) {
-            addon.EnsureCanUninitialize();
+        for (int i = 0, addonAcc = 0; addonAcc < _addonCount; ++i) {
+            if (_addons[i] is { } addon) {
+                addonAcc++;
+                addon.EnsureCanUninitialize();
+            }
         }
     }
 }

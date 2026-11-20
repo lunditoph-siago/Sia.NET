@@ -515,13 +515,21 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
 
     private void Execute(WorldContext context, bool applyCommands, int? systemIndex = null)
     {
-        BeginExecution();
+        var world = World;
+        world.EnsureOwnerThread();
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
+        ObjectDisposedException.ThrowIf(world.IsDisposed, world);
+        if (_executionInProgress) {
+            throw new InvalidOperationException("The system stage is already executing.");
+        }
+        _executionInProgress = true;
+
         Exception? executionError = null;
         try {
             var action = systemIndex is { } index ? Entries[index].Action : _combinedAction;
             action?.Invoke(context);
             if (applyCommands) {
-                World.Commands.Apply(World);
+                world.Commands.Apply(world);
             }
         }
         catch (Exception error) {
@@ -529,28 +537,14 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
             throw;
         }
         finally {
-            EndExecution(executionError);
+            _executionInProgress = false;
+            if (_disposalRequested) DisposeAfterExecution(executionError);
         }
     }
 
-    private void BeginExecution()
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void DisposeAfterExecution(Exception? executionError)
     {
-        World.EnsureOwnerThread();
-        ObjectDisposedException.ThrowIf(IsDisposed, this);
-        ObjectDisposedException.ThrowIf(World.IsDisposed, World);
-        if (_executionInProgress) {
-            throw new InvalidOperationException("The system stage is already executing.");
-        }
-        _executionInProgress = true;
-    }
-
-    private void EndExecution(Exception? executionError)
-    {
-        _executionInProgress = false;
-        if (!_disposalRequested) {
-            return;
-        }
-
         _disposalRequested = false;
         var outcome = executionError is null
             ? Outcome<Exception>.Success

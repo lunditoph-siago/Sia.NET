@@ -90,6 +90,25 @@ public class ReactorHooksInteropTests(QueryTestHelpers helpers) : IClassFixture<
     }
 
     [Fact]
+    public void QuerySubscription_SkipsInvalidatedEntitiesDuringReplay()
+    {
+        using var world = new World();
+        var first = world.Create(HList.From(new Marker()));
+        var pending = world.Create(HList.From(new Marker()));
+        var added = new List<Entity>();
+        using var subscription = new QuerySubscription(
+            world.Query<TypeUnion<Marker>>(),
+            entity => {
+                added.Add(entity);
+                if (entity == first) first.Host.Dispose();
+            },
+            _ => {});
+
+        Assert.False(pending.IsValid);
+        Assert.Equal([first], added);
+    }
+
+    [Fact]
     public void QuerySubscription_HostRemovalDetachesBeforeCallbacks()
     {
         using var world = new World();
