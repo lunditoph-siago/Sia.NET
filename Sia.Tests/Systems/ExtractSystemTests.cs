@@ -89,21 +89,37 @@ public sealed class FrameSnapshotSystem : SnapshotExtractSystem<FrameSnapshot>
 
 public class ExtractSystemTests
 {
-    private sealed class CountingMatcher : IEntityMatcher
+    private sealed class CountingMatcher(Action<IEntityHost>? onMatch = null) : IEntityMatcher
     {
         public int Calls { get; private set; }
 
         public bool Match(IEntityHost host)
         {
             Calls++;
+            onMatch?.Invoke(host);
             return true;
         }
     }
 
-    private sealed class TestExtractSystem(IEntityMatcher matcher)
+    private sealed class TestExtractSystem(
+        IEntityMatcher matcher, Action? beforeInitialize = null, Action? afterInitialize = null)
         : ExtractSystemBase(matcher: Matchers.Any, extractMatcher: matcher)
     {
         public int Count { get; private set; }
+        public int Uninitializations { get; private set; }
+
+        public override void Initialize(World world)
+        {
+            beforeInitialize?.Invoke();
+            base.Initialize(world);
+            afterInitialize?.Invoke();
+        }
+
+        public override void Uninitialize(World world)
+        {
+            Uninitializations++;
+            base.Uninitialize(world);
+        }
 
         public override void Execute(WorldContext context, IEntityQuery query, IEntityQuery extract)
             => Count = extract.Count;
@@ -284,6 +300,74 @@ public class ExtractSystemTests
         using var next = chain.CreateStage(world);
         next.Tick();
         Assert.Equal(2, system.Count);
+    }
+
+    [Fact]
+    public void ExtractSystemBase_FailedInitializationReleasesItsQueryAndAllowsRetry()
+    {
+        using var world = new World();
+        var matcher = new CountingMatcher();
+        var error = new InvalidOperationException("initialize");
+        var fail = true;
+        var system = new TestExtractSystem(matcher, afterInitialize: () => {
+            if (fail) throw error;
+        });
+        var chain = SystemChain.Empty.Add(() => system);
+
+        Assert.Same(error, Assert.Throws<InvalidOperationException>(() => chain.CreateStage(world)));
+        Assert.Equal(0, system.Uninitializations);
+        world.Create(HList.From(new Health(10)));
+        Assert.Equal(0, matcher.Calls);
+
+        fail = false;
+        using (var stage = chain.CreateStage(world)) {
+            stage.Tick();
+            Assert.Equal(1, system.Count);
+        }
+        Assert.Equal(1, system.Uninitializations);
+        world.Create(HList.From(new Damage(5)));
+        Assert.Equal(1, matcher.Calls);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ExtractSystemBase_RejectsReentrantInitializationAcrossWorlds(bool fromMatcher)
+    {
+        using var world = new World();
+        using var otherWorld = new World();
+        world.Create(HList.From(new Health(10)));
+        otherWorld.Create(HList.From(new Health(20)));
+        otherWorld.Create(HList.From(new Health(30)));
+        var chain = SystemChain.Empty;
+        var attempted = false;
+        void CreateOverlappingStage()
+        {
+            if (attempted) return;
+            attempted = true;
+            Assert.Throws<InvalidOperationException>(() => {
+                using var stage = chain.CreateStage(otherWorld);
+            });
+        }
+
+        var matcher = new CountingMatcher(host => {
+            if (fromMatcher && ReferenceEquals(host.World, world)) CreateOverlappingStage();
+        });
+        var system = new TestExtractSystem(matcher, beforeInitialize: fromMatcher ? null : CreateOverlappingStage);
+        chain = chain.Add(() => system);
+
+        using (var stage = chain.CreateStage(world)) {
+            Assert.True(attempted);
+            Assert.Equal(1, matcher.Calls);
+            stage.Tick();
+            Assert.Equal(1, system.Count);
+            world.Create(HList.From(new Damage(5)));
+            stage.Tick();
+            Assert.Equal(2, system.Count);
+        }
+        world.Create(HList.From(new Armor(5)));
+        otherWorld.Create(HList.From(new Armor(5)));
+        Assert.Equal(2, matcher.Calls);
     }
 
     [Fact]

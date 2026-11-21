@@ -23,30 +23,64 @@ public abstract class ExtractSystemBase(
     IEntityMatcher? extractMatcher = null)
     : SystemBase(matcher, trigger, filter, children)
 {
+    private enum InitializationPhase { Idle, Stage, Query }
+
+    private InitializationPhase _initialization;
     private IEntityQuery _parentQuery = null!;
     private ExtractQuery _extract = null!;
 
-    public override void Initialize(World world)
+    internal void InitializeForStage(World world)
     {
-        if (_parentQuery is not null) {
+        if (_initialization != InitializationPhase.Idle || _parentQuery is not null) {
             throw new InvalidOperationException("The extract system is already initialized.");
         }
 
-        var parentWorld = world.TryGetAddon<IWorldSource>(out var source)
-            ? source.Source
-            : world;
-        _parentQuery = extractMatcher is null || extractMatcher == Matchers.Any
-            ? parentWorld
-            : parentWorld.Query(extractMatcher, cache: false);
+        _initialization = InitializationPhase.Stage;
+        try {
+            ((ISystem)this).Initialize(world);
+        }
+        catch (Exception error) {
+            Outcome<Exception>.Failure(error)
+                .Attempt(this, static (in system) => system.ReleaseQuery())
+                .ThrowFailure();
+        }
+        finally {
+            _initialization = InitializationPhase.Idle;
+        }
+    }
 
-        _extract = new ExtractQuery(_parentQuery);
+    public override void Initialize(World world)
+    {
+        if (_initialization == InitializationPhase.Query || _parentQuery is not null) {
+            throw new InvalidOperationException("The extract system is already initialized.");
+        }
+
+        var previous = _initialization;
+        _initialization = InitializationPhase.Query;
+        try {
+            var parentWorld = world.TryGetAddon<IWorldSource>(out var source)
+                ? source.Source
+                : world;
+            _parentQuery = extractMatcher is null || extractMatcher == Matchers.Any
+                ? parentWorld
+                : parentWorld.Query(extractMatcher, cache: false);
+
+            _extract = new ExtractQuery(_parentQuery);
+        }
+        finally {
+            _initialization = previous;
+        }
     }
 
     public override void Uninitialize(World world)
+        => ReleaseQuery();
+
+    private void ReleaseQuery()
     {
-        if (_parentQuery is World.EntityQuery ownedQuery) ownedQuery.Dispose();
+        var query = _parentQuery;
         _parentQuery = null!;
         _extract = null!;
+        if (query is World.EntityQuery ownedQuery) ownedQuery.Dispose();
     }
 
     public sealed override void Execute(WorldContext context, IEntityQuery query)

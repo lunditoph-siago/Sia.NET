@@ -188,6 +188,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
 
         private readonly FrozenSet<Type> _filterTypes;
         private readonly bool _collectsOnEntityCreated;
+        private bool _disposed;
 
         public ReactiveQuery(
             IReactiveEntityQuery query, WorldDispatcher dispatcher,
@@ -334,6 +335,9 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
 
         private void OnEntityHostAdded(IReactiveEntityHost host)
         {
+            if (_disposed) {
+                return;
+            }
             Version++;
             var collectedHost = new CollectedEntityHost(host);
             _hosts.Add(collectedHost);
@@ -378,6 +382,10 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
 
         public void Dispose()
         {
+            if (_disposed) {
+                return;
+            }
+            _disposed = true;
             _query.OnEntityHostAdded -= OnEntityHostAdded;
             _query.OnEntityHostRemoved -= OnEntityHostRemoved;
 
@@ -457,7 +465,13 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
 
         for (var i = 0; i < Entries.Length; i++) {
             try {
-                Entries[i].System.Initialize(world);
+                var system = Entries[i].System;
+                if (system is ExtractSystemBase extract) {
+                    extract.InitializeForStage(world);
+                }
+                else {
+                    system.Initialize(world);
+                }
             }
             catch (Exception initializationError) {
                 DisposeInitialized(i, initializationError);

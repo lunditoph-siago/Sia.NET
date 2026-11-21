@@ -54,6 +54,9 @@ public class SystemStageLifecycleTests
             => ExecutionCount++;
     }
 
+    private sealed class AddedReactiveSystem(IEntityMatcher matcher)
+        : SystemBase(matcher, EventUnion.Of<WorldEvents.Add>());
+
     private sealed class CountingEventUnion : IEventUnion
     {
         public ITypeUnion EventTypes { get; } = new TypeUnion<ProbeEvent>();
@@ -194,5 +197,48 @@ public class SystemStageLifecycleTests
 
         Assert.Equal(1, trigger.HandleCount);
         Assert.Equal(2, system.ObservedCount);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DisposedStageIgnoresPendingHostAddedNotification(bool observerThrows)
+    {
+        using var world = new World();
+        var matcher = Matchers.Of<ProbeComponent>();
+        using var query = world.Query(matcher);
+        var error = new InvalidOperationException("host observer");
+        SystemStage? stage = null;
+        query.OnEntityHostAdded += _ => {
+            stage!.Dispose();
+            if (observerThrows) {
+                throw error;
+            }
+        };
+
+        using var createdStage = SystemChain.Empty
+            .Add(() => new AddedReactiveSystem(matcher))
+            .CreateStage(world);
+        stage = createdStage;
+        var collected = Assert.IsAssignableFrom<IEntityQuery>(Assert.Single(stage.Entries).Disposable);
+        IReactiveEntityHost? observedHost = null;
+        query.OnEntityHostAdded += host => observedHost = host;
+
+        if (observerThrows) {
+            var thrown = Assert.Throws<InvalidOperationException>(
+                () => world.GetArrayHost<HList<ProbeComponent, EmptyHList>>());
+            Assert.Same(error, thrown);
+        }
+        else {
+            world.GetArrayHost<HList<ProbeComponent, EmptyHList>>();
+        }
+
+        world.Create(HList.From(new ProbeComponent()));
+
+        Assert.True(stage.IsDisposed);
+        Assert.Same(Assert.Single(query.Hosts), observedHost);
+        Assert.Equal(1, query.Count);
+        Assert.Empty(collected.Hosts);
+        Assert.Equal(0, collected.Count);
     }
 }
