@@ -89,6 +89,28 @@ public sealed class FrameSnapshotSystem : SnapshotExtractSystem<FrameSnapshot>
 
 public class ExtractSystemTests
 {
+    private sealed class CountingMatcher : IEntityMatcher
+    {
+        public int Calls { get; private set; }
+
+        public bool Match(IEntityHost host)
+        {
+            Calls++;
+            return true;
+        }
+    }
+
+    private sealed class TestExtractSystem(IEntityMatcher matcher) : ExtractSystemBase(extractMatcher: matcher)
+    {
+        public override void Execute(WorldContext context, IEntityQuery query, IEntityQuery extract) {}
+    }
+
+    private sealed class TestSnapshotSystem(IEntityMatcher matcher) : SnapshotExtractSystem<int>
+    {
+        protected override IEntityMatcher ExtractMatcher => matcher;
+        protected override int Extract(Entity entity) => entity.Id.Value;
+    }
+
     private sealed class RenderThreadHarness : IDisposable
     {
         private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(5);
@@ -198,6 +220,36 @@ public class ExtractSystemTests
 
         Assert.Equal(3, system.Seen.Count);
         Assert.Equal([100, 200, 300], system.Seen.Select(entry => entry.Health).Order());
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void ExtractSystems_TeardownReleasesOnlyTheirQuery(bool snapshot, bool useSharedQuery)
+    {
+        using var world = new World();
+        var matcher = new CountingMatcher();
+        var sharedQuery = useSharedQuery ? world.Query(matcher) : null;
+        SystemBase system = snapshot ? new TestSnapshotSystem(matcher) : new TestExtractSystem(matcher);
+        system.Initialize(world);
+        if (system is TestSnapshotSystem extractor) extractor.RunExtract();
+
+        world.Create(HList.From(new Health(10)));
+        Assert.True(matcher.Calls > 0);
+        system.Uninitialize(world);
+
+        var calls = matcher.Calls;
+        world.Create(HList.From(new Damage(5)));
+        Assert.Equal(calls + (useSharedQuery ? 1 : 0), matcher.Calls);
+        if (sharedQuery is null) {
+            Assert.Empty(world.Queries);
+        }
+        else {
+            Assert.Same(sharedQuery, world.Query(matcher));
+            Assert.Equal(2, sharedQuery.Count);
+        }
     }
 
     [Fact]

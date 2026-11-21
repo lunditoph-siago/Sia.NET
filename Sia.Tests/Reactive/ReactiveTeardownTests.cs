@@ -6,6 +6,41 @@ namespace Sia.Tests.Reactive;
 
 public class ReactiveTeardownTests
 {
+    private readonly record struct FailedOutput;
+    private readonly record struct MountOutput : IEvent;
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FailedOutputCreation_ReleasesTheAcquiredEntity(bool duringSend)
+    {
+        using var world = new World();
+        world.AcquireAddon<Reconciler>();
+        var host = world.GetArrayHost<HList<FailedOutput, EmptyHList>>();
+        var failure = new InvalidOperationException("output observer failed");
+        host.OnEntityCreated += _ => throw failure;
+        var count = world.Count;
+
+        void Mount() => world.Mount(
+            static (in Unit _, ref Hooks _) => Entity(HList.From(new FailedOutput())), default(Unit));
+
+        if (duringSend) {
+            world.Dispatcher.Listen<MountOutput>((Entity _, in MountOutput _) => {
+                Mount();
+                return false;
+            });
+            Assert.Same(failure, Assert.Throws<InvalidOperationException>(
+                () => world.Dispatcher.Send(default, new MountOutput())));
+        }
+        else {
+            Assert.Same(failure, Assert.Throws<InvalidOperationException>(Mount));
+        }
+
+        Assert.Empty(host);
+        Assert.Equal(count, world.Count);
+        Assert.Equal(0, world.Dispatcher.PendingAfterSendActionCount);
+    }
+
     [Fact]
     public void ChildFirstOutputFailure_PreservesStateUntilRetry()
     {
