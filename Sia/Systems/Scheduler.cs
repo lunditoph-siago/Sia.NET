@@ -97,6 +97,11 @@ public sealed class Scheduler : IAddon, IDisposable
 
     public bool IsDisposed { get; private set; }
 
+    internal string? DisposalErrorMessage
+        => !IsDisposed && (_phase != SchedulerPhase.Idle || _lifecycleCallbackDepth != 0)
+            ? "The scheduler cannot be disposed during a tick or lifecycle callback."
+            : null;
+
     private readonly Dictionary<ScheduleLabel, ScheduleSlot> _slots = [];
     private readonly List<ScheduleSlot> _registrationOrder = [];
     private readonly List<ScheduleSlot> _executionOrder = [];
@@ -319,7 +324,9 @@ public sealed class Scheduler : IAddon, IDisposable
         if (IsDisposed) {
             return;
         }
-        EnsureCanDispose();
+        if (DisposalErrorMessage is { } message) {
+            throw new InvalidOperationException(message);
+        }
         IsDisposed = true;
 
         var detachedEntries = new List<(IScheduleEntry Entry, ScheduleLabel Label)>();
@@ -371,14 +378,6 @@ public sealed class Scheduler : IAddon, IDisposable
             result = result.Attempt(stage.Dispose);
         }
         result.ThrowIfFailed();
-    }
-
-    internal void EnsureCanDispose()
-    {
-        if (!IsDisposed && (_phase != SchedulerPhase.Idle || _lifecycleCallbackDepth != 0)) {
-            throw new InvalidOperationException(
-                "The scheduler cannot be disposed during a tick or lifecycle callback.");
-        }
     }
 
     private void DetachSource(SourceRegistration registration)

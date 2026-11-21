@@ -118,7 +118,7 @@ public partial class World
         public IReadOnlyList<IReactiveEntityHost> Hosts => world.Hosts;
         IReadOnlyList<IEntityHost> IEntityQuery.Hosts => world.Hosts;
 
-        public void Dispose() { }
+        public void Dispose() {}
     }
 
     public IReadOnlyDictionary<IEntityMatcher, EntityQuery> Queries => _queries;

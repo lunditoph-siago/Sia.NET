@@ -68,7 +68,9 @@ public partial class World
         EnsureOwnerThread();
         var index = WorldAddonIndexer<TAddon>.Index;
         if (_addons[index] is not { } addon) return false;
-        if (addon is Scheduler scheduler) scheduler.EnsureCanDispose();
+        if (addon is Scheduler { DisposalErrorMessage: { } message }) {
+            throw new InvalidOperationException(message);
+        }
         _addonOperations.Add(index);
         _addons[index] = null;
         _addonCount--;
@@ -157,7 +159,9 @@ public partial class World
         var i = 0;
         for (var addonIndex = 0; addonIndex < addons.Length; ++i) {
             if (_addons[i] is { } addon) {
-                if (addon is Scheduler scheduler) scheduler.EnsureCanDispose();
+                if (addon is Scheduler { DisposalErrorMessage: { } message }) {
+                    throw new InvalidOperationException(message);
+                }
                 addons[addonIndex++] = addon;
             }
         }

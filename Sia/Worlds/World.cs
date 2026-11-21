@@ -47,7 +47,9 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
             for (int i = 0, addonAcc = 0; addonAcc < _addonCount; ++i) {
                 if (_addons[i] is { } addon) {
                     addonAcc++;
-                    if (addon is Scheduler scheduler) scheduler.EnsureCanDispose();
+                    if (addon is Scheduler { DisposalErrorMessage: { } message }) {
+                        throw new InvalidOperationException(message);
+                    }
                 }
             }
         }
