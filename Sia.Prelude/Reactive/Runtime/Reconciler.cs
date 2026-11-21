@@ -313,7 +313,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         }
         catch (Exception error) {
             return Outcome<Exception>.Failure(error)
-                .Attempt(output, ReleaseEntity)
+                .Attempt(output, static (in value) => value.Host?.Release(value))
                 .ThrowFailure<Entity>();
         }
     }
@@ -697,12 +697,9 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             result = result.Attempt(entity.GetUnchecked<EffectNode>().Cleanup,
                 static (in IEffectCleanup cleanup) => cleanup.Unmount());
         }
-        result = result.Attempt(entity, ReleaseEntity);
+        result = result.Attempt(entity, static (in value) => value.Host?.Release(value));
         return result;
     }
-
-    private static void ReleaseEntity(in Entity entity)
-        => entity.Host?.Release(entity);
 
     private Outcome<Exception> FinalizeCellFrame(
         in DestroyFrame frame, Outcome<Exception> result)
@@ -711,7 +708,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             result = result.Attempt(states,
                 static (in StateCells cells) => cells.Unmount());
         }
-        result = result.Attempt(frame.Owner, ReleaseEntity);
+        result = result.Attempt(frame.Owner, static (in value) => value.Host?.Release(value));
         if (result.IsSuccess) {
             ReturnCellSlots(frame.Slots);
         }
@@ -721,7 +718,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
     private Outcome<Exception> FinalizeEachNodeFrame(
         in DestroyFrame frame, Outcome<Exception> result)
     {
-        result = result.Attempt(frame.Owner, ReleaseEntity);
+        result = result.Attempt(frame.Owner, static (in value) => value.Host?.Release(value));
         ReturnDestroyChildren(frame.Children!);
         if (result.IsSuccess && frame.Recyclable != null) {
             ReturnEachIndex(frame.Recyclable);
