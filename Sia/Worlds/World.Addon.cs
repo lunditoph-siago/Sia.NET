@@ -68,6 +68,9 @@ public partial class World
         EnsureOwnerThread();
         var index = WorldAddonIndexer<TAddon>.Index;
         if (_addons[index] is not { } addon) return false;
+        if (addon is Scheduler { DisposalErrorMessage: { } message }) {
+            throw new InvalidOperationException(message);
+        }
         _addonOperations.Add(index);
         _addons[index] = null;
         _addonCount--;
@@ -150,14 +153,19 @@ public partial class World
         if (_clearingAddons || _addonOperations.Count != 0) {
             throw new InvalidOperationException("Cannot clear addons during addon initialization or removal.");
         }
+        if (_addonCount == 0) return;
 
-        var addons = new List<IAddon>(_addonCount);
-        for (var i = 0; addons.Count < _addonCount; ++i) {
+        var addons = new IAddon[_addonCount];
+        var i = 0;
+        for (var addonIndex = 0; addonIndex < addons.Length; ++i) {
             if (_addons[i] is { } addon) {
-                addons.Add(addon);
-                _addons[i] = null;
+                if (addon is Scheduler { DisposalErrorMessage: { } message }) {
+                    throw new InvalidOperationException(message);
+                }
+                addons[addonIndex++] = addon;
             }
         }
+        Array.Clear(_addons, 0, i);
         _addonCount = 0;
 
         _clearingAddons = true;

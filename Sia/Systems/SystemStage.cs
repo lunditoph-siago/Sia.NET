@@ -31,7 +31,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
         private readonly List<Entity> _entities = [];
         private readonly Dictionary<EntityId, int> _entityMap = [];
         private readonly EntityHandler _onEntityReleased;
-        private bool _detached;
+        private bool _disposed;
 
         public CollectedEntityHost(IReactiveEntityHost host)
         {
@@ -80,14 +80,12 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
         public IEnumerator<Entity> GetEnumerator() => _entities.GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => _entities.GetEnumerator();
 
-        public void Dispose() => Detach();
-
-        public void Detach()
+        public void Dispose()
         {
-            if (_detached) {
+            if (_disposed) {
                 return;
             }
-            _detached = true;
+            _disposed = true;
             Host.OnEntityReleased -= _onEntityReleased;
             ClearCollected();
         }
@@ -190,6 +188,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
 
         private readonly FrozenSet<Type> _filterTypes;
         private readonly bool _collectsOnEntityCreated;
+        private bool _disposed;
 
         public ReactiveQuery(
             IReactiveEntityQuery query, WorldDispatcher dispatcher,
@@ -226,7 +225,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
             }
             catch (Exception attachmentError) {
                 Outcome<Exception>.Failure(attachmentError)
-                    .Attempt(Dispose)
+                    .Attempt(this, static (in query) => query.Dispose())
                     .ThrowFailure();
             }
         }
@@ -239,7 +238,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
             }
             WorldDispatcher.Listener<TEvent> listener = OnTrigger;
             _dispatcher.Listen(listener);
-            _unlisteners.Add(() => _dispatcher.Unlisten(listener));
+            _unlisteners.Add(() => _dispatcher.RetireListener(listener));
         }
 
         private void ListenFilter<TEvent>()
@@ -247,7 +246,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
         {
             WorldDispatcher.Listener<TEvent> listener = OnFilter;
             _dispatcher.Listen(listener);
-            _unlisteners.Add(() => _dispatcher.Unlisten(listener));
+            _unlisteners.Add(() => _dispatcher.RetireListener(listener));
         }
 
         private bool OnTrigger<TEvent>(Entity target, in TEvent e)
@@ -336,6 +335,9 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
 
         private void OnEntityHostAdded(IReactiveEntityHost host)
         {
+            if (_disposed) {
+                return;
+            }
             Version++;
             var collectedHost = new CollectedEntityHost(host);
             _hosts.Add(collectedHost);
@@ -363,7 +365,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
                             host.OnEntityCreated -= onEntityCreated;
                         }
                     })
-                    .Attempt(collectedHost.Detach)
+                    .Attempt(collectedHost, static (in collected) => collected.Dispose())
                     .ThrowFailure();
             }
         }
@@ -380,6 +382,10 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
 
         public void Dispose()
         {
+            if (_disposed) {
+                return;
+            }
+            _disposed = true;
             _query.OnEntityHostAdded -= OnEntityHostAdded;
             _query.OnEntityHostRemoved -= OnEntityHostRemoved;
 
@@ -389,7 +395,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
             }
             _unlisteners.Clear();
             foreach (var entry in _hostMap.Values) {
-                result = result.Attempt(() => DetachHost(entry));
+                result = result.Attempt(entry, DetachHost);
             }
             _hostMap.Clear();
             _hosts.Clear();
@@ -399,7 +405,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
 
         private static void DetachHost(in HostEntry entry)
         {
-            entry.Host.Detach();
+            entry.Host.Dispose();
             if (entry.OnEntityCreated is { } onEntityCreated) {
                 entry.Host.Host.OnEntityCreated -= onEntityCreated;
             }
@@ -419,7 +425,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
             var result = Outcome<Exception>.Success;
             for (var i = (owned?.Length ?? 0) - 1; i >= 0; i--) {
                 var disposable = owned![i];
-                result = result.Attempt(disposable.Dispose);
+                result = result.Attempt(disposable, static (in resource) => resource.Dispose());
             }
             result.ThrowIfFailed();
         }
@@ -429,24 +435,21 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
     public ImmutableArray<Entry> Entries { get; }
     public bool IsDisposed { get; private set; }
 
-    private readonly Action<WorldContext> _combinedAction;
-    private readonly ExecutionPlan? _plan;
+    private readonly Action<WorldContext>? _combinedAction;
+    private readonly ExecutionPlan _plan;
+    private bool _executionInProgress;
+    private bool _disposalRequested;
 
-    internal SystemStage(World world, IEnumerable<ISystem> systems)
-        : this(world, systems, null) {}
-
-    private SystemStage(
-        World world,
-        IEnumerable<ISystem> systems,
-        ExecutionPlan? plan)
+    public SystemStage(World world, ExecutionPlan plan)
     {
+        ArgumentNullException.ThrowIfNull(plan);
         ArgumentNullException.ThrowIfNull(world);
-        ArgumentNullException.ThrowIfNull(systems);
         World = world;
         _plan = plan;
-        var entries = ImmutableArray.CreateBuilder<Entry>();
+        var entries = ImmutableArray.CreateBuilder<Entry>(plan.Entries.Length);
         try {
-            foreach (var system in systems) {
+            foreach (var entry in plan.Entries) {
+                var system = entry.Creator();
                 var action = CreateSystemAction(
                     world, system, out var disposable);
                 entries.Add(new(system, action, disposable));
@@ -457,67 +460,97 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
                 .ThrowFailure();
         }
 
-        Entries = entries.ToImmutable();
+        Entries = entries.MoveToImmutable();
         _combinedAction = ComposeActions(Entries);
 
         for (var i = 0; i < Entries.Length; i++) {
             try {
-                Entries[i].System.Initialize(world);
+                var system = Entries[i].System;
+                if (system is ExtractSystemBase extract) {
+                    extract.InitializeForStage(world);
+                }
+                else {
+                    system.Initialize(world);
+                }
             }
             catch (Exception initializationError) {
-                IsDisposed = true;
-                CleanupInitialized(
-                    world, Entries, i, Outcome<Exception>.Failure(initializationError))
-                    .ThrowFailure();
+                DisposeInitialized(i, initializationError);
             }
         }
     }
-
-    public SystemStage(World world, ExecutionPlan plan)
-        : this(
-            world,
-            (plan ?? throw new ArgumentNullException(nameof(plan)))
-                .Entries.Select(static entry => entry.Creator()),
-            plan) {}
 
     int ISystemScheduleEntry.Version => 0;
     ExecutionPlan? ISystemScheduleEntry.Plan => _plan;
 
     void ISystemScheduleEntry.TickSystem(int index, WorldContext context)
-    {
-        ObjectDisposedException.ThrowIf(IsDisposed, this);
-        Entries[index].Action?.Invoke(context);
-    }
+        => Execute(context, applyCommands: false, systemIndex: index);
 
     public void Dispose()
+        => Dispose(deferWhileExecuting: false);
+
+    internal void Dispose(bool deferWhileExecuting)
     {
         if (IsDisposed) {
             return;
         }
-        IsDisposed = true;
-        CleanupInitialized(World, Entries, Entries.Length, Outcome<Exception>.Success)
-            .ThrowIfFailed();
+        if (_executionInProgress) {
+            if (!deferWhileExecuting) {
+                throw new InvalidOperationException("Cannot dispose a system stage while it is executing.");
+            }
+            _disposalRequested = true;
+            return;
+        }
+        DisposeInitialized(Entries.Length);
     }
 
     public void Tick(CancellationToken cancellation = default)
+        => Execute(new WorldContext(World, cancellation), applyCommands: true);
+
+    private void Execute(WorldContext context, bool applyCommands, int? systemIndex = null)
     {
+        var world = World;
+        world.EnsureOwnerThread();
         ObjectDisposedException.ThrowIf(IsDisposed, this);
-        var context = new WorldContext(World, cancellation);
-        _combinedAction(context);
-        World.Commands.Apply(World);
+        ObjectDisposedException.ThrowIf(world.IsDisposed, world);
+        if (_executionInProgress) {
+            throw new InvalidOperationException("The system stage is already executing.");
+        }
+        _executionInProgress = true;
+
+        Exception? executionError = null;
+        try {
+            var action = systemIndex is { } index ? Entries[index].Action : _combinedAction;
+            action?.Invoke(context);
+            if (applyCommands) {
+                world.Commands.Apply(world);
+            }
+        }
+        catch (Exception error) {
+            executionError = error;
+            throw;
+        }
+        finally {
+            _executionInProgress = false;
+            if (_disposalRequested) DisposeInitialized(Entries.Length, executionError);
+        }
     }
 
-    private static Outcome<Exception> CleanupInitialized(
-        World world,
-        IReadOnlyList<Entry> entries,
-        int initializedCount,
-        Outcome<Exception> result)
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void DisposeInitialized(int initializedCount, Exception? error = null)
     {
+        _disposalRequested = false;
+        IsDisposed = true;
+        var world = World;
+        var entries = Entries;
+        var result = error is null
+            ? Outcome<Exception>.Success
+            : Outcome<Exception>.Failure(error);
         for (var i = initializedCount - 1; i >= 0; i--) {
             var system = entries[i].System;
-            result = result.Attempt(() => system.Uninitialize(world));
+            result = result.Attempt((system, world),
+                static (in state) => state.system.Uninitialize(state.world));
         }
-        return DisposeResources(entries, result);
+        DisposeResources(entries, result).ThrowIfFailed();
     }
 
     private static Outcome<Exception> DisposeResources(
@@ -526,28 +559,31 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
     {
         for (var i = entries.Count - 1; i >= 0; i--) {
             if (entries[i].Disposable is { } disposable) {
-                result = result.Attempt(disposable.Dispose);
+                result = result.Attempt(disposable, static (in resource) => resource.Dispose());
             }
         }
         return result;
     }
 
-    private static Action<WorldContext> ComposeActions(ImmutableArray<Entry> entries)
+    private static Action<WorldContext>? ComposeActions(ImmutableArray<Entry> entries)
     {
-        var actions = entries
-            .Where(static entry => entry.Action != null)
-            .Select(static entry => entry.Action!)
-            .ToArray();
+        if (entries.Length > 1) {
+            var actions = entries
+                .Where(static entry => entry.Action != null)
+                .Select(static entry => entry.Action!)
+                .ToArray();
 
-        return actions.Length switch {
-            0 => static _ => {},
-            1 => actions[0],
-            _ => context => {
-                foreach (var action in actions) {
-                    action(context);
+            return actions.Length switch {
+                0 => null,
+                1 => actions[0],
+                _ => context => {
+                    foreach (var action in actions) {
+                        action(context);
+                    }
                 }
-            }
-        };
+            };
+        }
+        return entries.IsEmpty ? null : entries[0].Action;
     }
 
     private static Action<WorldContext>? CreateSystemAction(World world, ISystem system, out IDisposable? disposable)
@@ -612,19 +648,19 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
             catch (Exception creationError) {
                 var result = Outcome<Exception>.Failure(creationError);
                 if (selfDisposable != null) {
-                    result = result.Attempt(selfDisposable.Dispose);
+                    result = result.Attempt(selfDisposable, static (in resource) => resource.Dispose());
                 }
                 childrenStage = result.ThrowFailure<SystemStage>();
             }
-            var childrenStageAction = childrenStage._combinedAction;
+            var executeSystem = selfAction;
 
             disposable = selfDisposable != null
                 ? new CompositeDisposable(selfDisposable, childrenStage)
                 : childrenStage;
 
             return context => {
-                selfAction(context);
-                childrenStageAction(context);
+                executeSystem(context);
+                childrenStage.Execute(context, applyCommands: false);
             };
         }
         else {
