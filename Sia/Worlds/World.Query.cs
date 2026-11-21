@@ -45,12 +45,10 @@ public partial class World
                     throw new InvalidOperationException("The world's hosts changed while creating a query.");
                 }
             }
-        }
 
-        internal void SubscribeToHostChanges()
-        {
-            World.OnEntityHostAdded += HandleHostAdded;
-            World.OnEntityHostRemoved += HandleHostRemoved;
+            if (cached) world._queries.Add(matcher, this);
+            world.OnEntityHostAdded += HandleHostAdded;
+            world.OnEntityHostRemoved += HandleHostRemoved;
         }
 
         private void HandleHostAdded(IReactiveEntityHost host)
@@ -185,10 +183,7 @@ public partial class World
         }
 
         try {
-            var query = new EntityQuery(this, matcher, cache);
-            if (cache) _queries.Add(matcher, query);
-            query.SubscribeToHostChanges();
-            return query;
+            return new EntityQuery(this, matcher, cache);
         }
         finally {
             _initializingQueries.Remove(matcher);

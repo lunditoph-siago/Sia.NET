@@ -111,7 +111,6 @@ public sealed class Scheduler : IAddon, IDisposable
     private World _world = null!;
 
     void IAddon.OnInitialize(World world) => _world = world;
-    void IAddon.EnsureCanUninitialize() => EnsureCanDispose();
     void IAddon.OnUninitialize(World world) => Dispose();
 
     public Scheduler AddSchedule(Schedule schedule)
@@ -366,7 +365,7 @@ public sealed class Scheduler : IAddon, IDisposable
         result.ThrowIfFailed();
     }
 
-    private void EnsureCanDispose()
+    internal void EnsureCanDispose()
     {
         if (!IsDisposed && (_phase != SchedulerPhase.Idle || _lifecycleCallbackDepth != 0)) {
             throw new InvalidOperationException(
