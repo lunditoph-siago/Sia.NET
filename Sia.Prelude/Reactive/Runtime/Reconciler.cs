@@ -843,20 +843,17 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
 
     private static void DisposeRegistry(ScheduleRegistry registry)
     {
-        var result = Outcome<Exception>.Success;
-        result = result.Attempt(() => registry.Registration?.Dispose());
+        var result = Outcome<Exception>.Success.Attempt(registry,
+            static (in item) => item.Registration?.Dispose());
         registry.Registration = null;
 
-        var requestedStages = new HashSet<SystemStage>();
         for (var i = registry.RuntimeOrder.Length - 1; i >= 0; i--) {
             var runtime = registry.RuntimeOrder[i];
-            if (requestedStages.Add(runtime)) {
-                result = result.Attempt(runtime, static (in stage) => stage.Dispose(deferWhileExecuting: true));
-            }
+            result = result.Attempt(runtime, static (in stage) => stage.Dispose(deferWhileExecuting: true));
         }
         for (var i = registry.Slots.Count - 1; i >= 0; i--) {
             var runtime = registry.Slots[i].Runtime;
-            if (runtime is not null && requestedStages.Add(runtime)) {
+            if (runtime is not null) {
                 result = result.Attempt(runtime, static (in stage) => stage.Dispose(deferWhileExecuting: true));
             }
         }

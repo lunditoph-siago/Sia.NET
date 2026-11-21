@@ -199,7 +199,8 @@ public sealed class QuerySubscription : IDisposable
         result = result.Attempt(() => entities = host.UnsafeGetEntitySpan().ToArray());
         foreach (var entity in entities) {
             if (ReferenceEquals(entity.Host, host)) {
-                result = result.Attempt(entity, (in Entity value) => HandleRemoved(value));
+                result = result.Attempt((subscription: this, entity),
+                    static (in item) => item.subscription.HandleRemoved(item.entity));
             }
         }
         result.ThrowIfFailed();

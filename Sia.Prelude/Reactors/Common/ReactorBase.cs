@@ -52,12 +52,9 @@ public abstract class ReactorBase : IAddon
     {
         var cleanup = ListenerCleanup;
         ListenerCleanup = null;
-        if (cleanup is null) {
-            return;
-        }
 
         var outcome = Outcome<Exception>.Success;
-        foreach (Action unlisten in cleanup.GetInvocationList()) {
+        foreach (var unlisten in Delegate.EnumerateInvocationList(cleanup)) {
             outcome = outcome.Attempt(unlisten);
         }
         outcome.ThrowIfFailed();

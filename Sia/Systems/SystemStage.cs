@@ -226,7 +226,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
             }
             catch (Exception attachmentError) {
                 Outcome<Exception>.Failure(attachmentError)
-                    .Attempt(Dispose)
+                    .Attempt(this, static (in query) => query.Dispose())
                     .ThrowFailure();
             }
         }
@@ -363,7 +363,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
                             host.OnEntityCreated -= onEntityCreated;
                         }
                     })
-                    .Attempt(collectedHost.Detach)
+                    .Attempt(collectedHost, static (in collected) => collected.Detach())
                     .ThrowFailure();
             }
         }
@@ -389,7 +389,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
             }
             _unlisteners.Clear();
             foreach (var entry in _hostMap.Values) {
-                result = result.Attempt(() => DetachHost(entry));
+                result = result.Attempt(entry, DetachHost);
             }
             _hostMap.Clear();
             _hosts.Clear();
@@ -419,7 +419,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
             var result = Outcome<Exception>.Success;
             for (var i = (owned?.Length ?? 0) - 1; i >= 0; i--) {
                 var disposable = owned![i];
-                result = result.Attempt(disposable.Dispose);
+                result = result.Attempt(disposable, static (in resource) => resource.Dispose());
             }
             result.ThrowIfFailed();
         }
@@ -547,7 +547,8 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
             : Outcome<Exception>.Failure(error);
         for (var i = initializedCount - 1; i >= 0; i--) {
             var system = entries[i].System;
-            result = result.Attempt(() => system.Uninitialize(world));
+            result = result.Attempt((system, world),
+                static (in state) => state.system.Uninitialize(state.world));
         }
         DisposeResources(entries, result).ThrowIfFailed();
     }
@@ -558,7 +559,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
     {
         for (var i = entries.Count - 1; i >= 0; i--) {
             if (entries[i].Disposable is { } disposable) {
-                result = result.Attempt(disposable.Dispose);
+                result = result.Attempt(disposable, static (in resource) => resource.Dispose());
             }
         }
         return result;
@@ -566,20 +567,23 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
 
     private static Action<WorldContext>? ComposeActions(ImmutableArray<Entry> entries)
     {
-        var actions = entries
-            .Where(static entry => entry.Action != null)
-            .Select(static entry => entry.Action!)
-            .ToArray();
+        if (entries.Length > 1) {
+            var actions = entries
+                .Where(static entry => entry.Action != null)
+                .Select(static entry => entry.Action!)
+                .ToArray();
 
-        return actions.Length switch {
-            0 => null,
-            1 => actions[0],
-            _ => context => {
-                foreach (var action in actions) {
-                    action(context);
+            return actions.Length switch {
+                0 => null,
+                1 => actions[0],
+                _ => context => {
+                    foreach (var action in actions) {
+                        action(context);
+                    }
                 }
-            }
-        };
+            };
+        }
+        return entries.IsEmpty ? null : entries[0].Action;
     }
 
     private static Action<WorldContext>? CreateSystemAction(World world, ISystem system, out IDisposable? disposable)
@@ -644,7 +648,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
             catch (Exception creationError) {
                 var result = Outcome<Exception>.Failure(creationError);
                 if (selfDisposable != null) {
-                    result = result.Attempt(selfDisposable.Dispose);
+                    result = result.Attempt(selfDisposable, static (in resource) => resource.Dispose());
                 }
                 childrenStage = result.ThrowFailure<SystemStage>();
             }

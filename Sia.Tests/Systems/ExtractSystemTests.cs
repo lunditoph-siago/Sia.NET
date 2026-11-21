@@ -100,9 +100,13 @@ public class ExtractSystemTests
         }
     }
 
-    private sealed class TestExtractSystem(IEntityMatcher matcher) : ExtractSystemBase(extractMatcher: matcher)
+    private sealed class TestExtractSystem(IEntityMatcher matcher)
+        : ExtractSystemBase(matcher: Matchers.Any, extractMatcher: matcher)
     {
-        public override void Execute(WorldContext context, IEntityQuery query, IEntityQuery extract) {}
+        public int Count { get; private set; }
+
+        public override void Execute(WorldContext context, IEntityQuery query, IEntityQuery extract)
+            => Count = extract.Count;
     }
 
     private sealed class TestSnapshotSystem(IEntityMatcher matcher) : SnapshotExtractSystem<int>
@@ -250,6 +254,36 @@ public class ExtractSystemTests
             Assert.Same(sharedQuery, world.Query(matcher));
             Assert.Equal(2, sharedQuery.Count);
         }
+    }
+
+    [Fact]
+    public void ExtractSystemBase_RejectsOverlappingStages()
+    {
+        using var world = new World();
+        var matcher = new CountingMatcher();
+        using var shared = world.Query(matcher);
+        var system = new TestExtractSystem(matcher);
+        var chain = SystemChain.Empty.Add<TestExtractSystem>(() => system);
+
+        using (var first = chain.CreateStage(world)) {
+            Assert.Throws<InvalidOperationException>(() => {
+                using var overlapping = chain.CreateStage(world);
+            });
+            world.Create(HList.From(new Health(10)));
+            Assert.Equal(2, matcher.Calls);
+
+            first.Tick();
+            Assert.Equal(1, system.Count);
+        }
+
+        world.Create(HList.From(new Damage(5)));
+        Assert.Equal(3, matcher.Calls);
+        Assert.Same(shared, world.Query(matcher));
+        Assert.Equal(2, shared.Count);
+
+        using var next = chain.CreateStage(world);
+        next.Tick();
+        Assert.Equal(2, system.Count);
     }
 
     [Fact]

@@ -28,6 +28,10 @@ public abstract class ExtractSystemBase(
 
     public override void Initialize(World world)
     {
+        if (_parentQuery is not null) {
+            throw new InvalidOperationException("The extract system is already initialized.");
+        }
+
         var parentWorld = world.TryGetAddon<IWorldSource>(out var source)
             ? source.Source
             : world;
