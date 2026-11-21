@@ -116,8 +116,12 @@ public sealed class Scheduler : IAddon, IDisposable
     public Scheduler AddSchedule(Schedule schedule)
     {
         ArgumentNullException.ThrowIfNull(schedule);
-        EnsureActive();
-        EnsureScheduleMutable();
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
+        if (_lifecycleCallbackDepth != 0
+            || _phase is SchedulerPhase.BeforeSchedule or SchedulerPhase.Executing) {
+            throw new InvalidOperationException(
+                "Schedules can only be changed while idle or from OnBeginTick.");
+        }
         var slot = GetOrCreateSlot(schedule.Label);
         slot.Schedule = schedule;
         InvalidateStages();
@@ -129,8 +133,12 @@ public sealed class Scheduler : IAddon, IDisposable
         Func<Schedule, Schedule> configure)
     {
         ArgumentNullException.ThrowIfNull(configure);
-        EnsureActive();
-        EnsureScheduleMutable();
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
+        if (_lifecycleCallbackDepth != 0
+            || _phase is SchedulerPhase.BeforeSchedule or SchedulerPhase.Executing) {
+            throw new InvalidOperationException(
+                "Schedules can only be changed while idle or from OnBeginTick.");
+        }
         var current = _slots.TryGetValue(label, out var existing)
             ? existing.Schedule
             : null;
@@ -166,7 +174,7 @@ public sealed class Scheduler : IAddon, IDisposable
         IScheduleEntry entry)
     {
         ArgumentNullException.ThrowIfNull(entry);
-        EnsureActive();
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
         var slot = GetOrCreateSlot(label);
         foreach (var registration in slot.Entries) {
             if (registration.Active && ReferenceEquals(registration.Entry, entry)) {
@@ -183,7 +191,7 @@ public sealed class Scheduler : IAddon, IDisposable
         catch {
             state.TryDeactivate(out _, out _);
             MarkEntriesForCompaction(slot);
-            CompactIfIdle();
+            if (_phase == SchedulerPhase.Idle && _lifecycleCallbackDepth == 0) CompactRegistrations();
             throw;
         }
         slot.RuntimePlanDirty = true;
@@ -193,7 +201,7 @@ public sealed class Scheduler : IAddon, IDisposable
     public ScheduleRegistration RegisterSource(IScheduleSource source)
     {
         ArgumentNullException.ThrowIfNull(source);
-        EnsureActive();
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
         foreach (var registration in _sourceRegistrations) {
             if (registration.Active && ReferenceEquals(registration.Source, source)) {
                 throw new InvalidOperationException(
@@ -210,7 +218,7 @@ public sealed class Scheduler : IAddon, IDisposable
         catch {
             state.TryDeactivate(out _);
             _sourcesNeedCompaction = true;
-            CompactIfIdle();
+            if (_phase == SchedulerPhase.Idle && _lifecycleCallbackDepth == 0) CompactRegistrations();
             throw;
         }
         return state;
@@ -221,7 +229,7 @@ public sealed class Scheduler : IAddon, IDisposable
         var sorted = TopologicalSort(_registrationOrder);
         try {
             foreach (var slot in sorted) {
-                EnsureSlotPlan(slot);
+                if (NeedsRuntimePlan(slot)) BuildSlotPlan(slot);
             }
         }
         catch (Exception error) {
@@ -236,7 +244,7 @@ public sealed class Scheduler : IAddon, IDisposable
 
     public void Tick(CancellationToken cancellation = default)
     {
-        EnsureActive();
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
         BeginTick();
         var context = new WorldContext(_world, cancellation);
         try {
@@ -261,7 +269,7 @@ public sealed class Scheduler : IAddon, IDisposable
                         registration.Source!.OnBeforeSchedule(slot.Label);
                     }
                 }
-                EnsureSlotPlan(slot);
+                if (NeedsRuntimePlan(slot)) BuildSlotPlan(slot);
                 if (slot.Schedule is not { Manual: true }) {
                     _phase = SchedulerPhase.Executing;
                     TickSlot(slot, context);
@@ -280,7 +288,7 @@ public sealed class Scheduler : IAddon, IDisposable
     public void TickSchedule(
         ScheduleLabel label, CancellationToken cancellation = default)
     {
-        EnsureActive();
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
         BeginTick();
         var context = new WorldContext(_world, cancellation);
         try {
@@ -293,7 +301,7 @@ public sealed class Scheduler : IAddon, IDisposable
                 }
             }
             if (_slots.TryGetValue(label, out var slot)) {
-                EnsureSlotPlan(slot);
+                if (NeedsRuntimePlan(slot)) BuildSlotPlan(slot);
                 _phase = SchedulerPhase.Executing;
                 TickSlot(slot, context);
             }
@@ -384,7 +392,7 @@ public sealed class Scheduler : IAddon, IDisposable
             InvokeLifecycle(() => source.OnDetached(this));
         }
         finally {
-            CompactIfIdle();
+            if (_phase == SchedulerPhase.Idle && _lifecycleCallbackDepth == 0) CompactRegistrations();
         }
     }
 
@@ -399,7 +407,7 @@ public sealed class Scheduler : IAddon, IDisposable
             InvokeLifecycle(() => entry.OnDetached(this, slot.Label));
         }
         finally {
-            CompactIfIdle();
+            if (_phase == SchedulerPhase.Idle && _lifecycleCallbackDepth == 0) CompactRegistrations();
         }
     }
 
@@ -429,14 +437,6 @@ public sealed class Scheduler : IAddon, IDisposable
             else if (systemEntry.Version == node.Version) {
                 systemEntry.TickSystem(node.SystemIndex, context);
             }
-        }
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void EnsureSlotPlan(ScheduleSlot slot)
-    {
-        if (NeedsRuntimePlan(slot)) {
-            BuildSlotPlan(slot);
         }
     }
 
@@ -576,13 +576,6 @@ public sealed class Scheduler : IAddon, IDisposable
         _dirtyEntrySlots.Add(slot);
     }
 
-    private void CompactIfIdle()
-    {
-        if (_phase == SchedulerPhase.Idle && _lifecycleCallbackDepth == 0) {
-            CompactRegistrations();
-        }
-    }
-
     private void CompactRegistrations()
     {
         if (_sourcesNeedCompaction) {
@@ -606,18 +599,6 @@ public sealed class Scheduler : IAddon, IDisposable
             }
         }
         _dirtyEntrySlots.Clear();
-    }
-
-    private void EnsureActive()
-        => ObjectDisposedException.ThrowIf(IsDisposed, this);
-
-    private void EnsureScheduleMutable()
-    {
-        if (_lifecycleCallbackDepth != 0
-            || _phase is SchedulerPhase.BeforeSchedule or SchedulerPhase.Executing) {
-            throw new InvalidOperationException(
-                "Schedules can only be changed while idle or from OnBeginTick.");
-        }
     }
 
     private SourceRegistration[] GetSourceSnapshot()

@@ -31,17 +31,20 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
     {
         if (IsDisposed) { return; }
 
+        if (_actor is { IsCompleted: false }) {
+            if (!disposing) return;
+            throw new InvalidOperationException(
+                "The world is bound to a WorldActor that has not completed. " +
+                "Call WorldActor.CompleteAndDispose(...) instead of World.Dispose() directly.");
+        }
+
         if (disposing) {
-            ThrowIfActorIncomplete();
             if (HostCallbackDepth != 0 || Dispatcher.IsSending || Dispatcher.PendingAfterSendActionCount != 0
                 || _clearingHosts || _closingHost != null || _initializingHosts.Count != 0
                 || _clearingAddons || _addonOperations.Count != 0) {
                 throw new InvalidOperationException("Cannot dispose the world during host or addon lifecycle operations.");
             }
             EnsureSchedulersCanDispose();
-        }
-        else if (_actor is { IsCompleted: false }) {
-            return;
         }
 
         IsDisposed = true;
@@ -105,15 +108,6 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
         if (owner is not null && !ReferenceEquals(owner, this)) {
             throw new ArgumentException(
                 "The entity belongs to a different world.", nameof(target));
-        }
-    }
-
-    private void ThrowIfActorIncomplete()
-    {
-        if (_actor is { IsCompleted: false }) {
-            throw new InvalidOperationException(
-                "The world is bound to a WorldActor that has not completed. " +
-                "Call WorldActor.CompleteAndDispose(...) instead of World.Dispose() directly.");
         }
     }
 

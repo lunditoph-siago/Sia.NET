@@ -154,7 +154,15 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
         {
             public void Handle<TEvent>()
                 where TEvent : IEvent
-                => query.ListenTrigger<TEvent>();
+            {
+                if (query._filterTypes.Contains(typeof(TEvent))) {
+                    return;
+                }
+                var dispatcher = query._dispatcher;
+                WorldDispatcher.Listener<TEvent> listener = query.OnTrigger;
+                dispatcher.Listen(listener);
+                query._unlisteners.Add(() => dispatcher.RetireListener(listener));
+            }
         }
 
         private readonly struct FilterRegistrar(ReactiveQuery query)
@@ -182,7 +190,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
         }
 
         public int Version { get; private set; }
-        public bool Executing { get; private set; }
+        public bool Executing { get; set; }
 
         public IReadOnlyList<IEntityHost> Hosts => _hosts;
         private readonly List<CollectedEntityHost> _hosts = [];
@@ -236,17 +244,6 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
             }
         }
 
-        private void ListenTrigger<TEvent>()
-            where TEvent : IEvent
-        {
-            if (_filterTypes.Contains(typeof(TEvent))) {
-                return;
-            }
-            WorldDispatcher.Listener<TEvent> listener = OnTrigger;
-            _dispatcher.Listen(listener);
-            _unlisteners.Add(() => _dispatcher.RetireListener(listener));
-        }
-
         private bool OnTrigger<TEvent>(Entity target, in TEvent e)
             where TEvent : IEvent
         {
@@ -261,12 +258,15 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
             where TEvent : IEvent
         {
             if (target.Host is { } host && _hostMap.TryGetValue(host, out var entry)) {
-                Uncollect(entry.Host, target);
+                if (Executing) {
+                    _deferredOps.Add(new(entry.Host, target, Collect: false));
+                }
+                else {
+                    entry.Host.Remove(target);
+                }
             }
             return false;
         }
-
-        public void BeginExecution() => Executing = true;
 
         public void EndExecution()
         {
@@ -311,26 +311,6 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
             result.ThrowFailure();
         }
 
-        private void Collect(CollectedEntityHost host, Entity entity)
-        {
-            if (Executing) {
-                _deferredOps.Add(new(host, entity, Collect: true));
-            }
-            else {
-                host.Add(entity);
-            }
-        }
-
-        private void Uncollect(CollectedEntityHost host, Entity entity)
-        {
-            if (Executing) {
-                _deferredOps.Add(new(host, entity, Collect: false));
-            }
-            else {
-                host.Remove(entity);
-            }
-        }
-
         private void OnEntityHostAdded(IReactiveEntityHost host)
         {
             Version++;
@@ -340,7 +320,14 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
             EntityHandler? onEntityCreated = null;
             try {
                 if (_collectsOnEntityCreated) {
-                    onEntityCreated = entity => Collect(collectedHost, entity);
+                    onEntityCreated = entity => {
+                        if (Executing) {
+                            _deferredOps.Add(new(collectedHost, entity, Collect: true));
+                        }
+                        else {
+                            collectedHost.Add(entity);
+                        }
+                    };
                     host.OnEntityCreated += onEntityCreated;
                 }
                 _hostMap.Add(host, new(collectedHost, onEntityCreated));
@@ -646,7 +633,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
                 return;
             }
 
-            reactiveQuery.BeginExecution();
+            reactiveQuery.Executing = true;
             try {
                 system.Execute(context, reactiveQuery);
             }

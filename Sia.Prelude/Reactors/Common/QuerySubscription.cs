@@ -18,17 +18,6 @@ public sealed class QuerySubscription : IDisposable
         public bool IsEmpty => count == 0;
         public ReadOnlySpan<Entity> Entities => buffer.AsSpan(0, count);
 
-        public static HostSnapshot Capture(ReadOnlySpan<Entity> entities)
-        {
-            if (entities.IsEmpty) {
-                return default;
-            }
-
-            var buffer = ArrayPool<Entity>.Shared.Rent(entities.Length);
-            entities.CopyTo(buffer);
-            return new(buffer, entities.Length);
-        }
-
         public void Dispose()
         {
             if (buffer is not null) {
@@ -122,7 +111,11 @@ public sealed class QuerySubscription : IDisposable
             host.OnEntityMovedOut += HandleMovedOut;
             host.OnEntityMovedIn += HandleMovedIn;
 
-            return HostSnapshot.Capture(host.UnsafeGetEntitySpan());
+            var entities = host.UnsafeGetEntitySpan();
+            if (entities.IsEmpty) return default;
+            var buffer = ArrayPool<Entity>.Shared.Rent(entities.Length);
+            entities.CopyTo(buffer);
+            return new(buffer, entities.Length);
         }
         catch (Exception error) {
             _memberHosts.Remove(host);
