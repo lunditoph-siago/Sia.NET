@@ -31,7 +31,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
         private readonly List<Entity> _entities = [];
         private readonly Dictionary<EntityId, int> _entityMap = [];
         private readonly EntityHandler _onEntityReleased;
-        private bool _detached;
+        private bool _disposed;
 
         public CollectedEntityHost(IReactiveEntityHost host)
         {
@@ -80,14 +80,12 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
         public IEnumerator<Entity> GetEnumerator() => _entities.GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => _entities.GetEnumerator();
 
-        public void Dispose() => Detach();
-
-        public void Detach()
+        public void Dispose()
         {
-            if (_detached) {
+            if (_disposed) {
                 return;
             }
-            _detached = true;
+            _disposed = true;
             Host.OnEntityReleased -= _onEntityReleased;
             ClearCollected();
         }
@@ -363,7 +361,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
                             host.OnEntityCreated -= onEntityCreated;
                         }
                     })
-                    .Attempt(collectedHost, static (in collected) => collected.Detach())
+                    .Attempt(collectedHost, static (in collected) => collected.Dispose())
                     .ThrowFailure();
             }
         }
@@ -399,7 +397,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
 
         private static void DetachHost(in HostEntry entry)
         {
-            entry.Host.Detach();
+            entry.Host.Dispose();
             if (entry.OnEntityCreated is { } onEntityCreated) {
                 entry.Host.Host.OnEntityCreated -= onEntityCreated;
             }
@@ -430,25 +428,20 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
     public bool IsDisposed { get; private set; }
 
     private readonly Action<WorldContext>? _combinedAction;
-    private readonly ExecutionPlan? _plan;
+    private readonly ExecutionPlan _plan;
     private bool _executionInProgress;
     private bool _disposalRequested;
 
-    internal SystemStage(World world, IEnumerable<ISystem> systems)
-        : this(world, systems, null) {}
-
-    private SystemStage(
-        World world,
-        IEnumerable<ISystem> systems,
-        ExecutionPlan? plan)
+    public SystemStage(World world, ExecutionPlan plan)
     {
+        ArgumentNullException.ThrowIfNull(plan);
         ArgumentNullException.ThrowIfNull(world);
-        ArgumentNullException.ThrowIfNull(systems);
         World = world;
         _plan = plan;
-        var entries = ImmutableArray.CreateBuilder<Entry>();
+        var entries = ImmutableArray.CreateBuilder<Entry>(plan.Entries.Length);
         try {
-            foreach (var system in systems) {
+            foreach (var entry in plan.Entries) {
+                var system = entry.Creator();
                 var action = CreateSystemAction(
                     world, system, out var disposable);
                 entries.Add(new(system, action, disposable));
@@ -459,7 +452,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
                 .ThrowFailure();
         }
 
-        Entries = entries.ToImmutable();
+        Entries = entries.MoveToImmutable();
         _combinedAction = ComposeActions(Entries);
 
         for (var i = 0; i < Entries.Length; i++) {
@@ -471,13 +464,6 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
             }
         }
     }
-
-    public SystemStage(World world, ExecutionPlan plan)
-        : this(
-            world,
-            (plan ?? throw new ArgumentNullException(nameof(plan)))
-                .Entries.Select(static entry => entry.Creator()),
-            plan) {}
 
     int ISystemScheduleEntry.Version => 0;
     ExecutionPlan? ISystemScheduleEntry.Plan => _plan;

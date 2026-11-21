@@ -37,6 +37,4 @@ public sealed record Schedule(
 
     public Schedule AsManual()
         => this with { Manual = true };
-
-    internal SystemStage Build(World world) => Chain.CreateStage(world);
 }

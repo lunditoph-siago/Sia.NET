@@ -444,7 +444,7 @@ public sealed class Scheduler : IAddon, IDisposable
     {
         if (slot.Stage is null && slot.Schedule is { } schedule
             && !schedule.Chain.Entries.IsEmpty) {
-            InvokeLifecycle(() => slot.Stage = schedule.Build(_world));
+            InvokeLifecycle(() => slot.Stage = schedule.Chain.CreateStage(_world));
         }
 
         var nodes = new List<RuntimeNode>();
