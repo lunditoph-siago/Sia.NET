@@ -5,6 +5,18 @@ public sealed class WorldActor : IDisposable
     [ThreadStatic]
     internal static WorldActor? Current;
 
+    private sealed class AsyncExecution(WorldActor actor)
+    {
+        public WorldActor Actor { get; } = actor;
+        public Task? Completion;
+    }
+
+    private static readonly AsyncLocal<AsyncExecution?> s_asyncExecution = new();
+
+    internal static WorldActor? ExecutingActor
+        => Current ?? (s_asyncExecution.Value is { } execution
+            && Volatile.Read(ref execution.Completion)?.IsCompleted != true ? execution.Actor : null);
+
     private readonly object _gate = new();
     private readonly BlockingQueue<IWorldMessage> _mailbox = new();
     private readonly ManualResetEventSlim _completion = new(false);
@@ -22,7 +34,7 @@ public sealed class WorldActor : IDisposable
 
     public World World { get; }
     public bool IsCompleted => Volatile.Read(ref _completed) != 0;
-    public Exception? Failure => _failure;
+    public Exception? Failure => Volatile.Read(ref _failure);
 
     internal ActorRuntime? Runtime => _runtime;
 
@@ -47,6 +59,9 @@ public sealed class WorldActor : IDisposable
 
         lock (_gate) {
             ThrowIfClosed();
+            if (ReferenceEquals(message, CompleteMessage.Instance)) {
+                _completePosted = 1;
+            }
             _mailbox.Enqueue(message);
             TryScheduleUnderLock();
         }
@@ -80,13 +95,15 @@ public sealed class WorldActor : IDisposable
 
     public void Run(CancellationToken cancellation = default)
     {
-        var currentThreadId = Environment.CurrentManagedThreadId;
-        var ownerThreadId = Interlocked.CompareExchange(
-            ref _ownerThreadId, currentThreadId, 0);
-
-        if (ownerThreadId != 0 && ownerThreadId != currentThreadId) {
-            throw new InvalidOperationException(
-                "The world actor is already running on another thread.");
+        if (_runtime is not null) {
+            throw new InvalidOperationException("A pooled world actor runs on its runtime workers.");
+        }
+        lock (_gate) {
+            ObjectDisposedException.ThrowIf(IsCompleted, this);
+            if (_ownerThreadId != 0) {
+                throw new InvalidOperationException("The world actor is already running.");
+            }
+            Volatile.Write(ref _ownerThreadId, Environment.CurrentManagedThreadId);
         }
 
         _running.Set();
@@ -94,6 +111,7 @@ public sealed class WorldActor : IDisposable
         Current = this;
 
         var completionSeen = false;
+        Exception? failure = null;
 
         try {
             while (true) {
@@ -101,7 +119,7 @@ public sealed class WorldActor : IDisposable
                     if (completionSeen) {
                         break;
                     }
-                    _mailbox.Dequeue(out message);
+                    if (!_mailbox.Dequeue(out message)) continue;
                 }
 
                 if (ReferenceEquals(message, CompleteMessage.Instance)) {
@@ -110,8 +128,14 @@ public sealed class WorldActor : IDisposable
                 }
 
                 if (message is IAsyncWorldMessage asyncMessage) {
-                    asyncMessage.ExecuteAsync(new WorldContext(World, cancellation))
-                        .GetAwaiter().GetResult();
+                    var task = ExecuteAsync(asyncMessage, new WorldContext(World, cancellation));
+                    try {
+                        task.GetAwaiter().GetResult();
+                    }
+                    catch (Exception error) {
+                        failure = task.Exception is { InnerExceptions.Count: > 1 } errors ? errors : error;
+                        break;
+                    }
                 }
                 else if (message is IBlockingWorldMessage blockingMessage) {
                     blockingMessage.ExecuteBlocking(
@@ -123,12 +147,19 @@ public sealed class WorldActor : IDisposable
             }
         }
         catch (Exception error) {
-            _failure = error;
+            failure = error;
         }
         finally {
-            Volatile.Write(ref _completed, 1);
-            _completion.Set();
             Current = previous;
+            lock (_gate) {
+                Volatile.Write(ref _ownerThreadId, 0);
+                if (failure is null) {
+                    CompleteUnderLock();
+                }
+                else {
+                    FailUnderLock(failure);
+                }
+            }
         }
     }
 
@@ -138,6 +169,7 @@ public sealed class WorldActor : IDisposable
         var context = new WorldContext(World);
         var previous = Current;
         Current = this;
+        if (!_running.IsSet) _running.Set();
 
         try {
             for (var i = 0; i < runtime.BatchSize; i++) {
@@ -153,7 +185,7 @@ public sealed class WorldActor : IDisposable
                 if (message is IAsyncWorldMessage asyncMessage) {
                     SuspendForAsync();
                     try {
-                        var task = asyncMessage.ExecuteAsync(context);
+                        var task = ExecuteAsync(asyncMessage, context);
                         runtime.ContinueAsync(this, task);
                     }
                     catch (Exception error) {
@@ -177,12 +209,16 @@ public sealed class WorldActor : IDisposable
                     message!.Execute(context);
                 }
                 catch (Exception error) {
-                    Fail(error);
+                    lock (_gate) {
+                        FailUnderLock(error);
+                    }
                     return;
                 }
             }
 
-            CompleteBatch();
+            lock (_gate) {
+                ContinueOrCompleteUnderLock();
+            }
         }
         finally {
             Current = previous;
@@ -197,62 +233,64 @@ public sealed class WorldActor : IDisposable
         }
     }
 
+    private Task ExecuteAsync(IAsyncWorldMessage message, in WorldContext context)
+    {
+        var previous = s_asyncExecution.Value;
+        var execution = new AsyncExecution(this);
+        s_asyncExecution.Value = execution;
+        Task? completion = null;
+        try {
+            return completion = message.ExecuteAsync(context);
+        }
+        finally {
+            Volatile.Write(ref execution.Completion, completion ?? Task.CompletedTask);
+            s_asyncExecution.Value = previous;
+        }
+    }
+
     internal void ResumeFromSuspension(Exception? error = null)
     {
         lock (_gate) {
             _suspended = false;
 
             if (error != null) {
-                _failure = error;
-                CompleteUnderLock();
+                FailUnderLock(error);
                 return;
             }
 
-            if (Volatile.Read(ref _completionSeen) != 0
-                && !_mailbox.TryPeek(out _)) {
-                CompleteUnderLock();
-                return;
-            }
-
-            if (_mailbox.TryPeek(out _)) {
-                ScheduleUnderLock();
-            }
-            else {
-                _scheduled = false;
-            }
+            ContinueOrCompleteUnderLock();
         }
     }
 
-    private void CompleteBatch()
+    private void ContinueOrCompleteUnderLock()
     {
-        lock (_gate) {
-            if (_suspended) {
-                return;
-            }
-
-            if (Volatile.Read(ref _completionSeen) != 0
-                && !_mailbox.TryPeek(out _)) {
-                CompleteUnderLock();
-                return;
-            }
-
-            if (_mailbox.TryPeek(out _)) {
-                ScheduleUnderLock();
-            }
-            else {
-                _scheduled = false;
-            }
+        if (_mailbox.TryPeek(out _)) {
+            ScheduleUnderLock();
         }
-    }
-
-    private void Fail(Exception error)
-    {
-        lock (_gate) {
-            _failure = error;
-            _suspended = false;
+        else {
             _scheduled = false;
-            CompleteUnderLock();
+            if (Volatile.Read(ref _completionSeen) != 0) {
+                CompleteUnderLock();
+            }
         }
+    }
+
+    private void FailUnderLock(Exception error)
+    {
+        Volatile.Write(ref _failure, error);
+        _suspended = false;
+        _scheduled = false;
+        while (_mailbox.TryDequeue(out var message)) {
+            switch (message) {
+                case TickMessage tick:
+                    tick.Reject(error);
+                    break;
+                case SchedulerTickMessage schedule:
+                    schedule.Reject(error);
+                    break;
+            }
+        }
+        CompleteUnderLock();
     }
 
     private void TryScheduleUnderLock()
@@ -276,8 +314,9 @@ public sealed class WorldActor : IDisposable
         if (Volatile.Read(ref _completed) != 0) {
             return;
         }
-        _completed = 1;
+        Volatile.Write(ref _completed, 1);
         _completion.Set();
+        _runtime?.OnActorCompleted(this);
     }
 
     private void ThrowIfClosed()
@@ -301,7 +340,7 @@ public sealed class WorldActor : IDisposable
 
     public void ThrowIfFailed()
     {
-        if (_failure is { } failure) {
+        if (Failure is { } failure) {
             System.Runtime.ExceptionServices.ExceptionDispatchInfo
                 .Capture(failure).Throw();
         }
@@ -315,12 +354,18 @@ public sealed class WorldActor : IDisposable
 
     public void CompleteAndDispose(TimeSpan timeout)
     {
+        if (!IsCompleted) {
+            var executing = ExecutingActor;
+            if (IsOwnerThread || ReferenceEquals(executing, this)
+                || (_runtime is not null && executing?.Runtime == _runtime)) {
+                throw new InvalidOperationException("Cannot wait for actor completion from the same actor or runtime.");
+            }
+        }
         Complete();
         if (!WaitForCompletion(timeout)) {
             throw new TimeoutException(
                 $"WorldActor did not drain within {timeout}.");
         }
-        ThrowIfFailed();
-        World.Dispose();
+        Outcome<Exception>.Success.Attempt(ThrowIfFailed).Attempt(World.Dispose).ThrowIfFailed();
     }
 }

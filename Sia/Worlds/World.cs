@@ -15,6 +15,7 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
 
     internal EntityStatePool EntityStates { get; } = new();
 
+    private readonly object _actorLifecycleLock = new();
     private WorldActor? _actor;
 
     public World()
@@ -29,32 +30,33 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
 
     private void Dispose(bool disposing)
     {
-        if (IsDisposed) { return; }
+        lock (_actorLifecycleLock) {
+            if (IsDisposed) { return; }
 
-        if (_actor is { IsCompleted: false }) {
-            if (!disposing) return;
-            throw new InvalidOperationException(
-                "The world is bound to a WorldActor that has not completed. " +
-                "Call WorldActor.CompleteAndDispose(...) instead of World.Dispose() directly.");
-        }
-
-        if (disposing) {
-            if (HostCallbackDepth != 0 || Dispatcher.IsSending || Dispatcher.PendingAfterSendActionCount != 0
-                || _clearingHosts || _closingHost != null || _initializingHosts.Count != 0
-                || _clearingAddons || _addonOperations.Count != 0) {
-                throw new InvalidOperationException("Cannot dispose the world during host or addon lifecycle operations.");
+            if (_actor is { IsCompleted: false }) {
+                if (!disposing) return;
+                throw new InvalidOperationException(
+                    "The world is bound to a WorldActor that has not completed. " +
+                    "Call WorldActor.CompleteAndDispose(...) instead of World.Dispose() directly.");
             }
-            for (int i = 0, addonAcc = 0; addonAcc < _addonCount; ++i) {
-                if (_addons[i] is { } addon) {
-                    addonAcc++;
-                    if (addon is Scheduler { DisposalErrorMessage: { } message }) {
-                        throw new InvalidOperationException(message);
+
+            if (disposing) {
+                if (HostCallbackDepth != 0 || Dispatcher.IsSending || Dispatcher.PendingAfterSendActionCount != 0
+                    || _clearingHosts || _closingHost != null || _initializingHosts.Count != 0
+                    || _clearingAddons || _addonOperations.Count != 0) {
+                    throw new InvalidOperationException("Cannot dispose the world during host or addon lifecycle operations.");
+                }
+                for (int i = 0, addonAcc = 0; addonAcc < _addonCount; ++i) {
+                    if (_addons[i] is { } addon) {
+                        addonAcc++;
+                        if (addon is Scheduler { DisposalErrorMessage: { } message }) {
+                            throw new InvalidOperationException(message);
+                        }
                     }
                 }
             }
+            IsDisposed = true;
         }
-
-        IsDisposed = true;
 
         var result = Outcome<Exception>.Success
             .Attempt(ClearHosts)
@@ -120,14 +122,17 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
 
     internal void BindActor(WorldActor actor)
     {
-        if (Interlocked.CompareExchange(ref _actor, actor, null) is { } existing
-            && !ReferenceEquals(existing, actor)) {
-            throw new InvalidOperationException(
-                "The world is already bound to a different actor.");
+        lock (_actorLifecycleLock) {
+            ObjectDisposedException.ThrowIf(IsDisposed, this);
+            if (_actor is not null && !ReferenceEquals(_actor, actor)) {
+                throw new InvalidOperationException(
+                    "The world is already bound to a different actor.");
+            }
+            Volatile.Write(ref _actor, actor);
         }
     }
 
-    public WorldActor? Actor => _actor;
+    public WorldActor? Actor => Volatile.Read(ref _actor);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Post(IWorldMessage message)
@@ -151,7 +156,7 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void EnsureOwnerThread()
     {
-        var actor = _actor;
+        var actor = Actor;
         if (actor != null && !actor.IsOwnerThread) {
             throw new InvalidOperationException(
                 "World operations must run on the actor owner thread. " +

@@ -130,6 +130,7 @@ public class ParallelRunner : IRunner
     public int DegreeOfParallelism { get; }
 
     private readonly BlockingQueue<IJob> _jobs = new();
+    private readonly Lock _submissionLock = new();
 
     private readonly DefaultObjectPool<GroupActionJob[]> _groupActionJobArrPool;
     private readonly ConcurrentDictionary<Type, object> _genericGroupActionJobArrPools = [];
@@ -191,6 +192,8 @@ public class ParallelRunner : IRunner
 
     public void Run(Action action, RunnerBarrier? barrier = null)
     {
+        using var scope = _submissionLock.EnterScope();
+        ObjectDisposedException.ThrowIf(_jobs.IsCompleted, this);
         var job = s_actionJobPool.Get();
         job.Action = action;
 
@@ -207,6 +210,8 @@ public class ParallelRunner : IRunner
 
     public void Run<TData>(in TData data, InAction<TData> action, RunnerBarrier? barrier = null)
     {
+        using var scope = _submissionLock.EnterScope();
+        ObjectDisposedException.ThrowIf(_jobs.IsCompleted, this);
         if (!s_genericActionJobPools.TryGetValue(typeof(TData), out var poolRaw)) {
             poolRaw = s_genericActionJobPools.GetOrAdd(typeof(TData),
                 static _ => ObjectPool.Create<ActionJob<TData>>());
@@ -231,6 +236,8 @@ public class ParallelRunner : IRunner
 
     public void Run(int taskCount, GroupAction action, RunnerBarrier? barrier = null)
     {
+        using var scope = _submissionLock.EnterScope();
+        ObjectDisposedException.ThrowIf(_jobs.IsCompleted, this);
         var degreeOfParallelism = Math.Min(taskCount, DegreeOfParallelism);
         var div = taskCount / degreeOfParallelism;
         var remaining = taskCount % degreeOfParallelism;
@@ -274,6 +281,8 @@ public class ParallelRunner : IRunner
     public void Run<TData>(
         int taskCount, in TData data, GroupAction<TData> action, RunnerBarrier? barrier = null)
     {
+        using var scope = _submissionLock.EnterScope();
+        ObjectDisposedException.ThrowIf(_jobs.IsCompleted, this);
         var degreeOfParallelism = Math.Min(taskCount, DegreeOfParallelism);
         var div = taskCount / degreeOfParallelism;
         var remaining = taskCount % degreeOfParallelism;
@@ -328,7 +337,9 @@ public class ParallelRunner : IRunner
 
     public void Dispose()
     {
-        _jobs.Complete();
+        lock (_submissionLock) {
+            _jobs.Complete();
+        }
         GC.SuppressFinalize(this);
     }
 }

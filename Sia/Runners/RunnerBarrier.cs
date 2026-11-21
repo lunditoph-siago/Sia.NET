@@ -16,7 +16,7 @@ public sealed class RunnerBarrier
 #if BROWSER
             barrier._remaining = 0;
 #endif
-            barrier.Exception = null;
+            barrier._failures = default;
             return true;
         }
     }
@@ -31,8 +31,10 @@ public sealed class RunnerBarrier
     public int ParticipantCount => Raw.ParticipantCount;
 #endif
 
-    public Exception? Exception { get; private set; }
+    public Exception? Exception => _failures.PrimaryError;
 
+    private readonly Lock _failureLock = new();
+    private Outcome<Exception> _failures;
     private int _callbackCount;
     private readonly CallbackEntry[] _callbacks = new CallbackEntry[32];
 
@@ -81,7 +83,9 @@ public sealed class RunnerBarrier
 
     public void Throw(Exception e)
     {
-        Exception = e;
+        lock (_failureLock) {
+            _failures = _failures.Combine(Outcome<Exception>.Failure(e));
+        }
         RemoveParticipants(1);
     }
 
@@ -98,23 +102,19 @@ public sealed class RunnerBarrier
         Raw.SignalAndWait();
 #endif
 
-        Exception? exception;
-
+        var result = _failures;
         try {
             for (var i = 0; i != _callbackCount; ++i) {
-                ref var entry = ref _callbacks[i];
-                entry.Callback(entry.UserData);
+                result = result.Attempt(_callbacks[i],
+                    static (in CallbackEntry entry) => entry.Callback(entry.UserData));
             }
         }
         finally {
             Array.Clear(_callbacks, 0, _callbackCount);
             _callbackCount = 0;
-            exception = Exception;
         }
 
-        if (exception != null) {
-            throw exception;
-        }
+        result.ThrowIfFailed();
     }
 
     public void WaitAndReturn()
