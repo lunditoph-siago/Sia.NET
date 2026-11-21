@@ -152,15 +152,16 @@ public partial class World
             throw new InvalidOperationException("Cannot clear addons during addon initialization or removal.");
         }
         if (_addonCount == 0) return;
-        EnsureSchedulersCanDispose();
 
-        var addons = new List<IAddon>(_addonCount);
-        for (var i = 0; addons.Count < _addonCount; ++i) {
+        var addons = new IAddon[_addonCount];
+        var i = 0;
+        for (var addonIndex = 0; addonIndex < addons.Length; ++i) {
             if (_addons[i] is { } addon) {
-                addons.Add(addon);
-                _addons[i] = null;
+                if (addon is Scheduler scheduler) scheduler.EnsureCanDispose();
+                addons[addonIndex++] = addon;
             }
         }
+        Array.Clear(_addons, 0, i);
         _addonCount = 0;
 
         _clearingAddons = true;
@@ -175,16 +176,6 @@ public partial class World
         }
         finally {
             _clearingAddons = false;
-        }
-    }
-
-    private void EnsureSchedulersCanDispose()
-    {
-        for (int i = 0, addonAcc = 0; addonAcc < _addonCount; ++i) {
-            if (_addons[i] is { } addon) {
-                addonAcc++;
-                if (addon is Scheduler scheduler) scheduler.EnsureCanDispose();
-            }
         }
     }
 }

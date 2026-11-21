@@ -664,7 +664,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             }
             if (runtime != null) {
                 result = result.Attempt(runtime,
-                    static (in SystemStage stage) => stage.RequestDisposal());
+                    static (in SystemStage stage) => stage.Dispose(deferWhileExecuting: true));
             }
         }
         else if (entity.ContainsUnchecked<ScheduleNode>()) {
@@ -851,13 +851,13 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         for (var i = registry.RuntimeOrder.Length - 1; i >= 0; i--) {
             var runtime = registry.RuntimeOrder[i];
             if (requestedStages.Add(runtime)) {
-                result = result.Attempt(runtime.RequestDisposal);
+                result = result.Attempt(runtime, static (in stage) => stage.Dispose(deferWhileExecuting: true));
             }
         }
         for (var i = registry.Slots.Count - 1; i >= 0; i--) {
             var runtime = registry.Slots[i].Runtime;
             if (runtime is not null && requestedStages.Add(runtime)) {
-                result = result.Attempt(runtime.RequestDisposal);
+                result = result.Attempt(runtime, static (in stage) => stage.Dispose(deferWhileExecuting: true));
             }
         }
         registry.Slots.Clear();

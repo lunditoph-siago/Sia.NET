@@ -44,7 +44,12 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
                 || _clearingAddons || _addonOperations.Count != 0) {
                 throw new InvalidOperationException("Cannot dispose the world during host or addon lifecycle operations.");
             }
-            EnsureSchedulersCanDispose();
+            for (int i = 0, addonAcc = 0; addonAcc < _addonCount; ++i) {
+                if (_addons[i] is { } addon) {
+                    addonAcc++;
+                    if (addon is Scheduler scheduler) scheduler.EnsureCanDispose();
+                }
+            }
         }
 
         IsDisposed = true;

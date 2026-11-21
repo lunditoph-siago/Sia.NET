@@ -163,16 +163,12 @@ public partial class World
         where TTypeUnion : ITypeUnion, new()
         => Query(Matchers.From<TTypeUnion>());
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public IReactiveEntityQuery Query(IEntityMatcher matcher)
-        => Query(matcher, cache: true);
-
-    internal IReactiveEntityQuery Query(IEntityMatcher matcher, bool cache)
+    public IReactiveEntityQuery Query(IEntityMatcher matcher, bool cache = true)
     {
         EnsureOwnerThread();
         ObjectDisposedException.ThrowIf(IsDisposed, this);
         ArgumentNullException.ThrowIfNull(matcher);
-        if (matcher == Matchers.Any) {
+        if (cache && matcher == Matchers.Any) {
             return _anyQuery ??= new(this);
         }
         if (cache && _queries.TryGetValue(matcher, out var cached)) {

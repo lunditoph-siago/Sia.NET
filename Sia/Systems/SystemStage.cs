@@ -154,15 +154,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
         {
             public void Handle<TEvent>()
                 where TEvent : IEvent
-            {
-                if (query._filterTypes.Contains(typeof(TEvent))) {
-                    return;
-                }
-                var dispatcher = query._dispatcher;
-                WorldDispatcher.Listener<TEvent> listener = query.OnTrigger;
-                dispatcher.Listen(listener);
-                query._unlisteners.Add(() => dispatcher.RetireListener(listener));
-            }
+                => query.ListenTrigger<TEvent>();
         }
 
         private readonly struct FilterRegistrar(ReactiveQuery query)
@@ -170,12 +162,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
         {
             public void Handle<TEvent>()
                 where TEvent : IEvent
-            {
-                var dispatcher = query._dispatcher;
-                WorldDispatcher.Listener<TEvent> listener = query.OnFilter;
-                dispatcher.Listen(listener);
-                query._unlisteners.Add(() => dispatcher.RetireListener(listener));
-            }
+                => query.ListenFilter<TEvent>();
         }
 
         public int Count {
@@ -190,7 +177,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
         }
 
         public int Version { get; private set; }
-        public bool Executing { get; set; }
+        public bool Executing { get; private set; }
 
         public IReadOnlyList<IEntityHost> Hosts => _hosts;
         private readonly List<CollectedEntityHost> _hosts = [];
@@ -244,6 +231,25 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
             }
         }
 
+        private void ListenTrigger<TEvent>()
+            where TEvent : IEvent
+        {
+            if (_filterTypes.Contains(typeof(TEvent))) {
+                return;
+            }
+            WorldDispatcher.Listener<TEvent> listener = OnTrigger;
+            _dispatcher.Listen(listener);
+            _unlisteners.Add(() => _dispatcher.RetireListener(listener));
+        }
+
+        private void ListenFilter<TEvent>()
+            where TEvent : IEvent
+        {
+            WorldDispatcher.Listener<TEvent> listener = OnFilter;
+            _dispatcher.Listen(listener);
+            _unlisteners.Add(() => _dispatcher.RetireListener(listener));
+        }
+
         private bool OnTrigger<TEvent>(Entity target, in TEvent e)
             where TEvent : IEvent
         {
@@ -258,15 +264,12 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
             where TEvent : IEvent
         {
             if (target.Host is { } host && _hostMap.TryGetValue(host, out var entry)) {
-                if (Executing) {
-                    _deferredOps.Add(new(entry.Host, target, Collect: false));
-                }
-                else {
-                    entry.Host.Remove(target);
-                }
+                Uncollect(entry.Host, target);
             }
             return false;
         }
+
+        public void BeginExecution() => Executing = true;
 
         public void EndExecution()
         {
@@ -311,6 +314,26 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
             result.ThrowFailure();
         }
 
+        private void Collect(CollectedEntityHost host, Entity entity)
+        {
+            if (Executing) {
+                _deferredOps.Add(new(host, entity, Collect: true));
+            }
+            else {
+                host.Add(entity);
+            }
+        }
+
+        private void Uncollect(CollectedEntityHost host, Entity entity)
+        {
+            if (Executing) {
+                _deferredOps.Add(new(host, entity, Collect: false));
+            }
+            else {
+                host.Remove(entity);
+            }
+        }
+
         private void OnEntityHostAdded(IReactiveEntityHost host)
         {
             Version++;
@@ -320,14 +343,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
             EntityHandler? onEntityCreated = null;
             try {
                 if (_collectsOnEntityCreated) {
-                    onEntityCreated = entity => {
-                        if (Executing) {
-                            _deferredOps.Add(new(collectedHost, entity, Collect: true));
-                        }
-                        else {
-                            collectedHost.Add(entity);
-                        }
-                    };
+                    onEntityCreated = entity => Collect(collectedHost, entity);
                     host.OnEntityCreated += onEntityCreated;
                 }
                 _hostMap.Add(host, new(collectedHost, onEntityCreated));
@@ -419,7 +435,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
     private bool _disposalRequested;
 
     internal SystemStage(World world, IEnumerable<ISystem> systems)
-        : this(world, systems, null) { }
+        : this(world, systems, null) {}
 
     private SystemStage(
         World world,
@@ -451,10 +467,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
                 Entries[i].System.Initialize(world);
             }
             catch (Exception initializationError) {
-                IsDisposed = true;
-                CleanupInitialized(
-                    world, Entries, i, Outcome<Exception>.Failure(initializationError))
-                    .ThrowFailure();
+                DisposeInitialized(i, initializationError);
             }
         }
     }
@@ -464,8 +477,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
             world,
             (plan ?? throw new ArgumentNullException(nameof(plan)))
                 .Entries.Select(static entry => entry.Creator()),
-            plan)
-    { }
+            plan) {}
 
     int ISystemScheduleEntry.Version => 0;
     ExecutionPlan? ISystemScheduleEntry.Plan => _plan;
@@ -474,29 +486,21 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
         => Execute(context, applyCommands: false, systemIndex: index);
 
     public void Dispose()
+        => Dispose(deferWhileExecuting: false);
+
+    internal void Dispose(bool deferWhileExecuting)
     {
         if (IsDisposed) {
             return;
         }
         if (_executionInProgress) {
-            throw new InvalidOperationException("Cannot dispose a system stage while it is executing.");
-        }
-        DisposeCore(Outcome<Exception>.Success);
-    }
-
-    internal void RequestDisposal()
-    {
-        if (_executionInProgress) {
+            if (!deferWhileExecuting) {
+                throw new InvalidOperationException("Cannot dispose a system stage while it is executing.");
+            }
             _disposalRequested = true;
             return;
         }
-        Dispose();
-    }
-
-    private void DisposeCore(Outcome<Exception> result)
-    {
-        IsDisposed = true;
-        CleanupInitialized(World, Entries, Entries.Length, result).ThrowIfFailed();
+        DisposeInitialized(Entries.Length);
     }
 
     public void Tick(CancellationToken cancellation = default)
@@ -527,31 +531,25 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
         }
         finally {
             _executionInProgress = false;
-            if (_disposalRequested) DisposeAfterExecution(executionError);
+            if (_disposalRequested) DisposeInitialized(Entries.Length, executionError);
         }
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private void DisposeAfterExecution(Exception? executionError)
+    private void DisposeInitialized(int initializedCount, Exception? error = null)
     {
         _disposalRequested = false;
-        var outcome = executionError is null
+        IsDisposed = true;
+        var world = World;
+        var entries = Entries;
+        var result = error is null
             ? Outcome<Exception>.Success
-            : Outcome<Exception>.Failure(executionError);
-        DisposeCore(outcome);
-    }
-
-    private static Outcome<Exception> CleanupInitialized(
-        World world,
-        IReadOnlyList<Entry> entries,
-        int initializedCount,
-        Outcome<Exception> result)
-    {
+            : Outcome<Exception>.Failure(error);
         for (var i = initializedCount - 1; i >= 0; i--) {
             var system = entries[i].System;
             result = result.Attempt(() => system.Uninitialize(world));
         }
-        return DisposeResources(entries, result);
+        DisposeResources(entries, result).ThrowIfFailed();
     }
 
     private static Outcome<Exception> DisposeResources(
@@ -628,7 +626,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
                 if (reactiveQuery.Count == 0) {
                     return;
                 }
-                reactiveQuery.Executing = true;
+                reactiveQuery.BeginExecution();
                 try {
                     system.Execute(context, reactiveQuery);
                 }
