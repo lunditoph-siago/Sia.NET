@@ -106,8 +106,8 @@ public sealed class ActorRuntime : IDisposable
         IBlockingWorldMessage message,
         WorldContext context)
         => _blocking.Post(() => {
-            var previous = WorldActor.Current;
-            WorldActor.Current = actor;
+            var previous = WorldActor.BlockingActor;
+            WorldActor.BlockingActor = actor;
             Exception? failure = null;
             try {
                 message.ExecuteBlocking(context);
@@ -116,7 +116,7 @@ public sealed class ActorRuntime : IDisposable
                 failure = error;
             }
             finally {
-                WorldActor.Current = previous;
+                WorldActor.BlockingActor = previous;
             }
             actor.ResumeFromSuspension(failure);
         });
@@ -135,7 +135,7 @@ public sealed class ActorRuntime : IDisposable
 
     public void Dispose(TimeSpan timeout)
     {
-        if (WorldActor.ExecutingActor?.Runtime == this) {
+        if (WorldActor.IsExecuting(this)) {
             throw new InvalidOperationException("An actor cannot dispose its own runtime.");
         }
         if (timeout != Timeout.InfiniteTimeSpan

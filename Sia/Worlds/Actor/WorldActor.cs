@@ -3,19 +3,50 @@ namespace Sia;
 public sealed class WorldActor : IDisposable
 {
     [ThreadStatic]
-    internal static WorldActor? Current;
+    private static WorldActor? s_current;
 
-    private sealed class AsyncExecution(WorldActor actor)
+    [ThreadStatic]
+    internal static WorldActor? BlockingActor;
+
+    [ThreadStatic]
+    private static Stack<WorldActor>? s_enclosingActors;
+
+    private sealed class AsyncExecution(
+        WorldActor actor, AsyncExecution? previous, WorldActor[]? enclosingActors)
     {
         public WorldActor Actor { get; } = actor;
+        public AsyncExecution? Previous { get; } = previous;
+        public WorldActor[]? EnclosingActors { get; } = enclosingActors;
         public Task? Completion;
     }
 
     private static readonly AsyncLocal<AsyncExecution?> s_asyncExecution = new();
 
-    internal static WorldActor? ExecutingActor
-        => Current ?? (s_asyncExecution.Value is { } execution
-            && Volatile.Read(ref execution.Completion)?.IsCompleted != true ? execution.Actor : null);
+    internal static bool IsExecuting(ActorRuntime? runtime, WorldActor? actor = null)
+    {
+        bool Matches(WorldActor? candidate)
+            => candidate is not null && (ReferenceEquals(candidate, actor)
+                || runtime is not null && ReferenceEquals(candidate._runtime, runtime));
+
+        if (Matches(s_current) || Matches(BlockingActor)) {
+            return true;
+        }
+        if (s_enclosingActors is { } enclosingActors) {
+            foreach (var enclosing in enclosingActors) {
+                if (Matches(enclosing)) return true;
+            }
+        }
+        for (var execution = s_asyncExecution.Value; execution is not null; execution = execution.Previous) {
+            if (Volatile.Read(ref execution.Completion)?.IsCompleted == true) continue;
+            if (Matches(execution.Actor)) return true;
+            if (execution.EnclosingActors is { } actors) {
+                foreach (var enclosing in actors) {
+                    if (Matches(enclosing)) return true;
+                }
+            }
+        }
+        return false;
+    }
 
     private readonly object _gate = new();
     private readonly BlockingQueue<IWorldMessage> _mailbox = new();
@@ -36,10 +67,8 @@ public sealed class WorldActor : IDisposable
     public bool IsCompleted => Volatile.Read(ref _completed) != 0;
     public Exception? Failure => Volatile.Read(ref _failure);
 
-    internal ActorRuntime? Runtime => _runtime;
-
     public bool IsOwnerThread
-        => ReferenceEquals(Current, this)
+        => ReferenceEquals(s_current, this)
         || Environment.CurrentManagedThreadId == Volatile.Read(ref _ownerThreadId);
 
     public WorldActor(World world)
@@ -107,8 +136,12 @@ public sealed class WorldActor : IDisposable
         }
 
         _running.Set();
-        var previous = Current;
-        Current = this;
+        var previous = s_current;
+        var enclosing = previous ?? BlockingActor;
+        if (enclosing is not null) {
+            (s_enclosingActors ??= new()).Push(enclosing);
+        }
+        s_current = this;
 
         var completionSeen = false;
         Exception? failure = null;
@@ -150,9 +183,9 @@ public sealed class WorldActor : IDisposable
             failure = error;
         }
         finally {
-            Current = previous;
+            s_current = previous;
+            if (enclosing is not null) s_enclosingActors!.Pop();
             lock (_gate) {
-                Volatile.Write(ref _ownerThreadId, 0);
                 if (failure is null) {
                     CompleteUnderLock();
                 }
@@ -167,8 +200,8 @@ public sealed class WorldActor : IDisposable
     {
         var runtime = _runtime!;
         var context = new WorldContext(World);
-        var previous = Current;
-        Current = this;
+        var previous = s_current;
+        s_current = this;
         if (!_running.IsSet) _running.Set();
 
         try {
@@ -221,7 +254,7 @@ public sealed class WorldActor : IDisposable
             }
         }
         finally {
-            Current = previous;
+            s_current = previous;
         }
     }
 
@@ -236,7 +269,8 @@ public sealed class WorldActor : IDisposable
     private Task ExecuteAsync(IAsyncWorldMessage message, in WorldContext context)
     {
         var previous = s_asyncExecution.Value;
-        var execution = new AsyncExecution(this);
+        var enclosingActors = s_enclosingActors is { Count: > 0 } actors ? actors.ToArray() : null;
+        var execution = new AsyncExecution(this, previous, enclosingActors);
         s_asyncExecution.Value = execution;
         Task? completion = null;
         try {
@@ -354,12 +388,8 @@ public sealed class WorldActor : IDisposable
 
     public void CompleteAndDispose(TimeSpan timeout)
     {
-        if (!IsCompleted) {
-            var executing = ExecutingActor;
-            if (IsOwnerThread || ReferenceEquals(executing, this)
-                || (_runtime is not null && executing?.Runtime == _runtime)) {
-                throw new InvalidOperationException("Cannot wait for actor completion from the same actor or runtime.");
-            }
+        if (!IsCompleted && (IsOwnerThread || IsExecuting(_runtime, this))) {
+            throw new InvalidOperationException("Cannot wait for actor completion from the same actor or runtime.");
         }
         Complete();
         if (!WaitForCompletion(timeout)) {
