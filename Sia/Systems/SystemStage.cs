@@ -433,7 +433,9 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
         var entries = ImmutableArray.CreateBuilder<Entry>();
         try {
             foreach (var system in systems) {
-                entries.Add(CompileEntry(world, system));
+                var action = CreateSystemAction(
+                    world, system, out var disposable);
+                entries.Add(new(system, action, disposable));
             }
         }
         catch (Exception compilationError) {
@@ -582,64 +584,86 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
         };
     }
 
-    private static Entry CompileEntry(World world, ISystem system)
+    private static Action<WorldContext>? CreateSystemAction(World world, ISystem system, out IDisposable? disposable)
     {
         var matcher = system.Matcher;
         var children = system.Children;
-        var entry = matcher is null || matcher == Matchers.None
-            ? new Entry(system, null, null)
-            : CompileSystem(world, system, matcher);
-        if (children is null) {
-            return entry;
-        }
 
-        SystemStage childrenStage;
-        try {
-            childrenStage = children.CreateStage(world);
-        }
-        catch (Exception creationError) {
-            var outcome = Outcome<Exception>.Failure(creationError);
-            if (entry.Disposable is { } resource) {
-                outcome = outcome.Attempt(resource.Dispose);
+        if (matcher == null || matcher == Matchers.None) {
+            if (children == null) {
+                disposable = null;
+                return null;
             }
-            return outcome.ThrowFailure<Entry>();
+            else {
+                var childrenStage = children.CreateStage(world);
+                disposable = childrenStage;
+                return context => childrenStage.Tick(context.Cancellation);
+            }
         }
 
-        if (entry.Action is not { } executeSystem) {
-            return new(system, context => childrenStage.Tick(context.Cancellation), childrenStage);
-        }
-
-        IDisposable ownedResources = entry.Disposable is { } resourceToDispose
-            ? new CompositeDisposable(resourceToDispose, childrenStage)
-            : childrenStage;
-        return new(system, context => {
-            executeSystem(context);
-            childrenStage.Execute(context, applyCommands: false);
-        }, ownedResources);
-    }
-
-    private static Entry CompileSystem(World world, ISystem system, IEntityMatcher matcher)
-    {
         var trigger = system.Trigger;
         var filter = system.Filter;
-        if (trigger is null && filter is null) {
-            var query = matcher == Matchers.Any ? (IEntityQuery)world : world.Query(matcher);
-            return new(system, context => system.Execute(context, query), null);
+        var dispatcher = world.Dispatcher;
+
+        Action<WorldContext>? selfAction;
+        IDisposable? selfDisposable;
+
+        if (trigger == null && filter == null) {
+            if (matcher == Matchers.Any) {
+                selfDisposable = null;
+                selfAction = context => system.Execute(context, world);
+            }
+            else {
+                var query = world.Query(matcher);
+                selfDisposable = null;
+                selfAction = context => system.Execute(context, query);
+            }
+        }
+        else {
+            var query = world.Query(matcher);
+            var reactiveQuery = new ReactiveQuery(query, dispatcher, trigger, filter);
+
+            selfDisposable = reactiveQuery;
+            selfAction = context => {
+                if (reactiveQuery.Count == 0) {
+                    return;
+                }
+                reactiveQuery.Executing = true;
+                try {
+                    system.Execute(context, reactiveQuery);
+                }
+                finally {
+                    reactiveQuery.EndExecution();
+                }
+            };
         }
 
-        var reactiveQuery = new ReactiveQuery(world.Query(matcher), world.Dispatcher, trigger, filter);
-        return new(system, context => {
-            if (reactiveQuery.Count == 0) {
-                return;
-            }
-
-            reactiveQuery.Executing = true;
+        if (children != null) {
+            SystemStage childrenStage;
             try {
-                system.Execute(context, reactiveQuery);
+                childrenStage = children.CreateStage(world);
             }
-            finally {
-                reactiveQuery.EndExecution();
+            catch (Exception creationError) {
+                var result = Outcome<Exception>.Failure(creationError);
+                if (selfDisposable != null) {
+                    result = result.Attempt(selfDisposable.Dispose);
+                }
+                childrenStage = result.ThrowFailure<SystemStage>();
             }
-        }, reactiveQuery);
+            var executeSystem = selfAction;
+
+            disposable = selfDisposable != null
+                ? new CompositeDisposable(selfDisposable, childrenStage)
+                : childrenStage;
+
+            return context => {
+                executeSystem(context);
+                childrenStage.Execute(context, applyCommands: false);
+            };
+        }
+        else {
+            disposable = selfDisposable;
+            return selfAction;
+        }
     }
 }
