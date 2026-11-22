@@ -28,6 +28,8 @@ public sealed class WorldCommandQueue : IWorldCommandQueue
     public int Apply(World world)
     {
         ArgumentNullException.ThrowIfNull(world);
+        if (_requests.IsEmpty) return 0;
+
         world.EnsureOwnerThread();
         ObjectDisposedException.ThrowIf(world.IsDisposed, world);
 

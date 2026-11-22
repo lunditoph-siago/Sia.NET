@@ -35,20 +35,20 @@ public sealed class WorldActor : IDisposable
         }
     }
 
-    internal static bool IsExecuting(ActorRuntime? runtime, WorldActor? actor = null)
+    internal static bool BlocksShutdownWait(
+        ActorRuntime? runtime, WorldActor? actor, out bool holdsRuntimeWorker)
     {
+        var workerInUse = false;
         bool Matches(WorldActor? candidate, bool holdsWorker = false)
         {
             if (candidate is null) return false;
-            if (actor is not null && ReferenceEquals(candidate, actor)) return true;
-            return runtime is not null && ReferenceEquals(candidate._runtime, runtime)
-#if !BROWSER
-                && (actor is null || holdsWorker && runtime.WorkerCount == 1);
-#else
-                && actor is null;
-#endif
+            if (ReferenceEquals(candidate, actor)) return true;
+            if (runtime is null || !ReferenceEquals(candidate._runtime, runtime)) return false;
+            workerInUse |= holdsWorker;
+            return actor is null;
         }
 
+        holdsRuntimeWorker = false;
         if (Matches(s_current, holdsWorker: true) || Matches(BlockingActor)) {
             return true;
         }
@@ -66,6 +66,7 @@ public sealed class WorldActor : IDisposable
                 }
             }
         }
+        holdsRuntimeWorker = workerInUse;
         return false;
     }
 
@@ -168,6 +169,7 @@ public sealed class WorldActor : IDisposable
         }
         s_current = this;
 
+        var context = new WorldContext(World, cancellation);
         var completionSeen = false;
         Exception? failure = null;
 
@@ -186,7 +188,7 @@ public sealed class WorldActor : IDisposable
                 }
 
                 if (message is IAsyncWorldMessage asyncMessage) {
-                    var task = ExecuteAsync(asyncMessage, new WorldContext(World, cancellation));
+                    var task = ExecuteAsync(asyncMessage, context);
                     try {
                         task.GetAwaiter().GetResult();
                     }
@@ -196,11 +198,10 @@ public sealed class WorldActor : IDisposable
                     }
                 }
                 else if (message is IBlockingWorldMessage blockingMessage) {
-                    blockingMessage.ExecuteBlocking(
-                        new WorldContext(World, cancellation));
+                    blockingMessage.ExecuteBlocking(context);
                 }
                 else {
-                    message!.Execute(new WorldContext(World, cancellation));
+                    message!.Execute(context);
                 }
             }
         }
@@ -412,7 +413,37 @@ public sealed class WorldActor : IDisposable
         => _running.WaitHandle.WaitOne(ToTimeout(timeout));
 
     public bool WaitForCompletion(TimeSpan timeout)
-        => _completion.WaitHandle.WaitOne(ToTimeout(timeout));
+        => WaitForCompletion(ToTimeout(timeout), complete: false);
+
+    private bool WaitForCompletion(int timeout, bool complete)
+    {
+        var canBlock = timeout > 0 || timeout == Timeout.Infinite;
+        var holdsRuntimeWorker = false;
+        if ((complete || canBlock) && !IsCompleted
+            && (IsOwnerThread || BlocksShutdownWait(_runtime, this, out holdsRuntimeWorker))) {
+            throw new InvalidOperationException("An actor cannot wait for its own completion.");
+        }
+
+#if !BROWSER
+        var runtime = holdsRuntimeWorker && canBlock && !IsCompleted ? _runtime : null;
+        if (runtime is not null && !runtime.TryEnterWorkerWait()) {
+            if (!IsCompleted) {
+                throw new InvalidOperationException("Waiting would leave no runtime worker to complete the actor.");
+            }
+            runtime = null;
+        }
+
+        try {
+#endif
+            if (complete) Complete();
+            return _completion.WaitHandle.WaitOne(timeout);
+#if !BROWSER
+        }
+        finally {
+            runtime?.ExitWorkerWait();
+        }
+#endif
+    }
 
     private static int ToTimeout(TimeSpan timeout)
         => timeout.TotalMilliseconds >= int.MaxValue
@@ -435,11 +466,7 @@ public sealed class WorldActor : IDisposable
 
     public void CompleteAndDispose(TimeSpan timeout)
     {
-        if (!IsCompleted && (IsOwnerThread || IsExecuting(_runtime, this))) {
-            throw new InvalidOperationException("Cannot wait for actor completion from the same actor or runtime.");
-        }
-        Complete();
-        if (!WaitForCompletion(timeout)) {
+        if (!WaitForCompletion(ToTimeout(timeout), complete: true)) {
             throw new TimeoutException(
                 $"WorldActor did not drain within {timeout}.");
         }

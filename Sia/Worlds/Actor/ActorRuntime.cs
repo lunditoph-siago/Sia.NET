@@ -17,6 +17,7 @@ public sealed class ActorRuntime : IDisposable
 
 #if !BROWSER
     private readonly Task[] _workers;
+    private int _waitingWorkers;
 #endif
 
     public ActorRuntime(
@@ -103,6 +104,22 @@ public sealed class ActorRuntime : IDisposable
         });
 
 #if !BROWSER
+    internal bool TryEnterWorkerWait()
+    {
+        lock (_gate) {
+            if (_waitingWorkers == WorkerCount - 1) return false;
+            _waitingWorkers++;
+            return true;
+        }
+    }
+
+    internal void ExitWorkerWait()
+    {
+        lock (_gate) {
+            _waitingWorkers--;
+        }
+    }
+
     private void RunWorker()
     {
         while (_ready.Dequeue(out var actor)) {
@@ -116,7 +133,7 @@ public sealed class ActorRuntime : IDisposable
 
     public void Dispose(TimeSpan timeout)
     {
-        if (WorldActor.IsExecuting(this)) {
+        if (WorldActor.BlocksShutdownWait(this, null, out _)) {
             throw new InvalidOperationException("An actor cannot dispose its own runtime.");
         }
         if (timeout != Timeout.InfiniteTimeSpan
