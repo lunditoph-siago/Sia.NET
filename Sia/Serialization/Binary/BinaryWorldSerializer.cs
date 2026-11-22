@@ -12,14 +12,18 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
     where TComponentSerializer : IComponentSerializer, new()
 {
     private unsafe struct EntitySerializationHandler<TBufferWriter>(
-        TComponentSerializer serializer, TBufferWriter* writer) : IRefGenericHandler<IHList>
+        TComponentSerializer* serializer, TBufferWriter* writer) : IRefGenericHandler<IHList>
         where TBufferWriter : IBufferWriter<byte>
     {
         private struct HeadHandler(
-            TComponentSerializer serializer, TBufferWriter* writer) : IRefGenericHandler
+            TComponentSerializer* serializer, TBufferWriter* writer) : IRefGenericHandler
         {
             public void Handle<T>(ref T component)
-                => serializer.Serialize(ref *writer, component);
+            {
+                if (!(*serializer).Serialize(ref *writer, component)) {
+                    throw new InvalidDataException($"Could not serialize component {typeof(T)}.");
+                }
+            }
         }
 
         private HeadHandler _headHandler = new(serializer, writer);
@@ -33,17 +37,21 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
     }
 
     private unsafe struct EntityDeserializationHandler(
-        TComponentSerializer serializer, ReadOnlySequence<byte>* buffer,
+        TComponentSerializer* serializer, ReadOnlySequence<byte>* buffer,
         Dictionary<EntityId, Entity> entityMap)
         : IRefGenericHandler<IHList>
     {
         private struct HeadHandler(
-            TComponentSerializer serializer, ReadOnlySequence<byte>* buffer,
+            TComponentSerializer* serializer, ReadOnlySequence<byte>* buffer,
             Dictionary<EntityId, Entity> entityMap)
             : IRefGenericHandler
         {
             public void Handle<T>(ref T component)
-                => serializer.Deserialize(ref *buffer, ref component, entityMap);
+            {
+                if (!(*serializer).Deserialize(ref *buffer, ref component, entityMap)) {
+                    throw new InvalidDataException($"Could not deserialize component {typeof(T)}.");
+                }
+            }
         }
 
         private HeadHandler _headHandler = new(serializer, buffer, entityMap);
@@ -63,29 +71,36 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
     public static unsafe void Serialize<TBufferWriter>(ref TBufferWriter writer, World world)
         where TBufferWriter : IBufferWriter<byte>
     {
-        using var serializer = new TComponentSerializer();
+        var serializer = new TComponentSerializer();
         Span<byte> intSpan = stackalloc byte[4];
 
-        fixed (TBufferWriter* writerPtr = &writer) {
-            var entitySerializer = new EntitySerializationHandler<TBufferWriter>(serializer, writerPtr);
+        try {
+            fixed (TBufferWriter* writerPtr = &writer) {
+                var entitySerializer = new EntitySerializationHandler<TBufferWriter>(&serializer, writerPtr);
 
-            foreach (var host in world.Hosts) {
-                if (host.Count == 0) {
-                    continue;
-                }
+                foreach (var host in world.Hosts) {
+                    if (host.Count == 0) {
+                        continue;
+                    }
 
-                THostHeaderSerializer.Serialize(ref writer, host);
+                    THostHeaderSerializer.Serialize(ref writer, host);
 
-                BinaryPrimitives.WriteInt32BigEndian(intSpan, host.Count);
-                writer.Write(intSpan);
+                    BinaryPrimitives.WriteInt32BigEndian(intSpan, host.Count);
+                    writer.Write(intSpan);
 
-                foreach (var entity in host) {
-                    serializer.Serialize(ref writer, entity.Id);
-                }
-                foreach (var entity in host) {
-                    entity.GetHList(entitySerializer);
+                    foreach (var entity in host) {
+                        if (!serializer.Serialize(ref writer, entity.Id)) {
+                            throw new InvalidDataException($"Could not serialize entity ID {entity.Id}.");
+                        }
+                    }
+                    foreach (var entity in host) {
+                        entity.GetHList(entitySerializer);
+                    }
                 }
             }
+        }
+        finally {
+            serializer.Dispose();
         }
     }
 
@@ -95,42 +110,73 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
         "Calls THostHeaderSerializer.Deserialize, which may construct generic types and methods at runtime.")]
     public static unsafe void Deserialize(ref ReadOnlySequence<byte> buffer, World world)
     {
-        using var serializer = new TComponentSerializer();
-        Span<byte> intSpan = stackalloc byte[4];
-
-        var entities = new List<Entity>();
+        var entities = new List<(EntityId Id, Entity Entity)>();
         var entityMap = new Dictionary<EntityId, Entity>();
+        var serializer = new TComponentSerializer();
 
-        fixed (ReadOnlySequence<byte>* bufferPtr = &buffer) {
-            var entityDeserializer = new EntityDeserializationHandler(serializer, bufferPtr, entityMap);
-
+        try {
             while (true) {
-                var host = THostHeaderSerializer.Deserialize(ref buffer, world);
+                var block = buffer;
+                var host = THostHeaderSerializer.Deserialize(ref block, world);
                 if (host == null) {
-                    break;
+                    buffer = block;
+                    return;
                 }
 
-                var reader = new SequenceReader<byte>(buffer);
-                if (!reader.TryReadBigEndian(out int entityCount)) {
-                    break;
+                var reader = new SequenceReader<byte>(block);
+                if (!reader.TryReadBigEndian(out int entityCount) || entityCount < 0) {
+                    throw new InvalidDataException("Invalid entity count in world data.");
                 }
 
-                buffer = reader.UnreadSequence;
-                var comps = host.Descriptor.Components;
-
-                for (var i = 0; i != entityCount; ++i) {
-                    var e = host.Create();
+                block = reader.UnreadSequence;
+                entities.EnsureCapacity((int)Math.Min(entityCount, block.Length / sizeof(int)));
+                for (var i = 0; i < entityCount; ++i) {
                     EntityId id = default;
-                    serializer.Deserialize(ref buffer, ref id, entityMap);
-                    entityMap[id] = e;
-                    entities.Add(e);
+                    if (!serializer.Deserialize(ref block, ref id, entityMap) || id.Value == 0) {
+                        throw new InvalidDataException("Invalid entity ID in world data.");
+                    }
+                    if (!entityMap.TryAdd(id, default)) {
+                        throw new InvalidDataException("Duplicate entity ID in world data.");
+                    }
+                    entities.Add((id, default));
                 }
 
-                foreach (var e in entities.AsSpan()) {
-                    e.GetHList(entityDeserializer);
+                try {
+                    foreach (ref var row in entities.AsSpan()) {
+                        if (host is IWorldBatchHost worldHost) {
+                            worldHost.CreateForLoad(out row.Entity);
+                        }
+                        else {
+                            row.Entity = host.Create();
+                        }
+                        if (!ReferenceEquals(row.Entity.Host, host)) {
+                            throw new InvalidOperationException("The entity was released or moved during deserialization.");
+                        }
+                        entityMap[row.Id] = row.Entity;
+                    }
+
+                    var entityDeserializer = new EntityDeserializationHandler(&serializer, &block, entityMap);
+                    foreach (var (_, entity) in entities.AsSpan()) {
+                        if (!ReferenceEquals(entity.Host, host)) {
+                            throw new InvalidOperationException("The entity was released or moved during deserialization.");
+                        }
+                        entity.GetHList(entityDeserializer);
+                    }
                 }
+                catch (Exception error) {
+                    var result = Outcome<Exception>.Failure(error);
+                    for (var i = entities.Count - 1; i >= 0; --i) {
+                        result = result.Attempt(entities[i].Entity, static (in entity) => entity.Host?.Release(entity));
+                    }
+                    result.ThrowIfFailed();
+                }
+
+                buffer = block;
                 entities.Clear();
             }
+        }
+        finally {
+            serializer.Dispose();
         }
     }
 }
