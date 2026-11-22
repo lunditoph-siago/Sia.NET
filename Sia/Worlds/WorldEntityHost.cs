@@ -11,7 +11,7 @@ internal interface IWorldBatchHost
 {
     bool IsExactArrayHost { get; }
     bool HasMigrationObservers { get; }
-    void CreateForLoad(out Entity entity);
+    void Create(out Entity entity);
 }
 
 public sealed class WorldEntityHost<TEntity, TInnerHost>
@@ -145,7 +145,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Entity Create(in TEntity initial) => Create(initial, out _);
 
-    void IWorldBatchHost.CreateForLoad(out Entity entity) => Create(default, out entity);
+    void IWorldBatchHost.Create(out Entity entity) => Create(default, out entity);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Entity Create(in TEntity initial, out Entity acquired)

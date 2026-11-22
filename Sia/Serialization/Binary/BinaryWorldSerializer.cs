@@ -144,7 +144,7 @@ public class BinaryWorldSerializer<THostHeaderSerializer, TComponentSerializer> 
                 try {
                     foreach (ref var row in entities.AsSpan()) {
                         if (host is IWorldBatchHost worldHost) {
-                            worldHost.CreateForLoad(out row.Entity);
+                            worldHost.Create(out row.Entity);
                         }
                         else {
                             row.Entity = host.Create();
