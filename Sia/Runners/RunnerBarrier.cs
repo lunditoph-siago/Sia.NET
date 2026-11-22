@@ -17,6 +17,7 @@ public sealed class RunnerBarrier
             barrier._remaining = 0;
 #endif
             barrier.Exception = null;
+            barrier._secondaryFailures = null;
             return true;
         }
     }
@@ -33,6 +34,8 @@ public sealed class RunnerBarrier
 
     public Exception? Exception { get; private set; }
 
+    private readonly Lock _failureLock = new();
+    private List<Exception>? _secondaryFailures;
     private int _callbackCount;
     private readonly CallbackEntry[] _callbacks = new CallbackEntry[32];
 
@@ -81,7 +84,15 @@ public sealed class RunnerBarrier
 
     public void Throw(Exception e)
     {
-        Exception = e;
+        ArgumentNullException.ThrowIfNull(e);
+        lock (_failureLock) {
+            if (Exception == null) {
+                Exception = e;
+            }
+            else {
+                (_secondaryFailures ??= []).Add(e);
+            }
+        }
         RemoveParticipants(1);
     }
 
@@ -98,23 +109,24 @@ public sealed class RunnerBarrier
         Raw.SignalAndWait();
 #endif
 
-        Exception? exception;
-
+        var result = Exception is { } error ? Outcome<Exception>.Failure(error) : default;
+        var secondaryFailures = _secondaryFailures?.ToArray();
         try {
             for (var i = 0; i != _callbackCount; ++i) {
-                ref var entry = ref _callbacks[i];
-                entry.Callback(entry.UserData);
+                result = result.Attempt(_callbacks[i],
+                    static (in CallbackEntry entry) => entry.Callback(entry.UserData));
             }
         }
         finally {
             Array.Clear(_callbacks, 0, _callbackCount);
             _callbackCount = 0;
-            exception = Exception;
         }
 
-        if (exception != null) {
-            throw exception;
+        if (secondaryFailures != null) {
+            throw new AggregateException(
+                [result.PrimaryError!, .. secondaryFailures, .. result.SecondaryErrors]);
         }
+        result.ThrowIfFailed();
     }
 
     public void WaitAndReturn()

@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace Sia;
 
 public sealed class ActorRuntime : IDisposable
@@ -9,10 +11,13 @@ public sealed class ActorRuntime : IDisposable
 
     private readonly BlockingQueue<WorldActor> _ready = new();
     private readonly BlockingExecutor _blocking;
-    private int _disposed;
+    private readonly object _gate = new();
+    private readonly HashSet<WorldActor> _actors = [];
+    private bool _disposing;
 
 #if !BROWSER
     private readonly Task[] _workers;
+    private int _waitingWorkers;
 #endif
 
     public ActorRuntime(
@@ -32,62 +37,88 @@ public sealed class ActorRuntime : IDisposable
 #else
         _workers = new Task[WorkerCount];
         for (var i = 0; i < _workers.Length; i++) {
-            _workers[i] = Task.Factory.StartNew(
-                RunWorker,
-                CancellationToken.None,
-                TaskCreationOptions.LongRunning,
-                TaskScheduler.Default);
+            _workers[i] = WorldActor.StartWorker(RunWorker, TaskCreationOptions.LongRunning);
         }
 #endif
     }
 
     public WorldActor CreateActor(World world)
-        => new(world, this);
+    {
+        lock (_gate) {
+            ObjectDisposedException.ThrowIf(_disposing, this);
+            var actor = new WorldActor(world, this);
+            _actors.Add(actor);
+            return actor;
+        }
+    }
 
     internal void Schedule(WorldActor actor)
     {
-        ObjectDisposedException.ThrowIf(
-            Volatile.Read(ref _disposed) != 0,
-            this);
-
         _ready.Enqueue(actor);
 
 #if BROWSER
-        _ = Task.Run(RunWorker);
+        _ = WorldActor.StartWorker(() => {
+            if (_ready.TryDequeue(out var ready)) {
+                ready.ProcessBatch();
+            }
+        }, TaskCreationOptions.DenyChildAttach);
 #endif
     }
 
-    internal void ContinueAsync(WorldActor actor, Task task)
+    internal void OnActorCompleted(WorldActor actor)
     {
-        _ = task.ContinueWith(
-            static (completed, state) => {
-                var (owner, runtime) =
-                    ((WorldActor, ActorRuntime))state!;
-                runtime.OnAsyncCompleted(owner, completed);
-            },
-            (actor, this),
-            CancellationToken.None,
-            TaskContinuationOptions.ExecuteSynchronously,
-            TaskScheduler.Default);
+        lock (_gate) {
+            _actors.Remove(actor);
+            if (_disposing && _actors.Count == 0) {
+                CompleteWorkers();
+            }
+        }
     }
 
-    private void OnAsyncCompleted(WorldActor actor, Task task)
-        => actor.ResumeFromSuspension(
-            task.IsFaulted ? task.Exception : null);
+    private void CompleteWorkers()
+    {
+        _ready.Complete();
+#if !BROWSER
+        _blocking.Complete();
+#endif
+    }
 
     internal void ExecuteBlocking(
         WorldActor actor,
         IBlockingWorldMessage message,
         WorldContext context)
         => _blocking.Post(() => {
+            var previous = WorldActor.BlockingActor;
+            WorldActor.BlockingActor = actor;
+            Exception? failure = null;
             try {
                 message.ExecuteBlocking(context);
-                actor.ResumeFromSuspension();
             }
             catch (Exception error) {
-                actor.ResumeFromSuspension(error);
+                failure = error;
             }
+            finally {
+                WorldActor.BlockingActor = previous;
+            }
+            actor.ResumeFromSuspension(failure);
         });
+
+#if !BROWSER
+    internal bool TryEnterWorkerWait()
+    {
+        lock (_gate) {
+            if (_waitingWorkers == WorkerCount - 1) return false;
+            _waitingWorkers++;
+            return true;
+        }
+    }
+
+    internal void ExitWorkerWait()
+    {
+        lock (_gate) {
+            _waitingWorkers--;
+        }
+    }
 
     private void RunWorker()
     {
@@ -95,35 +126,65 @@ public sealed class ActorRuntime : IDisposable
             actor.ProcessBatch();
         }
     }
+#endif
 
     public void Dispose()
         => Dispose(DefaultDisposeTimeout);
 
     public void Dispose(TimeSpan timeout)
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) {
-            return;
+        if (WorldActor.BlocksShutdownWait(this, null, out _)) {
+            throw new InvalidOperationException("An actor cannot dispose its own runtime.");
+        }
+        if (timeout != Timeout.InfiniteTimeSpan
+            && (timeout < TimeSpan.Zero || timeout.TotalMilliseconds > int.MaxValue)) {
+            throw new ArgumentOutOfRangeException(nameof(timeout));
         }
 
-        _ready.Complete();
-        _blocking.Dispose(timeout);
+#if !BROWSER
+        var started = Stopwatch.GetTimestamp();
+#endif
+        WorldActor[]? actors = null;
+        lock (_gate) {
+            if (!_disposing) {
+                _disposing = true;
+                if (_actors.Count == 0) {
+                    CompleteWorkers();
+                }
+                else {
+                    actors = [.. _actors];
+                }
+            }
+        }
+
+        if (actors is not null) {
+            foreach (var actor in actors) {
+                actor.Complete();
+            }
+        }
 
 #if !BROWSER
-        if (!Task.WaitAll(_workers, timeout)) {
+        if (!Task.WaitAll(_workers, Remaining())) {
             throw new TimeoutException(
                 $"ActorRuntime workers did not stop within {timeout}.");
+        }
+        _blocking.WaitForCompletion(Remaining());
+
+        TimeSpan Remaining()
+        {
+            if (timeout == Timeout.InfiniteTimeSpan) return timeout;
+            var remaining = timeout - Stopwatch.GetElapsedTime(started);
+            return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
         }
 #endif
 
         GC.SuppressFinalize(this);
     }
 
-    private sealed class BlockingExecutor : IDisposable
+    private sealed class BlockingExecutor
     {
-        private readonly BlockingQueue<Action> _work = new();
-        private int _disposed;
-
 #if !BROWSER
+        private readonly BlockingQueue<Action> _work = new();
         private readonly Task[] _workers;
 #endif
 
@@ -134,28 +195,21 @@ public sealed class ActorRuntime : IDisposable
 #else
             _workers = new Task[workerCount];
             for (var i = 0; i < _workers.Length; i++) {
-                _workers[i] = Task.Factory.StartNew(
-                    RunWorker,
-                    CancellationToken.None,
-                    TaskCreationOptions.LongRunning,
-                    TaskScheduler.Default);
+                _workers[i] = WorldActor.StartWorker(RunWorker, TaskCreationOptions.LongRunning);
             }
 #endif
         }
 
         public void Post(Action action)
         {
-            ObjectDisposedException.ThrowIf(
-                Volatile.Read(ref _disposed) != 0,
-                this);
-
 #if BROWSER
-            _ = Task.Run(action);
+            _ = WorldActor.StartWorker(action, TaskCreationOptions.DenyChildAttach);
 #else
             _work.Enqueue(action);
 #endif
         }
 
+#if !BROWSER
         private void RunWorker()
         {
             while (_work.Dequeue(out var action)) {
@@ -163,23 +217,15 @@ public sealed class ActorRuntime : IDisposable
             }
         }
 
-        public void Dispose()
-            => Dispose(DefaultDisposeTimeout);
+        public void Complete() => _work.Complete();
 
-        public void Dispose(TimeSpan timeout)
+        public void WaitForCompletion(TimeSpan timeout)
         {
-            if (Interlocked.Exchange(ref _disposed, 1) != 0) {
-                return;
-            }
-
-            _work.Complete();
-
-#if !BROWSER
             if (!Task.WaitAll(_workers, timeout)) {
                 throw new TimeoutException(
                     $"ActorRuntime blocking workers did not stop within {timeout}.");
             }
-#endif
         }
+#endif
     }
 }
