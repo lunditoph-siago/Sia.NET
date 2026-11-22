@@ -9,39 +9,60 @@ public sealed class WorldActor : IDisposable
     internal static WorldActor? BlockingActor;
 
     [ThreadStatic]
-    private static Stack<WorldActor>? s_enclosingActors;
+    private static Stack<(WorldActor Actor, bool HoldsWorker)>? s_enclosingActors;
 
     private sealed class AsyncExecution(
-        WorldActor actor, AsyncExecution? previous, WorldActor[]? enclosingActors)
+        WorldActor actor, AsyncExecution? previous,
+        (WorldActor Actor, bool HoldsWorker)[]? enclosingActors)
     {
         public WorldActor Actor { get; } = actor;
         public AsyncExecution? Previous { get; } = previous;
-        public WorldActor[]? EnclosingActors { get; } = enclosingActors;
+        public (WorldActor Actor, bool HoldsWorker)[]? EnclosingActors { get; } = enclosingActors;
         public Task? Completion;
     }
 
     private static readonly AsyncLocal<AsyncExecution?> s_asyncExecution = new();
 
+    internal static Task StartWorker(Action action, TaskCreationOptions options)
+    {
+        var previous = s_asyncExecution.Value;
+        s_asyncExecution.Value = null;
+        try {
+            return Task.Factory.StartNew(action, CancellationToken.None, options, TaskScheduler.Default);
+        }
+        finally {
+            s_asyncExecution.Value = previous;
+        }
+    }
+
     internal static bool IsExecuting(ActorRuntime? runtime, WorldActor? actor = null)
     {
-        bool Matches(WorldActor? candidate)
-            => candidate is not null && (ReferenceEquals(candidate, actor)
-                || runtime is not null && ReferenceEquals(candidate._runtime, runtime));
+        bool Matches(WorldActor? candidate, bool holdsWorker = false)
+        {
+            if (candidate is null) return false;
+            if (actor is not null && ReferenceEquals(candidate, actor)) return true;
+            return runtime is not null && ReferenceEquals(candidate._runtime, runtime)
+#if !BROWSER
+                && (actor is null || holdsWorker && runtime.WorkerCount == 1);
+#else
+                && actor is null;
+#endif
+        }
 
-        if (Matches(s_current) || Matches(BlockingActor)) {
+        if (Matches(s_current, holdsWorker: true) || Matches(BlockingActor)) {
             return true;
         }
         if (s_enclosingActors is { } enclosingActors) {
-            foreach (var enclosing in enclosingActors) {
-                if (Matches(enclosing)) return true;
+            foreach (var (enclosing, holdsWorker) in enclosingActors) {
+                if (Matches(enclosing, holdsWorker)) return true;
             }
         }
         for (var execution = s_asyncExecution.Value; execution is not null; execution = execution.Previous) {
             if (Volatile.Read(ref execution.Completion)?.IsCompleted == true) continue;
             if (Matches(execution.Actor)) return true;
             if (execution.EnclosingActors is { } actors) {
-                foreach (var enclosing in actors) {
-                    if (Matches(enclosing)) return true;
+                foreach (var (enclosing, holdsWorker) in actors) {
+                    if (Matches(enclosing, holdsWorker)) return true;
                 }
             }
         }
@@ -61,6 +82,10 @@ public sealed class WorldActor : IDisposable
     private int _completionSeen;
     private bool _scheduled;
     private bool _suspended;
+    private Task? _pendingAsync;
+#if !BROWSER
+    private Action? _resumeAsync;
+#endif
     private Exception? _failure;
 
     public World World { get; }
@@ -139,7 +164,7 @@ public sealed class WorldActor : IDisposable
         var previous = s_current;
         var enclosing = previous ?? BlockingActor;
         if (enclosing is not null) {
-            (s_enclosingActors ??= new()).Push(enclosing);
+            (s_enclosingActors ??= new()).Push((enclosing, previous?._runtime is not null));
         }
         s_current = this;
 
@@ -218,10 +243,22 @@ public sealed class WorldActor : IDisposable
                 if (message is IAsyncWorldMessage asyncMessage) {
                     SuspendForAsync();
                     try {
-                        var task = ExecuteAsync(asyncMessage, context);
-                        runtime.ContinueAsync(this, task);
+                        var task = _pendingAsync = ExecuteAsync(asyncMessage, context);
+                        if (task.IsCompleted) {
+                            ResumeAsync();
+                        }
+                        else {
+#if BROWSER
+                            _ = task.ContinueWith(static (_, state) => ((WorldActor)state!).ResumeAsync(),
+                                this, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously,
+                                TaskScheduler.Default);
+#else
+                            task.ConfigureAwait(false).GetAwaiter().UnsafeOnCompleted(_resumeAsync ??= ResumeAsync);
+#endif
+                        }
                     }
                     catch (Exception error) {
+                        _pendingAsync = null;
                         ResumeFromSuspension(error);
                     }
                     return;
@@ -280,6 +317,16 @@ public sealed class WorldActor : IDisposable
             Volatile.Write(ref execution.Completion, completion ?? Task.CompletedTask);
             s_asyncExecution.Value = previous;
         }
+    }
+
+    private void ResumeAsync()
+    {
+        var task = _pendingAsync!;
+        _pendingAsync = null;
+        var error = task.Exception;
+        ResumeFromSuspension(task.IsCanceled
+            ? new TaskCanceledException(task)
+            : error is { InnerExceptions.Count: 1 } ? error.InnerException : error);
     }
 
     internal void ResumeFromSuspension(Exception? error = null)

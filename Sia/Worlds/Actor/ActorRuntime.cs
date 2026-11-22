@@ -36,11 +36,7 @@ public sealed class ActorRuntime : IDisposable
 #else
         _workers = new Task[WorkerCount];
         for (var i = 0; i < _workers.Length; i++) {
-            _workers[i] = Task.Factory.StartNew(
-                RunWorker,
-                CancellationToken.None,
-                TaskCreationOptions.LongRunning,
-                TaskScheduler.Default);
+            _workers[i] = WorldActor.StartWorker(RunWorker, TaskCreationOptions.LongRunning);
         }
 #endif
     }
@@ -60,11 +56,11 @@ public sealed class ActorRuntime : IDisposable
         _ready.Enqueue(actor);
 
 #if BROWSER
-        _ = Task.Run(() => {
+        _ = WorldActor.StartWorker(() => {
             if (_ready.TryDequeue(out var ready)) {
                 ready.ProcessBatch();
             }
-        });
+        }, TaskCreationOptions.DenyChildAttach);
 #endif
     }
 
@@ -84,21 +80,6 @@ public sealed class ActorRuntime : IDisposable
 #if !BROWSER
         _blocking.Complete();
 #endif
-    }
-
-    internal void ContinueAsync(WorldActor actor, Task task)
-    {
-        _ = task.ContinueWith(
-            static (completed, state) => {
-                var error = completed.Exception;
-                ((WorldActor)state!).ResumeFromSuspension(completed.IsCanceled
-                    ? new TaskCanceledException(completed)
-                    : error is { InnerExceptions.Count: 1 } ? error.InnerException : error);
-            },
-            actor,
-            CancellationToken.None,
-            TaskContinuationOptions.ExecuteSynchronously,
-            TaskScheduler.Default);
     }
 
     internal void ExecuteBlocking(
@@ -197,11 +178,7 @@ public sealed class ActorRuntime : IDisposable
 #else
             _workers = new Task[workerCount];
             for (var i = 0; i < _workers.Length; i++) {
-                _workers[i] = Task.Factory.StartNew(
-                    RunWorker,
-                    CancellationToken.None,
-                    TaskCreationOptions.LongRunning,
-                    TaskScheduler.Default);
+                _workers[i] = WorldActor.StartWorker(RunWorker, TaskCreationOptions.LongRunning);
             }
 #endif
         }
@@ -209,7 +186,7 @@ public sealed class ActorRuntime : IDisposable
         public void Post(Action action)
         {
 #if BROWSER
-            _ = Task.Run(action);
+            _ = WorldActor.StartWorker(action, TaskCreationOptions.DenyChildAttach);
 #else
             _work.Enqueue(action);
 #endif
