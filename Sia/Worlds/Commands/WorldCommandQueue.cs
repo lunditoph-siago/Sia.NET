@@ -25,7 +25,7 @@ public readonly record struct CommandRequest
         init => (_command, _execute) = (value, GetBoxedExecutor(value));
     }
 
-    /// <summary>Executes the supplied command on its existing box and publishes its runtime type.</summary>
+    /// <summary>Creates a request that executes the supplied instance and publishes its runtime type when applied.</summary>
     [RequiresDynamicCode(ErasedCommandMessage)]
     public CommandRequest(Entity Target, ICommand Command)
         : this(Target, Command, GetBoxedExecutor(Command)) {}
@@ -33,7 +33,7 @@ public readonly record struct CommandRequest
     private CommandRequest(Entity target, ICommand command, Executor execute)
         => (Target, _command, _execute) = (target, command, execute);
 
-    /// <summary>Executes and publishes the same static TCommand as a direct World.Execute call.</summary>
+    /// <summary>Creates a request that uses <typeparamref name="TCommand"/> for execution and event delivery when applied.</summary>
     public static CommandRequest Create<TCommand>(Entity target, in TCommand command)
         where TCommand : ICommand
         => new(target, command, typeof(TCommand).IsValueType
