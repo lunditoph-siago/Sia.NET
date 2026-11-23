@@ -599,7 +599,7 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
             else {
                 var childrenStage = children.CreateStage(world);
                 disposable = childrenStage;
-                return context => childrenStage.Tick(context.Cancellation);
+                return context => childrenStage.Execute(context, applyCommands: false);
             }
         }
 

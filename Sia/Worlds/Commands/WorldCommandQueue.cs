@@ -1,11 +1,70 @@
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 
 namespace Sia;
 
-public readonly record struct CommandRequest(Entity Target, ICommand Command)
+public readonly record struct CommandRequest
 {
-    public readonly void Apply(World world)
-        => world.Execute(Target, Command);
+    private delegate void Executor(World world, Entity target, ICommand command);
+    private const string ErasedCommandMessage =
+        "Resolving an erased command requires a runtime generic instantiation. Use CommandRequest.Create with the concrete command type.";
+    private static readonly ConditionalWeakTable<Type, Executor> s_executors = new();
+
+    private readonly ICommand _command;
+    private readonly Executor _execute;
+
+    public Entity Target { get; init; }
+
+    /// <summary>Replacing the command selects its runtime type for event delivery.</summary>
+    public ICommand Command
+    {
+        get => _command;
+        [RequiresDynamicCode(ErasedCommandMessage)]
+        init => (_command, _execute) = (value, GetBoxedExecutor(value));
+    }
+
+    /// <summary>Executes the supplied command on its existing box and publishes its runtime type.</summary>
+    [RequiresDynamicCode(ErasedCommandMessage)]
+    public CommandRequest(Entity Target, ICommand Command)
+        : this(Target, Command, GetBoxedExecutor(Command)) {}
+
+    private CommandRequest(Entity target, ICommand command, Executor execute)
+        => (Target, _command, _execute) = (target, command, execute);
+
+    /// <summary>Executes and publishes the same static TCommand as a direct World.Execute call.</summary>
+    public static CommandRequest Create<TCommand>(Entity target, in TCommand command)
+        where TCommand : ICommand
+        => new(target, command, typeof(TCommand).IsValueType
+            ? ExecuteValue<TCommand>
+            : ExecuteBoxed<TCommand>);
+
+    private static void ExecuteValue<TCommand>(World world, Entity target, ICommand command)
+        where TCommand : ICommand
+        => world.Execute(target, (TCommand)command);
+
+    [RequiresDynamicCode(ErasedCommandMessage)]
+    private static Executor GetBoxedExecutor(ICommand command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        return s_executors.GetValue(command.GetType(), static type =>
+            typeof(CommandRequest).GetMethod(nameof(ExecuteBoxed), BindingFlags.Static | BindingFlags.NonPublic)!
+                .MakeGenericMethod(type).CreateDelegate<Executor>());
+    }
+
+    private static void ExecuteBoxed<TCommand>(World world, Entity target, ICommand command)
+        where TCommand : ICommand
+    {
+        // A mutable struct in an existing ICommand box must update that same box on every replay.
+        world.ApplyCommand(target, command);
+        world.Dispatcher.Send(target, (TCommand)command);
+    }
+
+    public void Apply(World world) => _execute(world, Target, Command);
+
+    public void Deconstruct(out Entity Target, out ICommand Command)
+        => (Target, Command) = (this.Target, this.Command);
 }
 
 public interface IWorldCommandQueue
