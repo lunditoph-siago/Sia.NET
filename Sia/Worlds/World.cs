@@ -93,17 +93,10 @@ public sealed partial class World : IReactiveEntityQuery, IEventSender
     public void Execute<TCommand>(Entity target, in TCommand command)
         where TCommand : ICommand
     {
-        ApplyCommand(target, command);
-        Dispatcher.Send(target, command);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void ApplyCommand<TCommand>(Entity target, in TCommand command)
-        where TCommand : ICommand
-    {
         EnsureOwnerThread();
         ThrowIfForeignEntity(target);
         command.Execute(this, target);
+        Dispatcher.Send(target, command);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
