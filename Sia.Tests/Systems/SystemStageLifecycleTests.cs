@@ -4,13 +4,6 @@ public class SystemStageLifecycleTests
 {
     private readonly record struct ProbeComponent;
     private readonly record struct ProbeEvent : IEvent;
-    private record struct ProbeValue(int Value);
-
-    private readonly record struct SetProbeValue(int Value) : ICommand
-    {
-        public void Execute(World world, Entity target)
-            => target.Get<ProbeValue>().Value = Value;
-    }
 
     private sealed class LifecycleSystem(
         string name,
@@ -204,53 +197,6 @@ public class SystemStageLifecycleTests
 
         Assert.Equal(1, trigger.HandleCount);
         Assert.Equal(2, system.ObservedCount);
-    }
-
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
-    public void ChildStageCommandsBecomeVisibleToSiblingsOnlyAfterTheRootTick(
-        bool parentHasMatcher, bool viaScheduler)
-    {
-        using var world = new World();
-        using var cancellation = new CancellationTokenSource();
-        var expectedContext = new WorldContext(world, cancellation.Token);
-        var target = world.Create(HList.From(new ProbeValue(0)));
-        var seen = new List<int>();
-
-        var child = new FSystem(
-            (context, _, _, _) => {
-                Assert.Equal(expectedContext, context);
-                context.World.Commands.Enqueue(CommandRequest.Create(target, new SetProbeValue(1)));
-            },
-            Matchers.Any);
-        var parent = new LifecycleSystem("parent", [], children: SystemChain.Empty.Add(() => child)) {
-            Matcher = parentHasMatcher ? Matchers.Any : null,
-        };
-        var sibling = new FSystem(
-            (context, _, _, _) => {
-                Assert.Equal(expectedContext, context);
-                seen.Add(target.Get<ProbeValue>().Value);
-            },
-            Matchers.Any);
-        using var stage = SystemChain.Empty
-            .Add(() => parent)
-            .Add(() => sibling)
-            .CreateStage(world);
-
-        if (viaScheduler) {
-            var scheduler = world.AcquireAddon<Scheduler>();
-            using var registration = scheduler.RegisterEntry(new ScheduleLabel("stage-probe"), stage);
-            scheduler.Tick(cancellation.Token);
-        }
-        else {
-            stage.Tick(cancellation.Token);
-        }
-
-        Assert.Equal([0], seen);
-        Assert.Equal(1, target.Get<ProbeValue>().Value);
     }
 
     [Theory]

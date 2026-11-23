@@ -442,8 +442,6 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
 
     public SystemStage(World world, ExecutionPlan plan)
     {
-        ArgumentNullException.ThrowIfNull(plan);
-        ArgumentNullException.ThrowIfNull(world);
         World = world;
         _plan = plan;
         var entries = ImmutableArray.CreateBuilder<Entry>(plan.Entries.Length);

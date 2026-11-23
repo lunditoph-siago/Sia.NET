@@ -18,7 +18,7 @@ public interface IBlockingWorldMessage : IWorldMessage
 public readonly record struct CommandMessage(CommandRequest Request) : IWorldMessage
 {
     public readonly void Execute(in WorldContext context)
-        => Request.Apply(context.World);
+        => Request.Executor(context.World, Request.Target, Request.Command);
 }
 
 public readonly record struct EventMessage<TEvent>(Entity Target, TEvent Event)
