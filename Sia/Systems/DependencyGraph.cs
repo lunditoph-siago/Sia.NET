@@ -42,72 +42,66 @@ internal static class DependencyGraph
         }
         var nodeSlots = checked(nodeCount * 2);
         var readyWords = (int)(((uint)nodeCount + 31) >> 5);
-        var readySlots = readyWords + ((readyWords + 31) >> 5);
-        var edgeOffset = checked(nodeSlots + readySlots);
+        var readyGroupCount = (readyWords + 31) >> 5;
+        var edgeOffset = checked(nodeSlots + readyWords + readyGroupCount);
         var workspaceLength = checked(edgeOffset + edgeCount * 2);
         int[]? rented = null;
         Span<int> workspace = workspaceLength <= StackWorkspaceLimit
             ? stackalloc int[workspaceLength]
             : (rented = ArrayPool<int>.Shared.Rent(workspaceLength)).AsSpan(0, workspaceLength);
         try {
-            return SortCore(nodes, edges, workspace[..nodeCount], workspace.Slice(nodeCount, nodeCount),
-                workspace.Slice(nodeSlots, readySlots), workspace.Slice(edgeOffset, edgeCount),
-                workspace[(edgeOffset + edgeCount)..]);
+            var heads = workspace[..nodeCount];
+            var inDegree = workspace.Slice(nodeCount, nodeCount);
+            var readyBits = workspace.Slice(nodeSlots, readyWords);
+            var readyGroups = workspace.Slice(nodeSlots + readyWords, readyGroupCount);
+            var targets = workspace.Slice(edgeOffset, edgeCount);
+            var links = workspace[(edgeOffset + edgeCount)..];
+
+            heads.Fill(-1);
+            inDegree.Clear();
+            var edgeIndex = 0;
+            foreach (var edge in edges) {
+                ArgumentOutOfRangeException.ThrowIfNegative(edge.From);
+                ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(edge.From, nodeCount);
+                ArgumentOutOfRangeException.ThrowIfNegative(edge.To);
+                ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(edge.To, nodeCount);
+                targets[edgeIndex] = edge.To;
+                links[edgeIndex] = heads[edge.From];
+                heads[edge.From] = edgeIndex++;
+                inDegree[edge.To]++;
+            }
+
+            readyBits.Clear();
+            readyGroups.Clear();
+            var firstGroup = readyGroups.Length;
+            for (var i = 0; i < nodeCount; i++) {
+                if (inDegree[i] == 0) {
+                    EnqueueReady(readyBits, readyGroups, ref firstGroup, i);
+                }
+            }
+
+            var order = new TNode[nodeCount];
+            var emitted = 0;
+            int current;
+            while ((current = DequeueReady(readyBits, readyGroups, ref firstGroup)) >= 0) {
+                order[emitted++] = nodes[current];
+                for (var edge = heads[current]; edge >= 0; edge = links[edge]) {
+                    var successor = targets[edge];
+                    if (--inDegree[successor] == 0) {
+                        EnqueueReady(readyBits, readyGroups, ref firstGroup, successor);
+                    }
+                }
+            }
+
+            return emitted == nodeCount
+                ? new(ImmutableCollectionsMarshal.AsImmutableArray(order), [])
+                : new([], FindCycle(nodes, MaterializeSuccessors(heads, targets, links)));
         }
         finally {
             if (rented != null) {
                 ArrayPool<int>.Shared.Return(rented);
             }
         }
-    }
-
-    private static DependencySortResult<TNode> SortCore<TNode>(
-        IReadOnlyList<TNode> nodes, IReadOnlyCollection<DependencyEdge> edges,
-        Span<int> heads, Span<int> inDegree, Span<int> ready, Span<int> targets, Span<int> links)
-    {
-        var nodeCount = heads.Length;
-        heads.Fill(-1);
-        inDegree.Clear();
-        var edgeIndex = 0;
-        foreach (var edge in edges) {
-            ArgumentOutOfRangeException.ThrowIfNegative(edge.From);
-            ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(edge.From, nodeCount);
-            ArgumentOutOfRangeException.ThrowIfNegative(edge.To);
-            ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(edge.To, nodeCount);
-            targets[edgeIndex] = edge.To;
-            links[edgeIndex] = heads[edge.From];
-            heads[edge.From] = edgeIndex++;
-            inDegree[edge.To]++;
-        }
-
-        var wordCount = (int)(((uint)nodeCount + 31) >> 5);
-        var readyBits = ready[..wordCount];
-        var readyGroups = ready.Slice(wordCount, (wordCount + 31) >> 5);
-        readyBits.Clear();
-        readyGroups.Clear();
-        var firstGroup = readyGroups.Length;
-        for (var i = 0; i < nodeCount; i++) {
-            if (inDegree[i] == 0) {
-                EnqueueReady(readyBits, readyGroups, ref firstGroup, i);
-            }
-        }
-
-        var order = new TNode[nodeCount];
-        var emitted = 0;
-        int current;
-        while ((current = DequeueReady(readyBits, readyGroups, ref firstGroup)) >= 0) {
-            order[emitted++] = nodes[current];
-            for (var edge = heads[current]; edge >= 0; edge = links[edge]) {
-                var successor = targets[edge];
-                if (--inDegree[successor] == 0) {
-                    EnqueueReady(readyBits, readyGroups, ref firstGroup, successor);
-                }
-            }
-        }
-
-        return emitted == nodeCount
-            ? new(ImmutableCollectionsMarshal.AsImmutableArray(order), [])
-            : new([], FindCycle(nodes, MaterializeSuccessors(heads, targets, links)));
     }
 
     private static void EnqueueReady(Span<int> bits, Span<int> groups, ref int firstGroup, int node)
