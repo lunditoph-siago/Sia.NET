@@ -154,12 +154,11 @@ public class ParallelRunner : IRunner
 
     public ParallelRunner(int degreeOfParallelism)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(degreeOfParallelism);
         DegreeOfParallelism = degreeOfParallelism;
         _groupActionJobArrPool = new(this);
 
 #if !BROWSER
-        for (var i = 0; i != DegreeOfParallelism; ++i) {
+        for (var i = 0; i < DegreeOfParallelism; ++i) {
             var workerId = i;
             Task.Factory.StartNew(
                 () => RunWorkerThread(workerId, _jobs),
@@ -253,8 +252,7 @@ public class ParallelRunner : IRunner
     {
         using var scope = _submissionLock.EnterScope();
         ObjectDisposedException.ThrowIf(_jobs.IsCompleted, this);
-        ArgumentOutOfRangeException.ThrowIfNegative(taskCount);
-        if (taskCount == 0) return;
+        if (taskCount <= 0) return;
 
         var degreeOfParallelism = Math.Min(taskCount, DegreeOfParallelism);
         var div = taskCount / degreeOfParallelism;
@@ -262,7 +260,8 @@ public class ParallelRunner : IRunner
         var acc = 0;
 
         if (barrier != null) {
-            var jobs = _groupActionJobArrPool.Get();
+            var pool = _groupActionJobArrPool;
+            var jobs = pool.Get();
 
             for (var i = 0; i != degreeOfParallelism; ++i) {
                 var start = acc;
@@ -273,7 +272,29 @@ public class ParallelRunner : IRunner
                 job.Range = (start, acc);
                 job.Action = action;
             }
-            EnqueueGroup(_groupActionJobArrPool, jobs, degreeOfParallelism, barrier);
+
+            try {
+                barrier.AddCallback(pool.Return, jobs);
+            }
+            catch {
+                pool.Return(jobs);
+                throw;
+            }
+            barrier.AddParticipants(degreeOfParallelism);
+
+            var published = 0;
+            try {
+                for (; published < degreeOfParallelism; published++) {
+                    _jobs.Enqueue(jobs[published]);
+                }
+            }
+            catch {
+                barrier.RemoveParticipants(degreeOfParallelism - published);
+#if BROWSER
+                SpawnDrainers(published);
+#endif
+                throw;
+            }
         }
         else {
             for (var i = 0; i != degreeOfParallelism; ++i) {
@@ -297,8 +318,7 @@ public class ParallelRunner : IRunner
     {
         using var scope = _submissionLock.EnterScope();
         ObjectDisposedException.ThrowIf(_jobs.IsCompleted, this);
-        ArgumentOutOfRangeException.ThrowIfNegative(taskCount);
-        if (taskCount == 0) return;
+        if (taskCount <= 0) return;
 
         var degreeOfParallelism = Math.Min(taskCount, DegreeOfParallelism);
         var div = taskCount / degreeOfParallelism;
@@ -350,33 +370,6 @@ public class ParallelRunner : IRunner
 #if BROWSER
         SpawnDrainers(degreeOfParallelism);
 #endif
-    }
-
-    private void EnqueueGroup<TJob>(JobArrayPool<TJob> pool, TJob[] jobs, int count, RunnerBarrier barrier)
-        where TJob : JobBase, new()
-    {
-        try {
-            barrier.AddCallback(pool.Return, jobs);
-        }
-        catch {
-            pool.Return(jobs);
-            throw;
-        }
-        barrier.AddParticipants(count);
-
-        var published = 0;
-        try {
-            for (; published < count; published++) {
-                _jobs.Enqueue(jobs[published]);
-            }
-        }
-        catch {
-            barrier.RemoveParticipants(count - published);
-#if BROWSER
-            SpawnDrainers(published);
-#endif
-            throw;
-        }
     }
 
     public void Dispose()
