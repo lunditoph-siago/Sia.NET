@@ -551,9 +551,10 @@ public sealed class SystemStage : ISystemScheduleEntry, IDisposable
         DisposeResources(entries, result).ThrowIfFailed();
     }
 
-    private static Outcome<Exception> DisposeResources(
-        IReadOnlyList<Entry> entries,
+    private static Outcome<Exception> DisposeResources<TEntries>(
+        TEntries entries,
         Outcome<Exception> result)
+        where TEntries : IReadOnlyList<Entry>
     {
         for (var i = entries.Count - 1; i >= 0; i--) {
             if (entries[i].Disposable is { } disposable) {

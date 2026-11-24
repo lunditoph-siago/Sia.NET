@@ -191,7 +191,9 @@ public sealed class Scheduler : IAddon, IDisposable
         var state = new EntryRegistration(this, slot, entry);
         slot.Entries.Add(state);
         try {
-            InvokeLifecycle(() => entry.OnAttached(this, label));
+            InvokeLifecycle((this, entry, label),
+                static (in (Scheduler Scheduler, IScheduleEntry Entry, ScheduleLabel Label) state)
+                    => state.Entry.OnAttached(state.Scheduler, state.Label));
         }
         catch {
             state.TryDeactivate(out _, out _);
@@ -218,7 +220,9 @@ public sealed class Scheduler : IAddon, IDisposable
         _sourceRegistrations.Add(state);
         _sourcesChanged = true;
         try {
-            InvokeLifecycle(() => source.OnAttached(this));
+            InvokeLifecycle((this, source),
+                static (in (Scheduler Scheduler, IScheduleSource Source) state)
+                    => state.Source.OnAttached(state.Scheduler));
         }
         catch {
             state.TryDeactivate(out _);
@@ -367,12 +371,14 @@ public sealed class Scheduler : IAddon, IDisposable
 
         var result = Outcome<Exception>.Success;
         foreach (var (entry, label) in detachedEntries) {
-            result = result.Attempt(
-                () => InvokeLifecycle(() => entry.OnDetached(this, label)));
+            result = result.Attempt((this, entry, label),
+                static (in (Scheduler Scheduler, IScheduleEntry Entry, ScheduleLabel Label) state)
+                    => state.Scheduler.NotifyEntryDetached(state.Entry, state.Label));
         }
         foreach (var source in detachedSources) {
-            result = result.Attempt(
-                () => InvokeLifecycle(() => source.OnDetached(this)));
+            result = result.Attempt((this, source),
+                static (in (Scheduler Scheduler, IScheduleSource Source) state)
+                    => state.Scheduler.NotifySourceDetached(state.Source));
         }
         foreach (var stage in stages) {
             result = result.Attempt(stage.Dispose);
@@ -388,7 +394,7 @@ public sealed class Scheduler : IAddon, IDisposable
         _sourcesNeedCompaction = true;
         _sourcesChanged = true;
         try {
-            InvokeLifecycle(() => source.OnDetached(this));
+            NotifySourceDetached(source);
         }
         finally {
             if (_phase == SchedulerPhase.Idle && _lifecycleCallbackDepth == 0) CompactRegistrations();
@@ -403,7 +409,7 @@ public sealed class Scheduler : IAddon, IDisposable
         slot.RuntimePlanDirty = true;
         MarkEntriesForCompaction(slot);
         try {
-            InvokeLifecycle(() => entry.OnDetached(this, slot.Label));
+            NotifyEntryDetached(entry, slot.Label);
         }
         finally {
             if (_phase == SchedulerPhase.Idle && _lifecycleCallbackDepth == 0) CompactRegistrations();
@@ -610,11 +616,37 @@ public sealed class Scheduler : IAddon, IDisposable
         return _sourceSnapshot;
     }
 
+    private void NotifyEntryDetached(IScheduleEntry entry, ScheduleLabel label)
+        => InvokeLifecycle((this, entry, label),
+            static (in (Scheduler Scheduler, IScheduleEntry Entry, ScheduleLabel Label) state)
+                => state.Entry.OnDetached(state.Scheduler, state.Label));
+
+    private void NotifySourceDetached(IScheduleSource source)
+        => InvokeLifecycle((this, source),
+            static (in (Scheduler Scheduler, IScheduleSource Source) state)
+                => state.Source.OnDetached(state.Scheduler));
+
     private void InvokeLifecycle(Action callback)
     {
         _lifecycleCallbackDepth++;
         try {
             callback();
+        }
+        finally {
+            _lifecycleCallbackDepth--;
+            if (_lifecycleCallbackDepth == 0
+                && _phase == SchedulerPhase.Idle
+                && !IsDisposed) {
+                CompactRegistrations();
+            }
+        }
+    }
+
+    private void InvokeLifecycle<TState>(in TState state, InAction<TState> callback)
+    {
+        _lifecycleCallbackDepth++;
+        try {
+            callback(state);
         }
         finally {
             _lifecycleCallbackDepth--;
