@@ -1,5 +1,10 @@
 namespace Sia.Reactive;
 
+internal interface IEffectSetup
+{
+    void RunSetup(long version);
+}
+
 internal struct DeferredLifecycle
 {
     private long _version;

@@ -67,7 +67,7 @@ public readonly record struct EventActionTerm<TEvent, TCapture>(
 }
 
 internal sealed class EventActionState<TEvent, TCapture>
-    : IEffectCleanup, IEventListener<Entity>
+    : IEffectCleanup, IEffectSetup, IEventListener<Entity>
     where TEvent : IEvent
     where TCapture : struct
 {
@@ -90,10 +90,7 @@ internal sealed class EventActionState<TEvent, TCapture>
     }
 
     public void ScheduleMount()
-    {
-        var version = _lifecycle.NextVersion();
-        _owner.QueueEffectSetup(() => Mount(version));
-    }
+        => _owner.QueueEffectSetup(this, _lifecycle.NextVersion());
 
     public void Reconcile(
         Entity target,
@@ -136,7 +133,7 @@ internal sealed class EventActionState<TEvent, TCapture>
         ScheduleCleanup(prepend: true);
     }
 
-    private void Mount(long version)
+    void IEffectSetup.RunSetup(long version)
     {
         if (_lifecycle.Mounted || !_lifecycle.IsCurrent(version)) {
             return;
