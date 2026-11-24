@@ -125,13 +125,15 @@ public record EntityDescriptor
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ComponentOffset<TComponent> GetOffset<TComponent>()
-        => GetOffset<TComponent>(OffsetSlots);
+        => GetRequiredOffset<TComponent>(OffsetSlots);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static ComponentOffset<TComponent> GetOffset<TComponent>(ImmutableArray<nint> slots)
-        => TryGetOffset<TComponent>(slots, out var offset)
-            ? (ComponentOffset<TComponent>)offset
-            : ThrowComponentNotFound<TComponent>();
+    internal static ComponentOffset<TComponent> GetRequiredOffset<TComponent>(
+        ImmutableArray<nint> offsetSlots)
+    {
+        var offset = FindOffset<TComponent>(offsetSlots);
+        return offset >= 0 ? new(offset) : ThrowComponentNotFound<TComponent>();
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ComponentOffset<TComponent> GetOffsetUnchecked<TComponent>()
@@ -139,18 +141,16 @@ public record EntityDescriptor
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool TryGetOffset<TComponent>(out nint offset)
-        => TryGetOffset<TComponent>(OffsetSlots, out offset);
+    {
+        offset = FindOffset<TComponent>(OffsetSlots);
+        return offset >= 0;
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static bool TryGetOffset<TComponent>(ImmutableArray<nint> slots, out nint offset)
+    private static nint FindOffset<TComponent>(ImmutableArray<nint> offsetSlots)
     {
         var index = InternalComponentIndexer<TComponent>.Index;
-        if ((uint)index < (uint)slots.Length) {
-            offset = slots[index];
-            return offset >= 0;
-        }
-        offset = -1;
-        return false;
+        return (uint)index < (uint)offsetSlots.Length ? offsetSlots[index] : -1;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
