@@ -15,6 +15,8 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
 {
     private static readonly byte[] Dividor = Encoding.Unicode.GetBytes(";");
     private static readonly byte[] StorageAliasHeader = Encoding.Unicode.GetBytes("$");
+    private static readonly ConditionalWeakTable<EntityDescriptor, byte[]> s_componentHeaders = new();
+    private static readonly ConditionalWeakTable<Type, Func<World, IReactiveEntityHost>> s_hostAcquirers = new();
 
     private static readonly FrozenDictionary<Type, byte[]> s_hostAlias = new Dictionary<Type, byte[]> {
         [typeof(ArrayEntityHost<>)] = Encoding.Unicode.GetBytes("$A"),
@@ -29,10 +31,11 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
     public static void Serialize<TBufferWriter>(ref TBufferWriter writer, IEntityHost host)
         where TBufferWriter : IBufferWriter<byte>
     {
-        var components = string.Join('|',
-            host.Descriptor.Components.Select(c => c.Type.AssemblyQualifiedName));
-
-        writer.Write(Encoding.Unicode.GetBytes(components));
+        writer.Write(s_componentHeaders.GetValue(host.Descriptor, static descriptor => {
+            var components = string.Join('|',
+                descriptor.Components.Select(c => c.Type.AssemblyQualifiedName));
+            return Encoding.Unicode.GetBytes(components);
+        }));
         writer.Write(Dividor);
 
         var type = host.GetType();
@@ -88,8 +91,7 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
             hostType = Type.GetType(hostTypeName)
                 ?? throw new InvalidDataException("Invalid host type: " + hostTypeName);
         }
-        var acquireHostMethod = s_acquireHostMethod.MakeGenericMethod(hostType);
-        var host = Unsafe.As<IReactiveEntityHost>(acquireHostMethod.Invoke(null, [world]))!;
+        var host = InvokeAcquireHost(world, hostType);
         buffer = reader.UnreadSequence;
         return host;
     }
@@ -103,6 +105,19 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
         => world.TryGetHost<THost>(out var host)
             ? host : world.AddHost<THost>(static owner =>
                 Unsafe.As<THost>(Activator.CreateInstance(typeof(THost), owner))!);
+
+    private static IReactiveEntityHost InvokeAcquireHost(World world, Type hostType)
+    {
+        var acquire = s_hostAcquirers.GetValue(hostType, static type =>
+            s_acquireHostMethod.MakeGenericMethod(type).CreateDelegate<Func<World, IReactiveEntityHost>>());
+        try {
+            return acquire(world);
+        }
+        catch (Exception exception) {
+            // Preserve the reflection boundary for failures from the host acquisition itself.
+            throw new TargetInvocationException(exception);
+        }
+    }
 
     private static string GenerateHListType(string[] components)
     {
