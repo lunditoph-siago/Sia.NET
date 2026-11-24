@@ -13,29 +13,29 @@ namespace Sia.Serialization;
     "Deserializing arbitrary host types constructs generic types and methods at runtime.")]
 public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
 {
+    private const string ArrayHostAlias = "$A";
+    private const string UnmanagedArrayHostAlias = "$U";
     private static readonly byte[] Dividor = Encoding.Unicode.GetBytes(";");
     private static readonly byte[] StorageAliasHeader = Encoding.Unicode.GetBytes("$");
-    private static readonly ConditionalWeakTable<EntityDescriptor, byte[]> s_componentHeaders = new();
+    private static readonly byte[] s_arrayHostAlias = Encoding.Unicode.GetBytes(ArrayHostAlias);
+    private static readonly byte[] s_unmanagedArrayHostAlias = Encoding.Unicode.GetBytes(UnmanagedArrayHostAlias);
+    private static readonly ConditionalWeakTable<Type, byte[]> s_componentHeaders = new();
     private static readonly ConditionalWeakTable<Type, Func<World, IReactiveEntityHost>> s_hostAcquirers = new();
 
     private static readonly FrozenDictionary<Type, byte[]> s_hostAlias = new Dictionary<Type, byte[]> {
-        [typeof(ArrayEntityHost<>)] = Encoding.Unicode.GetBytes("$A"),
-        [typeof(UnmanagedArrayEntityHost<>)] = Encoding.Unicode.GetBytes("$U"),
-    }.ToFrozenDictionary();
-
-    private static readonly FrozenDictionary<string, Type> s_aliasHostTypes = new Dictionary<string, Type> {
-        ["$A"] = typeof(ArrayEntityHost<>),
-        ["$U"] = typeof(UnmanagedArrayEntityHost<>)
+        [typeof(ArrayEntityHost<>)] = s_arrayHostAlias,
+        [typeof(UnmanagedArrayEntityHost<>)] = s_unmanagedArrayHostAlias,
     }.ToFrozenDictionary();
 
     public static void Serialize<TBufferWriter>(ref TBufferWriter writer, IEntityHost host)
         where TBufferWriter : IBufferWriter<byte>
     {
-        writer.Write(s_componentHeaders.GetValue(host.Descriptor, static descriptor => {
+        var descriptor = host.Descriptor;
+        writer.Write(s_componentHeaders.GetOrAdd(descriptor.Type, static (_, layout) => {
             var components = string.Join('|',
-                descriptor.Components.Select(c => c.Type.AssemblyQualifiedName));
+                layout.Components.Select(c => c.Type.AssemblyQualifiedName));
             return Encoding.Unicode.GetBytes(components);
-        }));
+        }, descriptor));
         writer.Write(Dividor);
 
         var type = host.GetType();
@@ -73,12 +73,19 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
             throw new InvalidDataException("Incomplete world host header.");
         }
 
-        var components = componentsRaw.IsEmpty ? [] : Encoding.Unicode.GetString(componentsRaw).Split('|');
+        var components = Encoding.Unicode.GetString(componentsRaw);
         var entityTypeName = GenerateHListType(components);
 
-        var hostTypeName = Encoding.Unicode.GetString(hostTypeRaw);
+        var hostTypeName = hostTypeRaw.SequenceEqual(s_arrayHostAlias) ? ArrayHostAlias
+            : hostTypeRaw.SequenceEqual(s_unmanagedArrayHostAlias) ? UnmanagedArrayHostAlias
+            : Encoding.Unicode.GetString(hostTypeRaw);
+        var innerHostType = hostTypeName switch {
+            ArrayHostAlias => typeof(ArrayEntityHost<>),
+            UnmanagedArrayHostAlias => typeof(UnmanagedArrayEntityHost<>),
+            _ => null
+        };
         Type hostType;
-        if (s_aliasHostTypes.TryGetValue(hostTypeName, out var innerHostType) || hostTypeName[0] == '$') {
+        if (innerHostType != null || hostTypeName[0] == '$') {
             innerHostType ??= Type.GetType(hostTypeName[1..].Replace("%1", entityTypeName))
                 ?? throw new InvalidDataException("Invalid host type: " + hostTypeName);
             var entityType = Type.GetType(entityTypeName)
@@ -91,7 +98,17 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
             hostType = Type.GetType(hostTypeName)
                 ?? throw new InvalidDataException("Invalid host type: " + hostTypeName);
         }
-        var host = InvokeAcquireHost(world, hostType);
+
+        var acquire = s_hostAcquirers.GetValue(hostType, static type =>
+            s_acquireHostMethod.MakeGenericMethod(type).CreateDelegate<Func<World, IReactiveEntityHost>>());
+        IReactiveEntityHost host;
+        try {
+            host = acquire(world);
+        }
+        catch (Exception exception) {
+            // Preserve the reflection boundary for failures from the host acquisition itself.
+            throw new TargetInvocationException(exception);
+        }
         buffer = reader.UnreadSequence;
         return host;
     }
@@ -106,31 +123,22 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
             ? host : world.AddHost<THost>(static owner =>
                 Unsafe.As<THost>(Activator.CreateInstance(typeof(THost), owner))!);
 
-    private static IReactiveEntityHost InvokeAcquireHost(World world, Type hostType)
-    {
-        var acquire = s_hostAcquirers.GetValue(hostType, static type =>
-            s_acquireHostMethod.MakeGenericMethod(type).CreateDelegate<Func<World, IReactiveEntityHost>>());
-        try {
-            return acquire(world);
-        }
-        catch (Exception exception) {
-            // Preserve the reflection boundary for failures from the host acquisition itself.
-            throw new TargetInvocationException(exception);
-        }
-    }
-
-    private static string GenerateHListType(string[] components)
+    private static string GenerateHListType(ReadOnlySpan<char> components)
     {
         var builder = new StringBuilder();
 
-        foreach (var component in components) {
-            builder.Append("Sia.HList`2[[");
-            builder.Append(component);
-            builder.Append("], [");
+        var componentCount = 0;
+        if (!components.IsEmpty) {
+            foreach (var range in components.Split('|')) {
+                builder.Append("Sia.HList`2[[");
+                builder.Append(components[range]);
+                builder.Append("], [");
+                componentCount++;
+            }
         }
 
         builder.Append("Sia.EmptyHList, Sia");
-        for (var i = 0; i != components.Length; ++i) {
+        for (var i = 0; i != componentCount; ++i) {
             builder.Append("]], Sia");
         }
 
