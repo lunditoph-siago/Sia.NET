@@ -69,7 +69,7 @@ public static class EntityDescriptor<TEntity>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static ComponentOffset<TComponent> GetOffset<TComponent>()
+    public static ComponentOffset<TComponent> GetOffset<TComponent>()
     {
         var offsetSlots = OffsetSlots;
         var index = InternalComponentIndexer<TComponent>.Index;
