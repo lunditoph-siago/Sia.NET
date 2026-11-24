@@ -342,7 +342,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
     {
         var hosts = _graphHosts.UnsafeRawValues;
         for (var i = 0; i < hosts.Count; i++) {
-            result = result.Attempt(hosts[i].Dispose);
+            result = result.Attempt(hosts[i], static (in IEntityHost host) => host.Dispose());
         }
         _graphHosts.Clear();
         return result;
