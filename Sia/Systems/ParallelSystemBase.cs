@@ -5,12 +5,20 @@ public abstract class ParallelSystemBase<C1>(
     SystemChain? children = null, IRunner? runner = null)
     : SystemBase(matcher ?? Matchers.Of<C1>(), trigger, filter, children)
 {
+    private DataComponentHandler<WorldContext, C1>? _handleSlice;
+
     public IRunner Runner { get; } = runner ?? ParallelRunner.Default;
 
     public override void Execute(WorldContext context, IEntityQuery query)
     {
+        var handler = _handleSlice ??= HandleSlice;
+        if (Runner is CurrentThreadRunner currentThread) {
+            query.ForSlice(context, handler, currentThread, barrier: null);
+            return;
+        }
+
         var barrier = RunnerBarrier.Get();
-        query.ForSlice<IRunner, WorldContext, C1>(context, HandleSlice, Runner, barrier);
+        query.ForSlice(context, handler, Runner, barrier);
         barrier.WaitAndReturn();
     }
 
@@ -22,13 +30,20 @@ public abstract class ParallelSystemBase<C1, C2>(
     SystemChain? children = null, IRunner? runner = null)
     : SystemBase(matcher ?? Matchers.Of<C1, C2>(), trigger, filter, children)
 {
+    private DataComponentHandler<WorldContext, C1, C2>? _handleSlice;
+
     public IRunner Runner { get; } = runner ?? ParallelRunner.Default;
 
     public override void Execute(WorldContext context, IEntityQuery query)
     {
+        var handler = _handleSlice ??= HandleSlice;
+        if (Runner is CurrentThreadRunner currentThread) {
+            query.ForSlice(context, handler, currentThread, barrier: null);
+            return;
+        }
+
         var barrier = RunnerBarrier.Get();
-        query.ForSlice<IRunner, WorldContext, C1, C2>(
-            context, HandleSlice, Runner, barrier);
+        query.ForSlice(context, handler, Runner, barrier);
         barrier.WaitAndReturn();
     }
 
@@ -40,13 +55,20 @@ public abstract class ParallelSystemBase<C1, C2, C3>(
     SystemChain? children = null, IRunner? runner = null)
     : SystemBase(matcher ?? Matchers.Of<C1, C2, C3>(), trigger, filter, children)
 {
+    private DataComponentHandler<WorldContext, C1, C2, C3>? _handleSlice;
+
     public IRunner Runner { get; } = runner ?? ParallelRunner.Default;
 
     public override void Execute(WorldContext context, IEntityQuery query)
     {
+        var handler = _handleSlice ??= HandleSlice;
+        if (Runner is CurrentThreadRunner currentThread) {
+            query.ForSlice(context, handler, currentThread, barrier: null);
+            return;
+        }
+
         var barrier = RunnerBarrier.Get();
-        query.ForSlice<IRunner, WorldContext, C1, C2, C3>(
-            context, HandleSlice, Runner, barrier);
+        query.ForSlice(context, handler, Runner, barrier);
         barrier.WaitAndReturn();
     }
 
@@ -58,13 +80,20 @@ public abstract class ParallelSystemBase<C1, C2, C3, C4>(
     SystemChain? children = null, IRunner? runner = null)
     : SystemBase(matcher ?? Matchers.Of<C1, C2, C3, C4>(), trigger, filter, children)
 {
+    private DataComponentHandler<WorldContext, C1, C2, C3, C4>? _handleSlice;
+
     public IRunner Runner { get; } = runner ?? ParallelRunner.Default;
 
     public override void Execute(WorldContext context, IEntityQuery query)
     {
+        var handler = _handleSlice ??= HandleSlice;
+        if (Runner is CurrentThreadRunner currentThread) {
+            query.ForSlice(context, handler, currentThread, barrier: null);
+            return;
+        }
+
         var barrier = RunnerBarrier.Get();
-        query.ForSlice<IRunner, WorldContext, C1, C2, C3, C4>(
-            context, HandleSlice, Runner, barrier);
+        query.ForSlice(context, handler, Runner, barrier);
         barrier.WaitAndReturn();
     }
 
@@ -76,13 +105,20 @@ public abstract class ParallelSystemBase<C1, C2, C3, C4, C5>(
     SystemChain? children = null, IRunner? runner = null)
     : SystemBase(matcher ?? Matchers.Of<C1, C2, C3, C4, C5>(), trigger, filter, children)
 {
+    private DataComponentHandler<WorldContext, C1, C2, C3, C4, C5>? _handleSlice;
+
     public IRunner Runner { get; } = runner ?? ParallelRunner.Default;
 
     public override void Execute(WorldContext context, IEntityQuery query)
     {
+        var handler = _handleSlice ??= HandleSlice;
+        if (Runner is CurrentThreadRunner currentThread) {
+            query.ForSlice(context, handler, currentThread, barrier: null);
+            return;
+        }
+
         var barrier = RunnerBarrier.Get();
-        query.ForSlice<IRunner, WorldContext, C1, C2, C3, C4, C5>(
-            context, HandleSlice, Runner, barrier);
+        query.ForSlice(context, handler, Runner, barrier);
         barrier.WaitAndReturn();
     }
 
@@ -94,13 +130,20 @@ public abstract class ParallelSystemBase<C1, C2, C3, C4, C5, C6>(
     SystemChain? children = null, IRunner? runner = null)
     : SystemBase(matcher ?? Matchers.Of<C1, C2, C3, C4, C5, C6>(), trigger, filter, children)
 {
+    private DataComponentHandler<WorldContext, C1, C2, C3, C4, C5, C6>? _handleSlice;
+
     public IRunner Runner { get; } = runner ?? ParallelRunner.Default;
 
     public override void Execute(WorldContext context, IEntityQuery query)
     {
+        var handler = _handleSlice ??= HandleSlice;
+        if (Runner is CurrentThreadRunner currentThread) {
+            query.ForSlice(context, handler, currentThread, barrier: null);
+            return;
+        }
+
         var barrier = RunnerBarrier.Get();
-        query.ForSlice<IRunner, WorldContext, C1, C2, C3, C4, C5, C6>(
-            context, HandleSlice, Runner, barrier);
+        query.ForSlice(context, handler, Runner, barrier);
         barrier.WaitAndReturn();
     }
 
