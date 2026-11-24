@@ -38,14 +38,15 @@ public class EventChannel<TTarget, TEvent> : IEventSender<TTarget, TEvent>
     private int _swapTag;
     private readonly object _relayLock = new();
 
-    private static readonly Comparison<EventEntry> CompareIndexedPriority
-        = (e1, e2) => {
-            var pc = e1.Priority.CompareTo(e2.Priority);
-            return pc == 0 ? e1.Index.CompareTo(e2.Index) : pc;
+    private static readonly Comparison<EventEntry> CompareEntries
+        = static (first, second) => {
+            var priority = first.Priority.CompareTo(second.Priority);
+            return priority == 0 ? first.Index.CompareTo(second.Index) : priority;
         };
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static int GetCommandPriority(IEvent e)
+    private static int GetCommandPriority<UEvent>(in UEvent e)
+        where UEvent : IEvent
         => e is ISortableEvent sortable ? sortable.Priority : 0;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -122,7 +123,15 @@ public class EventChannel<TTarget, TEvent> : IEventSender<TTarget, TEvent>
 
         if (relayingEvents.Count != 0) {
             var span = CollectionsMarshal.AsSpan(relayingEvents);
-            relayingEvents.Sort(CompareIndexedPriority);
+            for (var i = 1; i < span.Length; i++) {
+                ref readonly var previous = ref span[i - 1];
+                ref readonly var current = ref span[i];
+                if (previous.Priority > current.Priority
+                    || (previous.Priority == current.Priority && previous.Index >= current.Index)) {
+                    relayingEvents.Sort(CompareEntries);
+                    break;
+                }
+            }
 
             var count = 0;
             try {
