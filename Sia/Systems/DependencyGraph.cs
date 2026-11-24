@@ -1,4 +1,7 @@
+using System.Buffers;
 using System.Collections.Immutable;
+using System.Numerics;
+using System.Runtime.InteropServices;
 
 namespace Sia;
 
@@ -21,50 +24,113 @@ internal static class DependencyGraph
         ArgumentNullException.ThrowIfNull(edges);
 
         var nodeCount = nodes.Count;
-        var successors = new List<int>[nodeCount];
-        var inDegree = new int[nodeCount];
-        for (var i = 0; i < nodeCount; i++) {
-            successors[i] = [];
-        }
-
-        foreach (var edge in edges) {
-            ArgumentOutOfRangeException.ThrowIfNegative(edge.From);
-            ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(edge.From, nodeCount);
-            ArgumentOutOfRangeException.ThrowIfNegative(edge.To);
-            ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(edge.To, nodeCount);
-            successors[edge.From].Add(edge.To);
-            inDegree[edge.To]++;
-        }
-        foreach (var list in successors) {
-            list.Sort();
-        }
-
-        var ready = new PriorityQueue<int, int>(nodeCount);
-        for (var i = 0; i < nodeCount; i++) {
-            if (inDegree[i] == 0) {
-                ready.Enqueue(i, i);
+        var edgeCount = edges.Count;
+        if (edgeCount == 0) {
+            if (nodeCount == 0) {
+                return new([], []);
             }
+            if (nodes is TNode[] array) {
+                return new(ImmutableArray.Create<TNode>(array), []);
+            }
+            var orderedNodes = new TNode[nodeCount];
+            for (var i = 0; i < nodeCount; i++) {
+                orderedNodes[i] = nodes[i];
+            }
+            return new(ImmutableCollectionsMarshal.AsImmutableArray(orderedNodes), []);
         }
+        var nodeSlots = checked(nodeCount * 2);
+        var readyWords = (int)(((uint)nodeCount + 31) >> 5);
+        var readyGroupCount = (readyWords + 31) >> 5;
+        var edgeOffset = checked(nodeSlots + readyWords + readyGroupCount);
+        var workspaceLength = checked(edgeOffset + edgeCount * 2);
+        int[]? rented = null;
+        Span<int> workspace = workspaceLength <= byte.MaxValue
+            ? stackalloc int[workspaceLength]
+            : (rented = ArrayPool<int>.Shared.Rent(workspaceLength)).AsSpan(0, workspaceLength);
+        try {
+            var heads = workspace[..nodeCount];
+            var inDegree = workspace.Slice(nodeCount, nodeCount);
+            var readyBits = workspace.Slice(nodeSlots, readyWords);
+            var readyGroups = workspace.Slice(nodeSlots + readyWords, readyGroupCount);
+            var targets = workspace.Slice(edgeOffset, edgeCount);
+            var links = workspace[(edgeOffset + edgeCount)..];
 
-        var order = ImmutableArray.CreateBuilder<TNode>(nodeCount);
-        while (ready.TryDequeue(out var current, out _)) {
-            order.Add(nodes[current]);
-            foreach (var successor in successors[current]) {
-                if (--inDegree[successor] == 0) {
-                    ready.Enqueue(successor, successor);
+            heads.Fill(-1);
+            inDegree.Clear();
+            var edgeIndex = 0;
+            foreach (var edge in edges) {
+                ArgumentOutOfRangeException.ThrowIfNegative(edge.From);
+                ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(edge.From, nodeCount);
+                ArgumentOutOfRangeException.ThrowIfNegative(edge.To);
+                ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(edge.To, nodeCount);
+                targets[edgeIndex] = edge.To;
+                links[edgeIndex] = heads[edge.From];
+                heads[edge.From] = edgeIndex++;
+                inDegree[edge.To]++;
+            }
+
+            readyBits.Clear();
+            readyGroups.Clear();
+            for (var i = 0; i < nodeCount; i++) {
+                if (inDegree[i] == 0) {
+                    var word = i >> 5;
+                    readyBits[word] |= 1 << (i & 31);
+                    readyGroups[word >> 5] |= 1 << (word & 31);
                 }
             }
-        }
 
-        return order.Count == nodeCount
-            ? new(order.MoveToImmutable(), [])
-            : new([], FindCycle(nodes, successors));
+            var order = new TNode[nodeCount];
+            var emitted = 0;
+            var firstGroup = 0;
+            while (firstGroup < readyGroups.Length) {
+                var groupBits = (uint)readyGroups[firstGroup];
+                if (groupBits == 0) {
+                    firstGroup++;
+                    continue;
+                }
+                var word = (firstGroup << 5) + BitOperations.TrailingZeroCount(groupBits);
+                var wordBits = (uint)readyBits[word];
+                var remaining = wordBits & (wordBits - 1);
+                readyBits[word] = (int)remaining;
+                if (remaining == 0) {
+                    readyGroups[firstGroup] = (int)(groupBits & (groupBits - 1));
+                }
+                var current = (word << 5) + BitOperations.TrailingZeroCount(wordBits);
+                order[emitted++] = nodes[current];
+                for (var edge = heads[current]; edge >= 0; edge = links[edge]) {
+                    var successor = targets[edge];
+                    if (--inDegree[successor] == 0) {
+                        var successorWord = successor >> 5;
+                        var successorGroup = successorWord >> 5;
+                        readyBits[successorWord] |= 1 << (successor & 31);
+                        readyGroups[successorGroup] |= 1 << (successorWord & 31);
+                        firstGroup = Math.Min(firstGroup, successorGroup);
+                    }
+                }
+            }
+
+            return emitted == nodeCount
+                ? new(ImmutableCollectionsMarshal.AsImmutableArray(order), [])
+                : new([], FindCycle(nodes, heads, targets, links));
+        }
+        finally {
+            if (rented != null) {
+                ArrayPool<int>.Shared.Return(rented);
+            }
+        }
     }
 
     private static ImmutableArray<TNode> FindCycle<TNode>(
         IReadOnlyList<TNode> nodes,
-        IReadOnlyList<int>[] successors)
+        ReadOnlySpan<int> heads, ReadOnlySpan<int> targets, ReadOnlySpan<int> links)
     {
+        var successors = new List<int>?[heads.Length];
+        for (var node = 0; node < heads.Length; node++) {
+            for (var edge = heads[node]; edge >= 0; edge = links[edge]) {
+                (successors[node] ??= []).Add(targets[edge]);
+            }
+            successors[node]?.Sort();
+        }
         var state = new byte[successors.Length];
         var path = new List<int>();
         var positions = new int[successors.Length];
@@ -75,21 +141,23 @@ internal static class DependencyGraph
             positions[node] = path.Count;
             path.Add(node);
 
-            foreach (var successor in successors[node]) {
-                if (state[successor] == 0) {
-                    var cycle = Visit(successor);
-                    if (!cycle.IsEmpty) {
-                        return cycle;
+            if (successors[node] is { } outgoing) {
+                foreach (var successor in outgoing) {
+                    if (state[successor] == 0) {
+                        var cycle = Visit(successor);
+                        if (!cycle.IsEmpty) {
+                            return cycle;
+                        }
                     }
-                }
-                else if (state[successor] == 1) {
-                    var cycle = ImmutableArray.CreateBuilder<TNode>(
-                        path.Count - positions[successor] + 1);
-                    for (var i = positions[successor]; i < path.Count; i++) {
-                        cycle.Add(nodes[path[i]]);
+                    else if (state[successor] == 1) {
+                        var cycle = ImmutableArray.CreateBuilder<TNode>(
+                            path.Count - positions[successor] + 1);
+                        for (var i = positions[successor]; i < path.Count; i++) {
+                            cycle.Add(nodes[path[i]]);
+                        }
+                        cycle.Add(nodes[successor]);
+                        return cycle.MoveToImmutable();
                     }
-                    cycle.Add(nodes[successor]);
-                    return cycle.MoveToImmutable();
                 }
             }
 
