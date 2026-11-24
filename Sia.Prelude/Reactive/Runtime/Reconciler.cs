@@ -1,5 +1,7 @@
+using System.Buffers;
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Sia.Reactors;
 
 namespace Sia.Reactive;
@@ -608,15 +610,16 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
     }
 
     private struct DestroyFrame(
-        Entity owner, CellSlot[] slots, IRecyclableForEachCleanup? recyclable,
+        Entity owner, CellSlot[] slots, int slotCount, IRecyclableForEachCleanup? recyclable,
         bool isEachNode, List<Entity>? children = null)
     {
         public readonly Entity Owner = owner;
         public readonly CellSlot[] Slots = slots;
+        public readonly int SlotCount = slotCount;
         public readonly IRecyclableForEachCleanup? Recyclable = recyclable;
         public readonly bool IsEachNode = isEachNode;
         public readonly List<Entity>? Children = children;
-        public int Cursor = isEachNode ? 0 : slots.Length - 1;
+        public int Cursor = isEachNode ? 0 : slotCount - 1;
     }
 
     private List<DestroyFrame> RentDestroyWorklist()
@@ -624,14 +627,23 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
 
     private void ReturnDestroyWorklist(List<DestroyFrame> worklist)
     {
+        foreach (ref readonly var frame in CollectionsMarshal.AsSpan(worklist)) {
+            ReturnEachChildren(frame);
+        }
         worklist.Clear();
         _destroyWorklistPool.Push(worklist);
     }
 
-    private void ReturnDestroyChildren(List<Entity> children)
+    private void ReturnEachChildren(in DestroyFrame frame)
     {
-        children.Clear();
-        _destroyChildrenPool.Push(children);
+        if (frame.Children is { } children) {
+            children.Clear();
+            _destroyChildrenPool.Push(children);
+        }
+        else if (frame.Recyclable != null && frame.Slots.Length != 0) {
+            frame.Slots.AsSpan(frame.Cursor, frame.SlotCount - frame.Cursor).Clear();
+            ArrayPool<CellSlot>.Shared.Return(frame.Slots);
+        }
     }
 
     private void PushCellFrame(List<DestroyFrame> worklist, Entity cell, NodeIdentity identity)
@@ -646,7 +658,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             }
             dependencies.Clear();
         }
-        worklist.Add(new DestroyFrame(cell, data.Slots, recyclable: null, isEachNode: false));
+        worklist.Add(new DestroyFrame(cell, data.Slots, data.Slots.Length, recyclable: null, isEachNode: false));
     }
 
     private Outcome<Exception> ProcessNonCellSlot(
@@ -679,16 +691,30 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         }
         else if (entity.ContainsUnchecked<EachNode>()) {
             var cleanup = entity.GetUnchecked<EachNode>().Cleanup;
+            DestroyFrame frame;
+            if (cleanup is IRecyclableForEachCleanup recyclable) {
+                var slots = recyclable.RentChildren(out var count);
+                frame = new DestroyFrame(entity, slots, count, recyclable, isEachNode: true);
+            }
+            else {
+                var children = _destroyChildrenPool.TryPop(out var pooled) ? pooled : [];
+                try {
+                    cleanup.CollectChildren(children);
+                }
+                catch {
+                    children.Clear();
+                    _destroyChildrenPool.Push(children);
+                    throw;
+                }
+                frame = new DestroyFrame(entity, [], children.Count, recyclable: null,
+                    isEachNode: true, children);
+            }
 
-            var children = _destroyChildrenPool.TryPop(out var pooled) ? pooled : [];
             try {
-                cleanup.CollectChildren(children);
-                worklist.Add(new DestroyFrame(
-                    entity, [], cleanup as IRecyclableForEachCleanup,
-                    isEachNode: true, children));
+                worklist.Add(frame);
             }
             catch {
-                ReturnDestroyChildren(children);
+                ReturnEachChildren(frame);
                 throw;
             }
             return result;
@@ -719,7 +745,6 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         in DestroyFrame frame, Outcome<Exception> result)
     {
         result = result.Attempt(frame.Owner, static (in value) => value.Host?.Release(value));
-        ReturnDestroyChildren(frame.Children!);
         if (result.IsSuccess && frame.Recyclable != null) {
             ReturnEachIndex(frame.Recyclable);
         }
@@ -731,24 +756,24 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
     {
         while (worklist.Count > 0) {
             var topIndex = worklist.Count - 1;
-            var frame = worklist[topIndex];
+            ref var frame = ref CollectionsMarshal.AsSpan(worklist)[topIndex];
             var hasNext = frame.IsEachNode
-                ? frame.Cursor < frame.Children!.Count
+                ? frame.Cursor < frame.SlotCount
                 : frame.Cursor >= 0;
 
             if (hasNext) {
                 Entity entity;
-                if (frame.IsEachNode) {
-                    entity = frame.Children![frame.Cursor];
-                    frame.Children[frame.Cursor] = default;
+                if (frame.Children is { } children) {
+                    entity = children[frame.Cursor];
+                    children[frame.Cursor] = default;
                 }
                 else {
                     entity = Validate(frame.Slots[frame.Cursor]);
                     frame.Slots[frame.Cursor] = default;
                 }
                 frame.Cursor += frame.IsEachNode ? 1 : -1;
-                worklist[topIndex] = frame;
 
+                // Child traversal can grow the list. The parent frame has already advanced.
                 if (!entity.IsValid) {
                     continue;
                 }
@@ -766,7 +791,9 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             result = frame.IsEachNode
                 ? FinalizeEachNodeFrame(frame, result)
                 : FinalizeCellFrame(frame, result);
+            var completed = frame;
             worklist.RemoveAt(topIndex);
+            ReturnEachChildren(completed);
         }
         return result;
     }
