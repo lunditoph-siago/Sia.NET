@@ -15,13 +15,15 @@ internal readonly ref struct RecordingScope<TResult, TRunner>
     {
         EntityExtensionsCommon.GuardSpanLength(destination, count);
         _destination = destination[..count];
+        if (_destination.IsEmpty) return;
+
         var parallel = runner is ParallelRunner candidate ? candidate : null;
         var inline = runner is CurrentThreadRunner || parallel?.IsCurrentWorker == true;
-        if (count != 0 && !inline && parallel?.GetType() != typeof(ParallelRunner)) {
+        if (!inline && parallel?.GetType() != typeof(ParallelRunner)) {
             _buffer = new(_destination.ToArray());
         }
         Runner = new(runner, inline, _buffer);
-        if (count != 0 && !inline && barrier != null) {
+        if (!inline && barrier != null) {
             barrier.AddParticipants(1);
             _callerBarrier = barrier;
         }
@@ -149,15 +151,16 @@ internal readonly struct ScopedRecordingRunner<TRunner>(TRunner runner, bool inl
     {
         if (IsInline) {
             CurrentThreadRunner.Instance.Run(taskCount, data, action, barrier);
+            return;
         }
-        else if (lease is { } gate) {
+        if (lease is { } gate) {
             int completed;
             // Foreign runners may retain a barrier even after a failed submission.
             // Keep their barrier unpooled and stop late jobs before they borrow host storage.
-            var completion = new RunnerBarrier();
+            var foreignCompletion = new RunnerBarrier();
             try {
-                runner.Run(taskCount, new ScopedJob<TData>(taskCount, data, action, gate), Invoke, completion);
-                completion.Wait();
+                runner.Run(taskCount, new ScopedJob<TData>(taskCount, data, action, gate), Invoke, foreignCompletion);
+                foreignCompletion.Wait();
             }
             finally {
                 completed = gate.Close();
@@ -165,23 +168,23 @@ internal readonly struct ScopedRecordingRunner<TRunner>(TRunner runner, bool inl
             if (completed != taskCount) {
                 throw new InvalidOperationException("The runner did not complete the recording work");
             }
+            return;
         }
-        else {
-            var completion = RunnerBarrier.GetForRecording();
+
+        var completion = RunnerBarrier.GetForRecording();
+        try {
+            runner.Run(taskCount, data, action, completion);
+        }
+        catch {
             try {
-                runner.Run(taskCount, data, action, completion);
+                completion.WaitAndReturnRecording();
             }
             catch {
-                try {
-                    completion.WaitAndReturnRecording();
-                }
-                catch {
-                    // Preserve the submission failure after draining accepted work.
-                }
-                throw;
+                // Preserve the submission failure after draining accepted work.
             }
-            completion.WaitAndReturnRecording();
+            throw;
         }
+        completion.WaitAndReturnRecording();
     }
 
     private static void Invoke<TData>(in ScopedJob<TData> job, (int, int) range)
