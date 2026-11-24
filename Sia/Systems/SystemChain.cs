@@ -54,8 +54,14 @@ public sealed record SystemChain
 
     public SystemChain Remove(SystemId id)
     {
-        var index = Entries.FindIndex(entry => entry.Id == id);
-        return index == -1 ? this : new(Entries.RemoveAt(index));
+        var index = 0;
+        foreach (var entry in Entries) {
+            if (entry.Id == id) {
+                return new(Entries.RemoveAt(index));
+            }
+            index++;
+        }
+        return this;
     }
 
     public SystemChain RemoveAll<TSystem>()
@@ -78,11 +84,20 @@ public sealed record SystemChain
         Func<SystemDescriptor, SystemDescriptor> configure)
     {
         var entries = Entries;
-        for (var i = 0; i < entries.Count; i++) {
-            var entry = entries[i];
+        for (var index = 0; index < entries.Count; index++) {
+            var entry = entries[index];
             if (entry.Id == id) {
-                entries = entries.SetItem(
-                    i, entry with { Descriptor = configure(entry.Descriptor) });
+                if (!ReferenceEquals(entries, Entries)) {
+                    var updated = entries.ToBuilder();
+                    for (var remainingIndex = index; remainingIndex < entries.Count; remainingIndex++) {
+                        var remaining = entries[remainingIndex];
+                        if (remaining.Id == id) {
+                            updated[remainingIndex] = remaining with { Descriptor = configure(remaining.Descriptor) };
+                        }
+                    }
+                    return new(updated.ToImmutable());
+                }
+                entries = entries.SetItem(index, entry with { Descriptor = configure(entry.Descriptor) });
             }
         }
         return ReferenceEquals(entries, Entries) ? this : new(entries);
