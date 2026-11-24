@@ -10,6 +10,7 @@ internal readonly ref struct RecordingScope<TResult, TRunner>
     private readonly Span<TResult> _destination;
     private readonly RecordingBuffer<TResult>? _buffer;
     private readonly RunnerBarrier? _callerBarrier;
+    private readonly bool _usesSequentialCursor;
 
     public RecordingScope(Span<TResult> destination, int count, TRunner runner, RunnerBarrier? barrier)
     {
@@ -19,8 +20,14 @@ internal readonly ref struct RecordingScope<TResult, TRunner>
 
         var parallel = runner is ParallelRunner candidate ? candidate : null;
         var inline = runner is CurrentThreadRunner || parallel?.IsCurrentWorker == true;
-        if (!inline && parallel?.GetType() != typeof(ParallelRunner)) {
-            _buffer = new(_destination.ToArray());
+        _usesSequentialCursor = inline;
+        if (!inline) {
+            if (parallel?.GetType() == typeof(ParallelRunner)) {
+                _usesSequentialCursor = parallel.DegreeOfParallelism == 1;
+            }
+            else {
+                _buffer = new(_destination.ToArray());
+            }
         }
         Runner = new(runner, inline, _buffer);
         if (!inline && barrier != null) {
@@ -35,7 +42,7 @@ internal readonly ref struct RecordingScope<TResult, TRunner>
 
     public unsafe RecordingOutput<TResult> GetOutput(TResult* pointer, int* index)
         => _buffer == null
-            ? new(pointer, index, _destination.Length, Runner.IsInline)
+            ? new(pointer, index, _destination.Length, _usesSequentialCursor)
             : new(_buffer);
 
     public void Dispose()
@@ -56,15 +63,15 @@ internal readonly unsafe struct RecordingOutput<TResult>
     private readonly TResult* _pointer;
     private readonly int* _cursor;
     private readonly int _length;
-    private readonly bool _inline;
+    private readonly bool _usesSequentialCursor;
     private readonly RecordingBuffer<TResult>? _buffer;
 
-    public RecordingOutput(TResult* pointer, int* cursor, int length, bool inline)
+    public RecordingOutput(TResult* pointer, int* cursor, int length, bool usesSequentialCursor)
     {
         _pointer = pointer;
         _cursor = cursor;
         _length = length;
-        _inline = inline;
+        _usesSequentialCursor = usesSequentialCursor;
     }
 
     public RecordingOutput(RecordingBuffer<TResult> buffer) => _buffer = buffer;
@@ -75,7 +82,7 @@ internal readonly unsafe struct RecordingOutput<TResult>
         if (_buffer is { } buffer) {
             return ref buffer.Next();
         }
-        var index = _inline ? ++*_cursor : Interlocked.Increment(ref *_cursor);
+        var index = _usesSequentialCursor ? ++*_cursor : Interlocked.Increment(ref *_cursor);
         if ((uint)index >= (uint)_length) {
             throw new InvalidOperationException("Recording exceeded the destination length");
         }
