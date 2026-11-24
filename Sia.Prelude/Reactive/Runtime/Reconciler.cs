@@ -10,14 +10,21 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
 {
     private readonly record struct DirtyEntry(EntityReference Cell, NodeIdentity Identity);
     private readonly record struct PendingEntry(EntityReference Cell, NodeIdentity Identity);
+    private readonly struct PendingSetup(IEffectSetup effect, long version)
+    {
+        public readonly IEffectSetup Effect = effect;
+        public readonly long Version = version;
+    }
 
     public int MaxFlushPasses { get; set; } = 100;
 
     private readonly Dictionary<int, Queue<DirtyEntry>> _dirtyByDepth = [];
     private readonly PriorityQueue<Queue<DirtyEntry>, int> _dirtyDepths = new();
     private readonly List<PendingEntry> _pendingWork = [];
-    private readonly List<Action> _effectCleanups = [];
-    private readonly List<Action> _effectSetups = [];
+    private List<Action> _effectCleanups = [];
+    private List<PendingSetup> _effectSetups = [];
+    private List<Action>? _spareEffectCleanups;
+    private List<PendingSetup>? _spareEffectSetups;
     private readonly Dictionary<long, EntityReference> _roots = [];
     private readonly SparseSet<IEntityHost> _graphHosts = [];
     private Entity _expandingCell;
@@ -153,11 +160,8 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
         }
     }
 
-    internal void QueueEffectSetup(Action setup)
-    {
-        ArgumentNullException.ThrowIfNull(setup);
-        _effectSetups.Add(setup);
-    }
+    internal void QueueEffectSetup(IEffectSetup effect, long version)
+        => _effectSetups.Add(new(effect, version));
 
     private void ExpandCell(Entity cell)
     {
@@ -478,23 +482,53 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
     private Outcome<Exception> DrainEffectCleanups(
         Outcome<Exception> result)
     {
-        var cleanups = _effectCleanups.ToArray();
-        _effectCleanups.Clear();
-        for (var index = cleanups.Length - 1; index >= 0; index--) {
-            result = result.Attempt(cleanups[index]);
+        if (_effectCleanups.Count == 0) {
+            return result;
         }
-        return result;
+        var cleanups = TakeEffectBatch(ref _effectCleanups, ref _spareEffectCleanups);
+        try {
+            var actions = CollectionsMarshal.AsSpan(cleanups);
+            for (var index = actions.Length - 1; index >= 0; index--) {
+                result = result.Attempt(actions[index]);
+            }
+            return result;
+        }
+        finally {
+            ReturnEffectBatch(cleanups, ref _spareEffectCleanups);
+        }
     }
 
     private void DrainEffects()
     {
         var result = DrainEffectCleanups(Outcome<Exception>.Success);
-        var setups = _effectSetups.ToArray();
-        _effectSetups.Clear();
-        for (var index = 0; index < setups.Length; index++) {
-            result = result.Attempt(setups[index]);
+        if (_effectSetups.Count != 0) {
+            var setups = TakeEffectBatch(ref _effectSetups, ref _spareEffectSetups);
+            try {
+                foreach (ref readonly var setup in CollectionsMarshal.AsSpan(setups)) {
+                    result = result.Attempt(setup,
+                        static (in PendingSetup work) => work.Effect.RunSetup(work.Version));
+                }
+            }
+            finally {
+                ReturnEffectBatch(setups, ref _spareEffectSetups);
+            }
         }
         result.ThrowIfFailed();
+    }
+
+    private static List<T> TakeEffectBatch<T>(ref List<T> pending, ref List<T>? spare)
+    {
+        // A callback can enqueue work or drain it recursively. Keep this batch detached.
+        var batch = pending;
+        pending = spare ?? [];
+        spare = null;
+        return batch;
+    }
+
+    private static void ReturnEffectBatch<T>(List<T> batch, ref List<T>? spare)
+    {
+        batch.Clear();
+        spare ??= batch;
     }
 
     public IReadOnlyList<ScheduleRegistry> GetSchedules<TLabel>()

@@ -1,7 +1,7 @@
 namespace Sia.Reactive;
 
 internal sealed class EffectLifetime<TDependencies, TResource>
-    : IEffectCleanup
+    : IEffectCleanup, IEffectSetup
     where TDependencies : struct, IEquatable<TDependencies>
 {
     private readonly Reconciler _owner;
@@ -25,10 +25,7 @@ internal sealed class EffectLifetime<TDependencies, TResource>
     }
 
     public void ScheduleSetup()
-    {
-        var version = _lifecycle.NextVersion();
-        _owner.QueueEffectSetup(() => Setup(version));
-    }
+        => _owner.QueueEffectSetup(this, _lifecycle.NextVersion());
 
     public void Reconcile(
         in TDependencies dependencies,
@@ -60,7 +57,7 @@ internal sealed class EffectLifetime<TDependencies, TResource>
         ScheduleCleanup(prepend: true);
     }
 
-    private void Setup(long version)
+    void IEffectSetup.RunSetup(long version)
     {
         if (_cleanupFailed || _lifecycle.Mounted || !_lifecycle.IsCurrent(version)) {
             return;
