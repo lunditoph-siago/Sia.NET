@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Sia.Reactors;
 
 namespace Sia.Reactive;
@@ -782,14 +783,18 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
 
     private void RemoveSchedule(ScheduleRegistry registry)
     {
-        foreach (var (labelType, registries) in _schedules.ToArray()) {
+        Type? emptyLabel = null;
+        foreach (var (labelType, registries) in _schedules) {
             if (!registries.Remove(registry)) {
                 continue;
             }
             if (registries.Count == 0) {
-                _schedules.Remove(labelType);
+                emptyLabel = labelType;
             }
             break;
+        }
+        if (emptyLabel != null) {
+            _schedules.Remove(emptyLabel);
         }
         _rebuildQueue.Remove(registry);
         registry.RebuildQueued = false;
@@ -799,28 +804,31 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
 
     private void RebuildStage(ScheduleRegistry registry)
     {
-        registry.Slots.Sort(static (a, b) => CompareTreeOrder(
+        var slots = registry.Slots;
+        slots.Sort(static (a, b) => CompareTreeOrder(
             a.OwnerCell, a.SlotIndex, b.OwnerCell, b.SlotIndex));
 
-        var entries = registry.Slots.Select(slot => slot.Entry).ToArray();
+        SystemChain.Entry?[] entries = slots.Count == 0 ? [] : new SystemChain.Entry?[slots.Count];
+        var sortedSlots = CollectionsMarshal.AsSpan(slots);
+        for (var i = 0; i < sortedSlots.Length; i++) {
+            entries[i] = sortedSlots[i].Entry;
+        }
         var order = Planner.PlanOrder(entries);
-        var planEntries = ImmutableArray.CreateBuilder<SystemChain.Entry>(
-            order.Length);
-        var runtimes = ImmutableArray.CreateBuilder<SystemStage>(order.Length);
+        SystemChain.Entry[] planEntries = order.IsEmpty ? [] : new SystemChain.Entry[order.Length];
+        SystemStage[] runtimes = order.IsEmpty ? [] : new SystemStage[order.Length];
         List<(int Index, SystemStage Runtime)>? created = null;
         try {
-            foreach (var index in order) {
-                var slot = registry.Slots[index];
+            for (var planIndex = 0; planIndex < order.Length; planIndex++) {
+                var index = order[planIndex];
+                var slot = slots[index];
                 var runtime = slot.Runtime;
                 if (runtime == null) {
-                    runtime = SystemChain.Empty
-                        .Add(slot.Entry.Id, slot.Entry.Creator, slot.Entry.Descriptor)
-                        .CreateStage(World);
-                    registry.Slots[index] = slot with { Runtime = runtime };
+                    runtime = new SystemStage(World, new ExecutionPlan(ImmutableArray.Create(slot.Entry)));
+                    slots[index] = slot with { Runtime = runtime };
                     (created ??= []).Add((index, runtime));
                 }
-                planEntries.Add(entries[index]);
-                runtimes.Add(runtime);
+                planEntries[planIndex] = entries[index].GetValueOrDefault();
+                runtimes[planIndex] = runtime;
             }
         }
         catch (Exception error) {
@@ -828,7 +836,7 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             if (created != null) {
                 for (var i = created.Count - 1; i >= 0; i--) {
                     var item = created[i];
-                    registry.Slots[item.Index] = registry.Slots[item.Index] with {
+                    slots[item.Index] = slots[item.Index] with {
                         Runtime = null,
                     };
                     result = result.Attempt(item.Runtime.Dispose);
@@ -836,8 +844,8 @@ public sealed class Reconciler : ReactorBase, IScheduleSource
             }
             result.ThrowFailure();
         }
-        registry.CurrentPlan = new ExecutionPlan(planEntries.MoveToImmutable());
-        registry.RuntimeOrder = runtimes.MoveToImmutable();
+        registry.CurrentPlan = new ExecutionPlan(ImmutableCollectionsMarshal.AsImmutableArray(planEntries));
+        registry.RuntimeOrder = ImmutableCollectionsMarshal.AsImmutableArray(runtimes);
         registry.Version++;
     }
 
