@@ -73,29 +73,47 @@ internal static class DependencyGraph
 
             readyBits.Clear();
             readyGroups.Clear();
-            var firstGroup = readyGroups.Length;
             for (var i = 0; i < nodeCount; i++) {
                 if (inDegree[i] == 0) {
-                    EnqueueReady(readyBits, readyGroups, ref firstGroup, i);
+                    var word = i >> 5;
+                    readyBits[word] |= 1 << (i & 31);
+                    readyGroups[word >> 5] |= 1 << (word & 31);
                 }
             }
 
             var order = new TNode[nodeCount];
             var emitted = 0;
-            int current;
-            while ((current = DequeueReady(readyBits, readyGroups, ref firstGroup)) >= 0) {
+            var firstGroup = 0;
+            while (firstGroup < readyGroups.Length) {
+                var groupBits = (uint)readyGroups[firstGroup];
+                if (groupBits == 0) {
+                    firstGroup++;
+                    continue;
+                }
+                var word = (firstGroup << 5) + BitOperations.TrailingZeroCount(groupBits);
+                var wordBits = (uint)readyBits[word];
+                var remaining = wordBits & (wordBits - 1);
+                readyBits[word] = (int)remaining;
+                if (remaining == 0) {
+                    readyGroups[firstGroup] = (int)(groupBits & (groupBits - 1));
+                }
+                var current = (word << 5) + BitOperations.TrailingZeroCount(wordBits);
                 order[emitted++] = nodes[current];
                 for (var edge = heads[current]; edge >= 0; edge = links[edge]) {
                     var successor = targets[edge];
                     if (--inDegree[successor] == 0) {
-                        EnqueueReady(readyBits, readyGroups, ref firstGroup, successor);
+                        var successorWord = successor >> 5;
+                        var successorGroup = successorWord >> 5;
+                        readyBits[successorWord] |= 1 << (successor & 31);
+                        readyGroups[successorGroup] |= 1 << (successorWord & 31);
+                        firstGroup = Math.Min(firstGroup, successorGroup);
                     }
                 }
             }
 
             return emitted == nodeCount
                 ? new(ImmutableCollectionsMarshal.AsImmutableArray(order), [])
-                : new([], FindCycle(nodes, MaterializeSuccessors(heads, targets, links)));
+                : new([], FindCycle(nodes, heads, targets, links));
         }
         finally {
             if (rented != null) {
@@ -104,35 +122,8 @@ internal static class DependencyGraph
         }
     }
 
-    private static void EnqueueReady(Span<int> bits, Span<int> groups, ref int firstGroup, int node)
-    {
-        var word = node >> 5;
-        var group = word >> 5;
-        bits[word] |= 1 << (node & 31);
-        groups[group] |= 1 << (word & 31);
-        firstGroup = Math.Min(firstGroup, group);
-    }
-
-    private static int DequeueReady(Span<int> bits, Span<int> groups, ref int firstGroup)
-    {
-        for (; firstGroup < groups.Length; firstGroup++) {
-            var groupBits = (uint)groups[firstGroup];
-            if (groupBits == 0) {
-                continue;
-            }
-            var word = (firstGroup << 5) + BitOperations.TrailingZeroCount(groupBits);
-            var wordBits = (uint)bits[word];
-            var remaining = wordBits & (wordBits - 1);
-            bits[word] = (int)remaining;
-            if (remaining == 0) {
-                groups[firstGroup] = (int)(groupBits & (groupBits - 1));
-            }
-            return (word << 5) + BitOperations.TrailingZeroCount(wordBits);
-        }
-        return -1;
-    }
-
-    private static List<int>?[] MaterializeSuccessors(
+    private static ImmutableArray<TNode> FindCycle<TNode>(
+        IReadOnlyList<TNode> nodes,
         ReadOnlySpan<int> heads, ReadOnlySpan<int> targets, ReadOnlySpan<int> links)
     {
         var successors = new List<int>?[heads.Length];
@@ -140,16 +131,7 @@ internal static class DependencyGraph
             for (var edge = heads[node]; edge >= 0; edge = links[edge]) {
                 (successors[node] ??= []).Add(targets[edge]);
             }
-        }
-        return successors;
-    }
-
-    private static ImmutableArray<TNode> FindCycle<TNode>(
-        IReadOnlyList<TNode> nodes,
-        List<int>?[] successors)
-    {
-        foreach (var outgoing in successors) {
-            outgoing?.Sort();
+            successors[node]?.Sort();
         }
         var state = new byte[successors.Length];
         var path = new List<int>();
