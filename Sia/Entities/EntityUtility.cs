@@ -7,7 +7,7 @@ public static class EntityUtility
 
     public static void CheckComponent<TEntity, TComponent>()
         where TEntity : struct, IHList
-        => EntityDescriptor.GetRequiredOffset<TComponent>(EntityDescriptor<TEntity>.OffsetSlots);
+        => EntityDescriptor<TEntity>.GetOffset<TComponent>();
 
     public static void CheckComponent<TComponent>(EntityDescriptor descriptor)
     {

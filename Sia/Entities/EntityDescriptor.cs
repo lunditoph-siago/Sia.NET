@@ -67,6 +67,18 @@ public static class EntityDescriptor<TEntity>
         }
         OffsetSlots = [..slots];
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static ComponentOffset<TComponent> GetOffset<TComponent>()
+    {
+        var offsetSlots = OffsetSlots;
+        var index = InternalComponentIndexer<TComponent>.Index;
+        var offset = (uint)index < (uint)offsetSlots.Length ? offsetSlots[index] : -1;
+        if (offset < 0) {
+            throw new ComponentNotFoundException("Component does not exist: " + typeof(TComponent));
+        }
+        return new(offset);
+    }
 }
 
 public readonly struct EntityIndexer<TEntity, TComponent>
@@ -125,14 +137,14 @@ public record EntityDescriptor
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ComponentOffset<TComponent> GetOffset<TComponent>()
-        => GetRequiredOffset<TComponent>(OffsetSlots);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static ComponentOffset<TComponent> GetRequiredOffset<TComponent>(
-        ImmutableArray<nint> offsetSlots)
     {
-        var offset = FindOffset<TComponent>(offsetSlots);
-        return offset >= 0 ? new(offset) : ThrowComponentNotFound<TComponent>();
+        var offsetSlots = OffsetSlots;
+        var index = InternalComponentIndexer<TComponent>.Index;
+        var offset = (uint)index < (uint)offsetSlots.Length ? offsetSlots[index] : -1;
+        if (offset < 0) {
+            throw new ComponentNotFoundException("Component does not exist: " + typeof(TComponent));
+        }
+        return new(offset);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -142,15 +154,10 @@ public record EntityDescriptor
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool TryGetOffset<TComponent>(out nint offset)
     {
-        offset = FindOffset<TComponent>(OffsetSlots);
-        return offset >= 0;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static nint FindOffset<TComponent>(ImmutableArray<nint> offsetSlots)
-    {
+        var offsetSlots = OffsetSlots;
         var index = InternalComponentIndexer<TComponent>.Index;
-        return (uint)index < (uint)offsetSlots.Length ? offsetSlots[index] : -1;
+        offset = (uint)index < (uint)offsetSlots.Length ? offsetSlots[index] : -1;
+        return offset >= 0;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -160,9 +167,4 @@ public record EntityDescriptor
         return (uint)index < (uint)OffsetSlots.Length
             && OffsetSlots[index] >= 0;
     }
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static ComponentOffset<TComponent> ThrowComponentNotFound<TComponent>()
-        => throw new ComponentNotFoundException(
-            "Component does not exist: " + typeof(TComponent));
 }
