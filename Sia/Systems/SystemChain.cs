@@ -88,28 +88,19 @@ public sealed record SystemChain
             var entry = entries[index];
             if (entry.Id == id) {
                 if (!ReferenceEquals(entries, Entries)) {
-                    return ConfigureRemaining(entries, index, id, configure);
+                    var updated = entries.ToBuilder();
+                    for (var remainingIndex = index; remainingIndex < entries.Count; remainingIndex++) {
+                        var remaining = entries[remainingIndex];
+                        if (remaining.Id == id) {
+                            updated[remainingIndex] = remaining with { Descriptor = configure(remaining.Descriptor) };
+                        }
+                    }
+                    return new(updated.ToImmutable());
                 }
                 entries = entries.SetItem(index, entry with { Descriptor = configure(entry.Descriptor) });
             }
         }
         return ReferenceEquals(entries, Entries) ? this : new(entries);
-    }
-
-    private static SystemChain ConfigureRemaining(
-        ImmutableList<Entry> entries,
-        int startIndex,
-        SystemId id,
-        Func<SystemDescriptor, SystemDescriptor> configure)
-    {
-        var updated = entries.ToBuilder();
-        for (var index = startIndex; index < entries.Count; index++) {
-            var entry = entries[index];
-            if (entry.Id == id) {
-                updated[index] = entry with { Descriptor = configure(entry.Descriptor) };
-            }
-        }
-        return new(updated.ToImmutable());
     }
 
     public ExecutionPlan Plan()
