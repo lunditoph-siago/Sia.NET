@@ -8,7 +8,7 @@ public sealed class QuerySubscription : IDisposable
     private const int InlineEntityCapacity = 16;
 
     [InlineArray(InlineEntityCapacity)]
-    private struct InlineEntities
+    private struct InlineEntities()
     {
         private Entity _first;
     }
@@ -219,7 +219,7 @@ public sealed class QuerySubscription : IDisposable
         Entity[]? rented = null;
         try {
             var entities = host.UnsafeGetEntitySpan();
-            InlineEntities inline = default;
+            InlineEntities inline = new();
             Span<Entity> buffer = inline;
             var snapshot = entities.Length <= InlineEntityCapacity
                 ? buffer[..entities.Length]
