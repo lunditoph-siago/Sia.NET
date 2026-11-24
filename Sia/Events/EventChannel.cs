@@ -38,10 +38,11 @@ public class EventChannel<TTarget, TEvent> : IEventSender<TTarget, TEvent>
     private int _swapTag;
     private readonly object _relayLock = new();
 
-    private static readonly Comparison<EventEntry> CompareEntries = static (first, second) => {
-        var priority = first.Priority.CompareTo(second.Priority);
-        return priority == 0 ? first.Index.CompareTo(second.Index) : priority;
-    };
+    private static readonly Comparison<EventEntry> CompareEntries
+        = static (first, second) => {
+            var priority = first.Priority.CompareTo(second.Priority);
+            return priority == 0 ? first.Index.CompareTo(second.Index) : priority;
+        };
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static int GetCommandPriority<UEvent>(in UEvent e)
