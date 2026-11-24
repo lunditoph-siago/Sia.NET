@@ -54,8 +54,14 @@ public sealed record SystemChain
 
     public SystemChain Remove(SystemId id)
     {
-        var index = Entries.FindIndex(entry => entry.Id == id);
-        return index == -1 ? this : new(Entries.RemoveAt(index));
+        var index = 0;
+        foreach (var entry in Entries) {
+            if (entry.Id == id) {
+                return new(Entries.RemoveAt(index));
+            }
+            index++;
+        }
+        return this;
     }
 
     public SystemChain RemoveAll<TSystem>()
@@ -78,14 +84,32 @@ public sealed record SystemChain
         Func<SystemDescriptor, SystemDescriptor> configure)
     {
         var entries = Entries;
-        for (var i = 0; i < entries.Count; i++) {
-            var entry = entries[i];
+        for (var index = 0; index < entries.Count; index++) {
+            var entry = entries[index];
             if (entry.Id == id) {
-                entries = entries.SetItem(
-                    i, entry with { Descriptor = configure(entry.Descriptor) });
+                if (!ReferenceEquals(entries, Entries)) {
+                    return ConfigureRemaining(entries, index, id, configure);
+                }
+                entries = entries.SetItem(index, entry with { Descriptor = configure(entry.Descriptor) });
             }
         }
         return ReferenceEquals(entries, Entries) ? this : new(entries);
+    }
+
+    private static SystemChain ConfigureRemaining(
+        ImmutableList<Entry> entries,
+        int startIndex,
+        SystemId id,
+        Func<SystemDescriptor, SystemDescriptor> configure)
+    {
+        var updated = entries.ToBuilder();
+        for (var index = startIndex; index < entries.Count; index++) {
+            var entry = entries[index];
+            if (entry.Id == id) {
+                updated[index] = entry with { Descriptor = configure(entry.Descriptor) };
+            }
+        }
+        return new(updated.ToImmutable());
     }
 
     public ExecutionPlan Plan()
