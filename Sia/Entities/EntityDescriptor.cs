@@ -67,6 +67,18 @@ public static class EntityDescriptor<TEntity>
         }
         OffsetSlots = [..slots];
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ComponentOffset<TComponent> GetOffset<TComponent>()
+    {
+        var offsetSlots = OffsetSlots;
+        var index = InternalComponentIndexer<TComponent>.Index;
+        var offset = (uint)index < (uint)offsetSlots.Length ? offsetSlots[index] : -1;
+        if (offset < 0) {
+            throw new ComponentNotFoundException("Component does not exist: " + typeof(TComponent));
+        }
+        return new(offset);
+    }
 }
 
 public readonly struct EntityIndexer<TEntity, TComponent>
@@ -126,14 +138,13 @@ public record EntityDescriptor
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ComponentOffset<TComponent> GetOffset<TComponent>()
     {
+        var offsetSlots = OffsetSlots;
         var index = InternalComponentIndexer<TComponent>.Index;
-        if ((uint)index < (uint)OffsetSlots.Length) {
-            var offset = OffsetSlots[index];
-            if (offset >= 0) {
-                return offset;
-            }
+        var offset = (uint)index < (uint)offsetSlots.Length ? offsetSlots[index] : -1;
+        if (offset < 0) {
+            throw new ComponentNotFoundException("Component does not exist: " + typeof(TComponent));
         }
-        return ThrowComponentNotFound<TComponent>();
+        return new(offset);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -143,13 +154,10 @@ public record EntityDescriptor
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool TryGetOffset<TComponent>(out nint offset)
     {
+        var offsetSlots = OffsetSlots;
         var index = InternalComponentIndexer<TComponent>.Index;
-        if ((uint)index < (uint)OffsetSlots.Length) {
-            offset = OffsetSlots[index];
-            return offset >= 0;
-        }
-        offset = -1;
-        return false;
+        offset = (uint)index < (uint)offsetSlots.Length ? offsetSlots[index] : -1;
+        return offset >= 0;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -159,9 +167,4 @@ public record EntityDescriptor
         return (uint)index < (uint)OffsetSlots.Length
             && OffsetSlots[index] >= 0;
     }
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static ComponentOffset<TComponent> ThrowComponentNotFound<TComponent>()
-        => throw new ComponentNotFoundException(
-            "Component does not exist: " + typeof(TComponent));
 }
