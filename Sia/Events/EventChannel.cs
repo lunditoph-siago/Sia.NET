@@ -38,14 +38,10 @@ public class EventChannel<TTarget, TEvent> : IEventSender<TTarget, TEvent>
     private int _swapTag;
     private readonly object _relayLock = new();
 
-    private static readonly Comparison<EventEntry> CompareIndexedPriority = CompareEntries;
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static int CompareEntries(EventEntry first, EventEntry second)
-    {
+    private static readonly Comparison<EventEntry> CompareEntries = static (first, second) => {
         var priority = first.Priority.CompareTo(second.Priority);
         return priority == 0 ? first.Index.CompareTo(second.Index) : priority;
-    }
+    };
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static int GetCommandPriority<UEvent>(in UEvent e)
@@ -127,8 +123,11 @@ public class EventChannel<TTarget, TEvent> : IEventSender<TTarget, TEvent>
         if (relayingEvents.Count != 0) {
             var span = CollectionsMarshal.AsSpan(relayingEvents);
             for (var i = 1; i < span.Length; i++) {
-                if (CompareEntries(span[i - 1], span[i]) >= 0) {
-                    relayingEvents.Sort(CompareIndexedPriority);
+                ref readonly var previous = ref span[i - 1];
+                ref readonly var current = ref span[i];
+                if (previous.Priority > current.Priority
+                    || (previous.Priority == current.Priority && previous.Index >= current.Index)) {
+                    relayingEvents.Sort(CompareEntries);
                     break;
                 }
             }
