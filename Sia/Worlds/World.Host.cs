@@ -193,7 +193,11 @@ public partial class World
         int[]? hostsToRemove = null;
         var count = 0;
 
-        foreach (var (key, host) in _hosts) {
+        var keys = _hosts.UnsafeRawKeys;
+        var hosts = _hosts.UnsafeRawValues;
+        for (var i = 0; i < hosts.Count; i++) {
+            var key = keys[i];
+            var host = hosts[i];
             if (host.Count == 0) {
                 hostsToRemove ??= ArrayPool<int>.Shared.Rent(_hosts.Count);
                 hostsToRemove[count] = key;
