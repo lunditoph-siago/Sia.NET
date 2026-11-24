@@ -25,17 +25,12 @@ public partial class World
     private int _addonCount;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private IAddon? GetAddonSlot(int index)
-    {
-        var addons = _addons;
-        return (uint)index < (uint)addons.Length ? addons[index] : null;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public TAddon AcquireAddon<TAddon>()
         where TAddon : class, IAddon, new()
     {
-        if (GetAddonSlot(WorldAddonIndexer<TAddon>.Index) is { } addon) {
+        var index = WorldAddonIndexer<TAddon>.Index;
+        var addons = _addons;
+        if ((uint)index < (uint)addons.Length && addons[index] is { } addon) {
             return Unsafe.As<TAddon>(addon);
         }
         return AddAddon(static () => new TAddon());
@@ -47,7 +42,8 @@ public partial class World
         EnsureOwnerThread();
         ObjectDisposedException.ThrowIf(IsDisposed, this);
         var index = WorldAddonIndexer<TAddon>.Index;
-        if (GetAddonSlot(index) != null) {
+        var addons = _addons;
+        if ((uint)index < (uint)addons.Length && addons[index] != null) {
             throw new Exception("Addon already exists: " + typeof(TAddon));
         }
         if (_clearingAddons || !_addonOperations.Add(index)) {
@@ -55,8 +51,8 @@ public partial class World
         }
         TAddon addon;
         try {
-            if (index >= _addons.Length) {
-                var capacity = Math.Max(index + 1, Math.Max(4, _addons.Length * 2));
+            if (index >= addons.Length) {
+                var capacity = Math.Max(index + 1, Math.Max(4, addons.Length * 2));
                 if (_addonCount == 0) {
                     _addons = new IAddon?[capacity];
                 }
@@ -105,11 +101,12 @@ public partial class World
     public TAddon GetAddon<TAddon>()
         where TAddon : class, IAddon
     {
-        if (GetAddonSlot(WorldAddonIndexer<TAddon>.Index) is { } exact) {
+        var index = WorldAddonIndexer<TAddon>.Index;
+        var addons = _addons;
+        if ((uint)index < (uint)addons.Length && addons[index] is { } exact) {
             return Unsafe.As<TAddon>(exact);
         }
 
-        var addons = _addons;
         for (int i = 0, remaining = _addonCount; remaining != 0; ++i) {
             if (addons[i] is { } addon) {
                 if (addon is TAddon converted) return converted;
@@ -124,7 +121,8 @@ public partial class World
         where TAddon : class, IAddon
     {
         var exactIndex = WorldAddonIndexer<TAddon>.Index;
-        if (GetAddonSlot(exactIndex) is { } exact) {
+        var addons = _addons;
+        if ((uint)exactIndex < (uint)addons.Length && addons[exactIndex] is { } exact) {
             yield return Unsafe.As<TAddon>(exact);
         }
 
@@ -142,12 +140,13 @@ public partial class World
     public bool TryGetAddon<TAddon>([MaybeNullWhen(false)] out TAddon addon)
         where TAddon : class, IAddon
     {
-        if (GetAddonSlot(WorldAddonIndexer<TAddon>.Index) is { } exact) {
+        var index = WorldAddonIndexer<TAddon>.Index;
+        var addons = _addons;
+        if ((uint)index < (uint)addons.Length && addons[index] is { } exact) {
             addon = Unsafe.As<TAddon>(exact);
             return true;
         }
 
-        var addons = _addons;
         for (int i = 0, remaining = _addonCount; remaining != 0; ++i) {
             if (addons[i] is { } candidate) {
                 if (candidate is TAddon converted) {
