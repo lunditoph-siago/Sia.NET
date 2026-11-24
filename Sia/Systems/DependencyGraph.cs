@@ -16,8 +16,6 @@ internal readonly record struct DependencySortResult<TNode>(
 
 internal static class DependencyGraph
 {
-    private const int StackWorkspaceLimit = byte.MaxValue;
-
     public static DependencySortResult<TNode> Sort<TNode>(
         IReadOnlyList<TNode> nodes,
         IReadOnlyCollection<DependencyEdge> edges)
@@ -46,7 +44,7 @@ internal static class DependencyGraph
         var edgeOffset = checked(nodeSlots + readyWords + readyGroupCount);
         var workspaceLength = checked(edgeOffset + edgeCount * 2);
         int[]? rented = null;
-        Span<int> workspace = workspaceLength <= StackWorkspaceLimit
+        Span<int> workspace = workspaceLength <= byte.MaxValue
             ? stackalloc int[workspaceLength]
             : (rented = ArrayPool<int>.Shared.Rent(workspaceLength)).AsSpan(0, workspaceLength);
         try {
