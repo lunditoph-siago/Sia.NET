@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
@@ -204,7 +205,8 @@ public sealed class SiaSystemDescriptorProviderAttribute(
 
 public static class SystemDescriptorProvider
 {
-    private static readonly Dictionary<Assembly, ISystemDescriptorProvider[]> Providers = [];
+    private static readonly ConcurrentDictionary<Assembly, ISystemDescriptorProvider[]> Providers = new();
+    private static readonly object ProviderGate = new();
 
     public static SystemDescriptor GetOrDefault(Type systemType)
     {
@@ -218,8 +220,12 @@ public static class SystemDescriptorProvider
 
     private static ISystemDescriptorProvider[] GetProviders(Assembly assembly)
     {
-        lock (Providers) {
-            if (Providers.TryGetValue(assembly, out var providers)) {
+        if (Providers.TryGetValue(assembly, out var providers)) {
+            return providers;
+        }
+
+        lock (ProviderGate) {
+            if (Providers.TryGetValue(assembly, out providers)) {
                 return providers;
             }
 
