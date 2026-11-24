@@ -16,7 +16,7 @@ internal readonly record struct DependencySortResult<TNode>(
 
 internal static class DependencyGraph
 {
-    private const int StackWorkspaceLimit = 256;
+    private const int StackWorkspaceLimit = byte.MaxValue;
 
     public static DependencySortResult<TNode> Sort<TNode>(
         IReadOnlyList<TNode> nodes,
