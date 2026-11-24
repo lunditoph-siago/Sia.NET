@@ -1,5 +1,7 @@
 namespace Sia.Reactive;
 
+using System.Buffers;
+
 public readonly record struct Keyed<TKey, TSpec>(TKey Key, TSpec Props)
     where TKey : notnull
     where TSpec : struct, ISpec, IEquatable<TSpec>;
@@ -11,6 +13,7 @@ public interface IForEachCleanup
 
 internal interface IRecyclableForEachCleanup : IForEachCleanup
 {
+    public CellSlot[] RentChildren(out int count);
     public void Reset();
 }
 
@@ -87,6 +90,29 @@ public sealed class EachIndex<TKey> : IRecyclableForEachCleanup
             }
         }
         ByKey.Clear();
+    }
+
+    CellSlot[] IRecyclableForEachCleanup.RentChildren(out int count)
+    {
+        count = 0;
+        if (ByKey.Count == 0) {
+            return [];
+        }
+        var children = ArrayPool<CellSlot>.Shared.Rent(ByKey.Count);
+        try {
+            foreach (var (_, entry) in ByKey) {
+                if (entry.Cell.IsValid) {
+                    children[count++] = new CellSlot(entry.Cell);
+                }
+            }
+            ByKey.Clear();
+            return children;
+        }
+        catch {
+            children.AsSpan(0, count).Clear();
+            ArrayPool<CellSlot>.Shared.Return(children);
+            throw;
+        }
     }
 
     public void RemoveStale(Reconciler reconciler, int stamp)
