@@ -20,6 +20,14 @@ internal static class EntityExtensionsCommon
         public readonly RecordingOutput<TResult> Output = output;
     }
 
+    public readonly struct EntityRecordData<TData, TResult>(
+        in TData userData, EntityRecorder<TData, TResult> recorder, RecordingOutput<TResult> output)
+    {
+        public readonly TData UserData = userData;
+        public readonly EntityRecorder<TData, TResult> Recorder = recorder;
+        public readonly RecordingOutput<TResult> Output = output;
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void GuardSpanLength<TResult>(Span<TResult> span, int requiredSize)
     {

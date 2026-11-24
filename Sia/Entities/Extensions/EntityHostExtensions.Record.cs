@@ -41,7 +41,7 @@ public static partial class EntityHostExtensions
         fixed (TResult* pointer = recording.DirectDestination) {
             host.Handle(
                 new(in userData, recorder, recording.GetOutput(pointer, &index)),
-                static (IEntityHost host, in RecordData<TData, EntityRecorder<TData, TResult>, TResult> data, int from, int to) => {
+                static (IEntityHost host, in EntityRecordData<TData, TResult> data, int from, int to) => {
                     var recorder = data.Recorder;
                     ref readonly var userData = ref data.UserData;
 
