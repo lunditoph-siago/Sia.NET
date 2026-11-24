@@ -1,6 +1,8 @@
 using System.Buffers;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using MemoryPack;
+using MemoryPack.Formatters;
 
 namespace Sia.Serialization.Binary;
 
@@ -9,6 +11,20 @@ public struct MemoryPackComponentSerializer() : IComponentSerializer
     private MemoryPackWriterOptionalState? _writerState;
     private MemoryPackReaderOptionalState? _readerState;
     private Dictionary<EntityId, Entity>? _entityMap;
+
+    private static class FormatterType<T>
+    {
+        internal static Type? Unmanaged;
+    }
+
+    private static class StringState
+    {
+        // The exact built-in StringFormatter uses encoding options and leaves reference tables alone.
+        internal static readonly MemoryPackWriterOptionalState Writer =
+            MemoryPackWriterOptionalStatePool.Rent(MemoryPackSerializerOptions.Default);
+        internal static readonly MemoryPackReaderOptionalState Reader =
+            MemoryPackReaderOptionalStatePool.Rent(MemoryPackSerializerOptions.Default);
+    }
 
     private record DeserializerServiceProvider(Dictionary<EntityId, Entity> EntityMap)
         : IServiceProvider
@@ -60,11 +76,27 @@ public struct MemoryPackComponentSerializer() : IComponentSerializer
         ref TBufferWriter writer, in TComponent component)
         where TBufferWriter : IBufferWriter<byte>
     {
-        _writerState ??= MemoryPackWriterOptionalStatePool.Rent(MemoryPackSerializerOptions.Default);
-
-        var mpWriter = new MemoryPackWriter<TBufferWriter>(ref writer, _writerState);
         try {
-            MemoryPackSerializer.Serialize(ref mpWriter, component);
+            if (UsesUnmanagedFormatter<TComponent>()) {
+                var size = Unsafe.SizeOf<TComponent>();
+                var span = writer.GetSpan(size)[..size];
+                Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(span), component);
+                writer.Advance(size);
+                return true;
+            }
+
+            var stringFormatter = GetDefaultStringFormatter<TComponent>();
+            var writerState = stringFormatter == null
+                ? (_writerState ??= MemoryPackWriterOptionalStatePool.Rent(MemoryPackSerializerOptions.Default))
+                : StringState.Writer;
+            var mpWriter = new MemoryPackWriter<TBufferWriter>(ref writer, writerState);
+            if (stringFormatter == null) {
+                mpWriter.WriteValue(component);
+            }
+            else {
+                mpWriter.WriteValueWithFormatter(stringFormatter, component);
+            }
+            mpWriter.Flush();
             return true;
         }
         catch (MemoryPackSerializationException) {
@@ -76,7 +108,12 @@ public struct MemoryPackComponentSerializer() : IComponentSerializer
     public bool Deserialize<TComponent>(
         ref ReadOnlySequence<byte> buffer, ref TComponent component, Dictionary<EntityId, Entity> entityMap)
     {
-        if (_readerState == null || _entityMap != entityMap) {
+        if (UsesUnmanagedFormatter<TComponent>()) {
+            return TryReadUnmanaged(ref buffer, ref component);
+        }
+
+        var stringFormatter = GetDefaultStringFormatter<TComponent>();
+        if (stringFormatter == null && (_readerState == null || _entityMap != entityMap)) {
             var previous = _readerState;
             _readerState = MemoryPackReaderOptionalStatePool.Rent(
                 MemoryPackSerializerOptions.Default with {
@@ -86,9 +123,9 @@ public struct MemoryPackComponentSerializer() : IComponentSerializer
             ((IDisposable?)previous)?.Dispose();
         }
 
-        var mpReader = new MemoryPackReader(buffer, _readerState);
+        var mpReader = new MemoryPackReader(buffer, stringFormatter == null ? _readerState! : StringState.Reader);
         try {
-            mpReader.ReadValue(ref component!);
+            mpReader.ReadValueWithFormatter(stringFormatter ?? mpReader.GetFormatter<TComponent>(), ref component!);
             buffer = buffer.Slice(mpReader.Consumed);
             return true;
         }
@@ -98,6 +135,55 @@ public struct MemoryPackComponentSerializer() : IComponentSerializer
         finally {
             mpReader.Dispose();
         }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool UsesUnmanagedFormatter<T>()
+    {
+        if (RuntimeHelpers.IsReferenceOrContainsReferences<T>()) {
+            return false;
+        }
+        // The provider can replace a formatter even after its first use.
+        var type = default(MemoryPackReader).GetFormatter<T>().GetType();
+        if (ReferenceEquals(type, Volatile.Read(ref FormatterType<T>.Unmanaged))) {
+            return true;
+        }
+        if (type == typeof(DangerousUnmanagedFormatter<T>)
+            || (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(UnmanagedFormatter<>))) {
+            Volatile.Write(ref FormatterType<T>.Unmanaged, type);
+            return true;
+        }
+        return false;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static IMemoryPackFormatter<T>? GetDefaultStringFormatter<T>()
+    {
+        if (typeof(T) != typeof(string)) return null;
+
+        var formatter = default(MemoryPackReader).GetFormatter<T>();
+        return formatter.GetType() == typeof(StringFormatter) ? formatter : null;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool TryReadUnmanaged<T>(ref ReadOnlySequence<byte> buffer, ref T component)
+    {
+        var size = Unsafe.SizeOf<T>();
+        if (buffer.Length < size) {
+            return false;
+        }
+        var span = buffer.FirstSpan;
+        if (span.Length >= size) {
+            component = Unsafe.ReadUnaligned<T>(ref MemoryMarshal.GetReference(span));
+        }
+        else {
+            T value = default!;
+            var bytes = MemoryMarshal.CreateSpan(ref Unsafe.As<T, byte>(ref value), size);
+            buffer.Slice(0, size).CopyTo(bytes);
+            component = value;
+        }
+        buffer = buffer.Slice(size);
+        return true;
     }
 
     public void Dispose()
