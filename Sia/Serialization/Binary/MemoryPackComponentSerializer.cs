@@ -86,16 +86,17 @@ public struct MemoryPackComponentSerializer() : IComponentSerializer
             }
 
             var stringFormatter = GetDefaultStringFormatter<TComponent>();
-            if (stringFormatter != null) {
-                var mpWriter = new MemoryPackWriter<TBufferWriter>(ref writer, StringState.Writer);
-                mpWriter.WriteValueWithFormatter(stringFormatter, component);
-                mpWriter.Flush();
+            var writerState = stringFormatter == null
+                ? (_writerState ??= MemoryPackWriterOptionalStatePool.Rent(MemoryPackSerializerOptions.Default))
+                : StringState.Writer;
+            var mpWriter = new MemoryPackWriter<TBufferWriter>(ref writer, writerState);
+            if (stringFormatter == null) {
+                mpWriter.WriteValue(component);
             }
             else {
-                _writerState ??= MemoryPackWriterOptionalStatePool.Rent(MemoryPackSerializerOptions.Default);
-                var mpWriter = new MemoryPackWriter<TBufferWriter>(ref writer, _writerState);
-                MemoryPackSerializer.Serialize(ref mpWriter, component);
+                mpWriter.WriteValueWithFormatter(stringFormatter, component);
             }
+            mpWriter.Flush();
             return true;
         }
         catch (MemoryPackSerializationException) {
@@ -124,12 +125,7 @@ public struct MemoryPackComponentSerializer() : IComponentSerializer
 
         var mpReader = new MemoryPackReader(buffer, stringFormatter == null ? _readerState! : StringState.Reader);
         try {
-            if (stringFormatter != null) {
-                mpReader.ReadValueWithFormatter(stringFormatter, ref component!);
-            }
-            else {
-                mpReader.ReadValue(ref component!);
-            }
+            mpReader.ReadValueWithFormatter(stringFormatter ?? mpReader.GetFormatter<TComponent>(), ref component!);
             buffer = buffer.Slice(mpReader.Consumed);
             return true;
         }
@@ -163,13 +159,10 @@ public struct MemoryPackComponentSerializer() : IComponentSerializer
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static IMemoryPackFormatter<T>? GetDefaultStringFormatter<T>()
     {
-        if (typeof(T) == typeof(string)) {
-            var formatter = default(MemoryPackReader).GetFormatter<T>();
-            if (formatter.GetType() == typeof(StringFormatter)) {
-                return formatter;
-            }
-        }
-        return null;
+        if (typeof(T) != typeof(string)) return null;
+
+        var formatter = default(MemoryPackReader).GetFormatter<T>();
+        return formatter.GetType() == typeof(StringFormatter) ? formatter : null;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
