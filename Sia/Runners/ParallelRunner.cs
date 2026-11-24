@@ -125,6 +125,20 @@ public class ParallelRunner : IRunner
         }
     }
 
+    private sealed class JobArrayPool<TJob> where TJob : JobBase, new()
+    {
+        private readonly DefaultObjectPool<TJob[]> _pool;
+        public readonly Action<object?> Return;
+
+        public JobArrayPool(ParallelRunner runner)
+        {
+            _pool = new(new JobArrayPolicy<TJob>(runner));
+            Return = jobs => _pool.Return((TJob[])jobs!);
+        }
+
+        public TJob[] Get() => _pool.Get();
+    }
+
     public static readonly ParallelRunner Default = new(Environment.ProcessorCount);
 
     public int DegreeOfParallelism { get; }
@@ -132,7 +146,7 @@ public class ParallelRunner : IRunner
     private readonly BlockingQueue<IJob> _jobs = new();
     private readonly Lock _submissionLock = new();
 
-    private readonly DefaultObjectPool<GroupActionJob[]> _groupActionJobArrPool;
+    private readonly JobArrayPool<GroupActionJob> _groupActionJobArrPool;
     private readonly ConcurrentDictionary<Type, object> _genericGroupActionJobArrPools = [];
 
     private static readonly ObjectPool<ActionJob> s_actionJobPool = ObjectPool.Create<ActionJob>();
@@ -141,10 +155,10 @@ public class ParallelRunner : IRunner
     public ParallelRunner(int degreeOfParallelism)
     {
         DegreeOfParallelism = degreeOfParallelism;
-        _groupActionJobArrPool = new(new JobArrayPolicy<GroupActionJob>(this));
+        _groupActionJobArrPool = new(this);
 
 #if !BROWSER
-        for (var i = 0; i != DegreeOfParallelism; ++i) {
+        for (var i = 0; i < DegreeOfParallelism; ++i) {
             var workerId = i;
             Task.Factory.StartNew(
                 () => RunWorkerThread(workerId, _jobs),
@@ -238,17 +252,16 @@ public class ParallelRunner : IRunner
     {
         using var scope = _submissionLock.EnterScope();
         ObjectDisposedException.ThrowIf(_jobs.IsCompleted, this);
+        if (taskCount <= 0) return;
+
         var degreeOfParallelism = Math.Min(taskCount, DegreeOfParallelism);
         var div = taskCount / degreeOfParallelism;
         var remaining = taskCount % degreeOfParallelism;
         var acc = 0;
 
         if (barrier != null) {
-            var jobs = _groupActionJobArrPool.Get();
-
-            var callback = _groupActionJobArrPool.Return;
-            barrier.AddCallback(Unsafe.As<Action<object?>>(callback), jobs);
-            barrier.AddParticipants(degreeOfParallelism);
+            var pool = _groupActionJobArrPool;
+            var jobs = pool.Get();
 
             for (var i = 0; i != degreeOfParallelism; ++i) {
                 var start = acc;
@@ -258,7 +271,29 @@ public class ParallelRunner : IRunner
                 job.Barrier = barrier;
                 job.Range = (start, acc);
                 job.Action = action;
-                _jobs.Enqueue(job);
+            }
+
+            try {
+                barrier.AddCallback(pool.Return, jobs);
+            }
+            catch {
+                pool.Return(jobs);
+                throw;
+            }
+            barrier.AddParticipants(degreeOfParallelism);
+
+            var published = 0;
+            try {
+                for (; published < degreeOfParallelism; published++) {
+                    _jobs.Enqueue(jobs[published]);
+                }
+            }
+            catch {
+                barrier.RemoveParticipants(degreeOfParallelism - published);
+#if BROWSER
+                SpawnDrainers(published);
+#endif
+                throw;
             }
         }
         else {
@@ -283,6 +318,8 @@ public class ParallelRunner : IRunner
     {
         using var scope = _submissionLock.EnterScope();
         ObjectDisposedException.ThrowIf(_jobs.IsCompleted, this);
+        if (taskCount <= 0) return;
+
         var degreeOfParallelism = Math.Min(taskCount, DegreeOfParallelism);
         var div = taskCount / degreeOfParallelism;
         var remaining = taskCount % degreeOfParallelism;
