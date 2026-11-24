@@ -1,13 +1,28 @@
 using System.Buffers;
+using System.Runtime.CompilerServices;
 
 namespace Sia.Reactors;
 
 public sealed class QuerySubscription : IDisposable
 {
+    private const int InlineEntityCapacity = 16;
+
+    [InlineArray(InlineEntityCapacity)]
+    private struct InlineEntities(Entity entity)
+    {
+        private Entity Element { get; set; } = entity;
+    }
+
     public IReactiveEntityQuery Query { get; }
 
     private readonly EntityHandler _onAdded;
     private readonly EntityHandler _onRemoved;
+    private readonly EntityHandler _handleAdded;
+    private readonly EntityHandler _handleRemoved;
+    private readonly EntityMigrationHandler _handleMovedOut;
+    private readonly EntityMigrationHandler _handleMovedIn;
+    private readonly Action<IReactiveEntityHost> _onHostAdded;
+    private readonly Action<IReactiveEntityHost> _onHostRemoved;
     private readonly List<IReactiveEntityHost> _memberHosts = [];
     private ReplayCursor? _activeReplay;
     private HashSet<Entity>? _pendingEntities;
@@ -51,10 +66,16 @@ public sealed class QuerySubscription : IDisposable
         Query = query;
         _onAdded = onAdded;
         _onRemoved = onRemoved;
+        _handleAdded = HandleAdded;
+        _handleRemoved = HandleRemoved;
+        _handleMovedOut = HandleMovedOut;
+        _handleMovedIn = HandleMovedIn;
+        _onHostAdded = OnHostAdded;
+        _onHostRemoved = OnHostRemoved;
 
         try {
-            Query.OnEntityHostAdded += OnHostAdded;
-            Query.OnEntityHostRemoved += OnHostRemoved;
+            Query.OnEntityHostAdded += _onHostAdded;
+            Query.OnEntityHostRemoved += _onHostRemoved;
             ReplayExistingHosts();
         }
         catch (Exception error) {
@@ -106,10 +127,10 @@ public sealed class QuerySubscription : IDisposable
         _memberHosts.Add(host);
 
         try {
-            host.OnEntityCreated += HandleAdded;
-            host.OnEntityReleased += HandleRemoved;
-            host.OnEntityMovedOut += HandleMovedOut;
-            host.OnEntityMovedIn += HandleMovedIn;
+            host.OnEntityCreated += _handleAdded;
+            host.OnEntityReleased += _handleRemoved;
+            host.OnEntityMovedOut += _handleMovedOut;
+            host.OnEntityMovedIn += _handleMovedIn;
 
             var entities = host.UnsafeGetEntitySpan();
             if (entities.IsEmpty) return default;
@@ -195,12 +216,29 @@ public sealed class QuerySubscription : IDisposable
         }
 
         var result = DetachHost(host, Outcome<Exception>.Success);
-        Entity[] entities = [];
-        result = result.Attempt(() => entities = host.UnsafeGetEntitySpan().ToArray());
-        foreach (var entity in entities) {
-            if (ReferenceEquals(entity.Host, host)) {
-                result = result.Attempt((subscription: this, entity),
-                    static (in item) => item.subscription.HandleRemoved(item.entity));
+        Entity[]? rented = null;
+        try {
+            var entities = host.UnsafeGetEntitySpan();
+            InlineEntities inline = new(default);
+            Span<Entity> buffer = inline;
+            var snapshot = entities.Length <= InlineEntityCapacity
+                ? buffer[..entities.Length]
+                : (rented = ArrayPool<Entity>.Shared.Rent(entities.Length)).AsSpan(0, entities.Length);
+            entities.CopyTo(snapshot);
+
+            foreach (var entity in snapshot) {
+                if (ReferenceEquals(entity.Host, host)) {
+                    result = result.Attempt((subscription: this, entity),
+                        static (in item) => item.subscription.HandleRemoved(item.entity));
+                }
+            }
+        }
+        catch (Exception error) {
+            result = result.Combine(Outcome<Exception>.Failure(error));
+        }
+        finally {
+            if (rented != null) {
+                ArrayPool<Entity>.Shared.Return(rented, clearArray: true);
             }
         }
         result.ThrowIfFailed();
@@ -245,8 +283,8 @@ public sealed class QuerySubscription : IDisposable
         _disposed = true;
 
         var result = Outcome<Exception>.Success
-            .Attempt(this, static (in subscription) => subscription.Query.OnEntityHostAdded -= subscription.OnHostAdded)
-            .Attempt(this, static (in subscription) => subscription.Query.OnEntityHostRemoved -= subscription.OnHostRemoved);
+            .Attempt(this, static (in subscription) => subscription.Query.OnEntityHostAdded -= subscription._onHostAdded)
+            .Attempt(this, static (in subscription) => subscription.Query.OnEntityHostRemoved -= subscription._onHostRemoved);
         foreach (var host in _memberHosts) {
             result = DetachHost(host, result);
         }
@@ -262,9 +300,9 @@ public sealed class QuerySubscription : IDisposable
     {
         var state = (subscription: this, host);
         return result
-            .Attempt(state, static (in item) => item.host.OnEntityCreated -= item.subscription.HandleAdded)
-            .Attempt(state, static (in item) => item.host.OnEntityReleased -= item.subscription.HandleRemoved)
-            .Attempt(state, static (in item) => item.host.OnEntityMovedOut -= item.subscription.HandleMovedOut)
-            .Attempt(state, static (in item) => item.host.OnEntityMovedIn -= item.subscription.HandleMovedIn);
+            .Attempt(state, static (in item) => item.host.OnEntityCreated -= item.subscription._handleAdded)
+            .Attempt(state, static (in item) => item.host.OnEntityReleased -= item.subscription._handleRemoved)
+            .Attempt(state, static (in item) => item.host.OnEntityMovedOut -= item.subscription._handleMovedOut)
+            .Attempt(state, static (in item) => item.host.OnEntityMovedIn -= item.subscription._handleMovedIn);
     }
 }
