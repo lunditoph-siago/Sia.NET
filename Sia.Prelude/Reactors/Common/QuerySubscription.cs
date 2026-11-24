@@ -10,7 +10,7 @@ public sealed class QuerySubscription : IDisposable
     [InlineArray(InlineEntityCapacity)]
     private struct InlineEntities(Entity entity)
     {
-        private Entity _first = entity;
+        private Entity Element { get; set; } = entity;
     }
 
     public IReactiveEntityQuery Query { get; }
