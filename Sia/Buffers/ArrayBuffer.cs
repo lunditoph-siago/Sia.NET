@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -137,6 +138,13 @@ public sealed class ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void CommitAppend(int slot) => _count = slot + 1;
 
+    internal void EnsureCapacity(int requiredCapacity)
+    {
+        if (requiredCapacity <= _array.Length) return;
+        var rounded = Math.Max(8u, BitOperations.RoundUpToPowerOf2((uint)requiredCapacity));
+        Resize((int)Math.Min((uint)Array.MaxLength, rounded));
+    }
+
     private void Resize(int capacity)
     {
         if (!_reuseGrowth) {
@@ -173,6 +181,9 @@ public sealed class ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
             }
         }
     }
+
+    internal void FillRows(int start, int count, in T value)
+        => _array.AsSpan(start, count).Fill(value);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static int CalculateArraySize(int requiredCapacity)

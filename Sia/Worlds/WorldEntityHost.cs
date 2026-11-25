@@ -155,6 +155,18 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
 
     void IWorldBatchHost.Create(out Entity entity) => Create(default, out entity);
 
+    internal void CreateMany(int count, in TEntity initial, ParallelRunner? runner)
+    {
+        World.EnsureOwnerThread();
+        ObjectDisposedException.ThrowIf(IsClosed, this);
+        if (OnEntityCreated is null && World.Dispatcher.HasEmptyListenerTables
+            && HListShape<TEntity>.IsStandard && _arrayHost is { } host) {
+            _ = CreationEventTypes.Initialized;
+            if (host.TryCreateMany(this, count, initial, runner)) return;
+        }
+        for (var i = 0; i < count; i++) Create(initial);
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Entity Create(in TEntity initial, out Entity acquired)
     {
