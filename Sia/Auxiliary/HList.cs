@@ -50,6 +50,24 @@ public interface IHList
         => throw new NotImplementedException();
 }
 
+internal static class HListShape<TEntity> where TEntity : struct, IHList
+{
+    internal static readonly bool IsStandard = Check();
+
+    private static bool Check()
+    {
+        var type = typeof(TEntity);
+        while (type != typeof(EmptyHList)) {
+            if (!type.IsGenericType) return false;
+            var definition = type.GetGenericTypeDefinition();
+            if (definition == typeof(HList<>)) return true;
+            if (definition != typeof(HList<,>)) return false;
+            type = type.GetGenericArguments()[1];
+        }
+        return true;
+    }
+}
+
 public struct EmptyHList : IHList
 {
     public static EmptyHList Default => default;

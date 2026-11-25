@@ -32,6 +32,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
     public event EntityHandler? OnEntityReleased;
     private EntityMigrationHandler? _onEntityMovedOut;
     private EntityMigrationHandler? _onEntityMovedIn;
+    private readonly ArrayEntityHost<TEntity>? _arrayHost;
     private bool _disposed;
     private Outcome<Exception> _releaseResult;
 
@@ -48,8 +49,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
     internal bool HasMigrationObservers
         => Volatile.Read(ref _onEntityMovedOut) is not null || Volatile.Read(ref _onEntityMovedIn) is not null;
 
-    bool IWorldBatchHost.IsExactArrayHost => typeof(TInnerHost) == typeof(ArrayEntityHost<TEntity>)
-        && InnerHost.GetType() == typeof(ArrayEntityHost<TEntity>);
+    bool IWorldBatchHost.IsExactArrayHost => _arrayHost is not null;
     bool IWorldBatchHost.HasMigrationObservers => HasMigrationObservers;
 
     public World World { get; }
@@ -73,6 +73,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
         World = world;
         innerHost.OnInitialize(world);
         InnerHost = innerHost;
+        _arrayHost = GetExactArrayHost(innerHost);
     }
 
     public WorldEntityHost(World world)
@@ -87,13 +88,19 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
             throw;
         }
         InnerHost = inner;
+        _arrayHost = GetExactArrayHost(inner);
     }
+
+    private static ArrayEntityHost<TEntity>? GetExactArrayHost(TInnerHost innerHost)
+        => typeof(TInnerHost) == typeof(ArrayEntityHost<TEntity>)
+            && innerHost.GetType() == typeof(ArrayEntityHost<TEntity>)
+            ? Unsafe.As<ArrayEntityHost<TEntity>>(innerHost)
+            : null;
 
     public unsafe IEntityHost<UEntity> GetSiblingHost<UEntity>()
         where UEntity : struct, IHList
     {
-        if (typeof(TInnerHost) == typeof(ArrayEntityHost<TEntity>)
-            && InnerHost.GetType() == typeof(ArrayEntityHost<TEntity>)) {
+        if (_arrayHost is not null) {
             return World.AcquireHost<UEntity, ArrayEntityHost<UEntity>>();
         }
         if (typeof(TInnerHost) == typeof(UnmanagedArrayEntityHost<TEntity>)
@@ -127,6 +134,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
         var result = Outcome<Exception>.Success
             .Attempt(this, static (in host) => {
                 var dispatcher = host.World.Dispatcher;
+                if (dispatcher.HasNoUntypedListeners && host.InnerHost.GetType() == typeof(ArrayEntityHost<TEntity>)) return;
                 foreach (var entity in host.InnerHost.UnsafeGetEntitySpan()) {
                     if (dispatcher.HasNoUntypedListeners) break;
                     dispatcher.DetachEntityListeners(entity);
@@ -150,19 +158,82 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Entity Create(in TEntity initial, out Entity acquired)
     {
-        World.EnsureOwnerThread();
+        var world = World;
+        world.EnsureOwnerThread();
+        var arrayHost = _arrayHost;
+        if (arrayHost is null) {
+            return CreateWithInnerHost(initial, out acquired);
+        }
+
+        ObjectDisposedException.ThrowIf(_disposed || arrayHost.IsClosed || world.IsClosingHost(this), this);
+        var entity = arrayHost.CreateBound(this, arrayHost.Storage, initial);
+        acquired = entity;
+        world.Count++;
+        var observers = OnEntityCreated;
+        var dispatcher = world.Dispatcher;
+        if (observers is null && dispatcher.HasEmptyListenerTables && HListShape<TEntity>.IsStandard) {
+            _ = CreationEventTypes.Initialized;
+        }
+        else {
+            NotifyBoundCreation(entity, observers, dispatcher);
+        }
+        return entity;
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private Entity CreateWithInnerHost(in TEntity initial, out Entity acquired)
+    {
         ObjectDisposedException.ThrowIf(IsClosed, this);
         var entity = InnerHost.Create(initial);
         acquired = entity;
-        entity.GetStateUnchecked().Host = this;
+        var state = entity.GetStateUnchecked();
+        state.Host = this;
         World.Count++;
-        OnEntityCreated?.Invoke(entity);
-        if (!entity.IsValid) return entity;
-        World.Dispatcher.Send(entity, WorldEvents.Add.Instance);
-        if (entity.IsValid) {
-            TEntity.HandleTypes(new EntityAddEventSender(entity, World.Dispatcher));
-        }
+        NotifyBoundCreation(entity, OnEntityCreated, World.Dispatcher);
         return entity;
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void NotifyBoundCreation(Entity entity, EntityHandler? observers, WorldDispatcher dispatcher)
+    {
+        observers?.Invoke(entity);
+        if (!entity.IsValid) return;
+        if (dispatcher.HasEmptyListenerTables && entity.GetStateUnchecked().EventSink is null && HListShape<TEntity>.IsStandard) {
+            _ = CreationEventTypes.Initialized;
+        }
+        else {
+            NotifyCreation(dispatcher, entity);
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void NotifyCreation(WorldDispatcher dispatcher, Entity entity)
+    {
+        dispatcher.Send(entity, WorldEvents.Add.Instance);
+        if (entity.IsValid) {
+            TEntity.HandleTypes(new EntityAddEventSender(entity, dispatcher));
+        }
+    }
+
+    private static class CreationEventTypes
+    {
+        internal static readonly bool Initialized = Initialize();
+
+        private static bool Initialize()
+        {
+            _ = EventTypeIndexer<WorldEvents.Add>.Index;
+            TEntity.HandleTypes(new RegisterCreationEventTypes());
+            return true;
+        }
+    }
+
+    private struct RegisterCreationEventTypes : IGenericTypeHandler
+    {
+        public readonly void Handle<T>()
+        {
+            _ = EventTypeIndexer<WorldEvents.Add<T>>.Index;
+            _ = EventTypeIndexer<WorldEvents.Set<T>>.Index;
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
