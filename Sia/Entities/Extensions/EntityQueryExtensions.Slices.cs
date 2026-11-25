@@ -307,13 +307,13 @@ public static partial class EntityQueryExtensions
     {
         if (!RuntimeHelpers.IsReferenceOrContainsReferences<TEntity>()) return null;
         if (host is WorldEntityHost<TEntity, ArrayEntityHost<TEntity>> world
-            && world.InnerHost.GetType() == typeof(ArrayEntityHost<TEntity>)) return world.InnerHost.Buffer;
-        if (host.GetType() == typeof(ArrayEntityHost<TEntity>) && host is ArrayEntityHost<TEntity> array) return array.Buffer;
+            && world.InnerHost.GetType() == typeof(ArrayEntityHost<TEntity>)) return world.InnerHost.Storage;
+        if (host.GetType() == typeof(ArrayEntityHost<TEntity>) && host is ArrayEntityHost<TEntity> array) return array.Storage;
         if (host.GetType() == typeof(BufferEntityHost<TEntity, ArrayBuffer<TEntity>>)
-            && host is BufferEntityHost<TEntity, ArrayBuffer<TEntity>> direct) return direct.Buffer;
+            && host is BufferEntityHost<TEntity, ArrayBuffer<TEntity>> direct) return direct.Storage;
         if (host.GetType() == typeof(BufferEntityHost<TEntity, IBuffer<TEntity>>)
             && host is BufferEntityHost<TEntity, IBuffer<TEntity>> wrapped
-            && wrapped.Buffer is ArrayBuffer<TEntity> buffer) return buffer;
+            && wrapped.Storage is ArrayBuffer<TEntity> buffer) return buffer;
         return null;
     }
 
