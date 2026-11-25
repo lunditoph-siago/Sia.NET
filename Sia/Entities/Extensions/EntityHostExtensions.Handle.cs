@@ -1,5 +1,4 @@
 using System.Runtime.CompilerServices;
-using static Sia.EntityExtensionsCommon;
 
 namespace Sia;
 
@@ -24,7 +23,11 @@ public static partial class EntityHostExtensions
                 var host = data.Host;
                 var version = host.Version;
                 data.Handler(host, range.Item1, range.Item2);
-                GuardVersion(version, host.Version);
+#if DEBUG
+                if (version != host.Version) {
+                    throw new InvalidOperationException("Entity host cannot be modified during the task");
+                }
+#endif
             },
             barrier);
     }
@@ -44,7 +47,11 @@ public static partial class EntityHostExtensions
                 var host = data.Host;
                 var version = host.Version;
                 data.Handler(host, data.UserData, range.Item1, range.Item2);
-                GuardVersion(version, host.Version);
+#if DEBUG
+                if (version != host.Version) {
+                    throw new InvalidOperationException("Entity host cannot be modified during the task");
+                }
+#endif
             },
             barrier);
     }

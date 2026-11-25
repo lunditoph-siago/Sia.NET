@@ -1,6 +1,4 @@
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 
 namespace Sia;
 
@@ -28,35 +26,6 @@ internal static class EntityExtensionsCommon
         public readonly RecordingOutput<TResult> Output = output;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void GuardSpanLength<TResult>(Span<TResult> span, int requiredSize)
-    {
-        if (span.Length < requiredSize) {
-            throw new ArgumentException("Span length is not sufficient");
-        }
-    }
-
-    [Conditional("DEBUG")]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void GuardVersion(int currentVersion, int requiredVersion)
-    {
-        if (currentVersion != requiredVersion) {
-            throw new InvalidOperationException("Entity host cannot be modified during the task");
-        }
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void GuardSequentialBytes(IEntityHost host, Span<byte> bytes)
-    {
-        if (host.TryGetSequentialBytes(out var current)
-            && !Unsafe.AreSame(
-                ref MemoryMarshal.GetReference(current),
-                ref MemoryMarshal.GetReference(bytes))) {
-            throw new InvalidOperationException(
-                "Entity host storage was reallocated during the iteration");
-        }
-    }
-
 #pragma warning disable CS8500 // Recording borrows a pinned Span<TResult>, including managed result types.
     internal readonly ref struct RecordingScope<TResult, TRunner>
         where TRunner : IRunner
@@ -68,7 +37,9 @@ internal static class EntityExtensionsCommon
 
         public RecordingScope(Span<TResult> destination, int count, TRunner runner, RunnerBarrier? barrier)
         {
-            GuardSpanLength(destination, count);
+            if (destination.Length < count) {
+                throw new ArgumentException("Span length is not sufficient");
+            }
             _destination = destination[..count];
             if (_destination.IsEmpty) return;
 

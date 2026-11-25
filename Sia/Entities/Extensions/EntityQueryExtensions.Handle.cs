@@ -1,5 +1,4 @@
 using System.Runtime.CompilerServices;
-using static Sia.EntityExtensionsCommon;
 
 namespace Sia;
 
@@ -52,11 +51,19 @@ public static partial class EntityQueryExtensions
             var slotCount = host.Count - slotIndex;
             if (remainingCount <= slotCount) {
                 handler(host, slotIndex, slotIndex + remainingCount);
-                GuardVersion(version, host.Version);
+#if DEBUG
+                if (version != host.Version) {
+                    throw new InvalidOperationException("Entity host cannot be modified during the task");
+                }
+#endif
                 return;
             }
             handler(host, slotIndex, slotIndex + slotCount);
-            GuardVersion(version, host.Version);
+#if DEBUG
+            if (version != host.Version) {
+                throw new InvalidOperationException("Entity host cannot be modified during the task");
+            }
+#endif
             remainingCount -= slotCount;
             if (remainingCount == 0) { return; }
 
@@ -67,11 +74,19 @@ public static partial class EntityQueryExtensions
             while (true) {
                 if (remainingCount <= slotCount) {
                     handler(host, 0, remainingCount);
-                    GuardVersion(version, host.Version);
+#if DEBUG
+                    if (version != host.Version) {
+                        throw new InvalidOperationException("Entity host cannot be modified during the task");
+                    }
+#endif
                     return;
                 }
                 handler(host, 0, slotCount);
-                GuardVersion(version, host.Version);
+#if DEBUG
+                if (version != host.Version) {
+                    throw new InvalidOperationException("Entity host cannot be modified during the task");
+                }
+#endif
                 remainingCount -= slotCount;
 
                 host = hosts[++hostIndex];
@@ -107,11 +122,19 @@ public static partial class EntityQueryExtensions
             var slotCount = host.Count - slotIndex;
             if (remainingCount <= slotCount) {
                 handler(host, data.UserData, slotIndex, slotIndex + remainingCount);
-                GuardVersion(version, host.Version);
+#if DEBUG
+                if (version != host.Version) {
+                    throw new InvalidOperationException("Entity host cannot be modified during the task");
+                }
+#endif
                 return;
             }
             handler(host, data.UserData, slotIndex, slotIndex + slotCount);
-            GuardVersion(version, host.Version);
+#if DEBUG
+            if (version != host.Version) {
+                throw new InvalidOperationException("Entity host cannot be modified during the task");
+            }
+#endif
             remainingCount -= slotCount;
             if (remainingCount == 0) { return; }
 
@@ -122,11 +145,19 @@ public static partial class EntityQueryExtensions
             while (true) {
                 if (remainingCount <= slotCount) {
                     handler(host, data.UserData, 0, remainingCount);
-                    GuardVersion(version, host.Version);
+#if DEBUG
+                    if (version != host.Version) {
+                        throw new InvalidOperationException("Entity host cannot be modified during the task");
+                    }
+#endif
                     return;
                 }
                 handler(host, data.UserData, 0, slotCount);
-                GuardVersion(version, host.Version);
+#if DEBUG
+                if (version != host.Version) {
+                    throw new InvalidOperationException("Entity host cannot be modified during the task");
+                }
+#endif
                 remainingCount -= slotCount;
 
                 host = hosts[++hostIndex];

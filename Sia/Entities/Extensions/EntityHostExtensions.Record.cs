@@ -81,7 +81,9 @@ public static partial class EntityHostExtensions
         this IEntityHost host, Span<Entity> span)
     {
         var count = host.Count;
-        GuardSpanLength(span, count);
+        if (span.Length < count) {
+            throw new ArgumentException("Span length is not sufficient");
+        }
         if (count == 0) {
             return;
         }
@@ -90,7 +92,11 @@ public static partial class EntityHostExtensions
         for (var index = 0; index < destination.Length; index++) {
             destination[index] = host.GetEntity(index);
         }
-        GuardVersion(version, host.Version);
+#if DEBUG
+        if (version != host.Version) {
+            throw new InvalidOperationException("Entity host cannot be modified during the task");
+        }
+#endif
     }
 
     #endregion // CurrentThreadRunner
