@@ -186,7 +186,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         if (state.IsTransitioning) {
             throw new InvalidOperationException("Cannot migrate an entity during release or a migration callback.");
         }
-        Move(entity, state, this, HList.Cons(initial, Buffer.GetRef(slot)), useBuiltIn: true);
+        MoveWithAddedComponent(entity, state, slot, initial);
     }
 
     internal void AddDefault<TComponent>(Entity entity, EntityState state, in TComponent initial)
@@ -194,7 +194,17 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         if (EntityIndexer<TEntity, TComponent>.Offset != -1) {
             EntityExceptionHelper.ThrowComponentExisted<TComponent>();
         }
-        Move(entity, state, this, HList.Cons(initial, Buffer.GetRef(state.Slot)), useBuiltIn: true);
+        MoveWithAddedComponent(entity, state, state.Slot, initial);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void MoveWithAddedComponent<TComponent>(Entity entity, EntityState state, int slot, in TComponent initial)
+    {
+        if (typeof(TEntity) == typeof(EmptyHList)) {
+            Move(entity, state, this, HList.From(initial), useBuiltIn: true);
+            return;
+        }
+        Move(entity, state, this, HList.Cons(initial, Buffer.GetRef(slot)), useBuiltIn: true);
     }
 
     public virtual bool TryAddAll<TComponent>(ReadOnlySpan<Entity> entities, in TComponent initial) => false;
@@ -292,7 +302,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
             if (state.IsTransitioning) {
                 throw new InvalidOperationException("Cannot migrate an entity during release or a migration callback.");
             }
-            Move(e, state, source, data, BulkHListShape.IsStandard);
+            Move(e, state, source, data, HList.GetLayout<TEntity>() != HList.Layout.Custom);
         }
     }
 

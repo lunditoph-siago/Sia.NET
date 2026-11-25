@@ -163,23 +163,29 @@ internal partial class SiaBundleGenerator : IIncrementalGenerator
 
     private static void GenerateHListType(IndentedTextWriter source, CodeGenerationInfo info)
     {
-        foreach (var component in info.Components) {
-            source.Write("global::Sia.HList<");
-            source.Write(component.DisplayType);
-            source.Write(", ");
+        if (info.Components.IsEmpty) {
+            source.Write("global::Sia.EmptyHList");
+            return;
         }
-        source.Write("global::Sia.EmptyHList");
+        for (var i = 0; i < info.Components.Length; i++) {
+            if (i > 0) source.Write(", ");
+            source.Write("global::Sia.HList<");
+            source.Write(info.Components[i].DisplayType);
+        }
         source.Write(new string('>', info.Components.Length));
     }
 
     private static void GenerateHListValue(IndentedTextWriter source, CodeGenerationInfo info)
     {
-        foreach (var component in info.Components) {
-            source.Write("new(");
-            source.Write(component.Name);
-            source.Write(", ");
+        if (info.Components.IsEmpty) {
+            source.Write("global::Sia.EmptyHList.Default");
+            return;
         }
-        source.Write("global::Sia.EmptyHList.Default");
+        for (var i = 0; i < info.Components.Length; i++) {
+            if (i > 0) source.Write(", ");
+            source.Write("new(");
+            source.Write(info.Components[i].Name);
+        }
         source.Write(new string(')', info.Components.Length));
     }
 }

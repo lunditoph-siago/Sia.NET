@@ -8,20 +8,33 @@ public partial class BufferEntityHost<TEntity, TBuffer>
     where TEntity : struct, IHList
     where TBuffer : IBuffer<TEntity>
 {
-    private static class BulkHListShape
+    private interface IBatchPrepend<TComponent, TDestination> where TDestination : struct, IHList
     {
-        internal static readonly bool IsStandard = Check();
-
-        private static bool Check()
-        {
-            var type = typeof(TEntity);
-            while (type != typeof(EmptyHList)) {
-                if (!type.IsGenericType || type.GetGenericTypeDefinition() != typeof(HList<,>)) return false;
-                type = type.GetGenericArguments()[1];
-            }
-            return true;
-        }
+        static abstract TDestination Prepend(in TComponent component, in TEntity row);
     }
+
+    private readonly struct PrependToEmpty<TComponent> : IBatchPrepend<TComponent, HList<TComponent>>
+    {
+        public static HList<TComponent> Prepend(in TComponent component, in TEntity row)
+            => new(component);
+    }
+
+    private readonly struct PrependToRow<TComponent> : IBatchPrepend<TComponent, HList<TComponent, TEntity>>
+    {
+        public static HList<TComponent, TEntity> Prepend(in TComponent component, in TEntity row)
+            => HList.Cons(component, row);
+    }
+
+    internal static bool HasBatchAddTarget<TComponent>(World world)
+        => typeof(TEntity) == typeof(EmptyHList)
+            ? TryGetBatchAddTarget<HList<TComponent>>(world, out _)
+            : TryGetBatchAddTarget<HList<TComponent, TEntity>>(world, out _);
+
+    private static bool TryGetBatchAddTarget<TDestination>(
+        World world,
+        [NotNullWhen(true)] out WorldEntityHost<TDestination, ArrayEntityHost<TDestination>>? target)
+        where TDestination : struct, IHList
+        => world.TryGetHost<TDestination, ArrayEntityHost<TDestination>>(out target) && !target.HasMigrationObservers;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool CanBatchTransition<TDestination>(
@@ -126,24 +139,31 @@ public partial class BufferEntityHost<TEntity, TBuffer>
         WorldEntityHost<TEntity, THost> source, ReadOnlySpan<Entity> entities, in TComponent initial)
         where THost : IEntityHost<TEntity>, new()
     {
-        if (!CanBatch(source, entities)
-            || !BulkHListShape.IsStandard || EntityIndexer<TEntity, TComponent>.Offset != -1
-            || !source.World.TryGetHost<HList<TComponent, TEntity>, ArrayEntityHost<HList<TComponent, TEntity>>>(out var target)
-            || target.InnerHost.GetType() != typeof(ArrayEntityHost<HList<TComponent, TEntity>>)
-            || !ReferenceEquals(target.InnerHost.World, source.World)
-            || target.IsClosed
-            || source.HasMigrationObservers || target.HasMigrationObservers
-            || !source.World.Dispatcher.HasNoUntypedListeners
-            || !source.World.Dispatcher.HasNoTypedListeners<WorldEvents.Add<TComponent>>()
-            || !source.World.Dispatcher.HasNoTypedListeners<WorldEvents.Set<TComponent>>()) return false;
-        var destination = (BufferEntityHost<HList<TComponent, TEntity>, ArrayBuffer<HList<TComponent, TEntity>>>)target.InnerHost;
+        if (!CanBatch(source, entities) || HList.GetLayout<TEntity>() == HList.Layout.Custom
+            || EntityIndexer<TEntity, TComponent>.Offset != -1 || source.HasMigrationObservers) return false;
+        var world = source.World;
+        if (!world.Dispatcher.HasNoUntypedListeners
+            || !world.Dispatcher.HasNoTypedListeners<WorldEvents.Add<TComponent>>()
+            || !world.Dispatcher.HasNoTypedListeners<WorldEvents.Set<TComponent>>()) return false;
+        return typeof(TEntity) == typeof(EmptyHList)
+            ? TryBatchAddCore<TComponent, HList<TComponent>, PrependToEmpty<TComponent>>(world, entities.Length, initial)
+            : TryBatchAddCore<TComponent, HList<TComponent, TEntity>, PrependToRow<TComponent>>(world, entities.Length, initial);
+    }
+
+    private bool TryBatchAddCore<TComponent, TDestination, TPrepend>(World world, int count, in TComponent initial)
+        where TDestination : struct, IHList
+        where TPrepend : struct, IBatchPrepend<TComponent, TDestination>
+    {
+        if (!TryGetBatchAddTarget<TDestination>(world, out var target)
+            || target.InnerHost.GetType() != typeof(ArrayEntityHost<TDestination>)
+            || !ReferenceEquals(target.InnerHost.World, world) || target.IsClosed) return false;
+        var destination = (BufferEntityHost<TDestination, ArrayBuffer<TDestination>>)target.InnerHost;
         if (destination._entities.Count != destination.Buffer.Count) return false;
         _ = WorldEvents.Add<TComponent>.Instance;
         _ = EventTypeIndexer<WorldEvents.Add<TComponent>>.Index;
         _ = WorldEvents.Set<TComponent>.Instance;
         _ = EventTypeIndexer<WorldEvents.Set<TComponent>>.Index;
         var value = initial;
-        var count = entities.Length;
         var start = destination.Buffer.Count;
         var end = checked(start + count);
         destination._entities.EnsureCapacity(end);
@@ -152,8 +172,12 @@ public partial class BufferEntityHost<TEntity, TBuffer>
         var rows = sourceBuffer.AsSpan();
         var targetRows = destination.Buffer.AsSpan();
         var current = _entities.AsSpan();
+        var emptySource = typeof(TEntity) == typeof(EmptyHList);
+        if (emptySource) {
+            targetRows.Slice(start, count).Fill(TPrepend.Prepend(value, default));
+        }
         for (var i = 0; i < count; i++) {
-            targetRows[start + i] = HList.Cons(value, rows[i]);
+            if (!emptySource) targetRows[start + i] = TPrepend.Prepend(value, rows[i]);
             var state = current[i].GetStateUnchecked();
             state.Host = target;
             state.Slot = start + i;
@@ -168,12 +192,16 @@ public partial class BufferEntityHost<TEntity, TBuffer>
     {
         source.World.EnsureOwnerThread();
         if (!RuntimeFeature.IsDynamicCodeSupported || !BatchHost<THost>.CanRemove || !CanBatch(source, entities)
-            || !typeof(TEntity).IsGenericType || typeof(TEntity).GetGenericTypeDefinition() != typeof(HList<,>)
+            || !IsBatchRemoveHead<TComponent>()
             || source.Descriptor.Components[0].Type != typeof(TComponent)) return false;
         var handler = new BatchRemoveHead<TComponent, THost>(this, source);
         default(TEntity).Remove(TypeProxy<TComponent>._, handler);
         return handler.Applied;
     }
+
+    internal static bool IsBatchRemoveHead<TComponent>()
+        => typeof(TEntity) == typeof(HList<TComponent>)
+            || (typeof(TEntity).IsGenericType && typeof(TEntity).GetGenericTypeDefinition() == typeof(HList<,>));
 
     private sealed class BatchRemoveHead<TComponent, THost>(
         BufferEntityHost<TEntity, TBuffer> host, WorldEntityHost<TEntity, THost> source)
@@ -193,7 +221,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>
     {
         var world = source.World;
         var destination = (BufferEntityHost<TTail, ArrayBuffer<TTail>>)target.InnerHost;
-        if (typeof(TEntity) != typeof(HList<THead, TTail>)
+        if (!HasBatchTail<THead, TTail>()
             || target.InnerHost.GetType() != typeof(ArrayEntityHost<TTail>)
             || target.IsClosed
             || !ReferenceEquals(destination.World, world) || source.HasMigrationObservers || target.HasMigrationObservers
@@ -202,24 +230,13 @@ public partial class BufferEntityHost<TEntity, TBuffer>
             || destination._entities.Count != destination.Buffer.Count) return false;
         _ = WorldEvents.Remove<THead>.Instance;
         _ = EventTypeIndexer<WorldEvents.Remove<THead>>.Index;
-        var count = _entities.Count;
-        var start = destination.Buffer.Count;
-        var end = checked(start + count);
-        destination._entities.EnsureCapacity(end);
-        destination.Buffer.Count = end;
-        var sourceBuffer = (ArrayBuffer<TEntity>)(object)Buffer;
-        var rows = sourceBuffer.AsSpan();
-        var targetRows = destination.Buffer.AsSpan();
-        var entities = _entities.AsSpan();
-        for (var i = 0; i < count; i++) {
-            targetRows[start + i] = Unsafe.As<TEntity, HList<THead, TTail>>(ref rows[i]).Tail;
-            var state = entities[i].GetStateUnchecked();
-            state.Host = target;
-            state.Slot = start + i;
-        }
-        FinishMoveAll(destination, sourceBuffer, rows, count);
+        MoveBatchTail<THead, TTail>(target, (ArrayBuffer<TEntity>)(object)Buffer);
         return true;
     }
+
+    private static bool HasBatchTail<THead, TTail>() where TTail : struct, IHList
+        => typeof(TEntity) == typeof(HList<THead, TTail>)
+            || (typeof(TEntity) == typeof(HList<THead>) && typeof(TTail) == typeof(EmptyHList));
 
     private void FinishMoveAll<TDestination>(
         BufferEntityHost<TDestination, ArrayBuffer<TDestination>> destination,
@@ -236,14 +253,27 @@ public partial class BufferEntityHost<TEntity, TBuffer>
 
     internal bool TryBulkAddAll<TComponent>(
         WorldEntityHost<TEntity, ArrayEntityHost<TEntity>> source,
-        WorldEntityHost<HList<TComponent, TEntity>, ArrayEntityHost<HList<TComponent, TEntity>>> target,
         ReadOnlySpan<TComponent> initialValues)
     {
         var world = source.World;
         world.EnsureOwnerThread();
-        var destination = target.InnerHost;
-        if (!CanBatchTransition(source, target) || Buffer is not ArrayBuffer<TEntity> sourceBuffer
-            || !BulkHListShape.IsStandard || EntityIndexer<TEntity, TComponent>.Offset != -1) return false;
+        if (HList.GetLayout<TEntity>() == HList.Layout.Custom || EntityIndexer<TEntity, TComponent>.Offset != -1) {
+            return false;
+        }
+        return typeof(TEntity) == typeof(EmptyHList)
+            ? TryBulkAddAll<TComponent, HList<TComponent>, PrependToEmpty<TComponent>>(source, initialValues)
+            : TryBulkAddAll<TComponent, HList<TComponent, TEntity>, PrependToRow<TComponent>>(source, initialValues);
+    }
+
+    private bool TryBulkAddAll<TComponent, TDestination, TPrepend>(
+        WorldEntityHost<TEntity, ArrayEntityHost<TEntity>> source, ReadOnlySpan<TComponent> initialValues)
+        where TDestination : struct, IHList
+        where TPrepend : struct, IBatchPrepend<TComponent, TDestination>
+    {
+        var world = source.World;
+        if (!TryGetBatchAddTarget<TDestination>(world, out var target) || !CanBatchTransition(source, target)
+            || Buffer is not ArrayBuffer<TEntity> sourceBuffer) return false;
+        var destination = (BufferEntityHost<TDestination, ArrayBuffer<TDestination>>)target.InnerHost;
         var count = _entities.Count;
         if (initialValues.Length != count) return false;
         if (count == 0) return true;
@@ -264,7 +294,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>
         var targetRows = destination.Buffer.AsSpan();
         var entities = _entities.AsSpan();
         for (var i = 0; i < count; i++) {
-            targetRows[start + i] = HList.Cons(initialValues[i], sourceRows[i]);
+            targetRows[start + i] = TPrepend.Prepend(initialValues[i], sourceRows[i]);
             var state = entities[i].GetStateUnchecked();
             state.Host = target;
             state.Slot = start + i;
@@ -280,8 +310,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>
     {
         var world = source.World;
         world.EnsureOwnerThread();
-        var destination = target.InnerHost;
-        if (typeof(TEntity) != typeof(HList<THead, TTail>)
+        if (!HasBatchTail<THead, TTail>()
             || !CanBatchTransition(source, target) || Buffer is not ArrayBuffer<TEntity> sourceBuffer) return false;
         var count = _entities.Count;
         if (count == 0) return true;
@@ -290,6 +319,16 @@ public partial class BufferEntityHost<TEntity, TBuffer>
         _ = WorldEvents.Remove<THead>.Instance;
         world.EnsureOwnerThread();
         _ = EventTypeIndexer<WorldEvents.Remove<THead>>.Index;
+        MoveBatchTail<THead, TTail>(target, sourceBuffer);
+        return true;
+    }
+
+    private void MoveBatchTail<THead, TTail>(
+        WorldEntityHost<TTail, ArrayEntityHost<TTail>> target, ArrayBuffer<TEntity> sourceBuffer)
+        where TTail : struct, IHList
+    {
+        var destination = (BufferEntityHost<TTail, ArrayBuffer<TTail>>)target.InnerHost;
+        var count = _entities.Count;
         var start = destination.Buffer.Count;
         var end = checked(start + count);
         destination._entities.EnsureCapacity(end);
@@ -298,13 +337,13 @@ public partial class BufferEntityHost<TEntity, TBuffer>
         var targetRows = destination.Buffer.AsSpan();
         var entities = _entities.AsSpan();
         for (var i = 0; i < count; i++) {
-            targetRows[start + i] = Unsafe.As<TEntity, HList<THead, TTail>>(ref sourceRows[i]).Tail;
+            targetRows[start + i] = typeof(TEntity) == typeof(HList<THead>)
+                ? default : Unsafe.As<TEntity, HList<THead, TTail>>(ref sourceRows[i]).Tail;
             var state = entities[i].GetStateUnchecked();
             state.Host = target;
             state.Slot = start + i;
         }
         FinishMoveAll(destination, sourceBuffer, sourceRows, count);
-        return true;
     }
 
 }

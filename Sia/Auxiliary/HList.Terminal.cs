@@ -23,11 +23,7 @@ public struct HList<THead>(in THead head) : IHList
         => handler.Handle(EmptyHList.Default);
 
     public readonly void HandleTailRef<THandler>(ref THandler handler)
-        where THandler : IRefGenericHandler<IHList>
-    {
-        EmptyHList tail = default;
-        handler.Handle(ref tail);
-    }
+        where THandler : IRefGenericHandler<IHList> {}
 
     public readonly void Filter<TPredicate, THandler>(in TPredicate predicate, in THandler handler)
         where TPredicate : IGenericPredicate

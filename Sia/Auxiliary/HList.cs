@@ -123,7 +123,13 @@ public struct HList<THead, TTail>(in THead head, in TTail tail) : IHList
         public THandler Handler = handler;
 
         public void Handle<T>(in T value) where T : struct, IHList
-            => Handler.Handle(new HList<THead, T>(Head, value));
+        {
+            if (typeof(T) == typeof(EmptyHList) && HList.GetLayout<TTail>() == HList.Layout.Compact) {
+                Handler.Handle(new HList<THead>(Head));
+                return;
+            }
+            Handler.Handle(new HList<THead, T>(Head, value));
+        }
     }
 
     public readonly void Filter<TPredicate, THandler>(in TPredicate predicate, in THandler handler)
@@ -213,8 +219,8 @@ public static class HList
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static HList<THead, EmptyHList> From<THead>(in THead head) =>
-        new(head, EmptyHList.Default);
+    public static HList<THead> From<THead>(in THead head)
+        => new(head);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static HList<THead, TTail> Cons<THead, TTail>(in THead head, in TTail tail)
@@ -222,47 +228,47 @@ public static class HList
         => new(head, tail);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static HList<T1, HList<T2, EmptyHList>>
+    public static HList<T1, HList<T2>>
         From<T1, T2>(in T1 item1, in T2 item2)
         => Cons(item1, From(item2));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static HList<T1, HList<T2, HList<T3, EmptyHList>>>
+    public static HList<T1, HList<T2, HList<T3>>>
         From<T1, T2, T3>(in T1 item1, in T2 item2, in T3 item3)
         => Cons(item1, Cons(item2, From(item3)));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static HList<T1, HList<T2, HList<T3, HList<T4, EmptyHList>>>>
+    public static HList<T1, HList<T2, HList<T3, HList<T4>>>>
         From<T1, T2, T3, T4>(in T1 item1, in T2 item2, in T3 item3, in T4 item4)
         => Cons(item1, Cons(item2, Cons(item3, From(item4))));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static HList<T1, HList<T2, HList<T3, HList<T4, HList<T5, EmptyHList>>>>>
+    public static HList<T1, HList<T2, HList<T3, HList<T4, HList<T5>>>>>
         From<T1, T2, T3, T4, T5>(in T1 item1, in T2 item2, in T3 item3, in T4 item4, in T5 item5)
         => Cons(item1, Cons(item2, Cons(item3, Cons(item4, From(item5)))));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static HList<T1, HList<T2, HList<T3, HList<T4, HList<T5, HList<T6, EmptyHList>>>>>>
+    public static HList<T1, HList<T2, HList<T3, HList<T4, HList<T5, HList<T6>>>>>>
         From<T1, T2, T3, T4, T5, T6>(in T1 item1, in T2 item2, in T3 item3, in T4 item4, in T5 item5, in T6 item6)
         => Cons(item1, Cons(item2, Cons(item3, Cons(item4, Cons(item5, From(item6))))));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static HList<T1, HList<T2, HList<T3, HList<T4, HList<T5, HList<T6, HList<T7, EmptyHList>>>>>>>
+    public static HList<T1, HList<T2, HList<T3, HList<T4, HList<T5, HList<T6, HList<T7>>>>>>>
         From<T1, T2, T3, T4, T5, T6, T7>(in T1 item1, in T2 item2, in T3 item3, in T4 item4, in T5 item5, in T6 item6, in T7 item7)
         => Cons(item1, Cons(item2, Cons(item3, Cons(item4, Cons(item5, Cons(item6, From(item7)))))));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static HList<T1, HList<T2, HList<T3, HList<T4, HList<T5, HList<T6, HList<T7, HList<T8, EmptyHList>>>>>>>>
+    public static HList<T1, HList<T2, HList<T3, HList<T4, HList<T5, HList<T6, HList<T7, HList<T8>>>>>>>>
         From<T1, T2, T3, T4, T5, T6, T7, T8>(in T1 item1, in T2 item2, in T3 item3, in T4 item4, in T5 item5, in T6 item6, in T7 item7, in T8 item8)
         => Cons(item1, Cons(item2, Cons(item3, Cons(item4, Cons(item5, Cons(item6, Cons(item7, From(item8))))))));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static HList<T1, HList<T2, HList<T3, HList<T4, HList<T5, HList<T6, HList<T7, HList<T8, HList<T9, EmptyHList>>>>>>>>>
+    public static HList<T1, HList<T2, HList<T3, HList<T4, HList<T5, HList<T6, HList<T7, HList<T8, HList<T9>>>>>>>>>
         From<T1, T2, T3, T4, T5, T6, T7, T8, T9>(in T1 item1, in T2 item2, in T3 item3, in T4 item4, in T5 item5, in T6 item6, in T7 item7, in T8 item8, in T9 item9)
         => Cons(item1, Cons(item2, Cons(item3, Cons(item4, Cons(item5, Cons(item6, Cons(item7, Cons(item8, From(item9)))))))));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static HList<T1, HList<T2, HList<T3, HList<T4, HList<T5, HList<T6, HList<T7, HList<T8, HList<T9, HList<T10, EmptyHList>>>>>>>>>>
+    public static HList<T1, HList<T2, HList<T3, HList<T4, HList<T5, HList<T6, HList<T7, HList<T8, HList<T9, HList<T10>>>>>>>>>>
         From<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>(in T1 item1, in T2 item2, in T3 item3, in T4 item4, in T5 item5, in T6 item6, in T7 item7, in T8 item8, in T9 item9, in T10 item10)
         => Cons(item1, Cons(item2, Cons(item3, Cons(item4, Cons(item5, Cons(item6, Cons(item7, Cons(item8, Cons(item9, From(item10))))))))));
 }
