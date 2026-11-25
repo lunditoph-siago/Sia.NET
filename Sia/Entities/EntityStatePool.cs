@@ -3,14 +3,14 @@ using System.Runtime.ExceptionServices;
 
 namespace Sia;
 
-internal sealed class EntityStatePage(int firstId, int length)
+internal sealed class EntityStatePage(int firstId, int firstSlot, int length)
 {
     internal struct Row
     {
-        public int Slot;
+        public int SlotOffset;
         public bool Releasing;
         public bool NotifyingMigration;
-        public bool UsesDefaultHost;
+        public bool HasHostOverride;
     }
 
     internal sealed class Binding
@@ -20,6 +20,7 @@ internal sealed class EntityStatePage(int firstId, int length)
     }
 
     internal readonly int FirstId = firstId;
+    internal readonly int FirstSlot = firstSlot;
     internal readonly Row[] Rows = new Row[length];
     internal IEntityHost? DefaultHost { get; private set; }
     private int _defaultHostRows;
@@ -58,21 +59,12 @@ internal sealed class EntityStatePage(int firstId, int length)
     internal Entity Initialize(IEntityHost? host, int slot, int id)
     {
         var index = unchecked(id - FirstId);
-        ref var row = ref Rows[index];
-        row.Slot = slot;
-        if (host is not null) {
-            if (TryBindDefault(host)) row.UsesDefaultHost = true;
-            else GetOrCreateBinding(index).Host = host;
+        var offset = unchecked(slot - FirstSlot - index);
+        if (offset != 0) Rows[index].SlotOffset = offset;
+        if (host is null || !TryBindDefault(host)) {
+            if (host is not null) GetOrCreateBinding(index).Host = host;
+            Rows[index].HasHostOverride = true;
         }
-        return new Entity(new EntityState(this, id));
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal Entity InitializeDefault(int slot, int id)
-    {
-        ref var row = ref Rows[unchecked(id - FirstId)];
-        row.Slot = slot;
-        row.UsesDefaultHost = true;
         return new Entity(new EntityState(this, id));
     }
 }
@@ -99,23 +91,23 @@ internal readonly struct EntityState(EntityStatePage page, int id)
             var page = _page;
             if (page is null) return null;
             var index = unchecked(_id - page.FirstId);
-            return page.Rows[index].UsesDefaultHost ? page.DefaultHost : page.GetBinding(index)?.Host;
+            return page.Rows[index].HasHostOverride ? page.GetBinding(index)?.Host : page.DefaultHost;
         }
         set {
             var page = _page!;
             var index = unchecked(_id - page.FirstId);
             ref var row = ref page.Rows[index];
-            if (row.UsesDefaultHost) {
+            if (!row.HasHostOverride) {
                 if (ReferenceEquals(value, page.DefaultHost)) return;
                 if (value is not null) page.GetOrCreateBinding(index).Host = value;
-                row.UsesDefaultHost = false;
+                row.HasHostOverride = true;
                 page.ReleaseDefault();
                 return;
             }
 
             var binding = page.GetBinding(index);
             if (value is null || page.TryBindDefault(value)) {
-                row.UsesDefaultHost = value is not null;
+                row.HasHostOverride = value is null;
                 if (binding is not null) {
                     binding.Host = null;
                     if (binding.EventSink is null) page.ClearBinding(index);
@@ -146,7 +138,20 @@ internal readonly struct EntityState(EntityStatePage page, int id)
         }
     }
 
-    public ref int Slot => ref Row.Slot;
+    public int Slot {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get {
+            var page = _page!;
+            var index = unchecked(_id - page.FirstId);
+            return unchecked(page.FirstSlot + index + page.Rows[index].SlotOffset);
+        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        set {
+            var page = _page!;
+            var index = unchecked(_id - page.FirstId);
+            page.Rows[index].SlotOffset = unchecked(value - page.FirstSlot - index);
+        }
+    }
     public ref bool Releasing => ref Row.Releasing;
     public ref bool NotifyingMigration => ref Row.NotifyingMigration;
     public bool IsTransitioning => Releasing || NotifyingMigration;
@@ -160,9 +165,12 @@ internal readonly struct EntityState(EntityStatePage page, int id)
         var page = _page!;
         var index = unchecked(_id - page.FirstId);
         ref var row = ref page.Rows[index];
-        if (row.UsesDefaultHost) page.ReleaseDefault();
+        if (!row.HasHostOverride) page.ReleaseDefault();
         page.ClearBinding(index);
-        row = new EntityStatePage.Row { Slot = -1 };
+        row = new EntityStatePage.Row {
+            HasHostOverride = true,
+            SlotOffset = unchecked(-1 - page.FirstSlot - index)
+        };
     }
 }
 
@@ -213,7 +221,7 @@ internal sealed class EntityStatePool
             while (i < destination.Length) {
                 var count = Math.Min(PageSize, destination.Length - i);
                 var pageId = unchecked(firstId + i);
-                var page = new EntityStatePage(pageId, count);
+                var page = new EntityStatePage(pageId, firstSlot + i, count);
                 page.TryBindDefault(host, count);
                 FillDefaultPage(destination.Slice(i, count), page, firstSlot + i, pageId);
                 i += count;
@@ -229,7 +237,7 @@ internal sealed class EntityStatePool
     public Entity Rent(IEntityHost? host = null, int slot = -1)
     {
         ObjectDisposedException.ThrowIf(_retired, this);
-        if (_nextId == _idEnd) AllocatePage();
+        if (_nextId == _idEnd) AllocatePage(slot);
         return _page!.Initialize(host, slot, unchecked(_nextId++));
     }
 
@@ -239,7 +247,7 @@ internal sealed class EntityStatePool
         var i = 0;
         try {
             while (i < entities.Length) {
-                if (_nextId == _idEnd) AllocatePage();
+                if (_nextId == _idEnd) AllocatePage(firstSlot + i);
                 var count = Math.Min(entities.Length - i, unchecked(_idEnd - _nextId));
                 var page = _page!;
                 if (page.TryBindDefault(host, count)) {
@@ -260,16 +268,22 @@ internal sealed class EntityStatePool
 
     private static void FillDefaultPage(Span<Entity> entities, EntityStatePage page, int firstSlot, int firstId)
     {
+        var firstIndex = unchecked(firstId - page.FirstId);
+        var offset = unchecked(firstSlot - page.FirstSlot - firstIndex);
+        if (offset != 0) {
+            var rows = page.Rows.AsSpan(firstIndex, entities.Length);
+            for (var i = 0; i < rows.Length; i++) rows[i].SlotOffset = offset;
+        }
         for (var i = 0; i < entities.Length; i++) {
-            entities[i] = page.InitializeDefault(firstSlot + i, unchecked(firstId + i));
+            entities[i] = new Entity(new EntityState(page, unchecked(firstId + i)));
         }
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private void AllocatePage()
+    private void AllocatePage(int firstSlot)
     {
         var firstId = EntityId.Reserve(PageSize);
-        _page = new(firstId, PageSize);
+        _page = new(firstId, firstSlot, PageSize);
         _nextId = firstId;
         _idEnd = unchecked(firstId + PageSize);
     }
