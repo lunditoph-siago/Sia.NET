@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace Sia;
 
@@ -10,9 +11,53 @@ public sealed class ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
 
     private enum BackingOwnership : byte { Private, Rental, BorrowedRental }
 
+    // Keep at most one finalized rental per row type. A Shared-pool return on the
+    // finalizer thread alone would normally stay in that thread's local bucket.
+    private static T[]? s_reclaimedRental;
+
+    private sealed class RetiredRental
+    {
+        private GCHandle _owner;
+        private T[]? _array;
+
+        public RetiredRental(ArrayBuffer<T> owner, T[] array)
+        {
+            _owner = GCHandle.Alloc(owner, GCHandleType.WeakTrackResurrection);
+            _array = array;
+        }
+
+        public void Cancel()
+        {
+            lock (this) {
+                _array = null;
+                if (_owner.IsAllocated) _owner.Free();
+            }
+            GC.SuppressFinalize(this);
+        }
+
+        ~RetiredRental()
+        {
+            T[]? returned;
+            lock (this) {
+                if (!_owner.IsAllocated) return;
+                // An unrelated finalizer can still make the host reachable again.
+                if (_owner.Target is not null) {
+                    GC.ReRegisterForFinalize(this);
+                    return;
+                }
+                returned = _array;
+                _array = null;
+                _owner.Free();
+            }
+            if (returned is not null) Interlocked.Exchange(ref s_reclaimedRental, returned);
+        }
+    }
+
     private int _count;
     private bool _reuseGrowth;
     private BackingOwnership _ownership;
+    private bool _exposed;
+    private RetiredRental? _retiredRental;
     private T[]? _borrowedArray;
     private readonly object _growthLock = new();
 
@@ -31,6 +76,47 @@ public sealed class ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
 
     internal void ReuseUnborrowedGrowthArrays() => _reuseGrowth = true;
 
+    internal void RecordExposure()
+    {
+        lock (_growthLock) {
+            _exposed = true;
+            CancelRetiredRental();
+        }
+    }
+
+    internal void ClearOwnedRows()
+    {
+        lock (_growthLock) {
+            var rows = _array;
+            var canRetire = _reuseGrowth && !_exposed
+                && _ownership == BackingOwnership.Rental && _retiredRental is null;
+            rows.AsSpan(0, canRetire ? rows.Length : _count).Clear();
+            _count = 0;
+            if (canRetire) {
+                try {
+                    _retiredRental = new RetiredRental(this, rows);
+                }
+                catch (OutOfMemoryException) {
+                    // The exact same backing remains visible even if the return cannot be scheduled.
+                }
+            }
+        }
+    }
+
+    private void CancelRetiredRental()
+    {
+        _retiredRental?.Cancel();
+        _retiredRental = null;
+    }
+
+    private static T[]? TryTakeReclaimedRental(int capacity)
+    {
+        var recovered = Volatile.Read(ref s_reclaimedRental);
+        return recovered?.Length == capacity
+            && ReferenceEquals(Interlocked.CompareExchange(ref s_reclaimedRental, null, recovered), recovered)
+            ? recovered : null;
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void WriteRow(int slot, in T value) => _array[slot] = value;
 
@@ -42,12 +128,13 @@ public sealed class ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
         }
 
         lock (_growthLock) {
+            CancelRetiredRental();
             var previous = _array;
             var pool = ArrayPool<T>.Shared;
             T[]? next = null;
             if (capacity is >= 1024 and <= 131_072 && (capacity & (capacity - 1)) == 0
                 && (long)capacity * Unsafe.SizeOf<T>() <= 2 * 1024 * 1024) {
-                var rented = pool.Rent(capacity);
+                var rented = TryTakeReclaimedRental(capacity) ?? pool.Rent(capacity);
                 if (rented.Length == capacity) {
                     rented.AsSpan(previous.Length).Clear();
                     next = rented;
@@ -102,6 +189,7 @@ public sealed class ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
     private T[] RecordBorrow()
     {
         lock (_growthLock) {
+            CancelRetiredRental();
             var array = _array;
             if (_ownership == BackingOwnership.Rental) _ownership = BackingOwnership.BorrowedRental;
             Volatile.Write(ref _borrowedArray, array);

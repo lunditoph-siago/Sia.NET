@@ -24,23 +24,32 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
 
     public World? World { get; private set; }
 
-    public int Capacity => Buffer.Capacity;
-    public int Count => Buffer.Count;
+    public int Capacity => Storage.Capacity;
+    public int Count => Storage.Count;
     public int Version { get; private set; }
 
     public bool TryGetSequentialBytes(out Span<byte> bytes)
     {
-        if (Buffer.Count == 0
+        if (Storage.Count == 0
             || RuntimeHelpers.IsReferenceOrContainsReferences<TEntity>()
-            || (long)Buffer.Count * Unsafe.SizeOf<TEntity>() > int.MaxValue) {
+            || (long)Storage.Count * Unsafe.SizeOf<TEntity>() > int.MaxValue) {
             bytes = default;
             return false;
         }
-        bytes = MemoryMarshal.Cast<TEntity, byte>(Buffer.AsSpan());
+        bytes = MemoryMarshal.Cast<TEntity, byte>(Storage.AsSpan());
         return true;
     }
 
-    public TBuffer Buffer { get; } = buffer;
+    internal TBuffer Storage { get; } = buffer;
+
+    /// <summary>Gets the component buffer.</summary>
+    public TBuffer Buffer {
+        get {
+            var storage = Storage;
+            if (storage is ArrayBuffer<TEntity> array) array.RecordExposure();
+            return storage;
+        }
+    }
 
     private readonly EntityStorage _entities = new();
     private EntityStatePool? _entityStates;
@@ -68,7 +77,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         _ownsEntityStates = false;
         World = world;
         if (GetType() == typeof(ArrayEntityHost<TEntity>) && BulkHListShape.IsStandard
-            && Buffer is ArrayBuffer<TEntity> arrayBuffer) {
+            && Storage is ArrayBuffer<TEntity> arrayBuffer) {
             arrayBuffer.ReuseUnborrowedGrowthArrays();
         }    }
 
@@ -124,17 +133,17 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         Version++;
 
         var slot = state.Slot;
-        var lastSlot = Buffer.Count - 1;
+        var lastSlot = Storage.Count - 1;
 
         if (slot != lastSlot) {
-            Buffer.GetRef(slot) = Buffer.GetRef(lastSlot);
+            Storage.GetRef(slot) = Storage.GetRef(lastSlot);
             var lastEntity = _entities[lastSlot];
             lastEntity.GetStateUnchecked().Slot = slot;
             _entities[slot] = lastEntity;
         }
-        Buffer.GetRef(lastSlot) = default!;
+        Storage.GetRef(lastSlot) = default!;
         _entities.RemoveAt(lastSlot);
-        Buffer.Count--;
+        Storage.Count--;
     }
 
     public void MoveIn(Entity entity, in TEntity data, IEntityHost source)
@@ -160,9 +169,9 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         Version++;
 
         var value = data;
-        var slot = Buffer.Count++;
-        if (Buffer is ArrayBuffer<TEntity> array) array.WriteRow(slot, value);
-        else Buffer.GetRef(slot) = value;
+        var slot = Storage.Count++;
+        if (Storage is ArrayBuffer<TEntity> array) array.WriteRow(slot, value);
+        else Storage.GetRef(slot) = value;
 
         var state = entity.GetStateUnchecked();
         state.Host = this;
@@ -174,11 +183,11 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         => ref Unsafe.As<TEntity, byte>(ref GetRef(slot));
 
     public ref TEntity GetRef(int slot)
-        => ref Buffer.GetRef(slot);
+        => ref Storage.GetRef(slot);
 
     public void GetHList<THandler>(int slot, in THandler handler)
         where THandler : IRefGenericHandler<IHList>
-        => handler.Handle(ref Buffer.GetRef(slot));
+        => handler.Handle(ref Storage.GetRef(slot));
 
     public virtual void Add<TComponent>(Entity entity, in TComponent initial)
     {
@@ -189,7 +198,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         if (state.IsTransitioning) {
             throw new InvalidOperationException("Cannot migrate an entity during release or a migration callback.");
         }
-        Move(entity, state, this, HList.Cons(initial, Buffer.GetRef(slot)), useBuiltIn: true);
+        Move(entity, state, this, HList.Cons(initial, Storage.GetRef(slot)), useBuiltIn: true);
     }
 
     internal void AddDefault<TComponent>(Entity entity, EntityState state, in TComponent initial)
@@ -197,7 +206,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         if (EntityIndexer<TEntity, TComponent>.Offset != -1) {
             EntityExceptionHelper.ThrowComponentExisted<TComponent>();
         }
-        Move(entity, state, this, HList.Cons(initial, Buffer.GetRef(state.Slot)), useBuiltIn: true);
+        Move(entity, state, this, HList.Cons(initial, Storage.GetRef(state.Slot)), useBuiltIn: true);
     }
 
     public virtual bool TryAddAll<TComponent>(ReadOnlySpan<Entity> entities, in TComponent initial) => false;
@@ -222,11 +231,11 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
             ObjectDisposedException.ThrowIf(target.IsDisposed || destination._disposed || source.World.IsClosingHost(target), target);
             GetEntityState(in entity, out _);
         }
-        var slot = destination.Buffer.Count;
+        var slot = destination.Storage.Count;
         var count = checked(slot + 1);
         if (count > destination._entities.Capacity) destination._entities.EnsureCapacity(count);
-        destination.Buffer.Count = count;
-        destination.Buffer.GetRef(slot) = data;
+        destination.Storage.Count = count;
+        destination.Storage.GetRef(slot) = data;
         MoveOut(state);
         destination._entities.Add(entity);
         state.Host = target;
@@ -317,7 +326,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         TList.HandleTypes(EntityComponentChecker.Instance);
 
         GetEntityState(entity, out var slot);
-        ref var data = ref Buffer.GetRef(slot);
+        ref var data = ref Storage.GetRef(slot);
         var mover = new EntityMover(entity, this);
         data.Concat(list, mover);
     }
@@ -330,7 +339,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
             return;
         }
         GetEntityState(in entity, out var slot);
-        var buffer = Buffer;
+        var buffer = Storage;
         ref var data = ref (buffer is ArrayBuffer<TEntity> array
             ? ref array.GetRef(slot)
             : ref (buffer is UnmanagedArrayBuffer<TEntity> native
@@ -347,7 +356,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
             return;
         }
         GetEntityState(entity, out var slot);
-        ref var data = ref Buffer.GetRef(slot);
+        ref var data = ref Storage.GetRef(slot);
         var mover = new EntityMover(entity, this);
         data.Remove(TypeProxy<TComponent>._, mover);
         success = true;
@@ -359,7 +368,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
             success = false;
             return;
         }
-        ref var data = ref Buffer.GetRef(state.Slot);
+        ref var data = ref Storage.GetRef(state.Slot);
         var mover = new EntityMover(entity, this);
         data.Remove(TypeProxy<TComponent>._, mover);
         success = true;
@@ -402,7 +411,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         where TList : struct, IHList
     {
         GetEntityState(entity, out var slot);
-        ref var data = ref Buffer.GetRef(slot);
+        ref var data = ref Storage.GetRef(slot);
         data.Filter(
             EntityComponentPredicate<TList>.Instance,
             new FilteredHListMover(entity, this));
@@ -421,7 +430,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         => _entities.BorrowSpan();
 
     public object Box(int slot)
-        => Buffer.GetRef(slot);
+        => Storage.GetRef(slot);
 
     public IEnumerator<Entity> GetEnumerator() => _entities.GetEnumerator();
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
@@ -447,9 +456,14 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         if (_ownsEntityStates) {
             _entityStates?.Retire();
         }
-        Buffer.AsSpan()[..Buffer.Count].Clear();
-        Buffer.Count = 0;
-        Buffer.Dispose();
+        if (Storage is ArrayBuffer<TEntity> array) {
+            array.ClearOwnedRows();
+        }
+        else {
+            Storage.AsSpan()[..Storage.Count].Clear();
+            Storage.Count = 0;
+        }
+        Storage.Dispose();
         World = null;
         OnDisposed?.Invoke(this);
         GC.SuppressFinalize(this);
