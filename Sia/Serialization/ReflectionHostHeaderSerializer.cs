@@ -36,7 +36,8 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
         writer.Write(s_componentHeaders.GetOrAdd(descriptor.Type, static (_, layout) => {
             var components = string.Join('|',
                 layout.Components.Select(c => c.Type.AssemblyQualifiedName));
-            var header = HasCompactTail(layout.Type) ? CompactLayoutMarker + components : components;
+            var header = HList.GetLayout(layout.Type) == HList.Layout.Compact
+                ? CompactLayoutMarker + components : components;
             return Encoding.Unicode.GetBytes(header);
         }, descriptor));
         writer.Write(Dividor);
@@ -142,6 +143,9 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
         var openNodes = 0;
         foreach (var range in components.Split('|')) {
             var component = components[range];
+            if (hasCompactTail && component.IsEmpty) {
+                throw new InvalidDataException("Missing component in compact host header.");
+            }
             if (hasCompactTail && range.End.GetOffset(components.Length) == components.Length) {
                 builder.Append("Sia.HList`1[[").Append(component).Append("]], Sia");
                 break;
@@ -156,15 +160,5 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
         }
 
         return builder.ToString();
-    }
-
-    private static bool HasCompactTail(Type entityType)
-    {
-        while (entityType.IsGenericType) {
-            var node = entityType.GetGenericTypeDefinition();
-            if (node != typeof(HList<,>)) return node == typeof(HList<>);
-            entityType = entityType.GetGenericArguments()[1];
-        }
-        return false;
     }
 }

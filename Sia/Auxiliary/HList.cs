@@ -182,6 +182,27 @@ public struct HList<THead, TTail>(in THead head, in TTail tail) : IHList
 
 public static class HList
 {
+    internal enum Layout
+    {
+        Empty,
+        Regular,
+        Compact,
+        Custom
+    }
+
+    internal static Layout GetLayout(Type rowType)
+    {
+        if (rowType == typeof(EmptyHList)) return Layout.Empty;
+        while (rowType.IsConstructedGenericType) {
+            var node = rowType.GetGenericTypeDefinition();
+            if (node == typeof(HList<>)) return Layout.Compact;
+            if (node != typeof(HList<,>)) break;
+            rowType = rowType.GenericTypeArguments[1];
+            if (rowType == typeof(EmptyHList)) return Layout.Regular;
+        }
+        return Layout.Custom;
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static HList<THead, EmptyHList> From<THead>(in THead head) =>
         new(head, EmptyHList.Default);
@@ -235,17 +256,4 @@ public static class HList
     public static HList<T1, HList<T2, HList<T3, HList<T4, HList<T5, HList<T6, HList<T7, HList<T8, HList<T9, HList<T10, EmptyHList>>>>>>>>>>
         From<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>(in T1 item1, in T2 item2, in T3 item3, in T4 item4, in T5 item5, in T6 item6, in T7 item7, in T8 item8, in T9 item9, in T10 item10)
         => Cons(item1, Cons(item2, Cons(item3, Cons(item4, Cons(item5, Cons(item6, Cons(item7, Cons(item8, Cons(item9, From(item10))))))))));
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static HList<THead> Compact<THead>(in THead head) => new(head);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static HList<T1, HList<T2>>
-        Compact<T1, T2>(in T1 item1, in T2 item2)
-        => new(item1, Compact(item2));
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static HList<T1, HList<T2, HList<T3>>>
-        Compact<T1, T2, T3>(in T1 item1, in T2 item2, in T3 item3)
-        => new(item1, Compact(item2, item3));
 }
