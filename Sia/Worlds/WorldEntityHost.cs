@@ -443,7 +443,7 @@ public sealed class WorldEntityHost<TEntity, TInnerHost>
         if (IsClosed || !World.HasNoBatchObservers()) return false;
         foreach (var entity in entities) {
             var state = entity.GetStateUnchecked();
-            if (state is null || !entity.References(state) || !ReferenceEquals(state.Host, this)
+            if (state.IsDefault || !entity.References(state) || !ReferenceEquals(state.Host, this)
                 || state.IsTransitioning || state.EventSink is not null) return false;
         }
         return true;

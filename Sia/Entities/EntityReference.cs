@@ -4,16 +4,16 @@ namespace Sia;
 
 internal readonly struct EntityReference(Entity entity) : IEquatable<EntityReference>
 {
-    private readonly EntityState? _state = entity.GetState();
+    private readonly EntityState _state = entity.GetState();
 
     public bool Equals(EntityReference other)
-        => ReferenceEquals(_state, other._state);
+        => _state.IsSame(other._state);
 
     public override bool Equals(object? obj)
         => obj is EntityReference other && Equals(other);
 
     public override int GetHashCode()
-        => _state is null ? 0 : RuntimeHelpers.GetHashCode(_state);
+        => _state.Id.Value;
 
     public bool IsValid {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -24,7 +24,7 @@ internal readonly struct EntityReference(Entity entity) : IEquatable<EntityRefer
     public bool TryGet(out Entity entity)
     {
         var state = _state;
-        if (state == null || state.Host == null) {
+        if (state.Host == null) {
             entity = default;
             return false;
         }
@@ -38,16 +38,16 @@ internal readonly struct EntityReference(Entity entity) : IEquatable<EntityRefer
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Entity GetUnchecked()
-        => new(_state!);
+        => new(_state);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool ContainsUnchecked<TComponent>()
-        => _state!.Host!.Descriptor.Contains<TComponent>();
+        => _state.Host!.Descriptor.Contains<TComponent>();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref TComponent GetUnchecked<TComponent>()
     {
-        var state = _state!;
+        var state = _state;
         var host = state.Host!;
         ref var byteRef = ref host.GetByteRef(state.Slot);
         nint offset = host.Descriptor.GetOffsetUnchecked<TComponent>();
@@ -57,5 +57,5 @@ internal readonly struct EntityReference(Entity entity) : IEquatable<EntityRefer
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Matches(Entity entity)
-        => _state is { } state && entity.References(state);
+        => !_state.IsDefault && entity.References(_state);
 }
