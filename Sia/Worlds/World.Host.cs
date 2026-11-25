@@ -14,6 +14,7 @@ public partial class World
 
     private readonly SparseSet<IReactiveEntityHost> _hosts = [];
     private readonly HashSet<int> _initializingHosts = [];
+    private IReactiveEntityHost? _cachedArrayHost;
     private IReactiveEntityHost? _closingHost;
     private bool _clearingHosts;
     internal int HostCallbackDepth;
@@ -72,6 +73,21 @@ public partial class World
         => TryGetHost<TEntity, THost>(out var host)
             ? host : AddHost<WorldEntityHost<TEntity, THost>>(static world => new(world));
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal WorldEntityHost<TEntity, ArrayEntityHost<TEntity>> AcquireArrayHost<TEntity>()
+        where TEntity : struct, IHList
+        => _cachedArrayHost is WorldEntityHost<TEntity, ArrayEntityHost<TEntity>> cached
+            ? cached : AcquireAndCacheArrayHost<TEntity>();
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private WorldEntityHost<TEntity, ArrayEntityHost<TEntity>> AcquireAndCacheArrayHost<TEntity>()
+        where TEntity : struct, IHList
+    {
+        var host = AcquireHost<TEntity, ArrayEntityHost<TEntity>>();
+        _cachedArrayHost = host;
+        return host;
+    }
+
     public THost AddHost<THost>(Func<World, THost> create)
         where THost : IReactiveEntityHost
     {
@@ -124,6 +140,7 @@ public partial class World
                     new InvalidOperationException("Cannot release a host that still contains entities."))).ThrowIfFailed();
             }
             _hosts.Remove(hostIndex);
+            if (ReferenceEquals(_cachedArrayHost, host)) _cachedArrayHost = null;
             Version++;
             InvalidateBatchObservers();
             result = NotifyObservers(OnEntityHostRemoved, host, result);
@@ -165,6 +182,7 @@ public partial class World
         _clearingHosts = true;
         try {
             _hosts.Clear();
+            _cachedArrayHost = null;
             Version++;
             InvalidateBatchObservers();
             var result = Outcome<Exception>.Success;
@@ -214,6 +232,7 @@ public partial class World
                     if (!_hosts.TryGetValue(index, out var host) || host.Count != 0) continue;
                     _closingHost = host;
                     _hosts.Remove(index);
+                    if (ReferenceEquals(_cachedArrayHost, host)) _cachedArrayHost = null;
                     Version++;
                     InvalidateBatchObservers();
                     result = NotifyObservers(OnEntityHostRemoved, host, result);
