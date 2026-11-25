@@ -2,7 +2,7 @@ using System.Runtime.CompilerServices;
 
 namespace Sia;
 
-/// <summary>A final list cell with storage for its component and no stored empty tail.</summary>
+/// <summary>A terminal list cell containing one component.</summary>
 public struct HList<THead>(in THead head) : IHList
 {
     public THead Head = head;
@@ -26,8 +26,7 @@ public struct HList<THead>(in THead head) : IHList
     public readonly void HandleTailRef<THandler>(ref THandler handler)
         where THandler : IRefGenericHandler<IHList>
     {
-        // The tail is a logical terminator. All component references come from Head.
-        var tail = EmptyHList.Default;
+        EmptyHList tail = default;
         handler.Handle(ref tail);
     }
 
@@ -37,10 +36,9 @@ public struct HList<THead>(in THead head) : IHList
     {
         if (predicate.Predicate(Head)) {
             handler.Handle(this);
+            return;
         }
-        else {
-            handler.Handle(EmptyHList.Default);
-        }
+        handler.Handle(EmptyHList.Default);
     }
 
     public readonly void Concat<THList, THandler>(in THList list, in THandler handler)
@@ -49,10 +47,9 @@ public struct HList<THead>(in THead head) : IHList
     {
         if (typeof(THList) == typeof(EmptyHList)) {
             handler.Handle(this);
+            return;
         }
-        else {
-            handler.Handle(HList.Cons(Head, list));
-        }
+        handler.Handle(HList.Cons(Head, list));
     }
 
     public readonly bool Remove<TValue, THandler>(TypeProxy<TValue> proxy, in THandler handler)
@@ -67,7 +64,11 @@ public struct HList<THead>(in THead head) : IHList
         where TValue : IEquatable<TValue>
         where THandler : IGenericStructHandler<IHList>
     {
-        if (typeof(THead) != typeof(TValue) || !Unsafe.As<THead, TValue>(ref Head).Equals(value)) return false;
+        if (typeof(THead) != typeof(TValue)) return false;
+
+        ref var head = ref Unsafe.As<THead, TValue>(ref Head);
+        if (!head.Equals(value)) return false;
+
         handler.Handle(EmptyHList.Default);
         return true;
     }
@@ -78,18 +79,4 @@ public struct HList<THead>(in THead head) : IHList
     public static void HandleTypes<THandler>(in THandler handler)
         where THandler : IGenericTypeHandler
         => handler.Handle<THead>();
-}
-
-public static partial class HList
-{
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static HList<THead> Compact<THead>(in THead head) => new(head);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static HList<T1, HList<T2>> Compact<T1, T2>(in T1 item1, in T2 item2)
-        => Cons(item1, Compact(item2));
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static HList<T1, HList<T2, HList<T3>>> Compact<T1, T2, T3>(in T1 item1, in T2 item2, in T3 item3)
-        => Cons(item1, Cons(item2, Compact(item3)));
 }
