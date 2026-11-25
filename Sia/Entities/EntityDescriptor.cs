@@ -93,6 +93,8 @@ public record EntityDescriptor
 {
     private abstract class TypeDispatch
     {
+        public abstract HList.Layout Layout { get; }
+
         public abstract void Handle<THandler>(ref THandler handler)
             where THandler : IGenericStructTypeHandler<IHList>, allows ref struct;
     }
@@ -100,10 +102,13 @@ public record EntityDescriptor
     private sealed class TypeDispatch<TEntity> : TypeDispatch where TEntity : struct, IHList
     {
         public static readonly TypeDispatch Instance = new TypeDispatch<TEntity>();
+        public override HList.Layout Layout => HList.GetLayout<TEntity>();
         public override void Handle<THandler>(ref THandler handler) => handler.Handle<TEntity>();
     }
 
     private readonly TypeDispatch _typeDispatch;
+
+    internal HList.Layout Layout => _typeDispatch.Layout;
 
     internal void HandleType<THandler>(ref THandler handler)
         where THandler : IGenericStructTypeHandler<IHList>, allows ref struct

@@ -36,7 +36,7 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
         writer.Write(s_componentHeaders.GetOrAdd(descriptor.Type, static (_, layout) => {
             var components = string.Join('|',
                 layout.Components.Select(c => c.Type.AssemblyQualifiedName));
-            var header = HList.GetLayout(layout.Type) == HList.Layout.Compact
+            var header = layout.Layout == HList.Layout.Compact
                 ? CompactLayoutMarker + components : components;
             return Encoding.Unicode.GetBytes(header);
         }, descriptor));
