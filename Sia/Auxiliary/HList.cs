@@ -182,7 +182,6 @@ public struct HList<THead, TTail>(in THead head, in TTail tail) : IHList
 
 public static class HList
 {
-    /// <summary>The physical shape of an HList row.</summary>
     public enum Layout
     {
         Empty,
@@ -191,26 +190,26 @@ public static class HList
         Custom
     }
 
-    /// <summary>Gets the physical layout of the specified row type.</summary>
     public static Layout GetLayout<TRow>() where TRow : struct, IHList
         => LayoutCache<TRow>.Value;
 
     private static class LayoutCache<TRow> where TRow : struct, IHList
     {
-        public static readonly Layout Value = GetLayout(typeof(TRow));
-    }
+        public static readonly Layout Value = Resolve();
 
-    private static Layout GetLayout(Type rowType)
-    {
-        if (rowType == typeof(EmptyHList)) return Layout.Empty;
-        while (rowType.IsConstructedGenericType) {
-            var node = rowType.GetGenericTypeDefinition();
-            if (node == typeof(HList<>)) return Layout.Compact;
-            if (node != typeof(HList<,>)) break;
-            rowType = rowType.GenericTypeArguments[1];
-            if (rowType == typeof(EmptyHList)) return Layout.Regular;
+        private static Layout Resolve()
+        {
+            var rowType = typeof(TRow);
+            if (rowType == typeof(EmptyHList)) return Layout.Empty;
+            while (rowType.IsConstructedGenericType) {
+                var node = rowType.GetGenericTypeDefinition();
+                if (node == typeof(HList<>)) return Layout.Compact;
+                if (node != typeof(HList<,>)) break;
+                rowType = rowType.GenericTypeArguments[1];
+                if (rowType == typeof(EmptyHList)) return Layout.Regular;
+            }
+            return Layout.Custom;
         }
-        return Layout.Custom;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

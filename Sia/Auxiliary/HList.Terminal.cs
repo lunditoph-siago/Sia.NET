@@ -2,7 +2,6 @@ using System.Runtime.CompilerServices;
 
 namespace Sia;
 
-/// <summary>A terminal list cell containing one component.</summary>
 public struct HList<THead>(in THead head) : IHList
 {
     public THead Head = head;

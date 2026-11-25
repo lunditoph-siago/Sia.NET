@@ -15,7 +15,6 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
 {
     private const string ArrayHostAlias = "$A";
     private const string UnmanagedArrayHostAlias = "$U";
-    // Metadata names cannot contain NUL. Existing component headers never start with it.
     private const char CompactLayoutMarker = '\0';
     private static readonly byte[] Dividor = Encoding.Unicode.GetBytes(";");
     private static readonly byte[] StorageAliasHeader = Encoding.Unicode.GetBytes("$");
@@ -29,15 +28,24 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
         [typeof(UnmanagedArrayEntityHost<>)] = s_unmanagedArrayHostAlias,
     }.ToFrozenDictionary();
 
+    private struct CompactLayoutReader : IGenericStructTypeHandler<IHList>
+    {
+        public bool IsCompact;
+
+        public void Handle<TRow>() where TRow : struct, IHList
+            => IsCompact = HList.GetLayout<TRow>() == HList.Layout.Compact;
+    }
+
     public static void Serialize<TBufferWriter>(ref TBufferWriter writer, IEntityHost host)
         where TBufferWriter : IBufferWriter<byte>
     {
         var descriptor = host.Descriptor;
-        writer.Write(s_componentHeaders.GetOrAdd(descriptor.Type, static (_, layout) => {
+        writer.Write(s_componentHeaders.GetOrAdd(descriptor.Type, static (_, entityDescriptor) => {
+            CompactLayoutReader layout = default;
+            entityDescriptor.HandleType(ref layout);
             var components = string.Join('|',
-                layout.Components.Select(c => c.Type.AssemblyQualifiedName));
-            var header = layout.Layout == HList.Layout.Compact
-                ? CompactLayoutMarker + components : components;
+                entityDescriptor.Components.Select(c => c.Type.AssemblyQualifiedName));
+            var header = layout.IsCompact ? CompactLayoutMarker + components : components;
             return Encoding.Unicode.GetBytes(header);
         }, descriptor));
         writer.Write(Dividor);
