@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using static Sia.EntityExtensionsCommon;
 
 namespace Sia;
 
@@ -127,13 +128,7 @@ public static partial class EntityHostExtensions
                         nint offset = i * size;
                         handler(ref c1Offset.Get(ref memRef, offset));
                     }
-                    if (host.TryGetSequentialBytes(out var currentBytes)
-                        && !Unsafe.AreSame(
-                            ref MemoryMarshal.GetReference(currentBytes),
-                            ref MemoryMarshal.GetReference(bytes))) {
-                        throw new InvalidOperationException(
-                            "Entity host storage was reallocated during the iteration");
-                    }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -162,13 +157,7 @@ public static partial class EntityHostExtensions
                             ref c1Offset.Get(ref memRef, offset),
                             ref c2Offset.Get(ref memRef, offset));
                     }
-                    if (host.TryGetSequentialBytes(out var currentBytes)
-                        && !Unsafe.AreSame(
-                            ref MemoryMarshal.GetReference(currentBytes),
-                            ref MemoryMarshal.GetReference(bytes))) {
-                        throw new InvalidOperationException(
-                            "Entity host storage was reallocated during the iteration");
-                    }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -201,13 +190,7 @@ public static partial class EntityHostExtensions
                             ref c2Offset.Get(ref memRef, offset),
                             ref c3Offset.Get(ref memRef, offset));
                     }
-                    if (host.TryGetSequentialBytes(out var currentBytes)
-                        && !Unsafe.AreSame(
-                            ref MemoryMarshal.GetReference(currentBytes),
-                            ref MemoryMarshal.GetReference(bytes))) {
-                        throw new InvalidOperationException(
-                            "Entity host storage was reallocated during the iteration");
-                    }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -243,13 +226,7 @@ public static partial class EntityHostExtensions
                             ref c3Offset.Get(ref memRef, offset),
                             ref c4Offset.Get(ref memRef, offset));
                     }
-                    if (host.TryGetSequentialBytes(out var currentBytes)
-                        && !Unsafe.AreSame(
-                            ref MemoryMarshal.GetReference(currentBytes),
-                            ref MemoryMarshal.GetReference(bytes))) {
-                        throw new InvalidOperationException(
-                            "Entity host storage was reallocated during the iteration");
-                    }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -288,13 +265,7 @@ public static partial class EntityHostExtensions
                             ref c4Offset.Get(ref memRef, offset),
                             ref c5Offset.Get(ref memRef, offset));
                     }
-                    if (host.TryGetSequentialBytes(out var currentBytes)
-                        && !Unsafe.AreSame(
-                            ref MemoryMarshal.GetReference(currentBytes),
-                            ref MemoryMarshal.GetReference(bytes))) {
-                        throw new InvalidOperationException(
-                            "Entity host storage was reallocated during the iteration");
-                    }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -336,13 +307,7 @@ public static partial class EntityHostExtensions
                             ref c5Offset.Get(ref memRef, offset),
                             ref c6Offset.Get(ref memRef, offset));
                     }
-                    if (host.TryGetSequentialBytes(out var currentBytes)
-                        && !Unsafe.AreSame(
-                            ref MemoryMarshal.GetReference(currentBytes),
-                            ref MemoryMarshal.GetReference(bytes))) {
-                        throw new InvalidOperationException(
-                            "Entity host storage was reallocated during the iteration");
-                    }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -378,13 +343,7 @@ public static partial class EntityHostExtensions
                         handler(userData,
                             ref c1Offset.Get(ref memRef, offset));
                     }
-                    if (host.TryGetSequentialBytes(out var currentBytes)
-                        && !Unsafe.AreSame(
-                            ref MemoryMarshal.GetReference(currentBytes),
-                            ref MemoryMarshal.GetReference(bytes))) {
-                        throw new InvalidOperationException(
-                            "Entity host storage was reallocated during the iteration");
-                    }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -416,13 +375,7 @@ public static partial class EntityHostExtensions
                             ref c1Offset.Get(ref memRef, offset),
                             ref c2Offset.Get(ref memRef, offset));
                     }
-                    if (host.TryGetSequentialBytes(out var currentBytes)
-                        && !Unsafe.AreSame(
-                            ref MemoryMarshal.GetReference(currentBytes),
-                            ref MemoryMarshal.GetReference(bytes))) {
-                        throw new InvalidOperationException(
-                            "Entity host storage was reallocated during the iteration");
-                    }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -458,13 +411,7 @@ public static partial class EntityHostExtensions
                             ref c2Offset.Get(ref memRef, offset),
                             ref c3Offset.Get(ref memRef, offset));
                     }
-                    if (host.TryGetSequentialBytes(out var currentBytes)
-                        && !Unsafe.AreSame(
-                            ref MemoryMarshal.GetReference(currentBytes),
-                            ref MemoryMarshal.GetReference(bytes))) {
-                        throw new InvalidOperationException(
-                            "Entity host storage was reallocated during the iteration");
-                    }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -503,13 +450,7 @@ public static partial class EntityHostExtensions
                             ref c3Offset.Get(ref memRef, offset),
                             ref c4Offset.Get(ref memRef, offset));
                     }
-                    if (host.TryGetSequentialBytes(out var currentBytes)
-                        && !Unsafe.AreSame(
-                            ref MemoryMarshal.GetReference(currentBytes),
-                            ref MemoryMarshal.GetReference(bytes))) {
-                        throw new InvalidOperationException(
-                            "Entity host storage was reallocated during the iteration");
-                    }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -551,13 +492,7 @@ public static partial class EntityHostExtensions
                             ref c4Offset.Get(ref memRef, offset),
                             ref c5Offset.Get(ref memRef, offset));
                     }
-                    if (host.TryGetSequentialBytes(out var currentBytes)
-                        && !Unsafe.AreSame(
-                            ref MemoryMarshal.GetReference(currentBytes),
-                            ref MemoryMarshal.GetReference(bytes))) {
-                        throw new InvalidOperationException(
-                            "Entity host storage was reallocated during the iteration");
-                    }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -602,13 +537,7 @@ public static partial class EntityHostExtensions
                             ref c5Offset.Get(ref memRef, offset),
                             ref c6Offset.Get(ref memRef, offset));
                     }
-                    if (host.TryGetSequentialBytes(out var currentBytes)
-                        && !Unsafe.AreSame(
-                            ref MemoryMarshal.GetReference(currentBytes),
-                            ref MemoryMarshal.GetReference(bytes))) {
-                        throw new InvalidOperationException(
-                            "Entity host storage was reallocated during the iteration");
-                    }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -821,13 +750,7 @@ public static partial class EntityHostExtensions
                         nint offset = i * size;
                         handler(entities[i], ref c1Offset.Get(ref memRef, offset));
                     }
-                    if (host.TryGetSequentialBytes(out var currentBytes)
-                        && !Unsafe.AreSame(
-                            ref MemoryMarshal.GetReference(currentBytes),
-                            ref MemoryMarshal.GetReference(bytes))) {
-                        throw new InvalidOperationException(
-                            "Entity host storage was reallocated during the iteration");
-                    }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -857,13 +780,7 @@ public static partial class EntityHostExtensions
                             ref c1Offset.Get(ref memRef, offset),
                             ref c2Offset.Get(ref memRef, offset));
                     }
-                    if (host.TryGetSequentialBytes(out var currentBytes)
-                        && !Unsafe.AreSame(
-                            ref MemoryMarshal.GetReference(currentBytes),
-                            ref MemoryMarshal.GetReference(bytes))) {
-                        throw new InvalidOperationException(
-                            "Entity host storage was reallocated during the iteration");
-                    }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -897,13 +814,7 @@ public static partial class EntityHostExtensions
                             ref c2Offset.Get(ref memRef, offset),
                             ref c3Offset.Get(ref memRef, offset));
                     }
-                    if (host.TryGetSequentialBytes(out var currentBytes)
-                        && !Unsafe.AreSame(
-                            ref MemoryMarshal.GetReference(currentBytes),
-                            ref MemoryMarshal.GetReference(bytes))) {
-                        throw new InvalidOperationException(
-                            "Entity host storage was reallocated during the iteration");
-                    }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -940,13 +851,7 @@ public static partial class EntityHostExtensions
                             ref c3Offset.Get(ref memRef, offset),
                             ref c4Offset.Get(ref memRef, offset));
                     }
-                    if (host.TryGetSequentialBytes(out var currentBytes)
-                        && !Unsafe.AreSame(
-                            ref MemoryMarshal.GetReference(currentBytes),
-                            ref MemoryMarshal.GetReference(bytes))) {
-                        throw new InvalidOperationException(
-                            "Entity host storage was reallocated during the iteration");
-                    }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -986,13 +891,7 @@ public static partial class EntityHostExtensions
                             ref c4Offset.Get(ref memRef, offset),
                             ref c5Offset.Get(ref memRef, offset));
                     }
-                    if (host.TryGetSequentialBytes(out var currentBytes)
-                        && !Unsafe.AreSame(
-                            ref MemoryMarshal.GetReference(currentBytes),
-                            ref MemoryMarshal.GetReference(bytes))) {
-                        throw new InvalidOperationException(
-                            "Entity host storage was reallocated during the iteration");
-                    }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -1035,13 +934,7 @@ public static partial class EntityHostExtensions
                             ref c5Offset.Get(ref memRef, offset),
                             ref c6Offset.Get(ref memRef, offset));
                     }
-                    if (host.TryGetSequentialBytes(out var currentBytes)
-                        && !Unsafe.AreSame(
-                            ref MemoryMarshal.GetReference(currentBytes),
-                            ref MemoryMarshal.GetReference(bytes))) {
-                        throw new InvalidOperationException(
-                            "Entity host storage was reallocated during the iteration");
-                    }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -1078,13 +971,7 @@ public static partial class EntityHostExtensions
                         handler(entities[i], userData,
                             ref c1Offset.Get(ref memRef, offset));
                     }
-                    if (host.TryGetSequentialBytes(out var currentBytes)
-                        && !Unsafe.AreSame(
-                            ref MemoryMarshal.GetReference(currentBytes),
-                            ref MemoryMarshal.GetReference(bytes))) {
-                        throw new InvalidOperationException(
-                            "Entity host storage was reallocated during the iteration");
-                    }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -1117,13 +1004,7 @@ public static partial class EntityHostExtensions
                             ref c1Offset.Get(ref memRef, offset),
                             ref c2Offset.Get(ref memRef, offset));
                     }
-                    if (host.TryGetSequentialBytes(out var currentBytes)
-                        && !Unsafe.AreSame(
-                            ref MemoryMarshal.GetReference(currentBytes),
-                            ref MemoryMarshal.GetReference(bytes))) {
-                        throw new InvalidOperationException(
-                            "Entity host storage was reallocated during the iteration");
-                    }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -1160,13 +1041,7 @@ public static partial class EntityHostExtensions
                             ref c2Offset.Get(ref memRef, offset),
                             ref c3Offset.Get(ref memRef, offset));
                     }
-                    if (host.TryGetSequentialBytes(out var currentBytes)
-                        && !Unsafe.AreSame(
-                            ref MemoryMarshal.GetReference(currentBytes),
-                            ref MemoryMarshal.GetReference(bytes))) {
-                        throw new InvalidOperationException(
-                            "Entity host storage was reallocated during the iteration");
-                    }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -1206,13 +1081,7 @@ public static partial class EntityHostExtensions
                             ref c3Offset.Get(ref memRef, offset),
                             ref c4Offset.Get(ref memRef, offset));
                     }
-                    if (host.TryGetSequentialBytes(out var currentBytes)
-                        && !Unsafe.AreSame(
-                            ref MemoryMarshal.GetReference(currentBytes),
-                            ref MemoryMarshal.GetReference(bytes))) {
-                        throw new InvalidOperationException(
-                            "Entity host storage was reallocated during the iteration");
-                    }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -1255,13 +1124,7 @@ public static partial class EntityHostExtensions
                             ref c4Offset.Get(ref memRef, offset),
                             ref c5Offset.Get(ref memRef, offset));
                     }
-                    if (host.TryGetSequentialBytes(out var currentBytes)
-                        && !Unsafe.AreSame(
-                            ref MemoryMarshal.GetReference(currentBytes),
-                            ref MemoryMarshal.GetReference(bytes))) {
-                        throw new InvalidOperationException(
-                            "Entity host storage was reallocated during the iteration");
-                    }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {
@@ -1307,13 +1170,7 @@ public static partial class EntityHostExtensions
                             ref c5Offset.Get(ref memRef, offset),
                             ref c6Offset.Get(ref memRef, offset));
                     }
-                    if (host.TryGetSequentialBytes(out var currentBytes)
-                        && !Unsafe.AreSame(
-                            ref MemoryMarshal.GetReference(currentBytes),
-                            ref MemoryMarshal.GetReference(bytes))) {
-                        throw new InvalidOperationException(
-                            "Entity host storage was reallocated during the iteration");
-                    }
+                    GuardSequentialBytes(host, bytes);
                 }
                 else {
                     for (var i = from; i != to; ++i) {

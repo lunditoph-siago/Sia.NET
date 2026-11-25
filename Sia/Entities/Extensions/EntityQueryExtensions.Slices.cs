@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using static Sia.EntityExtensionsCommon;
 
 namespace Sia;
 
@@ -66,13 +67,7 @@ public static partial class EntityQueryExtensions
                     handler.Handle(ref c1Offset.Get(ref cursor));
                     cursor = ref Unsafe.AddByteOffset(ref cursor, size);
                 }
-                if (host.TryGetSequentialBytes(out var currentBytes)
-                    && !Unsafe.AreSame(
-                        ref MemoryMarshal.GetReference(currentBytes),
-                        ref MemoryMarshal.GetReference(bytes))) {
-                    throw new InvalidOperationException(
-                        "Entity host storage was reallocated during the iteration");
-                }
+                GuardSequentialBytes(host, bytes);
             }
             else if (count < MinimumManagedSliceLength || !TryManagedSlice(host, desc, 0, count, c1Offset, ref handler)) {
                 for (var i = 0; i < count; i++) {
@@ -80,11 +75,7 @@ public static partial class EntityQueryExtensions
                     handler.Handle(ref c1Offset.Get(ref byteRef));
                 }
             }
-#if DEBUG
-            if (version != host.Version) {
-                throw new InvalidOperationException("Entity host cannot be modified during the task");
-            }
-#endif
+            GuardVersion(version, host.Version);
         }
     }
 
@@ -114,13 +105,7 @@ public static partial class EntityQueryExtensions
                         ref c2Offset.Get(ref cursor));
                     cursor = ref Unsafe.AddByteOffset(ref cursor, size);
                 }
-                if (host.TryGetSequentialBytes(out var currentBytes)
-                    && !Unsafe.AreSame(
-                        ref MemoryMarshal.GetReference(currentBytes),
-                        ref MemoryMarshal.GetReference(bytes))) {
-                    throw new InvalidOperationException(
-                        "Entity host storage was reallocated during the iteration");
-                }
+                GuardSequentialBytes(host, bytes);
             }
             else if (count < MinimumManagedSliceLength || !TryManagedSlice(host, desc, 0, count, c1Offset, c2Offset, ref handler)) {
                 for (var i = 0; i < count; i++) {
@@ -130,11 +115,7 @@ public static partial class EntityQueryExtensions
                         ref c2Offset.Get(ref byteRef));
                 }
             }
-#if DEBUG
-            if (version != host.Version) {
-                throw new InvalidOperationException("Entity host cannot be modified during the task");
-            }
-#endif
+            GuardVersion(version, host.Version);
         }
     }
 
@@ -166,13 +147,7 @@ public static partial class EntityQueryExtensions
                         ref c3Offset.Get(ref cursor));
                     cursor = ref Unsafe.AddByteOffset(ref cursor, size);
                 }
-                if (host.TryGetSequentialBytes(out var currentBytes)
-                    && !Unsafe.AreSame(
-                        ref MemoryMarshal.GetReference(currentBytes),
-                        ref MemoryMarshal.GetReference(bytes))) {
-                    throw new InvalidOperationException(
-                        "Entity host storage was reallocated during the iteration");
-                }
+                GuardSequentialBytes(host, bytes);
             }
             else if (count < MinimumManagedSliceLength || !TryManagedSlice(host, desc, 0, count, c1Offset, c2Offset, c3Offset, ref handler)) {
                 for (var i = 0; i < count; i++) {
@@ -183,11 +158,7 @@ public static partial class EntityQueryExtensions
                         ref c3Offset.Get(ref byteRef));
                 }
             }
-#if DEBUG
-            if (version != host.Version) {
-                throw new InvalidOperationException("Entity host cannot be modified during the task");
-            }
-#endif
+            GuardVersion(version, host.Version);
         }
     }
 
@@ -221,13 +192,7 @@ public static partial class EntityQueryExtensions
                         ref c4Offset.Get(ref cursor));
                     cursor = ref Unsafe.AddByteOffset(ref cursor, size);
                 }
-                if (host.TryGetSequentialBytes(out var currentBytes)
-                    && !Unsafe.AreSame(
-                        ref MemoryMarshal.GetReference(currentBytes),
-                        ref MemoryMarshal.GetReference(bytes))) {
-                    throw new InvalidOperationException(
-                        "Entity host storage was reallocated during the iteration");
-                }
+                GuardSequentialBytes(host, bytes);
             }
             else if (count < MinimumManagedSliceLength || !TryManagedSlice(host, desc, 0, count, c1Offset, c2Offset, c3Offset, c4Offset, ref handler)) {
                 for (var i = 0; i < count; i++) {
@@ -239,11 +204,7 @@ public static partial class EntityQueryExtensions
                         ref c4Offset.Get(ref byteRef));
                 }
             }
-#if DEBUG
-            if (version != host.Version) {
-                throw new InvalidOperationException("Entity host cannot be modified during the task");
-            }
-#endif
+            GuardVersion(version, host.Version);
         }
     }
 
@@ -275,13 +236,7 @@ public static partial class EntityQueryExtensions
                         ref c5Offset.Get(ref cursor));
                     cursor = ref Unsafe.AddByteOffset(ref cursor, size);
                 }
-                if (host.TryGetSequentialBytes(out var currentBytes)
-                    && !Unsafe.AreSame(
-                        ref MemoryMarshal.GetReference(currentBytes),
-                        ref MemoryMarshal.GetReference(bytes))) {
-                    throw new InvalidOperationException(
-                        "Entity host storage was reallocated during the iteration");
-                }
+                GuardSequentialBytes(host, bytes);
             }
             else if (count < MinimumManagedSliceLength || !TryManagedSlice(host, desc, 0, count, c1Offset, c2Offset, c3Offset, c4Offset, c5Offset, ref handler)) {
                 for (var i = 0; i < count; i++) {
@@ -294,11 +249,7 @@ public static partial class EntityQueryExtensions
                         ref c5Offset.Get(ref byteRef));
                 }
             }
-#if DEBUG
-            if (version != host.Version) {
-                throw new InvalidOperationException("Entity host cannot be modified during the task");
-            }
-#endif
+            GuardVersion(version, host.Version);
         }
     }
 
@@ -332,13 +283,7 @@ public static partial class EntityQueryExtensions
                         ref c6Offset.Get(ref cursor));
                     cursor = ref Unsafe.AddByteOffset(ref cursor, size);
                 }
-                if (host.TryGetSequentialBytes(out var currentBytes)
-                    && !Unsafe.AreSame(
-                        ref MemoryMarshal.GetReference(currentBytes),
-                        ref MemoryMarshal.GetReference(bytes))) {
-                    throw new InvalidOperationException(
-                        "Entity host storage was reallocated during the iteration");
-                }
+                GuardSequentialBytes(host, bytes);
             }
             else if (count < MinimumManagedSliceLength || !TryManagedSlice(host, desc, 0, count, c1Offset, c2Offset, c3Offset, c4Offset, c5Offset, c6Offset, ref handler)) {
                 for (var i = 0; i < count; i++) {
@@ -352,11 +297,7 @@ public static partial class EntityQueryExtensions
                         ref c6Offset.Get(ref byteRef));
                 }
             }
-#if DEBUG
-            if (version != host.Version) {
-                throw new InvalidOperationException("Entity host cannot be modified during the task");
-            }
-#endif
+            GuardVersion(version, host.Version);
         }
     }
 
