@@ -42,9 +42,22 @@ public sealed class RunnerBarrier
     private static readonly DefaultObjectPool<RunnerBarrier> s_barrierPool
         = new(new PoolPolicy());
 
+    private static readonly DefaultObjectPool<RunnerBarrier> s_recordingBarrierPool
+        = new(new PoolPolicy());
+
     public static RunnerBarrier Get() => s_barrierPool.Get();
 
-    private RunnerBarrier() {}
+    internal static RunnerBarrier GetForRecording()
+    {
+        var barrier = s_recordingBarrierPool.Get();
+#if !BROWSER
+        // Keep one caller participant throughout submission, even if workers finish early.
+        barrier.Raw.AddParticipant();
+#endif
+        return barrier;
+    }
+
+    internal RunnerBarrier() {}
 
     public void AddCallback(Action<object?> callback, object? userData = null)
     {
@@ -108,7 +121,11 @@ public sealed class RunnerBarrier
         AddParticipants(1);
         Raw.SignalAndWait();
 #endif
+        InvokeCallbacksAndThrow();
+    }
 
+    private void InvokeCallbacksAndThrow()
+    {
         var result = Exception is { } error ? Outcome<Exception>.Failure(error) : default;
         var secondaryFailures = _secondaryFailures?.ToArray();
         try {
@@ -136,6 +153,42 @@ public sealed class RunnerBarrier
         }
         finally {
             s_barrierPool.Return(this);
+        }
+    }
+
+    internal void WaitAndReturnRecording()
+    {
+#if BROWSER
+        const int callerParticipants = 0;
+#else
+        const int callerParticipants = 1;
+#endif
+        var spinner = new SpinWait();
+        try {
+#if BROWSER
+            while (ParticipantCount > callerParticipants) {
+                spinner.SpinOnce();
+            }
+#else
+            Raw.SignalAndWait();
+#endif
+        }
+        catch (ThreadInterruptedException) {
+            // Drain every worker borrowing the caller's span before retiring this lease.
+            while (ParticipantCount > callerParticipants) {
+                try {
+                    spinner.SpinOnce();
+                }
+                catch (ThreadInterruptedException) { }
+            }
+            throw;
+        }
+
+        try {
+            InvokeCallbacksAndThrow();
+        }
+        finally {
+            s_recordingBarrierPool.Return(this);
         }
     }
 }

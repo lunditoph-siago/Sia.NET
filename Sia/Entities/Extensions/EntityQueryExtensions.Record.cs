@@ -12,27 +12,21 @@ public static partial class EntityQueryExtensions
         this IEntityQuery query, Span<TResult> span, EntityRecorder<TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
-        GuardSpanLength(span, query.Count);
+        using var recording = new RecordingScope<TResult, TRunner>(span, query.Count, runner, barrier);
+        if (recording.IsEmpty) return;
+
         var index = -1;
-
-        fixed (TResult* pointer = span) {
-            var data = new EntityRecordData<TResult> {
-                Recorder = recorder,
-                Pointer = pointer,
-                Index = &index
-            };
-
-            query.Handle(data,
-                static (IEntityHost host, in EntityRecordData<TResult> data, int from, int to) => {
-                    var pointer = data.Pointer;
+        fixed (TResult* pointer = recording.DirectDestination) {
+            query.Handle(
+                new(recorder, recording.GetOutput(pointer, &index)),
+                static (IEntityHost host, in RecordData<EntityRecorder<TResult>, TResult> data, int from, int to) => {
                     var recorder = data.Recorder;
-                    ref var index = ref *data.Index;
 
                     for (var i = from; i != to; ++i) {
                         recorder(host.GetEntity(i),
-                            out *(pointer + Interlocked.Increment(ref index)));
+                            out data.Output.Next());
                     }
-                }, runner, barrier);
+                }, recording.Runner, barrier: null);
         }
     }
 
@@ -40,28 +34,22 @@ public static partial class EntityQueryExtensions
         this IEntityQuery query, Span<TResult> span, in TData userData, EntityRecorder<TData, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
-        GuardSpanLength(span, query.Count);
+        using var recording = new RecordingScope<TResult, TRunner>(span, query.Count, runner, barrier);
+        if (recording.IsEmpty) return;
+
         var index = -1;
-
-        fixed (TResult* pointer = span) {
-            var data = new EntityRecordData<TData, TResult> {
-                Recorder = recorder,
-                Pointer = pointer,
-                Index = &index
-            };
-
-            query.Handle(data,
+        fixed (TResult* pointer = recording.DirectDestination) {
+            query.Handle(
+                new(in userData, recorder, recording.GetOutput(pointer, &index)),
                 static (IEntityHost host, in EntityRecordData<TData, TResult> data, int from, int to) => {
-                    var pointer = data.Pointer;
                     var recorder = data.Recorder;
                     ref readonly var userData = ref data.UserData;
-                    ref var index = ref *data.Index;
 
                     for (var i = from; i != to; ++i) {
                         recorder(userData, host.GetEntity(i),
-                            out *(pointer + Interlocked.Increment(ref index)));
+                            out data.Output.Next());
                     }
-                }, runner, barrier);
+                }, recording.Runner, barrier: null);
         }
     }
 
@@ -93,27 +81,15 @@ public static partial class EntityQueryExtensions
 
     public static void RecordOnParallel<TResult>(
         this IEntityQuery query, Span<TResult> span, EntityRecorder<TResult> recorder)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.Record(span, recorder, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
+        => query.Record(span, recorder, ParallelRunner.Default, barrier: null);
 
     public static void RecordOnParallel<TData, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, EntityRecorder<TData, TResult> recorder)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.Record(span, userData, recorder, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
+        => query.Record(span, userData, recorder, ParallelRunner.Default, barrier: null);
 
     public static void RecordOnParallel(
         this IEntityQuery query, Span<Entity> span)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.Record(span, IdEntityRecorder, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
+        => query.Record(span, IdEntityRecorder, ParallelRunner.Default, barrier: null);
 
     #endregion // ParallelRunner
 
@@ -125,21 +101,17 @@ public static partial class EntityQueryExtensions
         this IEntityQuery query, Span<TResult> span, ComponentRecorder<C1, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
-        GuardSpanLength(span, query.Count);
+        using var recording = new RecordingScope<TResult, TRunner>(span, query.Count, runner, barrier);
+        if (recording.IsEmpty) return;
+
         var index = -1;
-
-        fixed (TResult* pointer = span) {
-            var data = new CompRecordData<C1, TResult> {
-                Recorder = recorder,
-                Pointer = pointer,
-                Index = &index
-            };
-
-            query.ForSlice(data,
-                static (in CompRecordData<C1, TResult> data, ref C1 c1) => {
+        fixed (TResult* pointer = recording.DirectDestination) {
+            query.ForSlice(
+                new(recorder, recording.GetOutput(pointer, &index)),
+                static (in RecordData<ComponentRecorder<C1, TResult>, TResult> data, ref C1 c1) => {
                     data.Recorder(ref c1,
-                        out *(data.Pointer + Interlocked.Increment(ref *data.Index)));
-                }, runner, barrier);
+                        out data.Output.Next());
+                }, recording.Runner, barrier: null);
         }
     }
 
@@ -147,21 +119,17 @@ public static partial class EntityQueryExtensions
         this IEntityQuery query, Span<TResult> span, ComponentRecorder<C1, C2, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
-        GuardSpanLength(span, query.Count);
+        using var recording = new RecordingScope<TResult, TRunner>(span, query.Count, runner, barrier);
+        if (recording.IsEmpty) return;
+
         var index = -1;
-
-        fixed (TResult* pointer = span) {
-            var data = new CompRecordData<C1, C2, TResult> {
-                Recorder = recorder,
-                Pointer = pointer,
-                Index = &index
-            };
-
-            query.ForSlice(data,
-                static (in CompRecordData<C1, C2, TResult> data, ref C1 c1, ref C2 c2) => {
+        fixed (TResult* pointer = recording.DirectDestination) {
+            query.ForSlice(
+                new(recorder, recording.GetOutput(pointer, &index)),
+                static (in RecordData<ComponentRecorder<C1, C2, TResult>, TResult> data, ref C1 c1, ref C2 c2) => {
                     data.Recorder(ref c1, ref c2,
-                        out *(data.Pointer + Interlocked.Increment(ref *data.Index)));
-                }, runner, barrier);
+                        out data.Output.Next());
+                }, recording.Runner, barrier: null);
         }
     }
 
@@ -169,21 +137,18 @@ public static partial class EntityQueryExtensions
         this IEntityQuery query, Span<TResult> span, ComponentRecorder<C1, C2, C3, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
-        GuardSpanLength(span, query.Count);
+        using var recording = new RecordingScope<TResult, TRunner>(span, query.Count, runner, barrier);
+        if (recording.IsEmpty) return;
+
         var index = -1;
-
-        fixed (TResult* pointer = span) {
-            var data = new CompRecordData<C1, C2, C3, TResult> {
-                Recorder = recorder,
-                Pointer = pointer,
-                Index = &index
-            };
-
-            query.ForSlice(data,
-                static (in CompRecordData<C1, C2, C3, TResult> data, ref C1 c1, ref C2 c2, ref C3 c3) => {
+        fixed (TResult* pointer = recording.DirectDestination) {
+            query.ForSlice(
+                new(recorder, recording.GetOutput(pointer, &index)),
+                static (in RecordData<ComponentRecorder<C1, C2, C3, TResult>, TResult> data,
+                    ref C1 c1, ref C2 c2, ref C3 c3) => {
                     data.Recorder(ref c1, ref c2, ref c3,
-                        out *(data.Pointer + Interlocked.Increment(ref *data.Index)));
-                }, runner, barrier);
+                        out data.Output.Next());
+                }, recording.Runner, barrier: null);
         }
     }
 
@@ -191,21 +156,18 @@ public static partial class EntityQueryExtensions
         this IEntityQuery query, Span<TResult> span, ComponentRecorder<C1, C2, C3, C4, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
-        GuardSpanLength(span, query.Count);
+        using var recording = new RecordingScope<TResult, TRunner>(span, query.Count, runner, barrier);
+        if (recording.IsEmpty) return;
+
         var index = -1;
-
-        fixed (TResult* pointer = span) {
-            var data = new CompRecordData<C1, C2, C3, C4, TResult> {
-                Recorder = recorder,
-                Pointer = pointer,
-                Index = &index
-            };
-
-            query.ForSlice(data,
-                static (in CompRecordData<C1, C2, C3, C4, TResult> data, ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4) => {
+        fixed (TResult* pointer = recording.DirectDestination) {
+            query.ForSlice(
+                new(recorder, recording.GetOutput(pointer, &index)),
+                static (in RecordData<ComponentRecorder<C1, C2, C3, C4, TResult>, TResult> data,
+                    ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4) => {
                     data.Recorder(ref c1, ref c2, ref c3, ref c4,
-                        out *(data.Pointer + Interlocked.Increment(ref *data.Index)));
-                }, runner, barrier);
+                        out data.Output.Next());
+                }, recording.Runner, barrier: null);
         }
     }
 
@@ -213,21 +175,18 @@ public static partial class EntityQueryExtensions
         this IEntityQuery query, Span<TResult> span, ComponentRecorder<C1, C2, C3, C4, C5, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
-        GuardSpanLength(span, query.Count);
+        using var recording = new RecordingScope<TResult, TRunner>(span, query.Count, runner, barrier);
+        if (recording.IsEmpty) return;
+
         var index = -1;
-
-        fixed (TResult* pointer = span) {
-            var data = new CompRecordData<C1, C2, C3, C4, C5, TResult> {
-                Recorder = recorder,
-                Pointer = pointer,
-                Index = &index
-            };
-
-            query.ForSlice(data,
-                static (in CompRecordData<C1, C2, C3, C4, C5, TResult> data, ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4, ref C5 c5) => {
+        fixed (TResult* pointer = recording.DirectDestination) {
+            query.ForSlice(
+                new(recorder, recording.GetOutput(pointer, &index)),
+                static (in RecordData<ComponentRecorder<C1, C2, C3, C4, C5, TResult>, TResult> data,
+                    ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4, ref C5 c5) => {
                     data.Recorder(ref c1, ref c2, ref c3, ref c4, ref c5,
-                        out *(data.Pointer + Interlocked.Increment(ref *data.Index)));
-                }, runner, barrier);
+                        out data.Output.Next());
+                }, recording.Runner, barrier: null);
         }
     }
 
@@ -235,21 +194,18 @@ public static partial class EntityQueryExtensions
         this IEntityQuery query, Span<TResult> span, ComponentRecorder<C1, C2, C3, C4, C5, C6, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
-        GuardSpanLength(span, query.Count);
+        using var recording = new RecordingScope<TResult, TRunner>(span, query.Count, runner, barrier);
+        if (recording.IsEmpty) return;
+
         var index = -1;
-
-        fixed (TResult* pointer = span) {
-            var data = new CompRecordData<C1, C2, C3, C4, C5, C6, TResult> {
-                Recorder = recorder,
-                Pointer = pointer,
-                Index = &index
-            };
-
-            query.ForSlice(data,
-                static (in CompRecordData<C1, C2, C3, C4, C5, C6, TResult> data, ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4, ref C5 c5, ref C6 c6) => {
+        fixed (TResult* pointer = recording.DirectDestination) {
+            query.ForSlice(
+                new(recorder, recording.GetOutput(pointer, &index)),
+                static (in RecordData<ComponentRecorder<C1, C2, C3, C4, C5, C6, TResult>, TResult> data,
+                    ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4, ref C5 c5, ref C6 c6) => {
                     data.Recorder(ref c1, ref c2, ref c3, ref c4, ref c5, ref c6,
-                        out *(data.Pointer + Interlocked.Increment(ref *data.Index)));
-                }, runner, barrier);
+                        out data.Output.Next());
+                }, recording.Runner, barrier: null);
         }
     }
 
@@ -257,23 +213,18 @@ public static partial class EntityQueryExtensions
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
-        GuardSpanLength(span, query.Count);
+        using var recording = new RecordingScope<TResult, TRunner>(span, query.Count, runner, barrier);
+        if (recording.IsEmpty) return;
+
         var index = -1;
-
-        fixed (TResult* pointer = span) {
-            var data = new DataCompRecordData<TData, C1, TResult> {
-                UserData = userData,
-                Recorder = recorder,
-                Pointer = pointer,
-                Index = &index
-            };
-
-            query.ForSlice(data,
-                static (in DataCompRecordData<TData, C1, TResult> data, ref C1 c1) => {
+        fixed (TResult* pointer = recording.DirectDestination) {
+            query.ForSlice(
+                new(in userData, recorder, recording.GetOutput(pointer, &index)),
+                static (in RecordData<TData, DataComponentRecorder<TData, C1, TResult>, TResult> data, ref C1 c1) => {
                     data.Recorder(data.UserData,
                         ref c1,
-                        out *(data.Pointer + Interlocked.Increment(ref *data.Index)));
-                }, runner, barrier);
+                        out data.Output.Next());
+                }, recording.Runner, barrier: null);
         }
     }
 
@@ -281,23 +232,19 @@ public static partial class EntityQueryExtensions
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
-        GuardSpanLength(span, query.Count);
+        using var recording = new RecordingScope<TResult, TRunner>(span, query.Count, runner, barrier);
+        if (recording.IsEmpty) return;
+
         var index = -1;
-
-        fixed (TResult* pointer = span) {
-            var data = new DataCompRecordData<TData, C1, C2, TResult> {
-                UserData = userData,
-                Recorder = recorder,
-                Pointer = pointer,
-                Index = &index
-            };
-
-            query.ForSlice(data,
-                static (in DataCompRecordData<TData, C1, C2, TResult> data, ref C1 c1, ref C2 c2) => {
+        fixed (TResult* pointer = recording.DirectDestination) {
+            query.ForSlice(
+                new(in userData, recorder, recording.GetOutput(pointer, &index)),
+                static (in RecordData<TData, DataComponentRecorder<TData, C1, C2, TResult>, TResult> data,
+                    ref C1 c1, ref C2 c2) => {
                     data.Recorder(data.UserData,
                         ref c1, ref c2,
-                        out *(data.Pointer + Interlocked.Increment(ref *data.Index)));
-                }, runner, barrier);
+                        out data.Output.Next());
+                }, recording.Runner, barrier: null);
         }
     }
 
@@ -305,23 +252,19 @@ public static partial class EntityQueryExtensions
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
-        GuardSpanLength(span, query.Count);
+        using var recording = new RecordingScope<TResult, TRunner>(span, query.Count, runner, barrier);
+        if (recording.IsEmpty) return;
+
         var index = -1;
-
-        fixed (TResult* pointer = span) {
-            var data = new DataCompRecordData<TData, C1, C2, C3, TResult> {
-                UserData = userData,
-                Recorder = recorder,
-                Pointer = pointer,
-                Index = &index
-            };
-
-            query.ForSlice(data,
-                static (in DataCompRecordData<TData, C1, C2, C3, TResult> data, ref C1 c1, ref C2 c2, ref C3 c3) => {
+        fixed (TResult* pointer = recording.DirectDestination) {
+            query.ForSlice(
+                new(in userData, recorder, recording.GetOutput(pointer, &index)),
+                static (in RecordData<TData, DataComponentRecorder<TData, C1, C2, C3, TResult>, TResult> data,
+                    ref C1 c1, ref C2 c2, ref C3 c3) => {
                     data.Recorder(data.UserData,
                         ref c1, ref c2, ref c3,
-                        out *(data.Pointer + Interlocked.Increment(ref *data.Index)));
-                }, runner, barrier);
+                        out data.Output.Next());
+                }, recording.Runner, barrier: null);
         }
     }
 
@@ -329,23 +272,19 @@ public static partial class EntityQueryExtensions
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, C4, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
-        GuardSpanLength(span, query.Count);
+        using var recording = new RecordingScope<TResult, TRunner>(span, query.Count, runner, barrier);
+        if (recording.IsEmpty) return;
+
         var index = -1;
-
-        fixed (TResult* pointer = span) {
-            var data = new DataCompRecordData<TData, C1, C2, C3, C4, TResult> {
-                UserData = userData,
-                Recorder = recorder,
-                Pointer = pointer,
-                Index = &index
-            };
-
-            query.ForSlice(data,
-                static (in DataCompRecordData<TData, C1, C2, C3, C4, TResult> data, ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4) => {
+        fixed (TResult* pointer = recording.DirectDestination) {
+            query.ForSlice(
+                new(in userData, recorder, recording.GetOutput(pointer, &index)),
+                static (in RecordData<TData, DataComponentRecorder<TData, C1, C2, C3, C4, TResult>, TResult> data,
+                    ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4) => {
                     data.Recorder(data.UserData,
                         ref c1, ref c2, ref c3, ref c4,
-                        out *(data.Pointer + Interlocked.Increment(ref *data.Index)));
-                }, runner, barrier);
+                        out data.Output.Next());
+                }, recording.Runner, barrier: null);
         }
     }
 
@@ -353,23 +292,19 @@ public static partial class EntityQueryExtensions
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, C4, C5, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
-        GuardSpanLength(span, query.Count);
+        using var recording = new RecordingScope<TResult, TRunner>(span, query.Count, runner, barrier);
+        if (recording.IsEmpty) return;
+
         var index = -1;
-
-        fixed (TResult* pointer = span) {
-            var data = new DataCompRecordData<TData, C1, C2, C3, C4, C5, TResult> {
-                UserData = userData,
-                Recorder = recorder,
-                Pointer = pointer,
-                Index = &index
-            };
-
-            query.ForSlice(data,
-                static (in DataCompRecordData<TData, C1, C2, C3, C4, C5, TResult> data, ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4, ref C5 c5) => {
+        fixed (TResult* pointer = recording.DirectDestination) {
+            query.ForSlice(
+                new(in userData, recorder, recording.GetOutput(pointer, &index)),
+                static (in RecordData<TData, DataComponentRecorder<TData, C1, C2, C3, C4, C5, TResult>, TResult> data,
+                    ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4, ref C5 c5) => {
                     data.Recorder(data.UserData,
                         ref c1, ref c2, ref c3, ref c4, ref c5,
-                        out *(data.Pointer + Interlocked.Increment(ref *data.Index)));
-                }, runner, barrier);
+                        out data.Output.Next());
+                }, recording.Runner, barrier: null);
         }
     }
 
@@ -377,23 +312,19 @@ public static partial class EntityQueryExtensions
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, C4, C5, C6, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
-        GuardSpanLength(span, query.Count);
+        using var recording = new RecordingScope<TResult, TRunner>(span, query.Count, runner, barrier);
+        if (recording.IsEmpty) return;
+
         var index = -1;
-
-        fixed (TResult* pointer = span) {
-            var data = new DataCompRecordData<TData, C1, C2, C3, C4, C5, C6, TResult> {
-                UserData = userData,
-                Recorder = recorder,
-                Pointer = pointer,
-                Index = &index
-            };
-
-            query.ForSlice(data,
-                static (in DataCompRecordData<TData, C1, C2, C3, C4, C5, C6, TResult> data, ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4, ref C5 c5, ref C6 c6) => {
+        fixed (TResult* pointer = recording.DirectDestination) {
+            query.ForSlice(
+                new(in userData, recorder, recording.GetOutput(pointer, &index)),
+                static (in RecordData<TData, DataComponentRecorder<TData, C1, C2, C3, C4, C5, C6, TResult>, TResult> data,
+                    ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4, ref C5 c5, ref C6 c6) => {
                     data.Recorder(data.UserData,
                         ref c1, ref c2, ref c3, ref c4, ref c5, ref c6,
-                        out *(data.Pointer + Interlocked.Increment(ref *data.Index)));
-                }, runner, barrier);
+                        out data.Output.Next());
+                }, recording.Runner, barrier: null);
         }
     }
 
@@ -453,99 +384,51 @@ public static partial class EntityQueryExtensions
 
     public static void RecordSlicesOnParallel<C1, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorder<C1, TResult> recorder)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.RecordSlices(span, recorder, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
+        => query.RecordSlices(span, recorder, ParallelRunner.Default, barrier: null);
 
     public static void RecordSlicesOnParallel<C1, C2, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorder<C1, C2, TResult> recorder)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.RecordSlices(span, recorder, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
+        => query.RecordSlices(span, recorder, ParallelRunner.Default, barrier: null);
 
     public static void RecordSlicesOnParallel<C1, C2, C3, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorder<C1, C2, C3, TResult> recorder)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.RecordSlices(span, recorder, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
+        => query.RecordSlices(span, recorder, ParallelRunner.Default, barrier: null);
 
     public static void RecordSlicesOnParallel<C1, C2, C3, C4, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorder<C1, C2, C3, C4, TResult> recorder)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.RecordSlices(span, recorder, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
+        => query.RecordSlices(span, recorder, ParallelRunner.Default, barrier: null);
 
     public static void RecordSlicesOnParallel<C1, C2, C3, C4, C5, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorder<C1, C2, C3, C4, C5, TResult> recorder)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.RecordSlices(span, recorder, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
+        => query.RecordSlices(span, recorder, ParallelRunner.Default, barrier: null);
 
     public static void RecordSlicesOnParallel<C1, C2, C3, C4, C5, C6, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorder<C1, C2, C3, C4, C5, C6, TResult> recorder)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.RecordSlices(span, recorder, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
+        => query.RecordSlices(span, recorder, ParallelRunner.Default, barrier: null);
 
     public static void RecordSlicesOnParallel<TData, C1, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, TResult> recorder)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.RecordSlices(span, userData, recorder, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
+        => query.RecordSlices(span, userData, recorder, ParallelRunner.Default, barrier: null);
 
     public static void RecordSlicesOnParallel<TData, C1, C2, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, TResult> recorder)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.RecordSlices(span, userData, recorder, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
+        => query.RecordSlices(span, userData, recorder, ParallelRunner.Default, barrier: null);
 
     public static void RecordSlicesOnParallel<TData, C1, C2, C3, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, TResult> recorder)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.RecordSlices(span, userData, recorder, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
+        => query.RecordSlices(span, userData, recorder, ParallelRunner.Default, barrier: null);
 
     public static void RecordSlicesOnParallel<TData, C1, C2, C3, C4, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, C4, TResult> recorder)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.RecordSlices(span, userData, recorder, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
+        => query.RecordSlices(span, userData, recorder, ParallelRunner.Default, barrier: null);
 
     public static void RecordSlicesOnParallel<TData, C1, C2, C3, C4, C5, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, C4, C5, TResult> recorder)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.RecordSlices(span, userData, recorder, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
+        => query.RecordSlices(span, userData, recorder, ParallelRunner.Default, barrier: null);
 
     public static void RecordSlicesOnParallel<TData, C1, C2, C3, C4, C5, C6, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorder<TData, C1, C2, C3, C4, C5, C6, TResult> recorder)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.RecordSlices(span, userData, recorder, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
+        => query.RecordSlices(span, userData, recorder, ParallelRunner.Default, barrier: null);
 
     #endregion // ParallelRunner
 
@@ -557,22 +440,18 @@ public static partial class EntityQueryExtensions
         this IEntityQuery query, Span<TResult> span, ComponentRecorderWithEntity<C1, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
-        GuardSpanLength(span, query.Count);
+        using var recording = new RecordingScope<TResult, TRunner>(span, query.Count, runner, barrier);
+        if (recording.IsEmpty) return;
+
         var index = -1;
-
-        fixed (TResult* pointer = span) {
-            var data = new CompRecordDataWithEntity<C1, TResult> {
-                Recorder = recorder,
-                Pointer = pointer,
-                Index = &index
-            };
-
-            query.ForSlice(data,
-                static (Entity entity, in CompRecordDataWithEntity<C1, TResult> data, ref C1 c1) => {
+        fixed (TResult* pointer = recording.DirectDestination) {
+            query.ForSlice(
+                new(recorder, recording.GetOutput(pointer, &index)),
+                static (Entity entity, in RecordData<ComponentRecorderWithEntity<C1, TResult>, TResult> data, ref C1 c1) => {
                     data.Recorder(entity,
                         ref c1,
-                        out *(data.Pointer + Interlocked.Increment(ref *data.Index)));
-                }, runner, barrier);
+                        out data.Output.Next());
+                }, recording.Runner, barrier: null);
         }
     }
 
@@ -580,22 +459,20 @@ public static partial class EntityQueryExtensions
         this IEntityQuery query, Span<TResult> span, ComponentRecorderWithEntity<C1, C2, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
-        GuardSpanLength(span, query.Count);
+        using var recording = new RecordingScope<TResult, TRunner>(span, query.Count, runner, barrier);
+        if (recording.IsEmpty) return;
+
         var index = -1;
-
-        fixed (TResult* pointer = span) {
-            var data = new CompRecordDataWithEntity<C1, C2, TResult> {
-                Recorder = recorder,
-                Pointer = pointer,
-                Index = &index
-            };
-
-            query.ForSlice(data,
-                static (Entity entity, in CompRecordDataWithEntity<C1, C2, TResult> data, ref C1 c1, ref C2 c2) => {
+        fixed (TResult* pointer = recording.DirectDestination) {
+            query.ForSlice(
+                new(recorder, recording.GetOutput(pointer, &index)),
+                static (Entity entity,
+                    in RecordData<ComponentRecorderWithEntity<C1, C2, TResult>, TResult> data,
+                    ref C1 c1, ref C2 c2) => {
                     data.Recorder(entity,
                         ref c1, ref c2,
-                        out *(data.Pointer + Interlocked.Increment(ref *data.Index)));
-                }, runner, barrier);
+                        out data.Output.Next());
+                }, recording.Runner, barrier: null);
         }
     }
 
@@ -603,22 +480,20 @@ public static partial class EntityQueryExtensions
         this IEntityQuery query, Span<TResult> span, ComponentRecorderWithEntity<C1, C2, C3, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
-        GuardSpanLength(span, query.Count);
+        using var recording = new RecordingScope<TResult, TRunner>(span, query.Count, runner, barrier);
+        if (recording.IsEmpty) return;
+
         var index = -1;
-
-        fixed (TResult* pointer = span) {
-            var data = new CompRecordDataWithEntity<C1, C2, C3, TResult> {
-                Recorder = recorder,
-                Pointer = pointer,
-                Index = &index
-            };
-
-            query.ForSlice(data,
-                static (Entity entity, in CompRecordDataWithEntity<C1, C2, C3, TResult> data, ref C1 c1, ref C2 c2, ref C3 c3) => {
+        fixed (TResult* pointer = recording.DirectDestination) {
+            query.ForSlice(
+                new(recorder, recording.GetOutput(pointer, &index)),
+                static (Entity entity,
+                    in RecordData<ComponentRecorderWithEntity<C1, C2, C3, TResult>, TResult> data,
+                    ref C1 c1, ref C2 c2, ref C3 c3) => {
                     data.Recorder(entity,
                         ref c1, ref c2, ref c3,
-                        out *(data.Pointer + Interlocked.Increment(ref *data.Index)));
-                }, runner, barrier);
+                        out data.Output.Next());
+                }, recording.Runner, barrier: null);
         }
     }
 
@@ -626,22 +501,20 @@ public static partial class EntityQueryExtensions
         this IEntityQuery query, Span<TResult> span, ComponentRecorderWithEntity<C1, C2, C3, C4, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
-        GuardSpanLength(span, query.Count);
+        using var recording = new RecordingScope<TResult, TRunner>(span, query.Count, runner, barrier);
+        if (recording.IsEmpty) return;
+
         var index = -1;
-
-        fixed (TResult* pointer = span) {
-            var data = new CompRecordDataWithEntity<C1, C2, C3, C4, TResult> {
-                Recorder = recorder,
-                Pointer = pointer,
-                Index = &index
-            };
-
-            query.ForSlice(data,
-                static (Entity entity, in CompRecordDataWithEntity<C1, C2, C3, C4, TResult> data, ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4) => {
+        fixed (TResult* pointer = recording.DirectDestination) {
+            query.ForSlice(
+                new(recorder, recording.GetOutput(pointer, &index)),
+                static (Entity entity,
+                    in RecordData<ComponentRecorderWithEntity<C1, C2, C3, C4, TResult>, TResult> data,
+                    ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4) => {
                     data.Recorder(entity,
                         ref c1, ref c2, ref c3, ref c4,
-                        out *(data.Pointer + Interlocked.Increment(ref *data.Index)));
-                }, runner, barrier);
+                        out data.Output.Next());
+                }, recording.Runner, barrier: null);
         }
     }
 
@@ -649,22 +522,20 @@ public static partial class EntityQueryExtensions
         this IEntityQuery query, Span<TResult> span, ComponentRecorderWithEntity<C1, C2, C3, C4, C5, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
-        GuardSpanLength(span, query.Count);
+        using var recording = new RecordingScope<TResult, TRunner>(span, query.Count, runner, barrier);
+        if (recording.IsEmpty) return;
+
         var index = -1;
-
-        fixed (TResult* pointer = span) {
-            var data = new CompRecordDataWithEntity<C1, C2, C3, C4, C5, TResult> {
-                Recorder = recorder,
-                Pointer = pointer,
-                Index = &index
-            };
-
-            query.ForSlice(data,
-                static (Entity entity, in CompRecordDataWithEntity<C1, C2, C3, C4, C5, TResult> data, ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4, ref C5 c5) => {
+        fixed (TResult* pointer = recording.DirectDestination) {
+            query.ForSlice(
+                new(recorder, recording.GetOutput(pointer, &index)),
+                static (Entity entity,
+                    in RecordData<ComponentRecorderWithEntity<C1, C2, C3, C4, C5, TResult>, TResult> data,
+                    ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4, ref C5 c5) => {
                     data.Recorder(entity,
                         ref c1, ref c2, ref c3, ref c4, ref c5,
-                        out *(data.Pointer + Interlocked.Increment(ref *data.Index)));
-                }, runner, barrier);
+                        out data.Output.Next());
+                }, recording.Runner, barrier: null);
         }
     }
 
@@ -672,22 +543,20 @@ public static partial class EntityQueryExtensions
         this IEntityQuery query, Span<TResult> span, ComponentRecorderWithEntity<C1, C2, C3, C4, C5, C6, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
-        GuardSpanLength(span, query.Count);
+        using var recording = new RecordingScope<TResult, TRunner>(span, query.Count, runner, barrier);
+        if (recording.IsEmpty) return;
+
         var index = -1;
-
-        fixed (TResult* pointer = span) {
-            var data = new CompRecordDataWithEntity<C1, C2, C3, C4, C5, C6, TResult> {
-                Recorder = recorder,
-                Pointer = pointer,
-                Index = &index
-            };
-
-            query.ForSlice(data,
-                static (Entity entity, in CompRecordDataWithEntity<C1, C2, C3, C4, C5, C6, TResult> data, ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4, ref C5 c5, ref C6 c6) => {
+        fixed (TResult* pointer = recording.DirectDestination) {
+            query.ForSlice(
+                new(recorder, recording.GetOutput(pointer, &index)),
+                static (Entity entity,
+                    in RecordData<ComponentRecorderWithEntity<C1, C2, C3, C4, C5, C6, TResult>, TResult> data,
+                    ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4, ref C5 c5, ref C6 c6) => {
                     data.Recorder(entity,
                         ref c1, ref c2, ref c3, ref c4, ref c5, ref c6,
-                        out *(data.Pointer + Interlocked.Increment(ref *data.Index)));
-                }, runner, barrier);
+                        out data.Output.Next());
+                }, recording.Runner, barrier: null);
         }
     }
 
@@ -695,23 +564,20 @@ public static partial class EntityQueryExtensions
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorderWithEntity<TData, C1, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
-        GuardSpanLength(span, query.Count);
+        using var recording = new RecordingScope<TResult, TRunner>(span, query.Count, runner, barrier);
+        if (recording.IsEmpty) return;
+
         var index = -1;
-
-        fixed (TResult* pointer = span) {
-            var data = new DataCompRecordDataWithEntity<TData, C1, TResult> {
-                UserData = userData,
-                Recorder = recorder,
-                Pointer = pointer,
-                Index = &index
-            };
-
-            query.ForSlice(data,
-                static (Entity entity, in DataCompRecordDataWithEntity<TData, C1, TResult> data, ref C1 c1) => {
+        fixed (TResult* pointer = recording.DirectDestination) {
+            query.ForSlice(
+                new(in userData, recorder, recording.GetOutput(pointer, &index)),
+                static (Entity entity,
+                    in RecordData<TData, DataComponentRecorderWithEntity<TData, C1, TResult>, TResult> data,
+                    ref C1 c1) => {
                     data.Recorder(entity, data.UserData,
                         ref c1,
-                        out *(data.Pointer + Interlocked.Increment(ref *data.Index)));
-                }, runner, barrier);
+                        out data.Output.Next());
+                }, recording.Runner, barrier: null);
         }
     }
 
@@ -719,23 +585,20 @@ public static partial class EntityQueryExtensions
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorderWithEntity<TData, C1, C2, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
-        GuardSpanLength(span, query.Count);
+        using var recording = new RecordingScope<TResult, TRunner>(span, query.Count, runner, barrier);
+        if (recording.IsEmpty) return;
+
         var index = -1;
-
-        fixed (TResult* pointer = span) {
-            var data = new DataCompRecordDataWithEntity<TData, C1, C2, TResult> {
-                UserData = userData,
-                Recorder = recorder,
-                Pointer = pointer,
-                Index = &index
-            };
-
-            query.ForSlice(data,
-                static (Entity entity, in DataCompRecordDataWithEntity<TData, C1, C2, TResult> data, ref C1 c1, ref C2 c2) => {
+        fixed (TResult* pointer = recording.DirectDestination) {
+            query.ForSlice(
+                new(in userData, recorder, recording.GetOutput(pointer, &index)),
+                static (Entity entity,
+                    in RecordData<TData, DataComponentRecorderWithEntity<TData, C1, C2, TResult>, TResult> data,
+                    ref C1 c1, ref C2 c2) => {
                     data.Recorder(entity, data.UserData,
                         ref c1, ref c2,
-                        out *(data.Pointer + Interlocked.Increment(ref *data.Index)));
-                }, runner, barrier);
+                        out data.Output.Next());
+                }, recording.Runner, barrier: null);
         }
     }
 
@@ -743,23 +606,20 @@ public static partial class EntityQueryExtensions
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorderWithEntity<TData, C1, C2, C3, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
-        GuardSpanLength(span, query.Count);
+        using var recording = new RecordingScope<TResult, TRunner>(span, query.Count, runner, barrier);
+        if (recording.IsEmpty) return;
+
         var index = -1;
-
-        fixed (TResult* pointer = span) {
-            var data = new DataCompRecordDataWithEntity<TData, C1, C2, C3, TResult> {
-                UserData = userData,
-                Recorder = recorder,
-                Pointer = pointer,
-                Index = &index
-            };
-
-            query.ForSlice(data,
-                static (Entity entity, in DataCompRecordDataWithEntity<TData, C1, C2, C3, TResult> data, ref C1 c1, ref C2 c2, ref C3 c3) => {
+        fixed (TResult* pointer = recording.DirectDestination) {
+            query.ForSlice(
+                new(in userData, recorder, recording.GetOutput(pointer, &index)),
+                static (Entity entity,
+                    in RecordData<TData, DataComponentRecorderWithEntity<TData, C1, C2, C3, TResult>, TResult> data,
+                    ref C1 c1, ref C2 c2, ref C3 c3) => {
                     data.Recorder(entity, data.UserData,
                         ref c1, ref c2, ref c3,
-                        out *(data.Pointer + Interlocked.Increment(ref *data.Index)));
-                }, runner, barrier);
+                        out data.Output.Next());
+                }, recording.Runner, barrier: null);
         }
     }
 
@@ -767,23 +627,20 @@ public static partial class EntityQueryExtensions
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorderWithEntity<TData, C1, C2, C3, C4, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
-        GuardSpanLength(span, query.Count);
+        using var recording = new RecordingScope<TResult, TRunner>(span, query.Count, runner, barrier);
+        if (recording.IsEmpty) return;
+
         var index = -1;
-
-        fixed (TResult* pointer = span) {
-            var data = new DataCompRecordDataWithEntity<TData, C1, C2, C3, C4, TResult> {
-                UserData = userData,
-                Recorder = recorder,
-                Pointer = pointer,
-                Index = &index
-            };
-
-            query.ForSlice(data,
-                static (Entity entity, in DataCompRecordDataWithEntity<TData, C1, C2, C3, C4, TResult> data, ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4) => {
+        fixed (TResult* pointer = recording.DirectDestination) {
+            query.ForSlice(
+                new(in userData, recorder, recording.GetOutput(pointer, &index)),
+                static (Entity entity,
+                    in RecordData<TData, DataComponentRecorderWithEntity<TData, C1, C2, C3, C4, TResult>, TResult> data,
+                    ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4) => {
                     data.Recorder(entity, data.UserData,
                         ref c1, ref c2, ref c3, ref c4,
-                        out *(data.Pointer + Interlocked.Increment(ref *data.Index)));
-                }, runner, barrier);
+                        out data.Output.Next());
+                }, recording.Runner, barrier: null);
         }
     }
 
@@ -791,23 +648,20 @@ public static partial class EntityQueryExtensions
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorderWithEntity<TData, C1, C2, C3, C4, C5, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
-        GuardSpanLength(span, query.Count);
+        using var recording = new RecordingScope<TResult, TRunner>(span, query.Count, runner, barrier);
+        if (recording.IsEmpty) return;
+
         var index = -1;
-
-        fixed (TResult* pointer = span) {
-            var data = new DataCompRecordDataWithEntity<TData, C1, C2, C3, C4, C5, TResult> {
-                UserData = userData,
-                Recorder = recorder,
-                Pointer = pointer,
-                Index = &index
-            };
-
-            query.ForSlice(data,
-                static (Entity entity, in DataCompRecordDataWithEntity<TData, C1, C2, C3, C4, C5, TResult> data, ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4, ref C5 c5) => {
+        fixed (TResult* pointer = recording.DirectDestination) {
+            query.ForSlice(
+                new(in userData, recorder, recording.GetOutput(pointer, &index)),
+                static (Entity entity,
+                    in RecordData<TData, DataComponentRecorderWithEntity<TData, C1, C2, C3, C4, C5, TResult>, TResult> data,
+                    ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4, ref C5 c5) => {
                     data.Recorder(entity, data.UserData,
                         ref c1, ref c2, ref c3, ref c4, ref c5,
-                        out *(data.Pointer + Interlocked.Increment(ref *data.Index)));
-                }, runner, barrier);
+                        out data.Output.Next());
+                }, recording.Runner, barrier: null);
         }
     }
 
@@ -815,23 +669,20 @@ public static partial class EntityQueryExtensions
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorderWithEntity<TData, C1, C2, C3, C4, C5, C6, TResult> recorder, TRunner runner, RunnerBarrier? barrier)
         where TRunner : IRunner
     {
-        GuardSpanLength(span, query.Count);
+        using var recording = new RecordingScope<TResult, TRunner>(span, query.Count, runner, barrier);
+        if (recording.IsEmpty) return;
+
         var index = -1;
-
-        fixed (TResult* pointer = span) {
-            var data = new DataCompRecordDataWithEntity<TData, C1, C2, C3, C4, C5, C6, TResult> {
-                UserData = userData,
-                Recorder = recorder,
-                Pointer = pointer,
-                Index = &index
-            };
-
-            query.ForSlice(data,
-                static (Entity entity, in DataCompRecordDataWithEntity<TData, C1, C2, C3, C4, C5, C6, TResult> data, ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4, ref C5 c5, ref C6 c6) => {
+        fixed (TResult* pointer = recording.DirectDestination) {
+            query.ForSlice(
+                new(in userData, recorder, recording.GetOutput(pointer, &index)),
+                static (Entity entity,
+                    in RecordData<TData, DataComponentRecorderWithEntity<TData, C1, C2, C3, C4, C5, C6, TResult>, TResult> data,
+                    ref C1 c1, ref C2 c2, ref C3 c3, ref C4 c4, ref C5 c5, ref C6 c6) => {
                     data.Recorder(entity, data.UserData,
                         ref c1, ref c2, ref c3, ref c4, ref c5, ref c6,
-                        out *(data.Pointer + Interlocked.Increment(ref *data.Index)));
-                }, runner, barrier);
+                        out data.Output.Next());
+                }, recording.Runner, barrier: null);
         }
     }
 
@@ -891,99 +742,51 @@ public static partial class EntityQueryExtensions
 
     public static void RecordSlicesOnParallel<C1, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorderWithEntity<C1, TResult> recorder)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.RecordSlices(span, recorder, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
+        => query.RecordSlices(span, recorder, ParallelRunner.Default, barrier: null);
 
     public static void RecordSlicesOnParallel<C1, C2, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorderWithEntity<C1, C2, TResult> recorder)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.RecordSlices(span, recorder, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
+        => query.RecordSlices(span, recorder, ParallelRunner.Default, barrier: null);
 
     public static void RecordSlicesOnParallel<C1, C2, C3, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorderWithEntity<C1, C2, C3, TResult> recorder)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.RecordSlices(span, recorder, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
+        => query.RecordSlices(span, recorder, ParallelRunner.Default, barrier: null);
 
     public static void RecordSlicesOnParallel<C1, C2, C3, C4, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorderWithEntity<C1, C2, C3, C4, TResult> recorder)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.RecordSlices(span, recorder, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
+        => query.RecordSlices(span, recorder, ParallelRunner.Default, barrier: null);
 
     public static void RecordSlicesOnParallel<C1, C2, C3, C4, C5, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorderWithEntity<C1, C2, C3, C4, C5, TResult> recorder)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.RecordSlices(span, recorder, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
+        => query.RecordSlices(span, recorder, ParallelRunner.Default, barrier: null);
 
     public static void RecordSlicesOnParallel<C1, C2, C3, C4, C5, C6, TResult>(
         this IEntityQuery query, Span<TResult> span, ComponentRecorderWithEntity<C1, C2, C3, C4, C5, C6, TResult> recorder)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.RecordSlices(span, recorder, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
+        => query.RecordSlices(span, recorder, ParallelRunner.Default, barrier: null);
 
     public static void RecordSlicesOnParallel<TData, C1, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorderWithEntity<TData, C1, TResult> recorder)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.RecordSlices(span, userData, recorder, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
+        => query.RecordSlices(span, userData, recorder, ParallelRunner.Default, barrier: null);
 
     public static void RecordSlicesOnParallel<TData, C1, C2, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorderWithEntity<TData, C1, C2, TResult> recorder)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.RecordSlices(span, userData, recorder, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
+        => query.RecordSlices(span, userData, recorder, ParallelRunner.Default, barrier: null);
 
     public static void RecordSlicesOnParallel<TData, C1, C2, C3, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorderWithEntity<TData, C1, C2, C3, TResult> recorder)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.RecordSlices(span, userData, recorder, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
+        => query.RecordSlices(span, userData, recorder, ParallelRunner.Default, barrier: null);
 
     public static void RecordSlicesOnParallel<TData, C1, C2, C3, C4, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorderWithEntity<TData, C1, C2, C3, C4, TResult> recorder)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.RecordSlices(span, userData, recorder, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
+        => query.RecordSlices(span, userData, recorder, ParallelRunner.Default, barrier: null);
 
     public static void RecordSlicesOnParallel<TData, C1, C2, C3, C4, C5, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorderWithEntity<TData, C1, C2, C3, C4, C5, TResult> recorder)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.RecordSlices(span, userData, recorder, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
+        => query.RecordSlices(span, userData, recorder, ParallelRunner.Default, barrier: null);
 
     public static void RecordSlicesOnParallel<TData, C1, C2, C3, C4, C5, C6, TResult>(
         this IEntityQuery query, Span<TResult> span, in TData userData, DataComponentRecorderWithEntity<TData, C1, C2, C3, C4, C5, C6, TResult> recorder)
-    {
-        var barrier = RunnerBarrier.Get();
-        query.RecordSlices(span, userData, recorder, ParallelRunner.Default, barrier);
-        barrier.WaitAndReturn();
-    }
+        => query.RecordSlices(span, userData, recorder, ParallelRunner.Default, barrier: null);
 
     #endregion // ParallelRunner
 

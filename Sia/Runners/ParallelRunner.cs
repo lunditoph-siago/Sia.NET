@@ -142,6 +142,10 @@ public class ParallelRunner : IRunner
     public static readonly ParallelRunner Default = new(Environment.ProcessorCount);
 
     public int DegreeOfParallelism { get; }
+    internal bool IsCurrentWorker => ReferenceEquals(t_currentWorkerRunner, this);
+
+    [ThreadStatic]
+    private static ParallelRunner? t_currentWorkerRunner;
 
     private readonly BlockingQueue<IJob> _jobs = new();
     private readonly Lock _submissionLock = new();
@@ -187,20 +191,27 @@ public class ParallelRunner : IRunner
     protected virtual void RunWorkerThread(int id, BlockingQueue<IJob> jobs)
     {
         Thread.CurrentThread.Name = "ParallelRunner Worker " + id;
+        var previousRunner = t_currentWorkerRunner;
+        t_currentWorkerRunner = this;
 
-        while (jobs.Dequeue(out var job)) {
-            try {
-                job.Invoke();
-            }
-            catch (Exception e) {
-                var barrier = job.Barrier;
-                if (barrier != null) {
-                    barrier.Throw(e);
+        try {
+            while (jobs.Dequeue(out var job)) {
+                try {
+                    job.Invoke();
                 }
-                else {
-                    Console.Error.WriteLine($"[{GetType()}] Uncaught exception: " + e);
+                catch (Exception e) {
+                    var barrier = job.Barrier;
+                    if (barrier != null) {
+                        barrier.Throw(e);
+                    }
+                    else {
+                        Console.Error.WriteLine($"[{GetType()}] Uncaught exception: " + e);
+                    }
                 }
             }
+        }
+        finally {
+            t_currentWorkerRunner = previousRunner;
         }
     }
 
