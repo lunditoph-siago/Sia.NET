@@ -25,7 +25,7 @@ internal sealed class EntityStatePool
     private bool _retired;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Entity Rent()
+    public Entity Rent(IEntityHost? host = null, int slot = -1)
     {
         ObjectDisposedException.ThrowIf(_retired, this);
         EntityState state;
@@ -37,6 +37,8 @@ internal sealed class EntityStatePool
             state = new EntityState();
         }
         var generation = (uint)(state.Token >> 32) + 1;
+        state.Host = host;
+        state.Slot = slot;
         return new Entity(state, generation, NextId());
     }
 

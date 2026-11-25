@@ -196,6 +196,8 @@ public abstract class Dispatcher<TTarget, TKey, TEvent> : IEventSender<TTarget, 
 
     internal bool HasNoUntypedListeners => _globalListeners.Count == 0 && _targetListeners.Count == 0;
 
+    internal bool HasEmptyListenerTables => _eventListeners.Count == 0 && HasNoUntypedListeners;
+
     internal bool HasNoTypedListeners<UEvent>() where UEvent : TEvent
     {
         if (!EventTypeIndexState<UEvent>.TryGetIndex(out var index)) return true;

@@ -118,7 +118,24 @@ public sealed class ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void WriteRow(int slot, in T value) => _array[slot] = value;
+    internal ref T PrepareAppend(int slot)
+    {
+        var items = _array;
+        if ((uint)slot < (uint)items.Length) {
+            return ref items[slot];
+        }
+        return ref GrowForAppend(slot);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private ref T GrowForAppend(int slot)
+    {
+        if (slot >= _array.Length) Resize(CalculateArraySize(slot + 1));
+        return ref _array[slot];
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void CommitAppend(int slot) => _count = slot + 1;
 
     private void Resize(int capacity)
     {

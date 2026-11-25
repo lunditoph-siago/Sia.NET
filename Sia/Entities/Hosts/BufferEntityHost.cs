@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using CommunityToolkit.HighPerformance;
 
 namespace Sia;
 
@@ -51,7 +52,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         }
     }
 
-    private readonly EntityStorage _entities = new();
+    private EntityStorage _entities = new();
     private EntityStatePool? _entityStates;
     private bool _ownsEntityStates = true;
     private bool _disposed;
@@ -76,10 +77,11 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         _entityStates = world.EntityStates;
         _ownsEntityStates = false;
         World = world;
-        if (GetType() == typeof(ArrayEntityHost<TEntity>) && BulkHListShape.IsStandard
+        if (GetType() == typeof(ArrayEntityHost<TEntity>) && HListShape<TEntity>.IsStandard
             && Storage is ArrayBuffer<TEntity> arrayBuffer) {
             arrayBuffer.ReuseUnborrowedGrowthArrays();
-        }    }
+        }
+    }
 
     public virtual Entity Create() => Create(default!);
     public virtual Entity Create(in TEntity initial)
@@ -87,6 +89,23 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         ObjectDisposedException.ThrowIf(_disposed, this);
         var entity = EntityStates.Rent();
         MoveInTrusted(entity, initial);
+        return entity;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal Entity CreateBound(IEntityHost owner, ArrayBuffer<TEntity> buffer, in TEntity initial)
+    {
+        var slot = buffer.Count;
+        ref var destination = ref buffer.PrepareAppend(slot);
+        var entities = _entities;
+        var count = entities.Count;
+        ref var handle = ref entities.PrepareAppend(count);
+        var entity = EntityStates.Rent(owner, slot);
+        destination = initial;
+        buffer.CommitAppend(slot);
+        handle = entity;
+        entities.CommitAppend(count);
+        Version++;
         return entity;
     }
 
@@ -170,8 +189,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
 
         var value = data;
         var slot = Storage.Count++;
-        if (Storage is ArrayBuffer<TEntity> array) array.WriteRow(slot, value);
-        else Storage.GetRef(slot) = value;
+        Storage.GetRef(slot) = value;
 
         var state = entity.GetStateUnchecked();
         state.Host = this;
@@ -304,7 +322,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
             if (state.IsTransitioning) {
                 throw new InvalidOperationException("Cannot migrate an entity during release or a migration callback.");
             }
-            Move(e, state, source, data, BulkHListShape.IsStandard);
+            Move(e, state, source, data, HListShape<TEntity>.IsStandard);
         }
     }
 

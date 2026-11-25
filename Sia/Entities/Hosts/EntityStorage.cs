@@ -46,6 +46,28 @@ internal sealed class EntityStorage
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal ref Entity PrepareAppend(int index)
+    {
+        var items = _items;
+        if ((uint)index < (uint)items.Length) return ref items[index];
+        return ref GrowForAppend(index);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private ref Entity GrowForAppend(int index)
+    {
+        EnsureCapacity(index + 1);
+        return ref _items[index];
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void CommitAppend(int index)
+    {
+        _count = index + 1;
+        _version++;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void Add(Entity entity)
     {
         _version++;

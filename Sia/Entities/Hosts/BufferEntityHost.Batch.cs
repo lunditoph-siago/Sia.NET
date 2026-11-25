@@ -8,21 +8,6 @@ public partial class BufferEntityHost<TEntity, TBuffer>
     where TEntity : struct, IHList
     where TBuffer : IBuffer<TEntity>
 {
-    private static class BulkHListShape
-    {
-        internal static readonly bool IsStandard = Check();
-
-        private static bool Check()
-        {
-            var type = typeof(TEntity);
-            while (type != typeof(EmptyHList)) {
-                if (!type.IsGenericType || type.GetGenericTypeDefinition() != typeof(HList<,>)) return false;
-                type = type.GetGenericArguments()[1];
-            }
-            return true;
-        }
-    }
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool CanBatchTransition<TDestination>(
         WorldEntityHost<TEntity, ArrayEntityHost<TEntity>> source,
@@ -127,7 +112,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>
         where THost : IEntityHost<TEntity>, new()
     {
         if (!CanBatch(source, entities)
-            || !BulkHListShape.IsStandard || EntityIndexer<TEntity, TComponent>.Offset != -1
+            || !HListShape<TEntity>.IsStandard || EntityIndexer<TEntity, TComponent>.Offset != -1
             || !source.World.TryGetHost<HList<TComponent, TEntity>, ArrayEntityHost<HList<TComponent, TEntity>>>(out var target)
             || target.InnerHost.GetType() != typeof(ArrayEntityHost<HList<TComponent, TEntity>>)
             || !ReferenceEquals(target.InnerHost.World, source.World)
@@ -243,7 +228,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>
         world.EnsureOwnerThread();
         var destination = target.InnerHost;
         if (!CanBatchTransition(source, target) || Storage is not ArrayBuffer<TEntity> sourceBuffer
-            || !BulkHListShape.IsStandard || EntityIndexer<TEntity, TComponent>.Offset != -1) return false;
+            || !HListShape<TEntity>.IsStandard || EntityIndexer<TEntity, TComponent>.Offset != -1) return false;
         var count = _entities.Count;
         if (initialValues.Length != count) return false;
         if (count == 0) return true;
@@ -306,5 +291,4 @@ public partial class BufferEntityHost<TEntity, TBuffer>
         FinishMoveAll(destination, sourceBuffer, sourceRows, count);
         return true;
     }
-
 }
