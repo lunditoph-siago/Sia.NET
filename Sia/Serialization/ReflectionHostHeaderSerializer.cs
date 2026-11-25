@@ -15,6 +15,8 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
 {
     private const string ArrayHostAlias = "$A";
     private const string UnmanagedArrayHostAlias = "$U";
+    // Metadata names cannot contain NUL. Existing component headers never start with it.
+    private const char CompactLayoutMarker = '\0';
     private static readonly byte[] Dividor = Encoding.Unicode.GetBytes(";");
     private static readonly byte[] StorageAliasHeader = Encoding.Unicode.GetBytes("$");
     private static readonly byte[] s_arrayHostAlias = Encoding.Unicode.GetBytes(ArrayHostAlias);
@@ -34,6 +36,9 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
         writer.Write(s_componentHeaders.GetOrAdd(descriptor.Type, static (_, layout) => {
             var components = string.Join('|',
                 layout.Components.Select(c => c.Type.AssemblyQualifiedName));
+            if (HasCompactTail(layout.Type)) {
+                components = CompactLayoutMarker + components;
+            }
             return Encoding.Unicode.GetBytes(components);
         }, descriptor));
         writer.Write(Dividor);
@@ -126,10 +131,23 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
     private static string GenerateHListType(ReadOnlySpan<char> components)
     {
         var builder = new StringBuilder();
+        var compact = !components.IsEmpty && components[0] == CompactLayoutMarker;
+        if (compact) {
+            components = components[1..];
+            if (components.IsEmpty || components[^1] == '|') {
+                throw new InvalidDataException("Missing component in compact host header.");
+            }
+        }
 
         var componentCount = 0;
         if (!components.IsEmpty) {
             foreach (var range in components.Split('|')) {
+                if (compact && range.End.GetOffset(components.Length) == components.Length) {
+                    builder.Append("Sia.HList`1[[");
+                    builder.Append(components[range]);
+                    builder.Append("]], Sia");
+                    break;
+                }
                 builder.Append("Sia.HList`2[[");
                 builder.Append(components[range]);
                 builder.Append("], [");
@@ -137,11 +155,22 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
             }
         }
 
-        builder.Append("Sia.EmptyHList, Sia");
+        if (!compact) builder.Append("Sia.EmptyHList, Sia");
         for (var i = 0; i != componentCount; ++i) {
             builder.Append("]], Sia");
         }
 
         return builder.ToString();
+    }
+
+    private static bool HasCompactTail(Type entityType)
+    {
+        while (entityType.IsGenericType) {
+            var node = entityType.GetGenericTypeDefinition();
+            if (node == typeof(HList<>)) return true;
+            if (node != typeof(HList<,>)) break;
+            entityType = entityType.GetGenericArguments()[1];
+        }
+        return false;
     }
 }

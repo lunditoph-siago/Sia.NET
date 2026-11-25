@@ -180,7 +180,7 @@ public struct HList<THead, TTail>(in THead head, in TTail tail) : IHList
     }
 }
 
-public static class HList
+public static partial class HList
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static HList<THead, EmptyHList> From<THead>(in THead head) =>
