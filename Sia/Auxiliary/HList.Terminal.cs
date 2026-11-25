@@ -7,8 +7,6 @@ public struct HList<THead>(in THead head) : IHList
 {
     public THead Head = head;
 
-    static HList.Layout IHList.Layout => HList.Layout.Compact;
-
     public readonly void Handle<THandler>(in THandler handler)
         where THandler : IHListHandler
         => handler.Handle(Head, EmptyHList.Default);

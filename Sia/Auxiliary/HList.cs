@@ -15,8 +15,6 @@ public interface IHListHandler
 
 public interface IHList
 {
-    internal static virtual HList.Layout Layout => HList.Layout.Custom;
-
     void Handle<THandler>(in THandler handler)
         where THandler : IHListHandler;
 
@@ -55,8 +53,6 @@ public interface IHList
 public struct EmptyHList : IHList
 {
     public static EmptyHList Default => default;
-
-    static HList.Layout IHList.Layout => HList.Layout.Empty;
 
     public readonly void Handle<THandler>(in THandler handler) where THandler : IHListHandler {}
 
@@ -98,11 +94,6 @@ public struct HList<THead, TTail>(in THead head, in TTail tail) : IHList
 {
     public THead Head = head;
     public TTail Tail = tail;
-
-    static HList.Layout IHList.Layout => TTail.Layout switch {
-        HList.Layout.Empty => HList.Layout.Regular,
-        var layout => layout
-    };
 
     public readonly void Handle<THandler>(in THandler handler)
         where THandler : IHListHandler
@@ -206,7 +197,20 @@ public static class HList
 
     private static class LayoutCache<TRow> where TRow : struct, IHList
     {
-        public static readonly Layout Value = TRow.Layout;
+        public static readonly Layout Value = GetLayout(typeof(TRow));
+    }
+
+    private static Layout GetLayout(Type rowType)
+    {
+        if (rowType == typeof(EmptyHList)) return Layout.Empty;
+        while (rowType.IsConstructedGenericType) {
+            var node = rowType.GetGenericTypeDefinition();
+            if (node == typeof(HList<>)) return Layout.Compact;
+            if (node != typeof(HList<,>)) break;
+            rowType = rowType.GenericTypeArguments[1];
+            if (rowType == typeof(EmptyHList)) return Layout.Regular;
+        }
+        return Layout.Custom;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
