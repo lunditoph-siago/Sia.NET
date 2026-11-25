@@ -67,7 +67,10 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         _entityStates = world.EntityStates;
         _ownsEntityStates = false;
         World = world;
-    }
+        if (GetType() == typeof(ArrayEntityHost<TEntity>) && BulkHListShape.IsStandard
+            && Buffer is ArrayBuffer<TEntity> arrayBuffer) {
+            arrayBuffer.ReuseUnborrowedGrowthArrays();
+        }    }
 
     public virtual Entity Create() => Create(default!);
     public virtual Entity Create(in TEntity initial)
@@ -158,7 +161,8 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
 
         var value = data;
         var slot = Buffer.Count++;
-        Buffer.GetRef(slot) = value;
+        if (Buffer is ArrayBuffer<TEntity> array) array.WriteRow(slot, value);
+        else Buffer.GetRef(slot) = value;
 
         var state = entity.GetStateUnchecked();
         state.Host = this;
