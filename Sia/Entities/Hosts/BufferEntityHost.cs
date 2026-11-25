@@ -116,7 +116,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
             throw new InvalidOperationException("Cannot release an entity during a migration callback.");
         }
         MoveOut(state);
-        EntityStates.Return(state);
+        state.Invalidate();
     }
 
     public Entity GetEntity(int slot)
@@ -139,12 +139,12 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     private EntityState GetEntityState(in Entity entity, out int slot)
     {
         var state = entity.GetStateUnchecked();
-        slot = state?.Slot ?? -1;
+        slot = state.IsDefault ? -1 : state.Slot;
         if ((uint)slot >= (uint)_entities.Count || _entities[slot] != entity) {
             entity.GetState();
             throw new InvalidOperationException("Entity belongs to another host.");
         }
-        return state!;
+        return state;
     }
 
     private void MoveOut(EntityState state)
@@ -461,14 +461,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         if (_disposed) return;
         _disposed = true;
         foreach (var entity in _entities) {
-            var state = entity.GetStateUnchecked();
-            if (_ownsEntityStates) {
-                state.Host = null;
-                state.Slot = -1;
-            }
-            else {
-                EntityStates.Return(state);
-            }
+            entity.GetStateUnchecked().Invalidate();
         }
         _entities.Dispose();
         if (_ownsEntityStates) {

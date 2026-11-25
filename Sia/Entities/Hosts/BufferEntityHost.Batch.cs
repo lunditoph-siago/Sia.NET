@@ -34,7 +34,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>
         for (var i = 0; i < entities.Length; i++) {
             var entity = entities[i];
             var state = entity.GetStateUnchecked();
-            if (state is null || !entity.References(state) || !ReferenceEquals(state.Host, source)
+            if (state.IsDefault || !entity.References(state) || !ReferenceEquals(state.Host, source)
                 || state.Slot != i || state.IsTransitioning || state.EventSink is not null) return false;
         }
         return true;

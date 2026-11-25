@@ -19,10 +19,10 @@ public sealed class WorldDispatcher : Dispatcher<IEvent>
     internal void Send<UEvent>(Entity target, in UEvent e, bool owned) where UEvent : IEvent
     {
         World.EnsureOwnerThread();
-        var state = target.IsValid ? target.GetStateUnchecked() : null;
-        var owner = state?.EventSink;
+        var state = target.IsValid ? target.GetStateUnchecked() : default;
+        var owner = state.EventSink;
         if (!owned) {
-            if (owner != null && !ReferenceEquals(state!.Host!.World, World)) {
+            if (owner != null && !ReferenceEquals(state.Host!.World, World)) {
                 throw new ArgumentException("The entity belongs to a different world.", nameof(target));
             }
             if (owner is null && HasNoListeners<UEvent>()) return;
@@ -36,16 +36,16 @@ public sealed class WorldDispatcher : Dispatcher<IEvent>
         if (!target.IsValid) return;
         var add = WorldEvents.Add<TComponent>.Instance;
         World.EnsureOwnerThread();
-        var state = target.IsValid ? target.GetStateUnchecked() : null;
-        var owner = state?.EventSink;
-        if (owner != null && !ReferenceEquals(state!.Host!.World, World)) {
+        var state = target.IsValid ? target.GetStateUnchecked() : default;
+        var owner = state.EventSink;
+        if (owner != null && !ReferenceEquals(state.Host!.World, World)) {
             throw new ArgumentException("The entity belongs to a different world.", nameof(target));
         }
         if (owner is null && HasNoListeners<WorldEvents.Add<TComponent>>()) {
             var set = WorldEvents.Set<TComponent>.Instance;
             World.EnsureOwnerThread();
-            state = target.IsValid ? target.GetStateUnchecked() : null;
-            if (state?.EventSink is null && HasNoListeners<WorldEvents.Set<TComponent>>()) return;
+            state = target.IsValid ? target.GetStateUnchecked() : default;
+            if (state.EventSink is null && HasNoListeners<WorldEvents.Set<TComponent>>()) return;
             Send(target, set);
             return;
         }
@@ -92,7 +92,8 @@ public sealed class WorldDispatcher : Dispatcher<IEvent>
         base.Clear();
         foreach (var host in World.Hosts) {
             foreach (var entity in host.UnsafeGetEntitySpan()) {
-                entity.GetStateUnchecked().EventSink = null;
+                var state = entity.GetStateUnchecked();
+                state.EventSink = null;
             }
         }
     }

@@ -7,40 +7,19 @@ namespace Sia;
 [MemoryPackable(GenerateType.NoGenerate)]
 public readonly partial struct Entity : IEquatable<Entity>
 {
-    private readonly EntityState? _state;
-    private readonly ulong _token;
+    private readonly EntityState _state;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal Entity(EntityState state, uint generation, EntityId id)
-    {
-        _state = state;
-        _token = ((ulong)generation << 32) | (uint)id.Value;
-        state.Token = _token;
-        state.Releasing = false;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal Entity(EntityState state)
-    {
-        _state = state;
-        _token = state.Token;
-    }
+    internal Entity(EntityState state) => _state = state;
 
     public EntityId Id {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => new(unchecked((int)_token));
+        get => _state.Id;
     }
 
     public IEntityHost Host {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get {
-            var state = _state;
-            return state != null
-                && state.Token == _token
-                && state.Host != null
-                ? state.Host
-                : null!;
-        }
+        get => _state.Host!;
     }
 
     public int Slot {
@@ -58,12 +37,7 @@ public readonly partial struct Entity : IEquatable<Entity>
 
     public bool IsValid {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get {
-            var state = _state;
-            return state != null
-                && state.Token == _token
-                && state.Host != null;
-        }
+        get => _state.Host is not null;
     }
 
     public EntityDescriptor Descriptor {
@@ -75,7 +49,7 @@ public readonly partial struct Entity : IEquatable<Entity>
     internal EntityState GetCurrentState()
     {
         var state = _state;
-        if (state == null || state.Token != _token) {
+        if (state.IsDefault) {
             ThrowDisposed();
         }
         return state;
@@ -98,20 +72,20 @@ public readonly partial struct Entity : IEquatable<Entity>
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal EntityState GetStateUnchecked()
-        => _state!;
+        => _state;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool References(EntityState state)
-        => ReferenceEquals(_state, state) && _token == state.Token;
+        => _state.IsSame(state);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool ContainsUnchecked<TComponent>()
-        => _state!.Host!.Descriptor.Contains<TComponent>();
+        => _state.Host!.Descriptor.Contains<TComponent>();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ref TComponent GetUnchecked<TComponent>()
     {
-        var state = _state!;
+        var state = _state;
         var host = state.Host!;
         ref var byteRef = ref host.GetByteRef(state.Slot);
         nint offset = host.Descriptor.GetOffsetUnchecked<TComponent>();
@@ -130,7 +104,7 @@ public readonly partial struct Entity : IEquatable<Entity>
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Equals(Entity other)
-        => ReferenceEquals(_state, other._state) && _token == other._token;
+        => _state.IsSame(other._state);
 
     public override bool Equals(object? obj)
         => obj is Entity other && Equals(other);
