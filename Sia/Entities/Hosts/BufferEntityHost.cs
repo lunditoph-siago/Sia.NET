@@ -1,7 +1,6 @@
 using System.Collections;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using CommunityToolkit.HighPerformance;
 
 namespace Sia;
 
@@ -52,7 +51,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         }
     }
 
-    private readonly List<Entity> _entities = [];
+    private readonly EntityStorage _entities = new();
     private EntityStatePool? _entityStates;
     private bool _ownsEntityStates = true;
     private bool _disposed;
@@ -429,7 +428,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         => throw new NotSupportedException("Sibling host not supported");
 
     public Span<Entity> UnsafeGetEntitySpan()
-        => _entities.AsSpan();
+        => _entities.BorrowSpan();
 
     public object Box(int slot)
         => Storage.GetRef(slot);
@@ -454,7 +453,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
                 EntityStates.Return(state);
             }
         }
-        _entities.Clear();
+        _entities.Dispose();
         if (_ownsEntityStates) {
             _entityStates?.Retire();
         }
