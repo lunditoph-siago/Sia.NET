@@ -81,13 +81,8 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
 
     internal void RecordExposure()
     {
-        Volatile.Write(ref _exposed, true);
-        var growthLock = Volatile.Read(ref _growthLock);
-        if (growthLock is null) return;
-
-        lock (growthLock) {
-            CancelRetiredRental();
-        }
+        // A live buffer keeps its pending retirement reachable.
+        if (!Volatile.Read(ref _exposed)) Volatile.Write(ref _exposed, true);
     }
 
     internal void ClearOwnedRows()
@@ -118,7 +113,8 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
 
     private void CancelRetiredRental()
     {
-        _retiredRental?.Cancel();
+        if (_retiredRental is not { } retired) return;
+        retired.Cancel();
         _retiredRental = null;
     }
 
