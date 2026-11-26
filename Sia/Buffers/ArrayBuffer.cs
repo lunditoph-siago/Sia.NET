@@ -61,7 +61,7 @@ public sealed class ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
         get;
         set {
             if (value == field) return;
-            if (value > _array.Length) Resize(CalculateArraySize(value));
+            if (value > _array.Length) Resize(value);
             field = value;
         }
     }
@@ -130,8 +130,11 @@ public sealed class ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void WriteRow(int slot, in T value) => _array[slot] = value;
 
-    private void Resize(int capacity)
+    private void Resize(int requiredCapacity)
     {
+        var capacity = 8;
+        while (capacity < requiredCapacity) { capacity *= 2; }
+
         var growthPool = Volatile.Read(ref _growthPool);
         if (growthPool is null) {
             Array.Resize(ref _array, capacity);
@@ -141,38 +144,27 @@ public sealed class ArrayBuffer<T>(int initialCapacity) : IBuffer<T>
         lock (growthPool) {
             CancelRetiredRental();
             var previous = _array;
-            var rental = TryRentGrowthArray(capacity);
-            var next = rental ?? new T[capacity];
-            if (rental is not null) rental.AsSpan(previous.Length).Clear();
+            var clearArray = RuntimeHelpers.IsReferenceOrContainsReferences<T>();
+            T[]? rental = null;
+            if (capacity is >= 1_024 and <= 131_072
+                && (long)capacity * Unsafe.SizeOf<T>() <= 2 * 1024 * 1024) {
+                rental = TryTakeReclaimedRental(capacity) ?? ArrayPool<T>.Shared.Rent(capacity);
+                if (rental.Length == capacity) {
+                    rental.AsSpan(previous.Length).Clear();
+                }
+                else {
+                    ArrayPool<T>.Shared.Return(rental, clearArray);
+                    rental = null;
+                }
+            }
 
+            var next = rental ?? new T[capacity];
             previous.CopyTo(next, 0);
             var returnPrevious = !ReferenceEquals(previous, growthPool.RetainedArray);
             Volatile.Write(ref growthPool.RetainedArray, rental is null ? next : null);
             Volatile.Write(ref _array, next);
-            if (returnPrevious) ReturnRental(previous);
+            if (returnPrevious) ArrayPool<T>.Shared.Return(previous, clearArray);
         }
-    }
-
-    private static T[]? TryRentGrowthArray(int capacity)
-    {
-        if (capacity is < 1_024 or > 131_072
-            || (long)capacity * Unsafe.SizeOf<T>() > 2 * 1024 * 1024) return null;
-
-        var rental = TryTakeReclaimedRental(capacity) ?? ArrayPool<T>.Shared.Rent(capacity);
-        if (rental.Length == capacity) return rental;
-        ReturnRental(rental);
-        return null;
-    }
-
-    private static void ReturnRental(T[] array)
-        => ArrayPool<T>.Shared.Return(array, clearArray: RuntimeHelpers.IsReferenceOrContainsReferences<T>());
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static int CalculateArraySize(int requiredCapacity)
-    {
-        var size = 8;
-        while (size < requiredCapacity) { size *= 2; }
-        return size;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
