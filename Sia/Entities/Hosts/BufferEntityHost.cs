@@ -70,8 +70,9 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         World = world;
         if (GetType() == typeof(ArrayEntityHost<TEntity>) && BulkHListShape.IsStandard
             && Buffer is ArrayBuffer<TEntity> arrayBuffer) {
-            arrayBuffer.ReuseUnborrowedGrowthArrays();
-        }    }
+            arrayBuffer.EnableGrowthPooling();
+        }
+    }
 
     public virtual Entity Create() => Create(default!);
     public virtual Entity Create(in TEntity initial)
