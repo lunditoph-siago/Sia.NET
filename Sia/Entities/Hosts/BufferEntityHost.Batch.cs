@@ -142,23 +142,8 @@ public partial class BufferEntityHost<TEntity, TBuffer>
         _ = EventTypeIndexer<WorldEvents.Add<TComponent>>.Index;
         _ = WorldEvents.Set<TComponent>.Instance;
         _ = EventTypeIndexer<WorldEvents.Set<TComponent>>.Index;
-        var value = initial;
-        var count = entities.Length;
-        var start = destination.Storage.Count;
-        var end = checked(start + count);
-        destination._entities.EnsureCapacity(end);
-        destination.Storage.Count = end;
         var sourceBuffer = (ArrayBuffer<TEntity>)(object)Storage;
-        var rows = sourceBuffer.AsSpan();
-        var targetRows = destination.Storage.AsSpan();
-        var current = _entities.AsSpan();
-        for (var i = 0; i < count; i++) {
-            targetRows[start + i] = HList.Cons(value, rows[i]);
-            var state = current[i].GetStateUnchecked();
-            state.Host = target;
-            state.Slot = start + i;
-        }
-        FinishMoveAll(destination, sourceBuffer, rows, count);
+        MoveAddedRows(sourceBuffer, destination, target, entities.Length, initial, default);
         return true;
     }
 
@@ -202,28 +187,89 @@ public partial class BufferEntityHost<TEntity, TBuffer>
             || destination._entities.Count != destination.Storage.Count) return false;
         _ = WorldEvents.Remove<THead>.Instance;
         _ = EventTypeIndexer<WorldEvents.Remove<THead>>.Index;
-        var count = _entities.Count;
+        var sourceBuffer = (ArrayBuffer<TEntity>)(object)Storage;
+        MoveRemovedRows<THead, TTail>(sourceBuffer, destination, target, _entities.Count);
+        return true;
+    }
+
+    private readonly struct BatchMove<TDestination>(BufferEntityHost<TEntity, TBuffer> source,
+        BufferEntityHost<TDestination, ArrayBuffer<TDestination>> destination, IEntityHost target, int start, int count)
+        where TDestination : struct, IHList
+    {
+        public readonly BufferEntityHost<TEntity, TBuffer> Source = source;
+        public readonly BufferEntityHost<TDestination, ArrayBuffer<TDestination>> Destination = destination;
+        public readonly IEntityHost Target = target;
+        public readonly int Start = start;
+        public readonly int Count = count;
+    }
+
+    private readonly ref struct BatchAdd<TComponent>(BatchMove<HList<TComponent, TEntity>> move,
+        in TComponent initial, ReadOnlySpan<TComponent> initialValues)
+    {
+        public readonly BatchMove<HList<TComponent, TEntity>> Move = move;
+        public readonly TComponent Initial = initial;
+        public readonly ReadOnlySpan<TComponent> InitialValues = initialValues;
+    }
+
+    private BatchMove<TDestination> PrepareBatchMove<TDestination>(
+        BufferEntityHost<TDestination, ArrayBuffer<TDestination>> destination, IEntityHost target, int count)
+        where TDestination : struct, IHList
+    {
         var start = destination.Storage.Count;
         var end = checked(start + count);
         destination._entities.EnsureCapacity(end);
         destination.Storage.Count = end;
-        var sourceBuffer = (ArrayBuffer<TEntity>)(object)Storage;
-        var rows = sourceBuffer.AsSpan();
-        var targetRows = destination.Storage.AsSpan();
-        var entities = _entities.AsSpan();
-        for (var i = 0; i < count; i++) {
-            targetRows[start + i] = Unsafe.As<TEntity, HList<THead, TTail>>(ref rows[i]).Tail;
-            var state = entities[i].GetStateUnchecked();
-            state.Host = target;
-            state.Slot = start + i;
-        }
-        FinishMoveAll(destination, sourceBuffer, rows, count);
-        return true;
+        return new(this, destination, target, start, count);
+    }
+
+    private void MoveAddedRows<TComponent>(ArrayBuffer<TEntity> sourceBuffer,
+        BufferEntityHost<HList<TComponent, TEntity>, ArrayBuffer<HList<TComponent, TEntity>>> destination,
+        IEntityHost target, int count, in TComponent initial, ReadOnlySpan<TComponent> initialValues)
+    {
+        var value = initial;
+        var move = PrepareBatchMove(destination, target, count);
+        var actionState = new BatchAdd<TComponent>(move, value, initialValues);
+        sourceBuffer.WithRows(destination.Storage, ref actionState, static (
+            scoped Span<TEntity> sourceRows, scoped Span<HList<TComponent, TEntity>> targetRows,
+            scoped ref BatchAdd<TComponent> batch) => {
+            var transfer = batch.Move;
+            var entities = transfer.Source._entities.AsSpan();
+            var values = batch.InitialValues;
+            var uniform = values.IsEmpty;
+            for (var i = 0; i < transfer.Count; i++) {
+                var slot = transfer.Start + i;
+                targetRows[slot] = uniform
+                    ? HList.Cons(batch.Initial, sourceRows[i])
+                    : HList.Cons(values[i], sourceRows[i]);
+                var state = entities[i].GetStateUnchecked();
+                state.Host = transfer.Target;
+                state.Slot = slot;
+            }
+            transfer.Source.FinishMoveAll(transfer.Destination, sourceRows, transfer.Count);
+        });
+    }
+
+    private void MoveRemovedRows<THead, TTail>(ArrayBuffer<TEntity> sourceBuffer,
+        BufferEntityHost<TTail, ArrayBuffer<TTail>> destination, IEntityHost target, int count)
+        where TTail : struct, IHList
+    {
+        var actionState = PrepareBatchMove(destination, target, count);
+        sourceBuffer.WithRows(destination.Storage, ref actionState, static (
+            scoped Span<TEntity> sourceRows, scoped Span<TTail> targetRows, scoped ref BatchMove<TTail> move) => {
+            var entities = move.Source._entities.AsSpan();
+            for (var i = 0; i < move.Count; i++) {
+                var slot = move.Start + i;
+                targetRows[slot] = Unsafe.As<TEntity, HList<THead, TTail>>(ref sourceRows[i]).Tail;
+                var state = entities[i].GetStateUnchecked();
+                state.Host = move.Target;
+                state.Slot = slot;
+            }
+            move.Source.FinishMoveAll(move.Destination, sourceRows, move.Count);
+        });
     }
 
     private void FinishMoveAll<TDestination>(
-        BufferEntityHost<TDestination, ArrayBuffer<TDestination>> destination,
-        ArrayBuffer<TEntity> sourceBuffer, Span<TEntity> sourceRows, int count)
+        BufferEntityHost<TDestination, ArrayBuffer<TDestination>> destination, scoped Span<TEntity> sourceRows, int count)
         where TDestination : struct, IHList
     {
         destination._entities.AddRange(_entities);
@@ -231,7 +277,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>
         destination.Version += count;
         sourceRows[..count].Clear();
         _entities.Clear();
-        sourceBuffer.Count = 0;
+        Storage.Count = 0;
     }
 
     internal bool TryBulkAddAll<TComponent>(
@@ -256,20 +302,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>
         _ = WorldEvents.Set<TComponent>.Instance;
         world.EnsureOwnerThread();
         _ = EventTypeIndexer<WorldEvents.Set<TComponent>>.Index;
-        var start = destination.Storage.Count;
-        var end = checked(start + count);
-        destination._entities.EnsureCapacity(end);
-        destination.Storage.Count = end;
-        var sourceRows = sourceBuffer.AsSpan();
-        var targetRows = destination.Storage.AsSpan();
-        var entities = _entities.AsSpan();
-        for (var i = 0; i < count; i++) {
-            targetRows[start + i] = HList.Cons(initialValues[i], sourceRows[i]);
-            var state = entities[i].GetStateUnchecked();
-            state.Host = target;
-            state.Slot = start + i;
-        }
-        FinishMoveAll(destination, sourceBuffer, sourceRows, count);
+        MoveAddedRows(sourceBuffer, destination, target, count, default!, initialValues);
         return true;
     }
 
@@ -290,20 +323,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>
         _ = WorldEvents.Remove<THead>.Instance;
         world.EnsureOwnerThread();
         _ = EventTypeIndexer<WorldEvents.Remove<THead>>.Index;
-        var start = destination.Storage.Count;
-        var end = checked(start + count);
-        destination._entities.EnsureCapacity(end);
-        destination.Storage.Count = end;
-        var sourceRows = sourceBuffer.AsSpan();
-        var targetRows = destination.Storage.AsSpan();
-        var entities = _entities.AsSpan();
-        for (var i = 0; i < count; i++) {
-            targetRows[start + i] = Unsafe.As<TEntity, HList<THead, TTail>>(ref sourceRows[i]).Tail;
-            var state = entities[i].GetStateUnchecked();
-            state.Host = target;
-            state.Slot = start + i;
-        }
-        FinishMoveAll(destination, sourceBuffer, sourceRows, count);
+        MoveRemovedRows<THead, TTail>(sourceBuffer, destination, target, count);
         return true;
     }
 

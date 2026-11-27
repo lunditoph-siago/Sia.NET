@@ -1,6 +1,5 @@
 using System.Buffers;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 
 namespace Sia;
 
@@ -9,46 +8,9 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
     public bool IsManaged => true;
     public int Capacity => int.MaxValue;
 
-    // Keep one reclaimed rental per row type outside the finalizer thread's cache.
-    private static T[]? s_reclaimedRental;
-
-    private sealed class RetiredRental
-    {
-        private GCHandle _owner;
-        private T[]? _array;
-
-        public RetiredRental(ArrayBuffer<T> owner, T[] array)
-        {
-            _owner = GCHandle.Alloc(owner, GCHandleType.WeakTrackResurrection);
-            _array = array;
-        }
-
-        public void Cancel()
-        {
-            lock (this) {
-                _array = null;
-                if (_owner.IsAllocated) _owner.Free();
-            }
-            GC.SuppressFinalize(this);
-        }
-
-        ~RetiredRental()
-        {
-            T[]? returned;
-            lock (this) {
-                if (!_owner.IsAllocated) return;
-                // Another finalizer may resurrect the owner.
-                if (_owner.Target is not null) {
-                    GC.ReRegisterForFinalize(this);
-                    return;
-                }
-                returned = _array;
-                _array = null;
-                _owner.Free();
-            }
-            if (returned is not null) Interlocked.Exchange(ref s_reclaimedRental, returned);
-        }
-    }
+    internal delegate void RowsAction<TDestination, TState>(
+        scoped Span<T> source, scoped Span<TDestination> target, scoped ref TState state)
+        where TState : allows ref struct;
 
     public int Count {
         get;
@@ -62,10 +24,12 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
     private T[] _array;
     private object? _growthLock;
 
-    // Under the growth lock, null identifies an unborrowed rental.
+    // A nonempty backing with a null marker has no escaped borrow.
     private T[]? _retainedArray;
     private bool _exposed;
-    private RetiredRental? _retiredRental;
+    private int _activeScopedBorrows;
+    private int _detachedCapacity;
+    private bool _returnAfterScope;
 
     public ArrayBuffer(int initialCapacity)
     {
@@ -80,8 +44,54 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
 
     internal void RecordExposure()
     {
-        // A live buffer roots its pending retirement.
         if (!Volatile.Read(ref _exposed)) Volatile.Write(ref _exposed, true);
+    }
+
+    internal void WithRows<TDestination, TState>(ArrayBuffer<TDestination> destination,
+        scoped ref TState state, RowsAction<TDestination, TState> action)
+        where TState : allows ref struct
+    {
+        var sourceRows = BeginRows(out var sourceLock);
+        try {
+            var targetRows = destination.BeginRows(out var targetLock);
+            try {
+                action(sourceRows, targetRows, ref state);
+            }
+            finally {
+                destination.EndRows(targetLock);
+            }
+        }
+        finally {
+            EndRows(sourceLock);
+        }
+    }
+
+    private Span<T> BeginRows(out object? growthLock)
+    {
+        var backing = Volatile.Read(ref _array);
+        growthLock = Volatile.Read(ref _growthLock);
+        if (growthLock is null || ReferenceEquals(backing, Volatile.Read(ref _retainedArray))) {
+            growthLock = null;
+            return backing.AsSpan(0, Count);
+        }
+
+        lock (growthLock) {
+            var rows = _array.AsSpan(0, Count);
+            _activeScopedBorrows++;
+            return rows;
+        }
+    }
+
+    private void EndRows(object? growthLock)
+    {
+        if (growthLock is null) return;
+
+        lock (growthLock) {
+            if (--_activeScopedBorrows == 0 && _returnAfterScope) {
+                _returnAfterScope = false;
+                if (Count == 0 && !Volatile.Read(ref _exposed) && _retainedArray is null) ReturnRows(_array);
+            }
+        }
     }
 
     internal void ClearOwnedRows()
@@ -95,34 +105,39 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
 
         lock (growthLock) {
             var rows = _array;
-            var canRetire = !Volatile.Read(ref _exposed) && _retainedArray is null
-                && _retiredRental is null;
-            rows.AsSpan(0, canRetire ? rows.Length : Count).Clear();
-            Count = 0;
-            if (canRetire) {
-                try {
-                    _retiredRental = new RetiredRental(this, rows);
-                }
-                catch (OutOfMemoryException) {
-                    // Keep the backing if scheduling fails.
-                }
+            var canReturn = rows.Length != 0 && !Volatile.Read(ref _exposed) && _retainedArray is null;
+            if (canReturn && _activeScopedBorrows == 0) {
+                Count = 0;
+                ReturnRows(rows);
+                return;
             }
+
+            rows.AsSpan(0, canReturn ? rows.Length : Count).Clear();
+            Count = 0;
+            _returnAfterScope = canReturn;
         }
     }
 
-    private void CancelRetiredRental()
+    private void ReturnRows(T[] rows)
     {
-        if (_retiredRental is not { } retired) return;
-        retired.Cancel();
-        _retiredRental = null;
+        // Preserve the capacity for callers that reach Buffer after disposal.
+        _detachedCapacity = rows.Length;
+        Volatile.Write(ref _array, Array.Empty<T>());
+        try {
+            ArrayPool<T>.Shared.Return(rows, clearArray: true);
+        }
+        catch (OutOfMemoryException) {
+            // The detached array can be collected.
+        }
     }
 
-    private static T[]? TryTakeReclaimedRental(int capacity)
+    private T[] RestoreDetachedArray(int capacity)
     {
-        var recovered = Volatile.Read(ref s_reclaimedRental);
-        return recovered?.Length == capacity
-            && ReferenceEquals(Interlocked.CompareExchange(ref s_reclaimedRental, null, recovered), recovered)
-            ? recovered : null;
+        var array = new T[capacity];
+        _detachedCapacity = 0;
+        Volatile.Write(ref _retainedArray, array);
+        Volatile.Write(ref _array, array);
+        return array;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -143,13 +158,17 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
         }
 
         lock (growthLock) {
-            CancelRetiredRental();
+            if (_detachedCapacity != 0) {
+                RestoreDetachedArray(Math.Max(_detachedCapacity, capacity));
+                return;
+            }
+
             var previous = _array;
             var clearOnReturn = RuntimeHelpers.IsReferenceOrContainsReferences<T>();
             T[]? rental = null;
             if (capacity is >= 1_024 and <= 131_072
                 && (long)capacity * Unsafe.SizeOf<T>() <= 2 * 1024 * 1024) {
-                var candidate = TryTakeReclaimedRental(capacity) ?? ArrayPool<T>.Shared.Rent(capacity);
+                var candidate = ArrayPool<T>.Shared.Rent(capacity);
                 if (candidate.Length == capacity) {
                     candidate.AsSpan(previous.Length).Clear();
                     rental = candidate;
@@ -162,7 +181,8 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
             var next = rental ?? new T[capacity];
             // AsSpan exposes the full capacity, including rows past Count.
             previous.CopyTo(next, 0);
-            var previousRental = _retainedArray is null ? previous : null;
+            var previousRental = _activeScopedBorrows == 0 && _retainedArray is null ? previous : null;
+            _returnAfterScope = false;
 
             // Publish the marker before the new backing can be borrowed.
             Volatile.Write(ref _retainedArray, rental is null ? next : null);
@@ -198,7 +218,8 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
     private T[] RecordBorrow(object growthLock)
     {
         lock (growthLock) {
-            CancelRetiredRental();
+            if (_detachedCapacity != 0) return RestoreDetachedArray(_detachedCapacity);
+
             var array = _array;
             Volatile.Write(ref _retainedArray, array);
             return array;
