@@ -42,7 +42,6 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
 
     internal TBuffer Storage { get; } = buffer;
 
-    /// <summary>Gets the component buffer.</summary>
     public TBuffer Buffer {
         get {
             var storage = Storage;

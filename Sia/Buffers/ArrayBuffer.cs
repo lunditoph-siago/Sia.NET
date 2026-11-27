@@ -9,8 +9,7 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
     public bool IsManaged => true;
     public int Capacity => int.MaxValue;
 
-    // Keep at most one finalized rental per row type. A Shared-pool return on the
-    // finalizer thread alone would normally stay in that thread's local bucket.
+    // Keep one reclaimed rental per row type outside the finalizer thread's cache.
     private static T[]? s_reclaimedRental;
 
     private sealed class RetiredRental
@@ -38,7 +37,7 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
             T[]? returned;
             lock (this) {
                 if (!_owner.IsAllocated) return;
-                // An unrelated finalizer can still make the host reachable again.
+                // Another finalizer may resurrect the owner.
                 if (_owner.Target is not null) {
                     GC.ReRegisterForFinalize(this);
                     return;
@@ -81,7 +80,7 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
 
     internal void RecordExposure()
     {
-        // A live buffer keeps its pending retirement reachable.
+        // A live buffer roots its pending retirement.
         if (!Volatile.Read(ref _exposed)) Volatile.Write(ref _exposed, true);
     }
 
@@ -105,7 +104,7 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
                     _retiredRental = new RetiredRental(this, rows);
                 }
                 catch (OutOfMemoryException) {
-                    // The exact same backing remains visible even if the return cannot be scheduled.
+                    // Keep the backing if scheduling fails.
                 }
             }
         }
