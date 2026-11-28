@@ -86,12 +86,16 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
     {
         if (growthLock is null) return;
 
+        T[]? rental = null;
         lock (growthLock) {
             if (--_activeScopedBorrows == 0 && _returnAfterScope) {
                 _returnAfterScope = false;
-                if (Count == 0 && !Volatile.Read(ref _exposed) && _retainedArray is null) ReturnRows(_array);
+                if (Count == 0 && !Volatile.Read(ref _exposed) && _retainedArray is null) {
+                    rental = DetachRows();
+                }
             }
         }
+        if (rental is not null) ReturnRows(rental);
     }
 
     internal void ClearOwnedRows()
@@ -103,26 +107,34 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
             return;
         }
 
+        T[]? rental = null;
         lock (growthLock) {
             var rows = _array;
             var canReturn = rows.Length != 0 && !Volatile.Read(ref _exposed) && _retainedArray is null;
             if (canReturn && _activeScopedBorrows == 0) {
                 Count = 0;
-                ReturnRows(rows);
-                return;
+                rental = DetachRows();
             }
-
-            rows.AsSpan(0, canReturn ? rows.Length : Count).Clear();
-            Count = 0;
-            _returnAfterScope = canReturn;
+            else {
+                rows.AsSpan(0, canReturn ? rows.Length : Count).Clear();
+                Count = 0;
+                _returnAfterScope = canReturn;
+            }
         }
+        if (rental is not null) ReturnRows(rental);
     }
 
-    private void ReturnRows(T[] rows)
+    private T[] DetachRows()
     {
         // Preserve the capacity for callers that reach Buffer after disposal.
+        var rows = _array;
         _detachedCapacity = rows.Length;
         Volatile.Write(ref _array, Array.Empty<T>());
+        return rows;
+    }
+
+    private static void ReturnRows(T[] rows)
+    {
         try {
             ArrayPool<T>.Shared.Return(rows, clearArray: true);
         }
@@ -140,8 +152,26 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
         return array;
     }
 
+    // The mutation owner uses this alias for immediate row operations.
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void WriteRow(int slot, in T value) => _array[slot] = value;
+    internal ref T GetOwnedRow(int slot) => ref _array[slot];
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void WriteRow(int slot, in T value) => GetOwnedRow(slot) = value;
+
+    internal T ReadRow(int slot)
+    {
+        var array = Volatile.Read(ref _array);
+        var growthLock = Volatile.Read(ref _growthLock);
+        if (growthLock is null || ReferenceEquals(array, Volatile.Read(ref _retainedArray))) {
+            return array[slot];
+        }
+
+        lock (growthLock) {
+            if ((uint)slot < (uint)_detachedCapacity) return default!;
+            return _array[slot];
+        }
+    }
 
     private void Resize(int requiredCapacity)
     {
@@ -192,36 +222,39 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref T GetRef(int index) => ref BorrowArray()[index];
+    public ref T GetRef(int index) => ref BorrowArray((long)(uint)index + 1)[index];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetRefOrNullRef(int index)
     {
-        var items = BorrowArray();
-        return ref (uint)index < (uint)items.Length ? ref items[index] : ref Unsafe.NullRef<T>();
+        var array = BorrowArray((long)(uint)index + 1);
+        return ref (uint)index < (uint)array.Length ? ref array[index] : ref Unsafe.NullRef<T>();
     }
 
     public Span<T> AsSpan() => BorrowArray();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private T[] BorrowArray()
+    private T[] BorrowArray(long requiredLength = 0)
     {
         var array = Volatile.Read(ref _array);
         var growthLock = Volatile.Read(ref _growthLock);
         if (growthLock is null || ReferenceEquals(array, Volatile.Read(ref _retainedArray))) {
             return array;
         }
-        return RecordBorrow(growthLock);
+        return RecordBorrow(growthLock, requiredLength);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private T[] RecordBorrow(object growthLock)
+    private T[] RecordBorrow(object growthLock, long requiredLength)
     {
         lock (growthLock) {
-            if (_detachedCapacity != 0) return RestoreDetachedArray(_detachedCapacity);
+            if (_detachedCapacity != 0) {
+                return requiredLength <= _detachedCapacity
+                    ? RestoreDetachedArray(_detachedCapacity) : Array.Empty<T>();
+            }
 
             var array = _array;
-            Volatile.Write(ref _retainedArray, array);
+            if (requiredLength <= array.Length) Volatile.Write(ref _retainedArray, array);
             return array;
         }
     }

@@ -75,7 +75,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         _entityStates = world.EntityStates;
         _ownsEntityStates = false;
         World = world;
-        if (GetType() == typeof(ArrayEntityHost<TEntity>) && BulkHListShape.IsStandard
+        if (GetType() == typeof(ArrayEntityHost<TEntity>) && BulkHListShape<TEntity>.IsStandard
             && Storage is ArrayBuffer<TEntity> arrayBuffer) {
             arrayBuffer.EnableGrowthPooling();
         }
@@ -136,12 +136,12 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         var lastSlot = Storage.Count - 1;
 
         if (slot != lastSlot) {
-            Storage.GetRef(slot) = Storage.GetRef(lastSlot);
+            GetOwnedRow(slot) = GetOwnedRow(lastSlot);
             var lastEntity = _entities[lastSlot];
             lastEntity.GetStateUnchecked().Slot = slot;
             _entities[slot] = lastEntity;
         }
-        Storage.GetRef(lastSlot) = default!;
+        GetOwnedRow(lastSlot) = default!;
         _entities.RemoveAt(lastSlot);
         Storage.Count--;
     }
@@ -185,6 +185,14 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     public ref TEntity GetRef(int slot)
         => ref Storage.GetRef(slot);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private ref TEntity GetOwnedRow(int slot)
+    {
+        var storage = Storage;
+        return ref (storage is ArrayBuffer<TEntity> array
+            ? ref array.GetOwnedRow(slot) : ref storage.GetRef(slot));
+    }
+
     public void GetHList<THandler>(int slot, in THandler handler)
         where THandler : IRefGenericHandler<IHList>
         => handler.Handle(ref Storage.GetRef(slot));
@@ -198,7 +206,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         if (state.IsTransitioning) {
             throw new InvalidOperationException("Cannot migrate an entity during release or a migration callback.");
         }
-        Move(entity, state, this, HList.Cons(initial, Storage.GetRef(slot)), useBuiltIn: true);
+        Move(entity, state, this, HList.Cons(initial, GetOwnedRow(slot)), useBuiltIn: true);
     }
 
     internal void AddDefault<TComponent>(Entity entity, EntityState state, in TComponent initial)
@@ -206,7 +214,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         if (EntityIndexer<TEntity, TComponent>.Offset != -1) {
             EntityExceptionHelper.ThrowComponentExisted<TComponent>();
         }
-        Move(entity, state, this, HList.Cons(initial, Storage.GetRef(state.Slot)), useBuiltIn: true);
+        Move(entity, state, this, HList.Cons(initial, GetOwnedRow(state.Slot)), useBuiltIn: true);
     }
 
     public virtual bool TryAddAll<TComponent>(ReadOnlySpan<Entity> entities, in TComponent initial) => false;
@@ -235,7 +243,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         var count = checked(slot + 1);
         if (count > destination._entities.Capacity) destination._entities.EnsureCapacity(count);
         destination.Storage.Count = count;
-        destination.Storage.GetRef(slot) = data;
+        destination.GetOwnedRow(slot) = data;
         MoveOut(state);
         destination._entities.Add(entity);
         state.Host = target;
@@ -304,7 +312,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
             if (state.IsTransitioning) {
                 throw new InvalidOperationException("Cannot migrate an entity during release or a migration callback.");
             }
-            Move(e, state, source, data, BulkHListShape.IsStandard);
+            Move(e, state, source, data, BulkHListShape<TEntity>.IsStandard);
         }
     }
 
@@ -326,9 +334,9 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         TList.HandleTypes(EntityComponentChecker.Instance);
 
         GetEntityState(entity, out var slot);
-        ref var data = ref Storage.GetRef(slot);
         var mover = new EntityMover(entity, this);
-        data.Concat(list, mover);
+        if (TryCopyManagedRow(slot, out var row)) row.Concat(list, mover);
+        else Storage.GetRef(slot).Concat(list, mover);
     }
 
     public virtual void Set<TComponent>(Entity entity, in TComponent value)
@@ -341,7 +349,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         GetEntityState(in entity, out var slot);
         var buffer = Storage;
         ref var data = ref (buffer is ArrayBuffer<TEntity> array
-            ? ref array.GetRef(slot)
+            ? ref array.GetOwnedRow(slot)
             : ref (buffer is UnmanagedArrayBuffer<TEntity> native
                 ? ref native.GetRef(slot) : ref buffer.GetRef(slot)));
         Unsafe.As<TEntity, TComponent>(
@@ -356,9 +364,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
             return;
         }
         GetEntityState(entity, out var slot);
-        ref var data = ref Storage.GetRef(slot);
-        var mover = new EntityMover(entity, this);
-        data.Remove(TypeProxy<TComponent>._, mover);
+        RemoveComponentAt<TComponent>(entity, slot);
         success = true;
     }
 
@@ -368,10 +374,27 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
             success = false;
             return;
         }
-        ref var data = ref Storage.GetRef(state.Slot);
-        var mover = new EntityMover(entity, this);
-        data.Remove(TypeProxy<TComponent>._, mover);
+        RemoveComponentAt<TComponent>(entity, state.Slot);
         success = true;
+    }
+
+    private void RemoveComponentAt<TComponent>(Entity entity, int slot)
+    {
+        var mover = new EntityMover(entity, this);
+        if (TryCopyManagedRow(slot, out var row)) row.Remove(TypeProxy<TComponent>._, mover);
+        else Storage.GetRef(slot).Remove(TypeProxy<TComponent>._, mover);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool TryCopyManagedRow(int slot, out TEntity row)
+    {
+        if (BulkHListShape<TEntity>.IsStandard && Storage is ArrayBuffer<TEntity> array) {
+            // Migration can invoke callbacks after this copy.
+            row = array.GetOwnedRow(slot);
+            return true;
+        }
+        row = default;
+        return false;
     }
 
     private readonly struct EntityComponentPredicate<TList> : IGenericPredicate
@@ -411,10 +434,11 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         where TList : struct, IHList
     {
         GetEntityState(entity, out var slot);
-        ref var data = ref Storage.GetRef(slot);
-        data.Filter(
-            EntityComponentPredicate<TList>.Instance,
-            new FilteredHListMover(entity, this));
+        var mover = new FilteredHListMover(entity, this);
+        if (BulkHListShape<TList>.IsStandard && TryCopyManagedRow(slot, out var row)) {
+            row.Filter(EntityComponentPredicate<TList>.Instance, mover);
+        }
+        else Storage.GetRef(slot).Filter(EntityComponentPredicate<TList>.Instance, mover);
     }
 
     public virtual IEntityHost<UEntity> GetSiblingHost<UEntity>()
@@ -430,7 +454,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         => _entities.BorrowSpan();
 
     public object Box(int slot)
-        => Storage.GetRef(slot);
+        => Storage is ArrayBuffer<TEntity> array ? array.ReadRow(slot) : Storage.GetRef(slot);
 
     public IEnumerator<Entity> GetEnumerator() => _entities.GetEnumerator();
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();

@@ -8,13 +8,13 @@ public partial class BufferEntityHost<TEntity, TBuffer>
     where TEntity : struct, IHList
     where TBuffer : IBuffer<TEntity>
 {
-    private static class BulkHListShape
+    private static class BulkHListShape<TRow>
     {
         internal static readonly bool IsStandard = Check();
 
         private static bool Check()
         {
-            var type = typeof(TEntity);
+            var type = typeof(TRow);
             while (type != typeof(EmptyHList)) {
                 if (!type.IsGenericType || type.GetGenericTypeDefinition() != typeof(HList<,>)) return false;
                 type = type.GetGenericArguments()[1];
@@ -127,7 +127,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>
         where THost : IEntityHost<TEntity>, new()
     {
         if (!CanBatch(source, entities)
-            || !BulkHListShape.IsStandard || EntityIndexer<TEntity, TComponent>.Offset != -1
+            || !BulkHListShape<TEntity>.IsStandard || EntityIndexer<TEntity, TComponent>.Offset != -1
             || !source.World.TryGetHost<HList<TComponent, TEntity>, ArrayEntityHost<HList<TComponent, TEntity>>>(out var target)
             || target.InnerHost.GetType() != typeof(ArrayEntityHost<HList<TComponent, TEntity>>)
             || !ReferenceEquals(target.InnerHost.World, source.World)
@@ -289,7 +289,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>
         world.EnsureOwnerThread();
         var destination = target.InnerHost;
         if (!CanBatchTransition(source, target) || Storage is not ArrayBuffer<TEntity> sourceBuffer
-            || !BulkHListShape.IsStandard || EntityIndexer<TEntity, TComponent>.Offset != -1) return false;
+            || !BulkHListShape<TEntity>.IsStandard || EntityIndexer<TEntity, TComponent>.Offset != -1) return false;
         var count = _entities.Count;
         if (initialValues.Length != count) return false;
         if (count == 0) return true;
