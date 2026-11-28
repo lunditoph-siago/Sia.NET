@@ -42,14 +42,26 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
 
     private TBuffer Storage { get; } = buffer;
 
-    internal ArrayBuffer<TEntity>? ArrayStorage => Storage as ArrayBuffer<TEntity>;
-
     public TBuffer Buffer {
         get {
             var storage = Storage;
             if (storage is ArrayBuffer<TEntity> array) array.MarkExposed();
             return storage;
         }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static ArrayBuffer<TEntity>? GetManagedSliceBuffer(IEntityHost host)
+    {
+        if (!RuntimeHelpers.IsReferenceOrContainsReferences<TEntity>()) return null;
+        if (host is WorldEntityHost<TEntity, ArrayEntityHost<TEntity>> world
+            && world.InnerHost.GetType() == typeof(ArrayEntityHost<TEntity>)) return world.InnerHost.Storage;
+        if (host.GetType() == typeof(ArrayEntityHost<TEntity>) && host is ArrayEntityHost<TEntity> array) return array.Storage;
+        if (host.GetType() == typeof(BufferEntityHost<TEntity, ArrayBuffer<TEntity>>)
+            && host is BufferEntityHost<TEntity, ArrayBuffer<TEntity>> direct) return direct.Storage;
+        if (host.GetType() == typeof(BufferEntityHost<TEntity, IBuffer<TEntity>>)
+            && host is BufferEntityHost<TEntity, IBuffer<TEntity>> wrapped) return wrapped.Storage as ArrayBuffer<TEntity>;
+        return null;
     }
 
     private readonly EntityStorage _entities = new();
