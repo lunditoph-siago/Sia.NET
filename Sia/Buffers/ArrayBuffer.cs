@@ -8,7 +8,7 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
     public bool IsManaged => true;
     public int Capacity => int.MaxValue;
 
-    internal delegate void RowsAction<TDestination, TState>(
+    internal delegate void RowsHandler<TDestination, TState>(
         scoped Span<T> source, scoped Span<TDestination> target, scoped ref TState state)
         where TState : allows ref struct;
 
@@ -47,15 +47,15 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
         if (!Volatile.Read(ref _exposed)) Volatile.Write(ref _exposed, true);
     }
 
-    internal void WithRows<TDestination, TState>(ArrayBuffer<TDestination> destination,
-        scoped ref TState state, RowsAction<TDestination, TState> action)
+    internal void HandleRows<TDestination, TState>(ArrayBuffer<TDestination> destination,
+        scoped ref TState state, RowsHandler<TDestination, TState> handler)
         where TState : allows ref struct
     {
         var sourceRows = BorrowRows(out var sourceLock);
         try {
             var targetRows = destination.BorrowRows(out var targetLock);
             try {
-                action(sourceRows, targetRows, ref state);
+                handler(sourceRows, targetRows, ref state);
             }
             finally {
                 destination.ReleaseRows(targetLock);
@@ -96,7 +96,7 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
                 }
             }
         }
-        if (rental is not null) ReturnRows(rental);
+        if (rental is not null) ReturnArray(rental);
     }
 
     internal void ClearRows()
@@ -123,10 +123,10 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
                 _returnPending = canReturn;
             }
         }
-        if (rental is not null) ReturnRows(rental);
+        if (rental is not null) ReturnArray(rental);
     }
 
-    private static void ReturnRows(T[] rows)
+    private static void ReturnArray(T[] rows)
     {
         try {
             ArrayPool<T>.Shared.Return(rows, clearArray: true);
@@ -147,7 +147,7 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
 
     // The mutation owner uses this alias for immediate row operations.
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal ref T GetOwnedRow(int slot) => ref _array[slot];
+    internal ref T GetOwnedRef(int slot) => ref _array[slot];
 
     internal T ReadRow(int slot)
     {

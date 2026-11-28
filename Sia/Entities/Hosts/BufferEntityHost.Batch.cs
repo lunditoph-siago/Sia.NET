@@ -8,13 +8,13 @@ public partial class BufferEntityHost<TEntity, TBuffer>
     where TEntity : struct, IHList
     where TBuffer : IBuffer<TEntity>
 {
-    private static class HListShape<TRow>
+    private static class HListShape<TList>
     {
         internal static readonly bool IsStandard = Check();
 
         private static bool Check()
         {
-            var type = typeof(TRow);
+            var type = typeof(TList);
             while (type != typeof(EmptyHList)) {
                 if (!type.IsGenericType || type.GetGenericTypeDefinition() != typeof(HList<,>)) return false;
                 type = type.GetGenericArguments()[1];
@@ -143,7 +143,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>
         _ = WorldEvents.Set<TComponent>.Instance;
         _ = EventTypeIndexer<WorldEvents.Set<TComponent>>.Index;
         var sourceBuffer = (ArrayBuffer<TEntity>)(object)Storage;
-        PrependRows(sourceBuffer, destination, target, entities.Length, initial, default);
+        MoveWithHead(sourceBuffer, destination, target, entities.Length, initial, default);
         return true;
     }
 
@@ -184,7 +184,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>
             _ = WorldEvents.Remove<TComponent>.Instance;
             _ = EventTypeIndexer<WorldEvents.Remove<TComponent>>.Index;
             var sourceBuffer = (ArrayBuffer<TEntity>)(object)host.Storage;
-            host.MoveTails<TComponent, TTail>(sourceBuffer, destination, target, host._entities.Count);
+            host.MoveWithoutHead<TComponent, TTail>(sourceBuffer, destination, target, host._entities.Count);
             Applied = true;
         }
     }
@@ -208,7 +208,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>
         public readonly ReadOnlySpan<TComponent> InitialValues = initialValues;
     }
 
-    private BatchMove<TDestination> PrepareMove<TDestination>(
+    private BatchMove<TDestination> PrepareMoveAll<TDestination>(
         BufferEntityHost<TDestination, ArrayBuffer<TDestination>> destination, IEntityHost target, int count)
         where TDestination : struct, IHList
     {
@@ -219,14 +219,14 @@ public partial class BufferEntityHost<TEntity, TBuffer>
         return new(this, destination, target, start, count);
     }
 
-    private void PrependRows<TComponent>(ArrayBuffer<TEntity> sourceBuffer,
+    private void MoveWithHead<TComponent>(ArrayBuffer<TEntity> sourceBuffer,
         BufferEntityHost<HList<TComponent, TEntity>, ArrayBuffer<HList<TComponent, TEntity>>> destination,
         IEntityHost target, int count, in TComponent initial, ReadOnlySpan<TComponent> initialValues)
     {
         var value = initial;
-        var move = PrepareMove(destination, target, count);
-        var actionState = new BatchAdd<TComponent>(move, value, initialValues);
-        sourceBuffer.WithRows(destination.Storage, ref actionState, static (
+        var move = PrepareMoveAll(destination, target, count);
+        var handlerState = new BatchAdd<TComponent>(move, value, initialValues);
+        sourceBuffer.HandleRows(destination.Storage, ref handlerState, static (
             scoped Span<TEntity> sourceRows, scoped Span<HList<TComponent, TEntity>> targetRows,
             scoped ref BatchAdd<TComponent> batch) => {
             var transfer = batch.Move;
@@ -242,16 +242,16 @@ public partial class BufferEntityHost<TEntity, TBuffer>
                 state.Host = transfer.Target;
                 state.Slot = slot;
             }
-            transfer.Source.FinishMove(transfer.Destination, sourceRows, transfer.Count);
+            transfer.Source.FinishMoveAll(transfer.Destination, sourceRows, transfer.Count);
         });
     }
 
-    private void MoveTails<THead, TTail>(ArrayBuffer<TEntity> sourceBuffer,
+    private void MoveWithoutHead<THead, TTail>(ArrayBuffer<TEntity> sourceBuffer,
         BufferEntityHost<TTail, ArrayBuffer<TTail>> destination, IEntityHost target, int count)
         where TTail : struct, IHList
     {
-        var actionState = PrepareMove(destination, target, count);
-        sourceBuffer.WithRows(destination.Storage, ref actionState, static (
+        var handlerState = PrepareMoveAll(destination, target, count);
+        sourceBuffer.HandleRows(destination.Storage, ref handlerState, static (
             scoped Span<TEntity> sourceRows, scoped Span<TTail> targetRows, scoped ref BatchMove<TTail> move) => {
             var entities = move.Source._entities.AsSpan();
             for (var i = 0; i < move.Count; i++) {
@@ -261,11 +261,11 @@ public partial class BufferEntityHost<TEntity, TBuffer>
                 state.Host = move.Target;
                 state.Slot = slot;
             }
-            move.Source.FinishMove(move.Destination, sourceRows, move.Count);
+            move.Source.FinishMoveAll(move.Destination, sourceRows, move.Count);
         });
     }
 
-    private void FinishMove<TDestination>(
+    private void FinishMoveAll<TDestination>(
         BufferEntityHost<TDestination, ArrayBuffer<TDestination>> destination, scoped Span<TEntity> sourceRows, int count)
         where TDestination : struct, IHList
     {
@@ -299,7 +299,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>
         _ = WorldEvents.Set<TComponent>.Instance;
         world.EnsureOwnerThread();
         _ = EventTypeIndexer<WorldEvents.Set<TComponent>>.Index;
-        PrependRows(sourceBuffer, destination, target, count, default!, initialValues);
+        MoveWithHead(sourceBuffer, destination, target, count, default!, initialValues);
         return true;
     }
 
@@ -320,7 +320,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>
         _ = WorldEvents.Remove<THead>.Instance;
         world.EnsureOwnerThread();
         _ = EventTypeIndexer<WorldEvents.Remove<THead>>.Index;
-        MoveTails<THead, TTail>(sourceBuffer, destination, target, count);
+        MoveWithoutHead<THead, TTail>(sourceBuffer, destination, target, count);
         return true;
     }
 
