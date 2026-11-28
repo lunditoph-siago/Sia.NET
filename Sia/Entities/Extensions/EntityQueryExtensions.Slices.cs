@@ -301,22 +301,6 @@ public static partial class EntityQueryExtensions
         }
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static ArrayBuffer<TEntity>? GetManagedSliceBuffer<TEntity>(IEntityHost host)
-        where TEntity : struct, IHList
-    {
-        if (!RuntimeHelpers.IsReferenceOrContainsReferences<TEntity>()) return null;
-        if (host is WorldEntityHost<TEntity, ArrayEntityHost<TEntity>> world
-            && world.InnerHost.GetType() == typeof(ArrayEntityHost<TEntity>)) return world.InnerHost.Buffer;
-        if (host.GetType() == typeof(ArrayEntityHost<TEntity>) && host is ArrayEntityHost<TEntity> array) return array.Buffer;
-        if (host.GetType() == typeof(BufferEntityHost<TEntity, ArrayBuffer<TEntity>>)
-            && host is BufferEntityHost<TEntity, ArrayBuffer<TEntity>> direct) return direct.Buffer;
-        if (host.GetType() == typeof(BufferEntityHost<TEntity, IBuffer<TEntity>>)
-            && host is BufferEntityHost<TEntity, IBuffer<TEntity>> wrapped
-            && wrapped.Buffer is ArrayBuffer<TEntity> buffer) return buffer;
-        return null;
-    }
-
     private ref struct ManagedVisitor<C1, THandler>(IEntityHost host, int from, int to, ComponentOffset<C1> c1, ref THandler handler)
         : IGenericStructTypeHandler<IHList> where THandler : ISliceHandler<C1>
     {
@@ -324,7 +308,7 @@ public static partial class EntityQueryExtensions
         public bool Used;
         public void Handle<TEntity>() where TEntity : struct, IHList
         {
-            if (GetManagedSliceBuffer<TEntity>(host) is not { } buffer) return;
+            if (BufferEntityHost<TEntity, ArrayBuffer<TEntity>>.GetManagedSliceBuffer(host) is not { } buffer) return;
             Used = true;
             ref var target = ref _handler;
             var offset1 = c1;
@@ -351,7 +335,7 @@ public static partial class EntityQueryExtensions
         public bool Used;
         public void Handle<TEntity>() where TEntity : struct, IHList
         {
-            if (GetManagedSliceBuffer<TEntity>(host) is not { } buffer) return;
+            if (BufferEntityHost<TEntity, ArrayBuffer<TEntity>>.GetManagedSliceBuffer(host) is not { } buffer) return;
             Used = true;
             ref var target = ref _handler;
             var offset1 = c1;
@@ -379,7 +363,7 @@ public static partial class EntityQueryExtensions
         public bool Used;
         public void Handle<TEntity>() where TEntity : struct, IHList
         {
-            if (GetManagedSliceBuffer<TEntity>(host) is not { } buffer) return;
+            if (BufferEntityHost<TEntity, ArrayBuffer<TEntity>>.GetManagedSliceBuffer(host) is not { } buffer) return;
             Used = true;
             ref var target = ref _handler;
             var offset1 = c1;
@@ -408,7 +392,7 @@ public static partial class EntityQueryExtensions
         public bool Used;
         public void Handle<TEntity>() where TEntity : struct, IHList
         {
-            if (GetManagedSliceBuffer<TEntity>(host) is not { } buffer) return;
+            if (BufferEntityHost<TEntity, ArrayBuffer<TEntity>>.GetManagedSliceBuffer(host) is not { } buffer) return;
             Used = true;
             ref var target = ref _handler;
             var offset1 = c1;
@@ -438,7 +422,7 @@ public static partial class EntityQueryExtensions
         public bool Used;
         public void Handle<TEntity>() where TEntity : struct, IHList
         {
-            if (GetManagedSliceBuffer<TEntity>(host) is not { } buffer) return;
+            if (BufferEntityHost<TEntity, ArrayBuffer<TEntity>>.GetManagedSliceBuffer(host) is not { } buffer) return;
             Used = true;
             ref var target = ref _handler;
             var offset1 = c1;
@@ -469,7 +453,7 @@ public static partial class EntityQueryExtensions
         public bool Used;
         public void Handle<TEntity>() where TEntity : struct, IHList
         {
-            if (GetManagedSliceBuffer<TEntity>(host) is not { } buffer) return;
+            if (BufferEntityHost<TEntity, ArrayBuffer<TEntity>>.GetManagedSliceBuffer(host) is not { } buffer) return;
             Used = true;
             ref var target = ref _handler;
             var offset1 = c1;
