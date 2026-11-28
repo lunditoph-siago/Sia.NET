@@ -34,7 +34,13 @@ public record DynBundle : IBundle
 
         public void Add<T, THandler>(in T component, in THandler handler)
             where THandler : IGenericStructHandler<IHList>
-            => handler.Handle(HList.Cons(component, _list));
+        {
+            if (typeof(THList) == typeof(EmptyHList)) {
+                handler.Handle(HList.From(component));
+                return;
+            }
+            handler.Handle(HList.Cons(component, _list));
+        }
 
         public void Concat<THList1, THandler>(in THList1 list, in THandler handler)
             where THList1 : struct, IHList

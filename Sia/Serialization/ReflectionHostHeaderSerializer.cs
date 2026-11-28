@@ -15,6 +15,7 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
 {
     private const string ArrayHostAlias = "$A";
     private const string UnmanagedArrayHostAlias = "$U";
+    private const char CompactLayoutMarker = '\0';
     private static readonly byte[] Dividor = Encoding.Unicode.GetBytes(";");
     private static readonly byte[] StorageAliasHeader = Encoding.Unicode.GetBytes("$");
     private static readonly byte[] s_arrayHostAlias = Encoding.Unicode.GetBytes(ArrayHostAlias);
@@ -27,14 +28,25 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
         [typeof(UnmanagedArrayEntityHost<>)] = s_unmanagedArrayHostAlias,
     }.ToFrozenDictionary();
 
+    private struct CompactLayoutReader : IGenericStructTypeHandler<IHList>
+    {
+        public bool IsCompact;
+
+        public void Handle<TRow>() where TRow : struct, IHList
+            => IsCompact = HList.GetLayout<TRow>() == HList.Layout.Compact;
+    }
+
     public static void Serialize<TBufferWriter>(ref TBufferWriter writer, IEntityHost host)
         where TBufferWriter : IBufferWriter<byte>
     {
         var descriptor = host.Descriptor;
-        writer.Write(s_componentHeaders.GetOrAdd(descriptor.Type, static (_, layout) => {
+        writer.Write(s_componentHeaders.GetOrAdd(descriptor.Type, static (_, entityDescriptor) => {
+            CompactLayoutReader layout = default;
+            entityDescriptor.HandleType(ref layout);
             var components = string.Join('|',
-                layout.Components.Select(c => c.Type.AssemblyQualifiedName));
-            return Encoding.Unicode.GetBytes(components);
+                entityDescriptor.Components.Select(c => c.Type.AssemblyQualifiedName));
+            var header = layout.IsCompact ? CompactLayoutMarker + components : components;
+            return Encoding.Unicode.GetBytes(header);
         }, descriptor));
         writer.Write(Dividor);
 
@@ -125,20 +137,33 @@ public sealed class ReflectionHostHeaderSerializer : IHostHeaderSerializer
 
     private static string GenerateHListType(ReadOnlySpan<char> components)
     {
-        var builder = new StringBuilder();
+        if (components.IsEmpty) return "Sia.EmptyHList, Sia";
 
-        var componentCount = 0;
-        if (!components.IsEmpty) {
-            foreach (var range in components.Split('|')) {
-                builder.Append("Sia.HList`2[[");
-                builder.Append(components[range]);
-                builder.Append("], [");
-                componentCount++;
+        var hasCompactTail = components[0] == CompactLayoutMarker;
+        if (hasCompactTail) {
+            components = components[1..];
+            if (components.IsEmpty || components[^1] == '|') {
+                throw new InvalidDataException("Missing component in compact host header.");
             }
         }
 
-        builder.Append("Sia.EmptyHList, Sia");
-        for (var i = 0; i != componentCount; ++i) {
+        var builder = new StringBuilder();
+        var openNodes = 0;
+        foreach (var range in components.Split('|')) {
+            var component = components[range];
+            if (hasCompactTail && component.IsEmpty) {
+                throw new InvalidDataException("Missing component in compact host header.");
+            }
+            if (hasCompactTail && range.End.GetOffset(components.Length) == components.Length) {
+                builder.Append("Sia.HList`1[[").Append(component).Append("]], Sia");
+                break;
+            }
+            builder.Append("Sia.HList`2[[").Append(component).Append("], [");
+            openNodes++;
+        }
+
+        if (!hasCompactTail) builder.Append("Sia.EmptyHList, Sia");
+        for (var i = 0; i < openNodes; i++) {
             builder.Append("]], Sia");
         }
 

@@ -18,9 +18,9 @@ internal static class EntityBatch
                 || !CanStartBatch(source, _entities)) return;
             source.World.EnsureOwnerThread();
             if (EntityIndexer<TEntity, TComponent>.Offset != -1) return;
-            if (!source.World.TryGetHost<HList<TComponent, TEntity>, ArrayEntityHost<HList<TComponent, TEntity>>>(out var target)) return;
             var dispatcher = source.World.Dispatcher;
-            if (source.HasMigrationObservers || target.HasMigrationObservers
+            if (source.HasMigrationObservers
+                || !BufferEntityHost<TEntity, ArrayBuffer<TEntity>>.HasBatchAddTarget<TComponent>(source.World)
                 || !dispatcher.HasNoUntypedListeners
                 || !dispatcher.HasNoTypedListeners<WorldEvents.Add<TComponent>>()
                 || !dispatcher.HasNoTypedListeners<WorldEvents.Set<TComponent>>()) return;
@@ -34,7 +34,7 @@ internal static class EntityBatch
             try {
                 var span = values.AsSpan(0, _entities.Length);
                 span.Fill(initial);
-                Applied = source.InnerHost.TryBulkAddAll(source, target, span);
+                Applied = source.InnerHost.TryBulkAddAll<TComponent>(source, span);
             }
             finally {
                 ArrayPool<TComponent>.Shared.Return(values,
@@ -54,8 +54,7 @@ internal static class EntityBatch
             if (host is not WorldEntityHost<TEntity, ArrayEntityHost<TEntity>> source
                 || source.InnerHost.GetType() != typeof(ArrayEntityHost<TEntity>)
                 || !CanBatch(source, _entities)
-                || !typeof(TEntity).IsGenericType
-                || typeof(TEntity).GetGenericTypeDefinition() != typeof(HList<,>)
+                || !BufferEntityHost<TEntity, ArrayBuffer<TEntity>>.IsBatchRemoveHead<TComponent>()
                 || source.Descriptor.Components[0].Type != typeof(TComponent)) return;
             source.World.EnsureOwnerThread();
             var handler = new RemoveHead<TComponent, TEntity>(source);

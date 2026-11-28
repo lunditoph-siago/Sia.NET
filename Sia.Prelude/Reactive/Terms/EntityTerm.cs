@@ -21,7 +21,8 @@ public readonly record struct EntityTerm<TList, TChildren>(TList Components, TCh
     private static class ComponentEquality<T> where T : IHList
     {
         private static readonly bool IsList = typeof(T).IsGenericType
-            && typeof(T).GetGenericTypeDefinition() == typeof(HList<,>);
+            && (typeof(T).GetGenericTypeDefinition() == typeof(HList<,>)
+                || typeof(T).GetGenericTypeDefinition() == typeof(HList<>));
 
         public static unsafe bool Equal(in T left, in T right, bool nested = false)
         {

@@ -22,9 +22,8 @@ public static class WorldEntityHostBatchExtensions
         try {
             values.CopyTo(copiedValues);
             if (source is WorldEntityHost<TEntity, ArrayEntityHost<TEntity>> arraySource
-                && arraySource.InnerHost.GetType() == typeof(ArrayEntityHost<TEntity>)
-                && world.TryGetHost<HList<TComponent, TEntity>, ArrayEntityHost<HList<TComponent, TEntity>>>(out var target)) {
-                if (arraySource.InnerHost.TryBulkAddAll(arraySource, target, copiedValues.AsSpan(0, count))) return;
+                && arraySource.InnerHost.GetType() == typeof(ArrayEntityHost<TEntity>)) {
+                if (arraySource.InnerHost.TryBulkAddAll<TComponent>(arraySource, copiedValues.AsSpan(0, count))) return;
             }
             var entities = ArrayPool<Entity>.Shared.Rent(count);
             try {
@@ -43,14 +42,26 @@ public static class WorldEntityHostBatchExtensions
         this WorldEntityHost<HList<THead, TTail>, TInnerHost> source)
         where TTail : struct, IHList
         where TInnerHost : IEntityHost<HList<THead, TTail>>, new()
+        => RemoveHeadComponentFromAll<HList<THead, TTail>, THead, TTail, TInnerHost>(source);
+
+    public static void RemoveHeadComponentFromAll<THead, TInnerHost>(
+        this WorldEntityHost<HList<THead>, TInnerHost> source)
+        where TInnerHost : IEntityHost<HList<THead>>, new()
+        => RemoveHeadComponentFromAll<HList<THead>, THead, EmptyHList, TInnerHost>(source);
+
+    private static void RemoveHeadComponentFromAll<TEntity, THead, TTail, TInnerHost>(
+        WorldEntityHost<TEntity, TInnerHost> source)
+        where TEntity : struct, IHList
+        where TTail : struct, IHList
+        where TInnerHost : IEntityHost<TEntity>, new()
     {
         ArgumentNullException.ThrowIfNull(source);
         var world = source.World;
         world.EnsureOwnerThread();
         var count = source.Count;
         if (count == 0) return;
-        if (source is WorldEntityHost<HList<THead, TTail>, ArrayEntityHost<HList<THead, TTail>>> arraySource
-            && arraySource.InnerHost.GetType() == typeof(ArrayEntityHost<HList<THead, TTail>>)
+        if (source is WorldEntityHost<TEntity, ArrayEntityHost<TEntity>> arraySource
+            && arraySource.InnerHost.GetType() == typeof(ArrayEntityHost<TEntity>)
             && world.TryGetHost<TTail, ArrayEntityHost<TTail>>(out var target)) {
             if (arraySource.InnerHost.TryBulkRemoveHeadAll<THead, TTail>(arraySource, target)) return;
         }
