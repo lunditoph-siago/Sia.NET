@@ -167,29 +167,26 @@ public partial class BufferEntityHost<TEntity, TBuffer>
         public bool Applied;
         public void Handle<TTail>(in TTail tail) where TTail : struct, IHList
         {
-            if (source.World.TryGetHost<TTail, ArrayEntityHost<TTail>>(out var target))
-                Applied = host.TryBatchRemoveHead<TComponent, TTail, THost>(source, target);
-        }
-    }
+            var world = source.World;
+            if (!world.TryGetHost<TTail, ArrayEntityHost<TTail>>(out var target)) return;
 
-    private bool TryBatchRemoveHead<THead, TTail, THost>(WorldEntityHost<TEntity, THost> source,
-        WorldEntityHost<TTail, ArrayEntityHost<TTail>> target)
-        where TTail : struct, IHList where THost : IEntityHost<TEntity>, new()
-    {
-        var world = source.World;
-        var destination = (BufferEntityHost<TTail, ArrayBuffer<TTail>>)target.InnerHost;
-        if (typeof(TEntity) != typeof(HList<THead, TTail>)
-            || target.InnerHost.GetType() != typeof(ArrayEntityHost<TTail>)
-            || target.IsClosed
-            || !ReferenceEquals(destination.World, world) || source.HasMigrationObservers || target.HasMigrationObservers
-            || !world.Dispatcher.HasNoUntypedListeners
-            || !world.Dispatcher.HasNoTypedListeners<WorldEvents.Remove<THead>>()
-            || destination._entities.Count != destination.Storage.Count) return false;
-        _ = WorldEvents.Remove<THead>.Instance;
-        _ = EventTypeIndexer<WorldEvents.Remove<THead>>.Index;
-        var sourceBuffer = (ArrayBuffer<TEntity>)(object)Storage;
-        MoveTails<THead, TTail>(sourceBuffer, destination, target, _entities.Count);
-        return true;
+            var destination = target.InnerHost;
+            if (typeof(TEntity) != typeof(HList<TComponent, TTail>)
+                || destination.GetType() != typeof(ArrayEntityHost<TTail>)
+                || target.IsClosed
+                || !ReferenceEquals(destination.World, world) || source.HasMigrationObservers || target.HasMigrationObservers
+                || !world.Dispatcher.HasNoUntypedListeners
+                || !world.Dispatcher.HasNoTypedListeners<WorldEvents.Remove<TComponent>>()
+                || destination._entities.Count != destination.Storage.Count) {
+                Applied = false;
+                return;
+            }
+            _ = WorldEvents.Remove<TComponent>.Instance;
+            _ = EventTypeIndexer<WorldEvents.Remove<TComponent>>.Index;
+            var sourceBuffer = (ArrayBuffer<TEntity>)(object)host.Storage;
+            host.MoveTails<TComponent, TTail>(sourceBuffer, destination, target, host._entities.Count);
+            Applied = true;
+        }
     }
 
     private readonly struct BatchMove<TDestination>(BufferEntityHost<TEntity, TBuffer> source,
