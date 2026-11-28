@@ -1,17 +1,20 @@
 using System.Buffers;
 using System.Collections;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 
 namespace Sia;
 
 internal sealed class EntityStorage
 {
+    private enum BackingOwnership : byte { Private, Rental, Borrowed }
+
     private static readonly ArrayPool<Entity> s_pool = ArrayPool<Entity>.Create();
 
     private Entity[] _items = [];
     private int _count;
     private int _version;
-    private bool _borrowed;
+    private BackingOwnership _ownership;
 
     internal int Count => _count;
     internal int Capacity => _items.Length;
@@ -29,19 +32,23 @@ internal sealed class EntityStorage
         }
     }
 
-    internal void EnsureCapacity(int count)
+    internal void EnsureCapacity(int count, bool exactFresh = false)
     {
         if (count <= _items.Length) return;
         lock (this) {
             var items = _items;
             if (count <= items.Length) return;
-            var capacity = items.Length == 0 ? 4 : (int)Math.Min(2L * items.Length, Array.MaxLength);
-            var replacement = s_pool.Rent(Math.Max(capacity, count));
+            var capacity = Math.Max(4, items.Length);
+            if (BitOperations.IsPow2(items.Length)) {
+                capacity = (int)Math.Min(2L * items.Length, Array.MaxLength);
+            }
+            var exact = exactFresh && items.Length == 0 && count > 32 * 1024 && !BitOperations.IsPow2(count);
+            var replacement = exact ? new Entity[count] : s_pool.Rent(Math.Max(capacity, count));
             items.AsSpan(0, _count).CopyTo(replacement);
-            var borrowed = _borrowed;
+            var returnPrevious = _ownership == BackingOwnership.Rental;
             _items = replacement;
-            _borrowed = false;
-            if (!borrowed && items.Length != 0) s_pool.Return(items, clearArray: true);
+            _ownership = exact ? BackingOwnership.Private : BackingOwnership.Rental;
+            if (returnPrevious) s_pool.Return(items, clearArray: true);
         }
     }
 
@@ -110,9 +117,9 @@ internal sealed class EntityStorage
         _version++;
     }
 
-    internal void SetCount(int count)
+    internal void SetCount(int count, bool exactFresh = false)
     {
-        EnsureCapacity(count);
+        EnsureCapacity(count, exactFresh);
         if (count < _count) _items.AsSpan(count, _count - count).Clear();
         _count = count;
         _version++;
@@ -125,7 +132,7 @@ internal sealed class EntityStorage
     internal Span<Entity> BorrowSpan()
     {
         lock (this) {
-            if (_items.Length != 0) _borrowed = true;
+            if (_items.Length != 0) _ownership = BackingOwnership.Borrowed;
             return AsSpan();
         }
     }
@@ -134,16 +141,16 @@ internal sealed class EntityStorage
     {
         lock (this) {
             var items = _items;
-            var borrowed = _borrowed;
+            var ownership = _ownership;
             var count = _count;
             _items = [];
             _count = 0;
             _version++;
-            _borrowed = false;
-            if (borrowed) {
+            _ownership = BackingOwnership.Private;
+            if (ownership == BackingOwnership.Borrowed) {
                 items.AsSpan(0, count).Clear();
             }
-            else if (items.Length != 0) {
+            else if (ownership == BackingOwnership.Rental) {
                 s_pool.Return(items, clearArray: true);
             }
         }

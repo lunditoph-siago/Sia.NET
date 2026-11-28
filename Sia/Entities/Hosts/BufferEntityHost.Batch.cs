@@ -326,7 +326,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>
             else
 #endif
             {
-                _entities.SetCount(end);
+                _entities.SetCount(end, exactFresh: true);
                 states.RentMany(_entities.AsSpan()[start..end], owner, start, ref created);
             }
         }
