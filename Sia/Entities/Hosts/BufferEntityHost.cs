@@ -361,13 +361,16 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     public virtual void Remove<TComponent>(Entity entity, out bool success)
         => RemoveDefault<TComponent>(entity, null, out success);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void RemoveDefault<TComponent>(Entity entity, EntityState? state, out bool success)
     {
         if (EntityIndexer<TEntity, TComponent>.Offset == -1) {
             success = false;
             return;
         }
-        var slot = (state ?? GetEntityState(entity, out _)).Slot;
+        int slot;
+        if (state is null) GetEntityState(entity, out slot);
+        else slot = state.Slot;
         var mover = new EntityMover(entity, this);
         if (TryCopyRow(slot, out var row)) row.Remove(TypeProxy<TComponent>._, mover);
         else Storage.GetRef(slot).Remove(TypeProxy<TComponent>._, mover);
