@@ -20,6 +20,18 @@ public static class WorldCommonHostExtensions
         where TEntity : struct, IHList
         => world.GetArrayHost<TEntity>().Create(initial);
 
+    /// <summary>Creates entities with the same initial value.</summary>
+    /// <param name="world">The world that owns the entities.</param>
+    /// <param name="count">The number of entities to create.</param>
+    /// <param name="initial">The initial value for each entity.</param>
+    /// <param name="runner">An optional worker pool for a large batch in a fresh world.</param>
+    public static void CreateMany<TEntity>(this World world, int count, in TEntity initial, ParallelRunner? runner = null)
+        where TEntity : struct, IHList
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(count);
+        if (count != 0) world.GetArrayHost<TEntity>().CreateMany(count, initial, runner);
+    }
+
     #endregion // ArrayHost
 
     #region UnmanagedArrayHost

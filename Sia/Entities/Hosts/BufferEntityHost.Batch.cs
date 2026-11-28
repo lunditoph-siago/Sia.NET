@@ -291,4 +291,53 @@ public partial class BufferEntityHost<TEntity, TBuffer>
         FinishMoveAll(destination, sourceBuffer, sourceRows, count);
         return true;
     }
+
+    internal bool TryCreateMany(IEntityHost owner, int count, in TEntity initial, ParallelRunner? runner)
+    {
+        if (Storage is not ArrayBuffer<TEntity> buffer || _entities.Count != buffer.Count) return false;
+        var start = buffer.Count;
+        var end = checked(start + count);
+        var value = initial;
+        buffer.EnsureCapacity(end);
+        var states = EntityStates;
+        var world = owner.World!;
+        var created = 0;
+        try {
+#if !BROWSER
+            if (count >= 32 * 1024 && Environment.ProcessorCount > 1 && start == 0 && world.Count == 0
+                && runner is { IsCurrentWorker: false, DegreeOfParallelism: > 0 } && states.CanRentFreshRange) {
+                var pending = new EntityStorage();
+                pending.SetCount(count);
+                try {
+                    EntityStatePool.RentFreshMany(runner, pending, owner, ref created);
+                }
+                finally {
+                    if (created != count) pending.SetCount(created);
+                    if (created != 0) {
+                        // Retire any enumerator obtained from the empty host before publishing the batch.
+                        _entities.Dispose();
+                        _entities = pending;
+                    }
+                    else {
+                        pending.Dispose();
+                    }
+                }
+            }
+            else
+#endif
+            {
+                _entities.SetCount(end, exactFresh: true);
+                states.RentMany(_entities.AsSpan()[start..end], owner, start, ref created);
+            }
+        }
+        finally {
+            var slot = start + created;
+            if (_entities.Count != slot) _entities.SetCount(slot);
+            buffer.FillRows(start, created, value);
+            buffer.Count = slot;
+            Version += created;
+            world.Count += created;
+        }
+        return true;
+    }
 }

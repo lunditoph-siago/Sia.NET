@@ -42,14 +42,14 @@ public sealed class RunnerBarrier
     private static readonly DefaultObjectPool<RunnerBarrier> s_barrierPool
         = new(new PoolPolicy());
 
-    private static readonly DefaultObjectPool<RunnerBarrier> s_recordingBarrierPool
+    private static readonly DefaultObjectPool<RunnerBarrier> s_scopedWorkBarrierPool
         = new(new PoolPolicy());
 
     public static RunnerBarrier Get() => s_barrierPool.Get();
 
-    internal static RunnerBarrier GetForRecording()
+    internal static RunnerBarrier GetForScopedWork()
     {
-        var barrier = s_recordingBarrierPool.Get();
+        var barrier = s_scopedWorkBarrierPool.Get();
 #if !BROWSER
         // Keep one caller participant throughout submission, even if workers finish early.
         barrier.Raw.AddParticipant();
@@ -156,7 +156,7 @@ public sealed class RunnerBarrier
         }
     }
 
-    internal void WaitAndReturnRecording()
+    internal void WaitAndReturnScopedWork()
     {
 #if BROWSER
         const int callerParticipants = 0;
@@ -174,7 +174,7 @@ public sealed class RunnerBarrier
 #endif
         }
         catch (ThreadInterruptedException) {
-            // Drain every worker borrowing the caller's span before retiring this lease.
+            // Drain workers before the caller releases shared storage.
             while (ParticipantCount > callerParticipants) {
                 try {
                     spinner.SpinOnce();
@@ -188,7 +188,7 @@ public sealed class RunnerBarrier
             InvokeCallbacksAndThrow();
         }
         finally {
-            s_recordingBarrierPool.Return(this);
+            s_scopedWorkBarrierPool.Return(this);
         }
     }
 }

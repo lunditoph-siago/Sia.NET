@@ -232,20 +232,20 @@ internal static class EntityExtensionsCommon
                 return;
             }
 
-            var completion = RunnerBarrier.GetForRecording();
+            var completion = RunnerBarrier.GetForScopedWork();
             try {
                 runner.Run(taskCount, data, action, completion);
             }
             catch {
                 try {
-                    completion.WaitAndReturnRecording();
+                    completion.WaitAndReturnScopedWork();
                 }
                 catch {
                     // Preserve the submission failure after draining accepted work.
                 }
                 throw;
             }
-            completion.WaitAndReturnRecording();
+            completion.WaitAndReturnScopedWork();
         }
 
         private static void Invoke<TData>(in ScopedJob<TData> job, (int, int) range)
