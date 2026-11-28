@@ -1,16 +1,21 @@
+using System.Runtime.CompilerServices;
+
 namespace Sia;
 
 public static class WorldCommonHostExtensions
 {
     #region ArrayHost
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static WorldEntityHost<TEntity, ArrayEntityHost<TEntity>> GetArrayHost<TEntity>(this World world)
         where TEntity : struct, IHList
-        => world.AcquireHost<TEntity, ArrayEntityHost<TEntity>>();
+        => world.AcquireArrayHost<TEntity>();
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Entity Create(this World world)
         => world.GetArrayHost<EmptyHList>().Create();
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Entity Create<TEntity>(this World world, in TEntity initial)
         where TEntity : struct, IHList
         => world.GetArrayHost<TEntity>().Create(initial);
