@@ -307,13 +307,12 @@ public static partial class EntityQueryExtensions
     {
         if (!RuntimeHelpers.IsReferenceOrContainsReferences<TEntity>()) return null;
         if (host is WorldEntityHost<TEntity, ArrayEntityHost<TEntity>> world
-            && world.InnerHost.GetType() == typeof(ArrayEntityHost<TEntity>)) return world.InnerHost.Storage;
-        if (host.GetType() == typeof(ArrayEntityHost<TEntity>) && host is ArrayEntityHost<TEntity> array) return array.Storage;
+            && world.InnerHost.GetType() == typeof(ArrayEntityHost<TEntity>)) return world.InnerHost.ArrayStorage;
+        if (host.GetType() == typeof(ArrayEntityHost<TEntity>) && host is ArrayEntityHost<TEntity> array) return array.ArrayStorage;
         if (host.GetType() == typeof(BufferEntityHost<TEntity, ArrayBuffer<TEntity>>)
-            && host is BufferEntityHost<TEntity, ArrayBuffer<TEntity>> direct) return direct.Storage;
+            && host is BufferEntityHost<TEntity, ArrayBuffer<TEntity>> direct) return direct.ArrayStorage;
         if (host.GetType() == typeof(BufferEntityHost<TEntity, IBuffer<TEntity>>)
-            && host is BufferEntityHost<TEntity, IBuffer<TEntity>> wrapped
-            && wrapped.Storage is ArrayBuffer<TEntity> buffer) return buffer;
+            && host is BufferEntityHost<TEntity, IBuffer<TEntity>> wrapped) return wrapped.ArrayStorage;
         return null;
     }
 

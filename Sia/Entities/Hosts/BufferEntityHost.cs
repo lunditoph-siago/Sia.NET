@@ -40,7 +40,9 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         return true;
     }
 
-    internal TBuffer Storage { get; } = buffer;
+    private TBuffer Storage { get; } = buffer;
+
+    internal ArrayBuffer<TEntity>? ArrayStorage => Storage as ArrayBuffer<TEntity>;
 
     public TBuffer Buffer {
         get {
@@ -170,8 +172,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
 
         var value = data;
         var slot = Storage.Count++;
-        if (Storage is ArrayBuffer<TEntity> array) array.WriteRow(slot, value);
-        else Storage.GetRef(slot) = value;
+        GetOwnedRow(slot) = value;
 
         var state = entity.GetStateUnchecked();
         state.Host = this;

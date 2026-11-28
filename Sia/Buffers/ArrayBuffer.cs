@@ -156,9 +156,6 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ref T GetOwnedRow(int slot) => ref _array[slot];
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void WriteRow(int slot, in T value) => GetOwnedRow(slot) = value;
-
     internal T ReadRow(int slot)
     {
         var array = Volatile.Read(ref _array);
