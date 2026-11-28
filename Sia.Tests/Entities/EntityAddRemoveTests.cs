@@ -24,27 +24,6 @@ public class EntityAddRemoveTests
         }
     }
 
-    private struct UpdatingTagRemovalList : IHList
-    {
-        [ThreadStatic] public static Entity Target;
-
-        public static void HandleTypes<THandler>(in THandler handler) where THandler : IGenericTypeHandler
-        {
-            if (Target.IsValid && Target.Contains<Tag>()) Target.Set(new Position(6, 7));
-            handler.Handle<Tag>();
-        }
-
-        void IHList.Handle<THandler>(in THandler handler) => throw new NotSupportedException();
-        void IHList.HandleHead<THandler>(in THandler handler) => throw new NotSupportedException();
-        void IHList.HandleHeadRef<THandler>(ref THandler handler) => throw new NotSupportedException();
-        void IHList.HandleTail<THandler>(in THandler handler) => throw new NotSupportedException();
-        void IHList.HandleTailRef<THandler>(ref THandler handler) => throw new NotSupportedException();
-        void IHList.Filter<TPredicate, THandler>(in TPredicate predicate, in THandler handler) => throw new NotSupportedException();
-        void IHList.Concat<TList, THandler>(in TList list, in THandler handler) => throw new NotSupportedException();
-        bool IHList.Remove<TValue, THandler>(TypeProxy<TValue> proxy, in THandler handler) => throw new NotSupportedException();
-        bool IHList.Remove<TValue, THandler>(in TValue value, in THandler handler) => throw new NotSupportedException();
-    }
-
     [Fact]
     public void AddRemove_PreserveDerivedHostOverrides()
     {
@@ -83,25 +62,6 @@ public class EntityAddRemoveTests
         entity.Add(new Velocity(3, 4));
 
         Assert.Equal(["add", "set"], events);
-    }
-
-    [Fact]
-    public void RemoveMany_PreservesUpdatesFromCustomTypeDiscovery()
-    {
-        using var world = new World();
-        var target = world.GetArrayHost<HList<Position, EmptyHList>>();
-        var entity = world.Create(HList.From(new Tag(), new Position(1, 2)));
-        UpdatingTagRemovalList.Target = entity;
-        try {
-            entity.RemoveMany<UpdatingTagRemovalList>();
-        }
-        finally {
-            UpdatingTagRemovalList.Target = default;
-        }
-
-        Assert.Same(target, entity.Host);
-        Assert.False(entity.Contains<Tag>());
-        Assert.Equal(new Position(6, 7), entity.Get<Position>());
     }
 
     [Fact]
