@@ -22,14 +22,14 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
     }
 
     private T[] _array;
-    private object? _growthLock;
+    private object? _poolLock;
 
     // A nonempty backing with a null marker has no escaped borrow.
     private T[]? _retainedArray;
     private bool _exposed;
-    private int _activeScopedBorrows;
+    private int _rowBorrows;
     private int _detachedCapacity;
-    private bool _returnAfterScope;
+    private bool _returnPending;
 
     public ArrayBuffer(int initialCapacity)
     {
@@ -39,10 +39,10 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
 
     public ArrayBuffer() : this(0) {}
 
-    internal void EnableGrowthPooling()
-        => Interlocked.CompareExchange(ref _growthLock, new object(), null);
+    internal void EnablePooling()
+        => Interlocked.CompareExchange(ref _poolLock, new object(), null);
 
-    internal void RecordExposure()
+    internal void MarkExposed()
     {
         if (!Volatile.Read(ref _exposed)) Volatile.Write(ref _exposed, true);
     }
@@ -51,86 +51,79 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
         scoped ref TState state, RowsAction<TDestination, TState> action)
         where TState : allows ref struct
     {
-        var sourceRows = BeginRows(out var sourceLock);
+        var sourceRows = BorrowRows(out var sourceLock);
         try {
-            var targetRows = destination.BeginRows(out var targetLock);
+            var targetRows = destination.BorrowRows(out var targetLock);
             try {
                 action(sourceRows, targetRows, ref state);
             }
             finally {
-                destination.EndRows(targetLock);
+                destination.ReleaseRows(targetLock);
             }
         }
         finally {
-            EndRows(sourceLock);
+            ReleaseRows(sourceLock);
         }
     }
 
-    private Span<T> BeginRows(out object? growthLock)
+    private Span<T> BorrowRows(out object? poolLock)
     {
         var backing = Volatile.Read(ref _array);
-        growthLock = Volatile.Read(ref _growthLock);
-        if (growthLock is null || ReferenceEquals(backing, Volatile.Read(ref _retainedArray))) {
-            growthLock = null;
+        poolLock = Volatile.Read(ref _poolLock);
+        if (poolLock is null || ReferenceEquals(backing, Volatile.Read(ref _retainedArray))) {
+            poolLock = null;
             return backing.AsSpan(0, Count);
         }
 
-        lock (growthLock) {
+        lock (poolLock) {
             var rows = _array.AsSpan(0, Count);
-            _activeScopedBorrows++;
+            _rowBorrows++;
             return rows;
         }
     }
 
-    private void EndRows(object? growthLock)
+    private void ReleaseRows(object? poolLock)
     {
-        if (growthLock is null) return;
+        if (poolLock is null) return;
 
         T[]? rental = null;
-        lock (growthLock) {
-            if (--_activeScopedBorrows == 0 && _returnAfterScope) {
-                _returnAfterScope = false;
+        lock (poolLock) {
+            if (--_rowBorrows == 0 && _returnPending) {
+                _returnPending = false;
                 if (Count == 0 && !Volatile.Read(ref _exposed) && _retainedArray is null) {
-                    rental = DetachRows();
+                    rental = _array;
+                    PublishArray(Array.Empty<T>(), retain: false, detachedCapacity: rental.Length);
                 }
             }
         }
         if (rental is not null) ReturnRows(rental);
     }
 
-    internal void ClearOwnedRows()
+    internal void ClearRows()
     {
-        var growthLock = Volatile.Read(ref _growthLock);
-        if (growthLock is null) {
+        var poolLock = Volatile.Read(ref _poolLock);
+        if (poolLock is null) {
             _array.AsSpan(0, Count).Clear();
             Count = 0;
             return;
         }
 
         T[]? rental = null;
-        lock (growthLock) {
+        lock (poolLock) {
             var rows = _array;
             var canReturn = rows.Length != 0 && !Volatile.Read(ref _exposed) && _retainedArray is null;
-            if (canReturn && _activeScopedBorrows == 0) {
+            if (canReturn && _rowBorrows == 0) {
                 Count = 0;
-                rental = DetachRows();
+                rental = rows;
+                PublishArray(Array.Empty<T>(), retain: false, detachedCapacity: rental.Length);
             }
             else {
                 rows.AsSpan(0, canReturn ? rows.Length : Count).Clear();
                 Count = 0;
-                _returnAfterScope = canReturn;
+                _returnPending = canReturn;
             }
         }
         if (rental is not null) ReturnRows(rental);
-    }
-
-    private T[] DetachRows()
-    {
-        // Preserve the capacity for callers that reach Buffer after disposal.
-        var rows = _array;
-        _detachedCapacity = rows.Length;
-        Volatile.Write(ref _array, Array.Empty<T>());
-        return rows;
     }
 
     private static void ReturnRows(T[] rows)
@@ -143,11 +136,11 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
         }
     }
 
-    private T[] RestoreDetachedArray(int capacity)
+    private T[] PublishArray(T[] array, bool retain = true, int detachedCapacity = 0)
     {
-        var array = new T[capacity];
-        _detachedCapacity = 0;
-        Volatile.Write(ref _retainedArray, array);
+        _detachedCapacity = detachedCapacity;
+        // Publish the marker before the new backing can be borrowed.
+        Volatile.Write(ref _retainedArray, retain ? array : null);
         Volatile.Write(ref _array, array);
         return array;
     }
@@ -159,12 +152,12 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
     internal T ReadRow(int slot)
     {
         var array = Volatile.Read(ref _array);
-        var growthLock = Volatile.Read(ref _growthLock);
-        if (growthLock is null || ReferenceEquals(array, Volatile.Read(ref _retainedArray))) {
+        var poolLock = Volatile.Read(ref _poolLock);
+        if (poolLock is null || ReferenceEquals(array, Volatile.Read(ref _retainedArray))) {
             return array[slot];
         }
 
-        lock (growthLock) {
+        lock (poolLock) {
             if ((uint)slot < (uint)_detachedCapacity) return default!;
             return _array[slot];
         }
@@ -175,18 +168,17 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
         var capacity = 8;
         while (capacity < requiredCapacity) { capacity *= 2; }
 
-        var growthLock = Volatile.Read(ref _growthLock);
-        if (growthLock is null) {
+        var poolLock = Volatile.Read(ref _poolLock);
+        if (poolLock is null) {
             var next = _array;
             Array.Resize(ref next, capacity);
-            Volatile.Write(ref _retainedArray, next);
-            Volatile.Write(ref _array, next);
+            PublishArray(next);
             return;
         }
 
-        lock (growthLock) {
+        lock (poolLock) {
             if (_detachedCapacity != 0) {
-                RestoreDetachedArray(Math.Max(_detachedCapacity, capacity));
+                PublishArray(new T[Math.Max(_detachedCapacity, capacity)]);
                 return;
             }
 
@@ -208,12 +200,10 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
             var next = rental ?? new T[capacity];
             // AsSpan exposes the full capacity, including rows past Count.
             previous.CopyTo(next, 0);
-            var previousRental = _activeScopedBorrows == 0 && _retainedArray is null ? previous : null;
-            _returnAfterScope = false;
+            var previousRental = _rowBorrows == 0 && _retainedArray is null ? previous : null;
+            _returnPending = false;
 
-            // Publish the marker before the new backing can be borrowed.
-            Volatile.Write(ref _retainedArray, rental is null ? next : null);
-            Volatile.Write(ref _array, next);
+            PublishArray(next, retain: rental is null);
             if (previousRental is not null) ArrayPool<T>.Shared.Return(previousRental, clearOnReturn);
         }
     }
@@ -234,20 +224,20 @@ public sealed class ArrayBuffer<T> : IBuffer<T>
     private T[] BorrowArray(long requiredLength = 0)
     {
         var array = Volatile.Read(ref _array);
-        var growthLock = Volatile.Read(ref _growthLock);
-        if (growthLock is null || ReferenceEquals(array, Volatile.Read(ref _retainedArray))) {
+        var poolLock = Volatile.Read(ref _poolLock);
+        if (poolLock is null || ReferenceEquals(array, Volatile.Read(ref _retainedArray))) {
             return array;
         }
-        return RecordBorrow(growthLock, requiredLength);
+        return BorrowLocked(poolLock, requiredLength);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private T[] RecordBorrow(object growthLock, long requiredLength)
+    private T[] BorrowLocked(object poolLock, long requiredLength)
     {
-        lock (growthLock) {
+        lock (poolLock) {
             if (_detachedCapacity != 0) {
                 return requiredLength <= _detachedCapacity
-                    ? RestoreDetachedArray(_detachedCapacity) : Array.Empty<T>();
+                    ? PublishArray(new T[_detachedCapacity]) : Array.Empty<T>();
             }
 
             var array = _array;

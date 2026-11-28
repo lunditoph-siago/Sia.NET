@@ -47,7 +47,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     public TBuffer Buffer {
         get {
             var storage = Storage;
-            if (storage is ArrayBuffer<TEntity> array) array.RecordExposure();
+            if (storage is ArrayBuffer<TEntity> array) array.MarkExposed();
             return storage;
         }
     }
@@ -77,9 +77,9 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
         _entityStates = world.EntityStates;
         _ownsEntityStates = false;
         World = world;
-        if (GetType() == typeof(ArrayEntityHost<TEntity>) && BulkHListShape<TEntity>.IsStandard
+        if (GetType() == typeof(ArrayEntityHost<TEntity>) && HListShape<TEntity>.IsStandard
             && Storage is ArrayBuffer<TEntity> arrayBuffer) {
-            arrayBuffer.EnableGrowthPooling();
+            arrayBuffer.EnablePooling();
         }
     }
 
@@ -313,7 +313,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
             if (state.IsTransitioning) {
                 throw new InvalidOperationException("Cannot migrate an entity during release or a migration callback.");
             }
-            Move(e, state, source, data, BulkHListShape<TEntity>.IsStandard);
+            Move(e, state, source, data, HListShape<TEntity>.IsStandard);
         }
     }
 
@@ -336,7 +336,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
 
         GetEntityState(entity, out var slot);
         var mover = new EntityMover(entity, this);
-        if (TryCopyManagedRow(slot, out var row)) row.Concat(list, mover);
+        if (TryCopyRow(slot, out var row)) row.Concat(list, mover);
         else Storage.GetRef(slot).Concat(list, mover);
     }
 
@@ -359,37 +359,25 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     }
 
     public virtual void Remove<TComponent>(Entity entity, out bool success)
+        => RemoveDefault<TComponent>(entity, null, out success);
+
+    internal void RemoveDefault<TComponent>(Entity entity, EntityState? state, out bool success)
     {
         if (EntityIndexer<TEntity, TComponent>.Offset == -1) {
             success = false;
             return;
         }
-        GetEntityState(entity, out var slot);
-        RemoveComponentAt<TComponent>(entity, slot);
-        success = true;
-    }
-
-    internal void RemoveDefault<TComponent>(Entity entity, EntityState state, out bool success)
-    {
-        if (EntityIndexer<TEntity, TComponent>.Offset == -1) {
-            success = false;
-            return;
-        }
-        RemoveComponentAt<TComponent>(entity, state.Slot);
-        success = true;
-    }
-
-    private void RemoveComponentAt<TComponent>(Entity entity, int slot)
-    {
+        var slot = (state ?? GetEntityState(entity, out _)).Slot;
         var mover = new EntityMover(entity, this);
-        if (TryCopyManagedRow(slot, out var row)) row.Remove(TypeProxy<TComponent>._, mover);
+        if (TryCopyRow(slot, out var row)) row.Remove(TypeProxy<TComponent>._, mover);
         else Storage.GetRef(slot).Remove(TypeProxy<TComponent>._, mover);
+        success = true;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool TryCopyManagedRow(int slot, out TEntity row)
+    private bool TryCopyRow(int slot, out TEntity row)
     {
-        if (BulkHListShape<TEntity>.IsStandard && Storage is ArrayBuffer<TEntity> array) {
+        if (HListShape<TEntity>.IsStandard && Storage is ArrayBuffer<TEntity> array) {
             // Migration can invoke callbacks after this copy.
             row = array.GetOwnedRow(slot);
             return true;
@@ -436,7 +424,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
     {
         GetEntityState(entity, out var slot);
         var mover = new FilteredHListMover(entity, this);
-        if (BulkHListShape<TList>.IsStandard && TryCopyManagedRow(slot, out var row)) {
+        if (HListShape<TList>.IsStandard && TryCopyRow(slot, out var row)) {
             row.Filter(EntityComponentPredicate<TList>.Instance, mover);
         }
         else Storage.GetRef(slot).Filter(EntityComponentPredicate<TList>.Instance, mover);
@@ -482,7 +470,7 @@ public partial class BufferEntityHost<TEntity, TBuffer>(TBuffer buffer)
             _entityStates?.Retire();
         }
         if (Storage is ArrayBuffer<TEntity> array) {
-            array.ClearOwnedRows();
+            array.ClearRows();
         }
         else {
             Storage.AsSpan()[..Storage.Count].Clear();
