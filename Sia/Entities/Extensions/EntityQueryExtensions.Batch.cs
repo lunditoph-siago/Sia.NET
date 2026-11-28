@@ -1,10 +1,19 @@
 using System.Buffers;
+using System.Runtime.CompilerServices;
 
 namespace Sia;
 
 public static partial class EntityQueryExtensions
 {
+    private const int InlineHostCount = 4;
+
     private readonly record struct HostSnapshot(IEntityHost Host, int Start, int Count);
+
+    [InlineArray(InlineHostCount)]
+    private struct HostSnapshots
+    {
+        private HostSnapshot _element;
+    }
 
     public static void Add<TComponent>(this IEntityQuery query)
         => query.Add(default(TComponent)!);
@@ -36,9 +45,19 @@ public static partial class EntityQueryExtensions
         var hosts = query.Hosts;
         var hostCount = hosts.Count;
         if (hostCount == 0) return;
-        var snapshots = ArrayPool<HostSnapshot>.Shared.Rent(hostCount);
+        HostSnapshots inline;
+        HostSnapshot[]? rented = null;
+        scoped Span<HostSnapshot> captured;
+        if (hostCount <= InlineHostCount) {
+            inline = default;
+            captured = inline[..hostCount];
+        }
+        else {
+            rented = ArrayPool<HostSnapshot>.Shared.Rent(hostCount);
+            captured = rented.AsSpan(0, hostCount);
+        }
+
         try {
-            var captured = snapshots.AsSpan(0, hostCount);
             var (count, directHost) = CaptureHosts(hosts, captured);
             if (count == 0) return;
 
@@ -55,7 +74,7 @@ public static partial class EntityQueryExtensions
             ApplySnapshots(captured, count, value, attempted, tryChange, change);
         }
         finally {
-            ArrayPool<HostSnapshot>.Shared.Return(snapshots, clearArray: true);
+            if (rented != null) ArrayPool<HostSnapshot>.Shared.Return(rented, clearArray: true);
         }
     }
 
